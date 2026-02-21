@@ -74,8 +74,8 @@ export class PostService {
       .values({
         cooperative_did: params.cooperativeDid,
         title: params.title ?? null,
-        thread_type: params.threadType ?? 'general',
-        status: 'active',
+        thread_type: params.threadType ?? 'discussion',
+        status: 'open',
         created_at: now,
         created_by: params.createdByDid,
       })
@@ -175,7 +175,7 @@ export class PostService {
         thread_id: params.threadId,
         author_did: params.authorDid,
         body: params.body,
-        body_format: 'text',
+        body_format: 'plain',
         parent_post_id: params.parentPostId ?? null,
         status: 'active',
         created_at: now,

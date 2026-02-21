@@ -46,6 +46,10 @@ export function markSetupComplete(): void {
   _setupComplete = true;
 }
 
+export function resetSetupCache(): void {
+  _setupComplete = null;
+}
+
 export const requireAuth: RequestHandler = async (req, res, next) => {
   try {
     const did = req.session?.did;
