@@ -1,6 +1,7 @@
 import { redirect, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types.js';
-import { createApiClient, ApiError } from '$lib/api/client.js';
+import { createApiClient } from '$lib/api/client.js';
+import { forwardSessionCookie } from '$lib/server/cookies.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
   if (locals.user) {
@@ -10,7 +11,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions: Actions = {
-  default: async ({ request, fetch }) => {
+  default: async ({ request, fetch, cookies }) => {
     const data = await request.formData();
     const displayName = String(data.get('displayName') ?? '').trim();
     const handle = String(data.get('handle') ?? '').trim();
@@ -22,15 +23,18 @@ export const actions: Actions = {
     }
 
     const api = createApiClient(fetch);
-    try {
-      await api.register({ displayName, handle, email, password });
-    } catch (err) {
-      if (err instanceof ApiError) {
-        return fail(err.status, { error: err.message });
-      }
-      return fail(500, { error: 'Registration failed. Please try again.' });
+    const res = await api.registerRaw({ displayName, handle, email, password });
+
+    if (!res.ok) {
+      let msg = 'Registration failed. Please try again.';
+      try {
+        const body = (await res.json()) as { message?: string; error?: string };
+        msg = body.message ?? body.error ?? msg;
+      } catch { /* ignore */ }
+      return fail(res.status, { error: msg });
     }
 
+    forwardSessionCookie(res, cookies);
     redirect(302, '/dashboard');
   },
 };

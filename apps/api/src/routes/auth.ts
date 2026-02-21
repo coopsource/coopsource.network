@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { Container } from '../container.js';
 import { asyncHandler } from '../lib/async-handler.js';
 import { requireAuth, requireSetup } from '../auth/middleware.js';
-import { ValidationError } from '@coopsource/common';
+import { ValidationError, RegisterSchema, LoginSchema } from '@coopsource/common';
 
 export function createAuthRoutes(container: Container): Router {
   const router = Router();
@@ -13,18 +13,7 @@ export function createAuthRoutes(container: Container): Router {
     requireSetup,
     asyncHandler(async (req, res) => {
       const { email, password, displayName, invitationToken } =
-        req.body as {
-          email?: string;
-          password?: string;
-          displayName?: string;
-          invitationToken?: string;
-        };
-
-      if (!email || !password || !displayName) {
-        throw new ValidationError(
-          'email, password, and displayName are required',
-        );
-      }
+        RegisterSchema.parse(req.body);
 
       // Get cooperative DID from system config
       const coopConfig = await container.db
@@ -96,14 +85,7 @@ export function createAuthRoutes(container: Container): Router {
   router.post(
     '/api/v1/auth/login',
     asyncHandler(async (req, res) => {
-      const { email, password } = req.body as {
-        email?: string;
-        password?: string;
-      };
-
-      if (!email || !password) {
-        throw new ValidationError('email and password are required');
-      }
+      const { email, password } = LoginSchema.parse(req.body);
 
       const result = await container.authService.login(email, password);
       req.session.did = result.did;

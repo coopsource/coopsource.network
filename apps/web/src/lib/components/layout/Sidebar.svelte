@@ -1,6 +1,6 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import type { ComponentType } from 'svelte';
+  import type { Component } from 'svelte';
   import LayoutDashboard from 'lucide-svelte/icons/layout-dashboard';
   import Users from 'lucide-svelte/icons/users';
   import Mail from 'lucide-svelte/icons/mail';
@@ -28,7 +28,7 @@
   interface NavItem {
     href: string;
     label: string;
-    icon: ComponentType;
+    icon: Component;
   }
 
   const mainNav: NavItem[] = [
@@ -88,6 +88,7 @@
             ? 'text-[var(--cs-sidebar-text-active)] bg-[var(--cs-sidebar-hover)]'
             : 'text-[var(--cs-sidebar-text)] hover:text-[var(--cs-sidebar-text-active)] hover:bg-[var(--cs-sidebar-hover)]'}"
         title={collapsed ? item.label : undefined}
+        aria-label={collapsed ? item.label : undefined}
       >
         <!-- Active indicator -->
         {#if active}
@@ -112,6 +113,7 @@
               ? 'text-[var(--cs-sidebar-text-active)] bg-[var(--cs-sidebar-hover)]'
               : 'text-[var(--cs-sidebar-text)] hover:text-[var(--cs-sidebar-text-active)] hover:bg-[var(--cs-sidebar-hover)]'}"
           title={collapsed ? item.label : undefined}
+        aria-label={collapsed ? item.label : undefined}
         >
           {#if active}
             <span class="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 rounded-r-full bg-[var(--cs-sidebar-accent)]"></span>

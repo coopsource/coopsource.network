@@ -3,7 +3,14 @@ import type { Container } from '../container.js';
 import { asyncHandler } from '../lib/async-handler.js';
 import { requireAuth } from '../auth/middleware.js';
 import { parsePagination } from '../lib/pagination.js';
-import { UnauthorizedError, NotFoundError, ValidationError } from '@coopsource/common';
+import {
+  UnauthorizedError,
+  NotFoundError,
+  ValidationError,
+  CreateThreadSchema,
+  CreatePostSchema,
+  UpdatePostSchema,
+} from '@coopsource/common';
 
 export function createPostRoutes(container: Container): Router {
   const router = Router();
@@ -27,11 +34,7 @@ export function createPostRoutes(container: Container): Router {
     '/api/v1/threads',
     requireAuth,
     asyncHandler(async (req, res) => {
-      const { title, threadType, memberDids } = req.body as {
-        title?: string;
-        threadType?: string;
-        memberDids?: string[];
-      };
+      const { title, threadType, memberDids } = CreateThreadSchema.parse(req.body);
 
       const thread = await container.postService.createThread({
         cooperativeDid: req.actor!.cooperativeDid,
@@ -75,14 +78,7 @@ export function createPostRoutes(container: Container): Router {
         throw new UnauthorizedError('Not a member of this thread');
       }
 
-      const { body, parentPostId } = req.body as {
-        body?: string;
-        parentPostId?: string;
-      };
-
-      if (!body) {
-        throw new ValidationError('body is required');
-      }
+      const { body, parentPostId } = CreatePostSchema.parse(req.body);
 
       const post = await container.postService.createPost({
         threadId: (req.params.id as string),
@@ -120,8 +116,7 @@ export function createPostRoutes(container: Container): Router {
     '/api/v1/posts/:id',
     requireAuth,
     asyncHandler(async (req, res) => {
-      const { body } = req.body as { body?: string };
-      if (!body) throw new ValidationError('body is required');
+      const { body } = UpdatePostSchema.parse(req.body);
 
       const post = await container.postService.updatePost(
         (req.params.id as string),

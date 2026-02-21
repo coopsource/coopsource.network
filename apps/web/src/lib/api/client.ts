@@ -101,6 +101,17 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string) {
         body: JSON.stringify(body),
       }),
 
+    registerRaw: (body: {
+      displayName: string;
+      handle: string;
+      email: string;
+      password: string;
+    }) =>
+      rawRequest('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+
     login: (body: { email: string; password: string }) =>
       request<AuthUser>('/auth/login', {
         method: 'POST',

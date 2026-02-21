@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { DID } from '@coopsource/common';
-import { ValidationError } from '@coopsource/common';
+import { ValidationError, SetupInitializeSchema } from '@coopsource/common';
 import type { Container } from '../container.js';
 import { asyncHandler } from '../lib/async-handler.js';
 import {
@@ -30,57 +30,26 @@ export function createSetupRoutes(container: Container): Router {
       }
 
       const { coopName, coopDescription, adminEmail, adminPassword, adminDisplayName } =
-        req.body as {
-          coopName: string;
-          coopDescription?: string;
-          adminEmail: string;
-          adminPassword: string;
-          adminDisplayName: string;
-        };
-
-      if (!coopName || !adminEmail || !adminPassword || !adminDisplayName) {
-        throw new ValidationError(
-          'coopName, adminEmail, adminPassword, and adminDisplayName are required',
-        );
-      }
+        SetupInitializeSchema.parse(req.body);
 
       const now = container.clock.now();
+      const { hash } = await import('bcrypt');
+      const secretHash = await hash(adminPassword, 12);
 
-      // Create cooperative entity (DID via pdsService.createDid)
+      // Create DIDs outside the transaction (PDS operations are not DB-transactional)
       const coopDidDoc = await container.pdsService.createDid({
         entityType: 'cooperative',
-        pdsUrl: 'http://localhost:3001',
+        pdsUrl: process.env.INSTANCE_URL ?? 'http://localhost:3001',
       });
       const coopDid = coopDidDoc.id;
 
-      // Insert cooperative entity
-      await container.db
-        .insertInto('entity')
-        .values({
-          did: coopDid,
-          type: 'cooperative',
-          display_name: coopName,
-          description: coopDescription ?? null,
-          status: 'active',
-          created_at: now,
-          indexed_at: now,
-        })
-        .execute();
+      const adminDidDoc = await container.pdsService.createDid({
+        entityType: 'person',
+        pdsUrl: process.env.INSTANCE_URL ?? 'http://localhost:3001',
+      });
+      const adminDid = adminDidDoc.id;
 
-      // Insert cooperative_profile
-      await container.db
-        .insertInto('cooperative_profile')
-        .values({
-          entity_did: coopDid,
-          cooperative_type: 'worker',
-          is_network: false,
-          membership_policy: 'invite_only',
-          created_at: now,
-          indexed_at: now,
-        })
-        .execute();
-
-      // Write org.cooperative PDS record
+      // Write PDS records outside the transaction
       await container.pdsService.createRecord({
         did: coopDid as DID,
         collection: 'network.coopsource.org.cooperative',
@@ -92,55 +61,6 @@ export function createSetupRoutes(container: Container): Router {
         },
       });
 
-      // Create admin entity (person DID)
-      const adminDidDoc = await container.pdsService.createDid({
-        entityType: 'person',
-        pdsUrl: 'http://localhost:3001',
-      });
-      const adminDid = adminDidDoc.id;
-
-      // Insert admin entity
-      await container.db
-        .insertInto('entity')
-        .values({
-          did: adminDid,
-          type: 'person',
-          display_name: adminDisplayName,
-          status: 'active',
-          created_at: now,
-          indexed_at: now,
-        })
-        .execute();
-
-      // Create auth credential for admin
-      const { hash } = await import('bcrypt');
-      const secretHash = await hash(adminPassword, 12);
-      await container.db
-        .insertInto('auth_credential')
-        .values({
-          entity_did: adminDid,
-          credential_type: 'password',
-          identifier: adminEmail,
-          secret_hash: secretHash,
-          created_at: now,
-        })
-        .execute();
-
-      // Create membership (admin is owner)
-      const [membership] = await container.db
-        .insertInto('membership')
-        .values({
-          member_did: adminDid,
-          cooperative_did: coopDid,
-          status: 'active',
-          joined_at: now,
-          created_at: now,
-          indexed_at: now,
-        })
-        .returning('id')
-        .execute();
-
-      // Write org.membership PDS record (member's assertion)
       const memberRef = await container.pdsService.createRecord({
         did: adminDid as DID,
         collection: 'network.coopsource.org.membership',
@@ -150,17 +70,6 @@ export function createSetupRoutes(container: Container): Router {
         },
       });
 
-      // Update membership with member record
-      await container.db
-        .updateTable('membership')
-        .set({
-          member_record_uri: memberRef.uri,
-          member_record_cid: memberRef.cid,
-        })
-        .where('id', '=', membership!.id)
-        .execute();
-
-      // Write memberApproval PDS record (co-op's approval)
       const approvalRef = await container.pdsService.createRecord({
         did: coopDid as DID,
         collection: 'network.coopsource.org.memberApproval',
@@ -171,49 +80,98 @@ export function createSetupRoutes(container: Container): Router {
         },
       });
 
-      // Update membership with approval record
-      await container.db
-        .updateTable('membership')
-        .set({
-          approval_record_uri: approvalRef.uri,
-          approval_record_cid: approvalRef.cid,
-        })
-        .where('id', '=', membership!.id)
-        .execute();
-
-      // Set roles
-      await container.db
-        .insertInto('membership_role')
-        .values([
-          {
-            membership_id: membership!.id,
-            role: 'owner',
+      // All DB writes wrapped in a transaction
+      await container.db.transaction().execute(async (trx) => {
+        // Insert cooperative entity
+        await trx
+          .insertInto('entity')
+          .values({
+            did: coopDid,
+            type: 'cooperative',
+            display_name: coopName,
+            description: coopDescription ?? null,
+            status: 'active',
+            created_at: now,
             indexed_at: now,
-          },
-          {
-            membership_id: membership!.id,
-            role: 'admin',
+          })
+          .execute();
+
+        // Insert cooperative_profile
+        await trx
+          .insertInto('cooperative_profile')
+          .values({
+            entity_did: coopDid,
+            cooperative_type: 'worker',
+            is_network: false,
+            membership_policy: 'invite_only',
+            created_at: now,
             indexed_at: now,
-          },
-        ])
-        .execute();
+          })
+          .execute();
 
-      // Set system_config
-      await container.db
-        .insertInto('system_config')
-        .values({
-          key: 'setup_complete',
-          value: JSON.stringify(true),
-        })
-        .execute();
+        // Insert admin entity
+        await trx
+          .insertInto('entity')
+          .values({
+            did: adminDid,
+            type: 'person',
+            display_name: adminDisplayName,
+            status: 'active',
+            created_at: now,
+            indexed_at: now,
+          })
+          .execute();
 
-      await container.db
-        .insertInto('system_config')
-        .values({
-          key: 'cooperative_did',
-          value: JSON.stringify(coopDid),
-        })
-        .execute();
+        // Create auth credential for admin
+        await trx
+          .insertInto('auth_credential')
+          .values({
+            entity_did: adminDid,
+            credential_type: 'password',
+            identifier: adminEmail,
+            secret_hash: secretHash,
+            created_at: now,
+          })
+          .execute();
+
+        // Create membership (admin is owner)
+        const [membership] = await trx
+          .insertInto('membership')
+          .values({
+            member_did: adminDid,
+            cooperative_did: coopDid,
+            status: 'active',
+            joined_at: now,
+            member_record_uri: memberRef.uri,
+            member_record_cid: memberRef.cid,
+            approval_record_uri: approvalRef.uri,
+            approval_record_cid: approvalRef.cid,
+            created_at: now,
+            indexed_at: now,
+          })
+          .returning('id')
+          .execute();
+
+        // Set roles
+        await trx
+          .insertInto('membership_role')
+          .values([
+            { membership_id: membership!.id, role: 'owner', indexed_at: now },
+            { membership_id: membership!.id, role: 'admin', indexed_at: now },
+          ])
+          .execute();
+
+        // Set system_config
+        await trx
+          .insertInto('system_config')
+          .values({ key: 'setup_complete', value: JSON.stringify(true) })
+          .execute();
+
+        await trx
+          .insertInto('system_config')
+          .values({ key: 'cooperative_did', value: JSON.stringify(coopDid) })
+          .execute();
+      });
 
       markSetupComplete();
 

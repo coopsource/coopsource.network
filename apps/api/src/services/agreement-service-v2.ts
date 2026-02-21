@@ -288,7 +288,6 @@ export class AgreementServiceV2 {
       .updateTable('agreement')
       .set({
         status: 'voided',
-        invalidated_at: now,
         indexed_at: now,
       })
       .where('id', '=', id)

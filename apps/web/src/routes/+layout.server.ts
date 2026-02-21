@@ -1,7 +1,8 @@
-import { redirect } from '@sveltejs/kit';
+import { redirect, isRedirect } from '@sveltejs/kit';
+import { env } from '$env/dynamic/private';
 import type { LayoutServerLoad } from './$types.js';
 
-const API_BASE = process.env.API_URL ?? 'http://localhost:3099';
+const API_BASE = env.API_URL ?? 'http://localhost:3001';
 
 export const load: LayoutServerLoad = async ({ locals, url, fetch }) => {
   // Check setup status first
@@ -13,7 +14,8 @@ export const load: LayoutServerLoad = async ({ locals, url, fetch }) => {
         redirect(302, '/setup');
       }
     }
-  } catch {
+  } catch (err) {
+    if (isRedirect(err)) throw err;
     // If setup check fails, continue (API might not be running yet)
   }
 

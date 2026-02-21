@@ -3,7 +3,13 @@ import type { Container } from '../../container.js';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { requireAuth, requireAdmin } from '../../auth/middleware.js';
 import { parsePagination } from '../../lib/pagination.js';
-import { NotFoundError, ValidationError } from '@coopsource/common';
+import {
+  NotFoundError,
+  ValidationError,
+  CreateProposalBodySchema,
+  UpdateProposalBodySchema,
+  CastVoteSchema,
+} from '@coopsource/common';
 import {
   formatProposal,
   formatVote,
@@ -82,24 +88,7 @@ export function createProposalRoutes(container: Container): Router {
         quorumThreshold,
         closesAt,
         tags,
-      } = req.body as {
-        title?: string;
-        body?: string;
-        bodyFormat?: string;
-        votingType?: string;
-        options?: unknown[];
-        quorumType?: string;
-        quorumBasis?: string;
-        quorumThreshold?: number;
-        closesAt?: string;
-        tags?: string[];
-      };
-
-      if (!title || !body || !votingType || !quorumType) {
-        throw new ValidationError(
-          'title, body, votingType, and quorumType are required',
-        );
-      }
+      } = CreateProposalBodySchema.parse(req.body);
 
       const proposal = await container.proposalService.createProposal(
         req.actor!.did,
@@ -158,12 +147,7 @@ export function createProposalRoutes(container: Container): Router {
         throw new ValidationError('Can only edit draft proposals');
       }
 
-      const { title, body, closesAt, tags } = req.body as {
-        title?: string;
-        body?: string;
-        closesAt?: string;
-        tags?: string[];
-      };
+      const { title, body, closesAt, tags } = UpdateProposalBodySchema.parse(req.body);
 
       const [updated] = await container.db
         .updateTable('proposal')
@@ -290,11 +274,7 @@ export function createProposalRoutes(container: Container): Router {
     '/api/v1/proposals/:id/vote',
     requireAuth,
     asyncHandler(async (req, res) => {
-      const { choice, rationale } = req.body as {
-        choice?: string;
-        rationale?: string;
-      };
-      if (!choice) throw new ValidationError('choice is required');
+      const { choice, rationale } = CastVoteSchema.parse(req.body);
 
       const vote = await container.proposalService.castVote({
         proposalId: (req.params.id as string),

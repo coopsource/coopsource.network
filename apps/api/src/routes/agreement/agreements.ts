@@ -3,7 +3,14 @@ import type { Container } from '../../container.js';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { requireAuth, requireAdmin } from '../../auth/middleware.js';
 import { parsePagination } from '../../lib/pagination.js';
-import { NotFoundError, ValidationError } from '@coopsource/common';
+import {
+  NotFoundError,
+  ValidationError,
+  CreateAgreementBodySchema,
+  UpdateAgreementBodySchema,
+  SignAgreementSchema,
+  RetractSignatureSchema,
+} from '@coopsource/common';
 import {
   formatAgreement,
   type AgreementResponse,
@@ -73,19 +80,7 @@ export function createAgreementRoutes(container: Container): Router {
     requireAuth,
     asyncHandler(async (req, res) => {
       const { title, body, bodyFormat, agreementType, partyDids } =
-        req.body as {
-          title?: string;
-          body?: string;
-          bodyFormat?: string;
-          agreementType?: string;
-          partyDids?: string[];
-        };
-
-      if (!title || !body || !agreementType) {
-        throw new ValidationError(
-          'title, body, and agreementType are required',
-        );
-      }
+        CreateAgreementBodySchema.parse(req.body);
 
       const agreement = await container.agreementService.createAgreement(
         req.actor!.did,
@@ -146,10 +141,7 @@ export function createAgreementRoutes(container: Container): Router {
         throw new ValidationError('Can only edit draft agreements');
       }
 
-      const { title, body } = req.body as {
-        title?: string;
-        body?: string;
-      };
+      const { title, body } = UpdateAgreementBodySchema.parse(req.body);
 
       const [updated] = await container.db
         .updateTable('agreement')
@@ -184,7 +176,7 @@ export function createAgreementRoutes(container: Container): Router {
     '/api/v1/agreements/:id/sign',
     requireAuth,
     asyncHandler(async (req, res) => {
-      const { statement } = req.body as { statement?: string };
+      const { statement } = SignAgreementSchema.parse(req.body);
       await container.agreementService.sign(
         (req.params.id as string),
         req.actor!.did,
@@ -205,7 +197,7 @@ export function createAgreementRoutes(container: Container): Router {
     '/api/v1/agreements/:id/sign',
     requireAuth,
     asyncHandler(async (req, res) => {
-      const { reason } = req.body as { reason?: string };
+      const { reason } = RetractSignatureSchema.parse(req.body);
       await container.agreementService.retractSignature(
         (req.params.id as string),
         req.actor!.did,

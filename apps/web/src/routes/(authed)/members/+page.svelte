@@ -1,8 +1,6 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import Badge from '$lib/components/Badge.svelte';
-  import EmptyState from '$lib/components/EmptyState.svelte';
-  import Modal from '$lib/components/Modal.svelte';
+  import { Badge, EmptyState, Modal } from '$lib/components/ui';
 
   let { data, form } = $props();
 
@@ -15,6 +13,15 @@
       inviteOpen = false;
     }
   });
+
+  function statusToVariant(status: string): 'success' | 'warning' | 'danger' | 'default' {
+    switch (status) {
+      case 'active': case 'accepted': case 'resolved': case 'signed': return 'success';
+      case 'pending': case 'open': case 'closed': return 'warning';
+      case 'revoked': case 'void': case 'voided': return 'danger';
+      default: return 'default';
+    }
+  }
 </script>
 
 <svelte:head>
@@ -23,7 +30,7 @@
 
 <div class="space-y-4">
   <div class="flex items-center justify-between">
-    <h1 class="text-xl font-semibold text-gray-900">Members</h1>
+    <h1 class="text-xl font-semibold text-[var(--cs-text)]">Members</h1>
     <button
       type="button"
       onclick={() => (inviteOpen = true)}
@@ -40,46 +47,46 @@
   {#if data.members.length === 0}
     <EmptyState title="No members yet" description="Invite someone to join your cooperative." />
   {:else}
-    <div class="rounded-lg border border-gray-200 bg-white">
+    <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)]">
       <table class="w-full text-sm">
         <thead>
-          <tr class="border-b border-gray-200 text-left">
-            <th class="px-4 py-3 font-medium text-gray-600">Name</th>
-            <th class="px-4 py-3 font-medium text-gray-600">Roles</th>
-            <th class="px-4 py-3 font-medium text-gray-600">Status</th>
-            <th class="px-4 py-3 font-medium text-gray-600">Joined</th>
+          <tr class="border-b border-[var(--cs-border)] text-left">
+            <th class="px-4 py-3 font-medium text-[var(--cs-text-secondary)]">Name</th>
+            <th class="px-4 py-3 font-medium text-[var(--cs-text-secondary)]">Roles</th>
+            <th class="px-4 py-3 font-medium text-[var(--cs-text-secondary)]">Status</th>
+            <th class="px-4 py-3 font-medium text-[var(--cs-text-secondary)]">Joined</th>
             <th class="px-4 py-3"></th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-gray-100">
+        <tbody class="divide-y divide-[var(--cs-border)]">
           {#each data.members as member}
             <tr>
               <td class="px-4 py-3">
-                <div class="font-medium text-gray-900">{member.displayName}</div>
+                <div class="font-medium text-[var(--cs-text)]">{member.displayName}</div>
                 {#if member.handle}
-                  <div class="text-xs text-gray-500">@{member.handle}</div>
+                  <div class="text-xs text-[var(--cs-text-muted)]">@{member.handle}</div>
                 {/if}
                 {#if member.email}
-                  <div class="text-xs text-gray-400">{member.email}</div>
+                  <div class="text-xs text-[var(--cs-text-muted)]">{member.email}</div>
                 {/if}
               </td>
               <td class="px-4 py-3">
                 {#if member.roles.length > 0}
                   <div class="flex flex-wrap gap-1">
                     {#each member.roles as role}
-                      <span class="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700"
+                      <span class="rounded bg-[var(--cs-bg-inset)] px-1.5 py-0.5 text-xs text-[var(--cs-text-secondary)]"
                         >{role}</span
                       >
                     {/each}
                   </div>
                 {:else}
-                  <span class="text-gray-400">—</span>
+                  <span class="text-[var(--cs-text-muted)]">—</span>
                 {/if}
               </td>
               <td class="px-4 py-3">
-                <Badge status={member.status} />
+                <Badge variant={statusToVariant(member.status)}>{member.status}</Badge>
               </td>
-              <td class="px-4 py-3 text-gray-500">
+              <td class="px-4 py-3 text-[var(--cs-text-muted)]">
                 {new Date(member.joinedAt).toLocaleDateString()}
               </td>
               <td class="px-4 py-3 text-right">
@@ -100,7 +107,7 @@
 </div>
 
 <!-- Invite Modal -->
-<Modal open={inviteOpen} title="Invite Member" onClose={() => (inviteOpen = false)}>
+<Modal open={inviteOpen} title="Invite Member" onclose={() => (inviteOpen = false)}>
   {#if form?.inviteError}
     <div class="mb-3 rounded-md bg-red-50 p-3 text-sm text-red-700">{form.inviteError}</div>
   {/if}
@@ -117,37 +124,37 @@
     class="space-y-4"
   >
     <div>
-      <label for="inviteEmail" class="block text-sm font-medium text-gray-700">Email</label>
+      <label for="inviteEmail" class="block text-sm font-medium text-[var(--cs-text-secondary)]">Email</label>
       <input
         id="inviteEmail"
         name="email"
         type="email"
         required
-        class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
         placeholder="member@example.com"
       />
     </div>
     <div>
-      <label for="inviteRoles" class="block text-sm font-medium text-gray-700">
-        Roles <span class="text-gray-400">(comma-separated)</span>
+      <label for="inviteRoles" class="block text-sm font-medium text-[var(--cs-text-secondary)]">
+        Roles <span class="text-[var(--cs-text-muted)]">(comma-separated)</span>
       </label>
       <input
         id="inviteRoles"
         name="roles"
         type="text"
-        class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
         placeholder="member, admin"
       />
     </div>
     <div>
-      <label for="inviteMessage" class="block text-sm font-medium text-gray-700">
-        Message <span class="text-gray-400">(optional)</span>
+      <label for="inviteMessage" class="block text-sm font-medium text-[var(--cs-text-secondary)]">
+        Message <span class="text-[var(--cs-text-muted)]">(optional)</span>
       </label>
       <textarea
         id="inviteMessage"
         name="message"
         rows={2}
-        class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
         placeholder="Welcome to our co-op!"
       ></textarea>
     </div>
@@ -155,7 +162,7 @@
       <button
         type="button"
         onclick={() => (inviteOpen = false)}
-        class="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+        class="rounded-md border border-[var(--cs-border)] px-3 py-1.5 text-sm text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)]"
       >
         Cancel
       </button>
@@ -174,9 +181,9 @@
 <Modal
   open={confirmRemoveDid !== null}
   title="Remove Member"
-  onClose={() => (confirmRemoveDid = null)}
+  onclose={() => (confirmRemoveDid = null)}
 >
-  <p class="mb-4 text-sm text-gray-600">
+  <p class="mb-4 text-sm text-[var(--cs-text-secondary)]">
     Are you sure you want to remove this member from the cooperative?
   </p>
   <form method="POST" action="?/remove" use:enhance>
@@ -185,7 +192,7 @@
       <button
         type="button"
         onclick={() => (confirmRemoveDid = null)}
-        class="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+        class="rounded-md border border-[var(--cs-border)] px-3 py-1.5 text-sm text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)]"
       >
         Cancel
       </button>

@@ -17,7 +17,8 @@
     ...rest
   }: Props = $props();
 
-  const inputId = $derived(id ?? label?.toLowerCase().replace(/\s+/g, '-'));
+  const uid = typeof crypto !== 'undefined' ? crypto.randomUUID().slice(0, 8) : Math.random().toString(36).slice(2, 10);
+  const inputId = $derived(id ?? `textarea-${uid}`);
 </script>
 
 <div class="flex flex-col gap-1.5 {className}">

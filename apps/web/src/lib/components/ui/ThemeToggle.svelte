@@ -15,7 +15,11 @@
 
   type Theme = 'light' | 'dark' | 'system';
 
-  let theme = $state<Theme>('system');
+  let theme = $state<Theme>(
+    typeof localStorage !== 'undefined'
+      ? ((localStorage.getItem('theme') ?? 'system') as Theme)
+      : 'system',
+  );
 
   function applyTheme(t: Theme) {
     if (typeof document === 'undefined') return;
@@ -40,16 +44,6 @@
     theme = t;
     applyTheme(t);
   }
-
-  // Initialize from localStorage on mount
-  $effect(() => {
-    if (typeof localStorage !== 'undefined') {
-      const saved = localStorage.getItem('theme') as Theme | null;
-      if (saved === 'light' || saved === 'dark') {
-        theme = saved;
-      }
-    }
-  });
 
   const icons = { light: Sun, dark: Moon, system: Monitor };
   const Icon = $derived(icons[theme]);

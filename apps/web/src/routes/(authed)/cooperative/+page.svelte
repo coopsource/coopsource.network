@@ -1,6 +1,6 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import Badge from '$lib/components/Badge.svelte';
+  import { Badge } from '$lib/components/ui';
 
   let { data, form } = $props();
 
@@ -8,6 +8,15 @@
   let submitting = $state(false);
 
   const coop = $derived(form?.cooperative ?? data.cooperative);
+
+  function statusToVariant(status: string): 'success' | 'warning' | 'danger' | 'default' {
+    switch (status) {
+      case 'active': case 'accepted': case 'resolved': case 'signed': return 'success';
+      case 'pending': case 'open': case 'closed': return 'warning';
+      case 'revoked': case 'void': case 'voided': return 'danger';
+      default: return 'default';
+    }
+  }
 </script>
 
 <svelte:head>
@@ -16,7 +25,7 @@
 
 <div class="space-y-6">
   <div class="flex items-center justify-between">
-    <h1 class="text-xl font-semibold text-gray-900">Co-op Settings</h1>
+    <h1 class="text-xl font-semibold text-[var(--cs-text)]">Co-op Settings</h1>
     {#if !editing}
       <button
         type="button"
@@ -37,7 +46,7 @@
   {/if}
 
   {#if editing}
-    <div class="rounded-lg border border-gray-200 bg-white p-5">
+    <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-5">
       <form
         method="POST"
         action="?/update"
@@ -52,7 +61,7 @@
         class="space-y-4"
       >
         <div>
-          <label for="displayName" class="block text-sm font-medium text-gray-700">
+          <label for="displayName" class="block text-sm font-medium text-[var(--cs-text-secondary)]">
             Display Name
           </label>
           <input
@@ -61,12 +70,12 @@
             type="text"
             required
             value={coop.displayName}
-            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
           />
         </div>
 
         <div>
-          <label for="description" class="block text-sm font-medium text-gray-700">
+          <label for="description" class="block text-sm font-medium text-[var(--cs-text-secondary)]">
             Description
           </label>
           <textarea
@@ -74,19 +83,19 @@
             name="description"
             rows={3}
             value={coop.description ?? ''}
-            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
             placeholder="Describe your cooperative…"
           ></textarea>
         </div>
 
         <div>
-          <label for="website" class="block text-sm font-medium text-gray-700">Website</label>
+          <label for="website" class="block text-sm font-medium text-[var(--cs-text-secondary)]">Website</label>
           <input
             id="website"
             name="website"
             type="url"
             value={coop.website ?? ''}
-            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
             placeholder="https://example.com"
           />
         </div>
@@ -102,7 +111,7 @@
           <button
             type="button"
             onclick={() => (editing = false)}
-            class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            class="rounded-md border border-[var(--cs-border)] px-4 py-2 text-sm font-medium text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)]"
           >
             Cancel
           </button>
@@ -110,31 +119,31 @@
       </form>
     </div>
   {:else}
-    <div class="rounded-lg border border-gray-200 bg-white p-5">
+    <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-5">
       <dl class="space-y-4">
         <div>
-          <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Name</dt>
-          <dd class="mt-1 text-sm text-gray-900">{coop.displayName}</dd>
+          <dt class="text-xs font-medium uppercase tracking-wide text-[var(--cs-text-muted)]">Name</dt>
+          <dd class="mt-1 text-sm text-[var(--cs-text)]">{coop.displayName}</dd>
         </div>
         {#if coop.handle}
           <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Handle</dt>
-            <dd class="mt-1 text-sm text-gray-900">@{coop.handle}</dd>
+            <dt class="text-xs font-medium uppercase tracking-wide text-[var(--cs-text-muted)]">Handle</dt>
+            <dd class="mt-1 text-sm text-[var(--cs-text)]">@{coop.handle}</dd>
           </div>
         {/if}
         <div>
-          <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Status</dt>
-          <dd class="mt-1"><Badge status={coop.status} /></dd>
+          <dt class="text-xs font-medium uppercase tracking-wide text-[var(--cs-text-muted)]">Status</dt>
+          <dd class="mt-1"><Badge variant={statusToVariant(coop.status)}>{coop.status}</Badge></dd>
         </div>
         {#if coop.description}
           <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Description</dt>
-            <dd class="mt-1 text-sm text-gray-700">{coop.description}</dd>
+            <dt class="text-xs font-medium uppercase tracking-wide text-[var(--cs-text-muted)]">Description</dt>
+            <dd class="mt-1 text-sm text-[var(--cs-text-secondary)]">{coop.description}</dd>
           </div>
         {/if}
         {#if coop.website}
           <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Website</dt>
+            <dt class="text-xs font-medium uppercase tracking-wide text-[var(--cs-text-muted)]">Website</dt>
             <dd class="mt-1">
               <a
                 href={coop.website}
@@ -148,12 +157,12 @@
           </div>
         {/if}
         <div>
-          <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">DID</dt>
-          <dd class="mt-1 font-mono text-xs text-gray-500">{coop.did}</dd>
+          <dt class="text-xs font-medium uppercase tracking-wide text-[var(--cs-text-muted)]">DID</dt>
+          <dd class="mt-1 font-mono text-xs text-[var(--cs-text-muted)]">{coop.did}</dd>
         </div>
         <div>
-          <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Created</dt>
-          <dd class="mt-1 text-sm text-gray-700">
+          <dt class="text-xs font-medium uppercase tracking-wide text-[var(--cs-text-muted)]">Created</dt>
+          <dd class="mt-1 text-sm text-[var(--cs-text-secondary)]">
             {new Date(coop.createdAt).toLocaleDateString()}
           </dd>
         </div>

@@ -16,16 +16,13 @@
     children,
   }: Props = $props();
 
-  let collapsed = $state(false);
+  let collapsed = $state(
+    typeof localStorage !== 'undefined'
+      ? localStorage.getItem('sidebar-collapsed') === 'true'
+      : false,
+  );
 
-  // Persist sidebar state
-  $effect(() => {
-    if (typeof localStorage !== 'undefined') {
-      const saved = localStorage.getItem('sidebar-collapsed');
-      if (saved === 'true') collapsed = true;
-    }
-  });
-
+  // Persist sidebar state on change
   $effect(() => {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('sidebar-collapsed', String(collapsed));

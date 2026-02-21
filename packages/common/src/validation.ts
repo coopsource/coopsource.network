@@ -546,3 +546,105 @@ export type CreateAgentConfigInput = z.infer<typeof CreateAgentConfigSchema>;
 export type UpdateAgentConfigInput = z.infer<typeof UpdateAgentConfigSchema>;
 export type SendAgentMessageInput = z.infer<typeof SendAgentMessageSchema>;
 export type CreateAgentFromTemplateInput = z.infer<typeof CreateAgentFromTemplateSchema>;
+
+// --- Route-Level Request Body Schemas ---
+// Used by API route handlers for runtime validation
+
+export const SetupInitializeSchema = z.object({
+  coopName: z.string().min(1).max(255),
+  coopDescription: z.string().max(2000).optional(),
+  adminEmail: z.string().email(),
+  adminPassword: z.string().min(8).max(256),
+  adminDisplayName: z.string().min(1).max(255),
+});
+
+export const RegisterSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8).max(256),
+  displayName: z.string().min(1).max(255),
+  invitationToken: z.string().optional(),
+});
+
+export const LoginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+
+export const UpdateCoopSchema = z.object({
+  displayName: z.string().min(1).max(255).optional(),
+  description: z.string().max(2000).optional(),
+  website: z.string().url().optional(),
+});
+
+export const CreateInvitationSchema = z.object({
+  email: z.string().email(),
+  roles: z.array(z.string().min(1)).optional(),
+  intendedRoles: z.array(z.string().min(1)).optional(),
+  message: z.string().max(2000).optional(),
+});
+
+export const AcceptInvitationSchema = z.object({
+  displayName: z.string().min(1).max(255),
+  handle: z.string().max(255).optional(),
+  password: z.string().min(8).max(256),
+});
+
+export const UpdateRolesSchema = z.object({
+  roles: z.array(z.string().min(1)),
+});
+
+export const CreateProposalBodySchema = z.object({
+  title: z.string().min(1).max(256),
+  body: z.string().min(1).max(50000),
+  bodyFormat: z.string().max(50).optional(),
+  votingType: z.string().min(1),
+  options: z.array(z.unknown()).optional(),
+  quorumType: z.string().min(1),
+  quorumBasis: z.string().optional(),
+  quorumThreshold: z.number().min(0).max(1).optional(),
+  closesAt: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+});
+
+export const UpdateProposalBodySchema = z.object({
+  title: z.string().min(1).max(256).optional(),
+  body: z.string().min(1).max(50000).optional(),
+  closesAt: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+});
+
+export const CreateAgreementBodySchema = z.object({
+  title: z.string().min(1).max(255),
+  body: z.string().min(1).max(50000),
+  bodyFormat: z.string().max(50).optional(),
+  agreementType: z.string().min(1),
+  partyDids: z.array(z.string()).optional(),
+});
+
+export const UpdateAgreementBodySchema = z.object({
+  title: z.string().min(1).max(255).optional(),
+  body: z.string().min(1).max(50000).optional(),
+});
+
+export const CreateThreadSchema = z.object({
+  title: z.string().max(255).optional(),
+  threadType: z.string().max(50).optional(),
+  memberDids: z.array(z.string()).optional(),
+});
+
+export const CreatePostSchema = z.object({
+  body: z.string().min(1).max(50000),
+  parentPostId: z.string().optional(),
+});
+
+export const UpdatePostSchema = z.object({
+  body: z.string().min(1).max(50000),
+});
+
+export const SignAgreementSchema = z.object({
+  statement: z.string().max(2000).optional(),
+});
+
+export const RetractSignatureSchema = z.object({
+  reason: z.string().max(2000).optional(),
+});

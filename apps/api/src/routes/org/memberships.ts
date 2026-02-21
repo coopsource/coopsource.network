@@ -4,6 +4,11 @@ import { asyncHandler } from '../../lib/async-handler.js';
 import { requireAuth, requireAdmin } from '../../auth/middleware.js';
 import { parsePagination } from '../../lib/pagination.js';
 import { formatInvitation } from '../../lib/formatters.js';
+import {
+  CreateInvitationSchema,
+  AcceptInvitationSchema,
+  UpdateRolesSchema,
+} from '@coopsource/common';
 
 export function createMembershipRoutes(container: Container): Router {
   const router = Router();
@@ -100,7 +105,7 @@ export function createMembershipRoutes(container: Container): Router {
     requireAuth,
     requireAdmin,
     asyncHandler(async (req, res) => {
-      const { roles } = req.body as { roles: string[] };
+      const { roles } = UpdateRolesSchema.parse(req.body);
       await container.membershipService.updateMemberRoles(
         req.actor!.cooperativeDid,
         (req.params.did as string),
@@ -162,12 +167,7 @@ export function createMembershipRoutes(container: Container): Router {
     requireAuth,
     requireAdmin,
     asyncHandler(async (req, res) => {
-      const { email, roles, intendedRoles, message } = req.body as {
-        email: string;
-        roles?: string[];
-        intendedRoles?: string[];
-        message?: string;
-      };
+      const { email, roles, intendedRoles, message } = CreateInvitationSchema.parse(req.body);
 
       const invitation =
         await container.membershipService.createInvitation({
@@ -230,16 +230,7 @@ export function createMembershipRoutes(container: Container): Router {
   router.post(
     '/api/v1/invitations/:token/accept',
     asyncHandler(async (req, res) => {
-      const { displayName, handle, password } = req.body as {
-        displayName?: string;
-        handle?: string;
-        password?: string;
-      };
-
-      if (!displayName || !password) {
-        res.status(400).json({ error: 'ValidationError', message: 'displayName and password are required' });
-        return;
-      }
+      const { displayName, handle, password } = AcceptInvitationSchema.parse(req.body);
 
       // Validate invitation
       const inv = await container.db
@@ -262,55 +253,16 @@ export function createMembershipRoutes(container: Container): Router {
 
       const now = container.clock.now();
       const { hash } = await import('bcrypt');
+      const secretHash = await hash(password, 12);
+      const roles = inv.intended_roles ?? ['member'];
 
-      // Create member DID
+      // Create DID and PDS records outside the transaction (non-DB operations)
       const memberDidDoc = await container.pdsService.createDid({
         entityType: 'person',
         pdsUrl: process.env.INSTANCE_URL ?? 'http://localhost:3001',
       });
       const memberDid = memberDidDoc.id;
 
-      // Create entity
-      await container.db
-        .insertInto('entity')
-        .values({
-          did: memberDid,
-          type: 'person',
-          display_name: displayName,
-          handle: handle ?? null,
-          status: 'active',
-          created_at: now,
-          indexed_at: now,
-        })
-        .execute();
-
-      // Create auth credential
-      const secretHash = await hash(password, 12);
-      await container.db
-        .insertInto('auth_credential')
-        .values({
-          entity_did: memberDid,
-          credential_type: 'password',
-          identifier: inv.invitee_email ?? `${handle ?? memberDid}@${inv.cooperative_did}`,
-          secret_hash: secretHash,
-          created_at: now,
-        })
-        .execute();
-
-      // Create membership row
-      const [membership] = await container.db
-        .insertInto('membership')
-        .values({
-          member_did: memberDid,
-          cooperative_did: inv.cooperative_did,
-          status: 'pending',
-          created_at: now,
-          indexed_at: now,
-        })
-        .returning('id')
-        .execute();
-
-      // Write member assertion PDS record
       const memberRef = await container.pdsService.createRecord({
         did: memberDid as import('@coopsource/common').DID,
         collection: 'network.coopsource.org.membership',
@@ -321,14 +273,6 @@ export function createMembershipRoutes(container: Container): Router {
         },
       });
 
-      await container.db
-        .updateTable('membership')
-        .set({ member_record_uri: memberRef.uri, member_record_cid: memberRef.cid })
-        .where('id', '=', membership!.id)
-        .execute();
-
-      // Write memberApproval PDS record (auto-approve with intended roles)
-      const roles = inv.intended_roles ?? ['member'];
       const approvalRef = await container.pdsService.createRecord({
         did: inv.cooperative_did as import('@coopsource/common').DID,
         collection: 'network.coopsource.org.memberApproval',
@@ -339,31 +283,67 @@ export function createMembershipRoutes(container: Container): Router {
         },
       });
 
-      await container.db
-        .updateTable('membership')
-        .set({
-          approval_record_uri: approvalRef.uri,
-          approval_record_cid: approvalRef.cid,
-          status: 'active',
-          joined_at: now,
-        })
-        .where('id', '=', membership!.id)
-        .execute();
-
-      // Insert roles
-      if (roles.length > 0) {
-        await container.db
-          .insertInto('membership_role')
-          .values(roles.map((role) => ({ membership_id: membership!.id, role, indexed_at: now })))
+      // All DB writes wrapped in a transaction
+      await container.db.transaction().execute(async (trx) => {
+        // Create entity
+        await trx
+          .insertInto('entity')
+          .values({
+            did: memberDid,
+            type: 'person',
+            display_name: displayName,
+            handle: handle ?? null,
+            status: 'active',
+            created_at: now,
+            indexed_at: now,
+          })
           .execute();
-      }
 
-      // Mark invitation accepted
-      await container.db
-        .updateTable('invitation')
-        .set({ status: 'accepted', invitee_did: memberDid })
-        .where('id', '=', inv.id)
-        .execute();
+        // Create auth credential
+        await trx
+          .insertInto('auth_credential')
+          .values({
+            entity_did: memberDid,
+            credential_type: 'password',
+            identifier: inv.invitee_email ?? `${handle ?? memberDid}@${inv.cooperative_did}`,
+            secret_hash: secretHash,
+            created_at: now,
+          })
+          .execute();
+
+        // Create membership row (with all PDS refs in one insert)
+        const [membership] = await trx
+          .insertInto('membership')
+          .values({
+            member_did: memberDid,
+            cooperative_did: inv.cooperative_did,
+            status: 'active',
+            joined_at: now,
+            member_record_uri: memberRef.uri,
+            member_record_cid: memberRef.cid,
+            approval_record_uri: approvalRef.uri,
+            approval_record_cid: approvalRef.cid,
+            created_at: now,
+            indexed_at: now,
+          })
+          .returning('id')
+          .execute();
+
+        // Insert roles
+        if (roles.length > 0) {
+          await trx
+            .insertInto('membership_role')
+            .values(roles.map((role) => ({ membership_id: membership!.id, role, indexed_at: now })))
+            .execute();
+        }
+
+        // Mark invitation accepted
+        await trx
+          .updateTable('invitation')
+          .set({ status: 'accepted', invitee_did: memberDid })
+          .where('id', '=', inv.id)
+          .execute();
+      });
 
       // Set session
       req.session.did = memberDid;

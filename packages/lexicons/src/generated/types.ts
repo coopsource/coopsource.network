@@ -2,13 +2,45 @@
  * TypeScript type definitions for Co-op Source Network ATProto lexicons.
  * Generated from lexicon JSON schemas under network/coopsource/.
  *
- * Convention: Types are grouped by namespace (Agreement, Alignment, Org).
+ * Convention: Types are grouped by namespace (Agreement, Alignment, Connection, Funding, Governance, Org).
  * Sub-definition types are exported alongside their parent record type.
  */
 
 // ============================================================
 // network.coopsource.agreement.*
 // ============================================================
+
+/** network.coopsource.agreement.amendment — sub-def: fieldChange */
+export interface FieldChange {
+  from: unknown;
+  to: unknown;
+}
+
+/** network.coopsource.agreement.amendment — sub-def: amendmentChanges */
+export interface AmendmentChanges {
+  title?: FieldChange;
+  purpose?: FieldChange;
+  scope?: FieldChange;
+  governanceFramework?: FieldChange;
+  disputeResolution?: FieldChange;
+  amendmentProcess?: FieldChange;
+  terminationConditions?: FieldChange;
+}
+
+/** network.coopsource.agreement.amendment — main record */
+export interface AgreementAmendment {
+  $type?: 'network.coopsource.agreement.amendment';
+  agreementUri: string;
+  proposalUri?: string;
+  title: string;
+  description: string;
+  changes: AmendmentChanges;
+  status: 'proposed' | 'voting' | 'approved' | 'applied' | 'rejected' | (string & {});
+  fromVersion: number;
+  toVersion?: number;
+  proposedAt: string;
+  appliedAt?: string;
+}
 
 /** network.coopsource.agreement.contribution — main record */
 export interface AgreementContribution {
@@ -41,7 +73,7 @@ export interface AgreementMaster {
   version: number;
   purpose?: string;
   scope?: string;
-  agreementType?: 'worker-cooperative' | 'multi-stakeholder' | 'platform-cooperative' | 'open-source' | 'custom' | (string & {});
+  agreementType?: 'worker-cooperative' | 'multi-stakeholder' | 'platform-cooperative' | 'open-source' | 'producer-cooperative' | 'hybrid-member-investor' | 'custom' | (string & {});
   effectiveDate?: string;
   terminationDate?: string;
   governanceFramework?: GovernanceFramework;
@@ -246,6 +278,135 @@ export interface AlignmentStakeholder {
 }
 
 // ============================================================
+// network.coopsource.connection.*
+// ============================================================
+
+/** network.coopsource.connection.binding — sub-def: resourceMetadata */
+export interface ResourceMetadata {
+  displayName?: string;
+  url?: string;
+  description?: string;
+}
+
+/** network.coopsource.connection.binding — main record */
+export interface ConnectionBinding {
+  $type?: 'network.coopsource.connection.binding';
+  connectionUri: string;
+  projectUri: string;
+  resourceType: 'github_repo' | 'google_doc' | 'google_sheet' | 'google_drive_folder' | (string & {});
+  resourceId: string;
+  metadata?: ResourceMetadata;
+  createdAt: string;
+}
+
+/** network.coopsource.connection.link — sub-def: metadata */
+export interface ConnectionMetadata {
+  username?: string;
+  email?: string;
+  scopes?: string[];
+}
+
+/** network.coopsource.connection.link — main record */
+export interface ConnectionLink {
+  $type?: 'network.coopsource.connection.link';
+  service: 'github' | 'google' | (string & {});
+  status: 'active' | 'revoked' | 'expired' | (string & {});
+  metadata?: ConnectionMetadata;
+  createdAt: string;
+}
+
+/** network.coopsource.connection.sync — main record */
+export interface ConnectionSync {
+  $type?: 'network.coopsource.connection.sync';
+  bindingUri: string;
+  eventType: 'push' | 'pull' | 'webhook' | (string & {});
+  timestamp: string;
+  payload?: Record<string, unknown>;
+}
+
+// ============================================================
+// network.coopsource.funding.*
+// ============================================================
+
+/** network.coopsource.funding.campaign — main record */
+export interface FundingCampaign {
+  $type?: 'network.coopsource.funding.campaign';
+  beneficiaryUri: string;
+  title: string;
+  description?: string;
+  tier: 'network' | 'cooperative' | 'project' | (string & {});
+  campaignType: 'rewards' | 'patronage' | 'donation' | 'revenue_share' | (string & {});
+  goalAmount: number;
+  goalCurrency: string;
+  amountRaised?: number;
+  backerCount?: number;
+  fundingModel: 'all_or_nothing' | 'keep_it_all' | (string & {});
+  status: 'draft' | 'active' | 'funded' | 'completed' | 'cancelled' | (string & {});
+  startDate?: string;
+  endDate?: string;
+  metadata?: unknown;
+  createdAt: string;
+}
+
+/** network.coopsource.funding.pledge — main record */
+export interface FundingPledge {
+  $type?: 'network.coopsource.funding.pledge';
+  campaignUri: string;
+  backerDid: string;
+  amount: number;
+  currency: string;
+  paymentStatus: 'pending' | 'completed' | 'failed' | 'refunded' | (string & {});
+  metadata?: unknown;
+  createdAt: string;
+}
+
+// ============================================================
+// network.coopsource.governance.*
+// ============================================================
+
+/** network.coopsource.governance.delegation — main record */
+export interface GovernanceDelegation {
+  $type?: 'network.coopsource.governance.delegation';
+  projectUri: string;
+  delegatorDid: string;
+  delegateeDid: string;
+  scope: 'project' | 'proposal' | (string & {});
+  proposalUri?: string;
+  status: 'active' | 'revoked' | (string & {});
+  revokedAt?: string;
+  createdAt: string;
+}
+
+/** network.coopsource.governance.proposal — main record */
+export interface GovernanceProposal {
+  $type?: 'network.coopsource.governance.proposal';
+  cooperativeDid: string;
+  title: string;
+  body: string;
+  proposalType: 'amendment' | 'budget' | 'membership' | 'policy' | 'election' | 'other' | (string & {});
+  votingMethod: 'simple_majority' | 'supermajority' | 'consensus' | 'ranked_choice' | (string & {});
+  options?: string[];
+  quorumRequired?: number;
+  quorumBasis?: 'votesCast' | 'totalMembers' | (string & {});
+  discussionEndsAt?: string;
+  votingEndsAt?: string;
+  status: 'draft' | 'discussion' | 'voting' | 'passed' | 'failed' | 'withdrawn' | (string & {});
+  createdAt: string;
+}
+
+/** network.coopsource.governance.vote — main record */
+export interface GovernanceVote {
+  $type?: 'network.coopsource.governance.vote';
+  proposalUri: string;
+  voterDid: string;
+  choice: string;
+  weight?: number;
+  rationale?: string;
+  delegatedFrom?: string;
+  createdAt: string;
+}
+
+// ============================================================
 // network.coopsource.org.*
 // ============================================================
 
@@ -257,6 +418,21 @@ export interface OrgCooperative {
   logoUrl?: string;
   website?: string;
   status: 'active' | 'inactive' | 'dissolved' | (string & {});
+  createdAt: string;
+}
+
+/** network.coopsource.org.memberApproval — main record */
+export interface OrgMemberApproval {
+  $type?: 'network.coopsource.org.memberApproval';
+  member: string;
+  roles?: string[];
+  createdAt: string;
+}
+
+/** network.coopsource.org.membership — main record */
+export interface OrgMembership {
+  $type?: 'network.coopsource.org.membership';
+  cooperative: string;
   createdAt: string;
 }
 
@@ -282,16 +458,6 @@ export interface OrgTeam {
   createdAt: string;
 }
 
-/** network.coopsource.org.membership — main record */
-export interface OrgMembership {
-  $type?: 'network.coopsource.org.membership';
-  entityUri: string;
-  memberDid: string;
-  role: 'admin' | 'member' | 'observer' | 'lead' | (string & {});
-  status: 'active' | 'inactive' | 'suspended' | 'removed' | (string & {});
-  joinedAt: string;
-}
-
 /** network.coopsource.org.role — main record */
 export interface OrgRole {
   $type?: 'network.coopsource.org.role';
@@ -309,6 +475,7 @@ export interface OrgRole {
 // ============================================================
 
 export const LEXICON_IDS = {
+  AgreementAmendment: 'network.coopsource.agreement.amendment',
   AgreementContribution: 'network.coopsource.agreement.contribution',
   AgreementMaster: 'network.coopsource.agreement.master',
   AgreementSignature: 'network.coopsource.agreement.signature',
@@ -317,7 +484,16 @@ export const LEXICON_IDS = {
   AlignmentInterestMap: 'network.coopsource.alignment.interestMap',
   AlignmentOutcome: 'network.coopsource.alignment.outcome',
   AlignmentStakeholder: 'network.coopsource.alignment.stakeholder',
+  ConnectionBinding: 'network.coopsource.connection.binding',
+  ConnectionLink: 'network.coopsource.connection.link',
+  ConnectionSync: 'network.coopsource.connection.sync',
+  FundingCampaign: 'network.coopsource.funding.campaign',
+  FundingPledge: 'network.coopsource.funding.pledge',
+  GovernanceDelegation: 'network.coopsource.governance.delegation',
+  GovernanceProposal: 'network.coopsource.governance.proposal',
+  GovernanceVote: 'network.coopsource.governance.vote',
   OrgCooperative: 'network.coopsource.org.cooperative',
+  OrgMemberApproval: 'network.coopsource.org.memberApproval',
   OrgMembership: 'network.coopsource.org.membership',
   OrgProject: 'network.coopsource.org.project',
   OrgRole: 'network.coopsource.org.role',
@@ -328,6 +504,7 @@ export type LexiconId = (typeof LEXICON_IDS)[keyof typeof LEXICON_IDS];
 
 /** Map from lexicon NSID to its record type */
 export interface LexiconRecordMap {
+  [LEXICON_IDS.AgreementAmendment]: AgreementAmendment;
   [LEXICON_IDS.AgreementContribution]: AgreementContribution;
   [LEXICON_IDS.AgreementMaster]: AgreementMaster;
   [LEXICON_IDS.AgreementSignature]: AgreementSignature;
@@ -336,7 +513,16 @@ export interface LexiconRecordMap {
   [LEXICON_IDS.AlignmentInterestMap]: AlignmentInterestMap;
   [LEXICON_IDS.AlignmentOutcome]: AlignmentOutcome;
   [LEXICON_IDS.AlignmentStakeholder]: AlignmentStakeholder;
+  [LEXICON_IDS.ConnectionBinding]: ConnectionBinding;
+  [LEXICON_IDS.ConnectionLink]: ConnectionLink;
+  [LEXICON_IDS.ConnectionSync]: ConnectionSync;
+  [LEXICON_IDS.FundingCampaign]: FundingCampaign;
+  [LEXICON_IDS.FundingPledge]: FundingPledge;
+  [LEXICON_IDS.GovernanceDelegation]: GovernanceDelegation;
+  [LEXICON_IDS.GovernanceProposal]: GovernanceProposal;
+  [LEXICON_IDS.GovernanceVote]: GovernanceVote;
   [LEXICON_IDS.OrgCooperative]: OrgCooperative;
+  [LEXICON_IDS.OrgMemberApproval]: OrgMemberApproval;
   [LEXICON_IDS.OrgMembership]: OrgMembership;
   [LEXICON_IDS.OrgProject]: OrgProject;
   [LEXICON_IDS.OrgRole]: OrgRole;

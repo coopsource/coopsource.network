@@ -64,8 +64,7 @@ coopsource.network/
 │   ├── federation/   # @coopsource/federation — LocalPdsService, LocalPlcClient, blobs, email
 │   ├── db/           # @coopsource/db — Kysely database layer + migrations
 │   ├── common/       # @coopsource/common — Shared types, constants, errors, validation
-│   ├── config/       # @coopsource/config — Shared tsconfig, eslint, prettier
-│   └── api-client/   # @coopsource/api-client — Type-safe API client
+│   └── config/       # @coopsource/config — Shared tsconfig, eslint, prettier
 ├── infrastructure/
 │   └── docker-compose.yml  # PostgreSQL 16 + Redis 7 + Mailpit (dev)
 ├── scripts/
@@ -93,8 +92,6 @@ Layer 3 — Frontend:    web (SvelteKit, design system)
 | `tailwindcss` | ^4 |
 | `vitest` | ^3 |
 | `zod` | ^3.23 |
-| `@atproto/api` | ^0.18.13 |
-| `@atproto/oauth-client-node` | ^0.3.7 |
 | `typescript` | ^5.7 |
 
 ## The Recursive Cooperative Model
@@ -145,7 +142,7 @@ Records of authority live in user PDS instances. PostgreSQL is a **materialized 
 
 ## Database
 
-### Migrations (10 total)
+### Migrations (11 total)
 
 | # | Name | Tables |
 |---|------|--------|
@@ -159,6 +156,7 @@ Records of authority live in user PDS instances. PostgreSQL is a **materialized 
 | 008 | agreements | `agreement`, `agreement_party`, `agreement_signature` |
 | 009 | plc_store | `plc_operation` |
 | 010 | decouple_entity_key | Entity key management |
+| 011 | fix_indexes | Partial unique indexes for votes/sigs, perf indexes |
 
 ### Kysely Notes
 

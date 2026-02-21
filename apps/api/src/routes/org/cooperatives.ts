@@ -3,6 +3,7 @@ import multer from 'multer';
 import type { Container } from '../../container.js';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { requireAuth, requireAdmin } from '../../auth/middleware.js';
+import { UpdateCoopSchema } from '@coopsource/common';
 
 const upload = multer({ limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB
 
@@ -43,11 +44,7 @@ export function createCooperativeRoutes(container: Container): Router {
     requireAuth,
     requireAdmin,
     asyncHandler(async (req, res) => {
-      const { displayName, description, website } = req.body as {
-        displayName?: string;
-        description?: string;
-        website?: string;
-      };
+      const { displayName, description, website } = UpdateCoopSchema.parse(req.body);
 
       await container.entityService.updateCooperative(
         req.actor!.cooperativeDid,

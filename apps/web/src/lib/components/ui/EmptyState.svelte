@@ -1,10 +1,10 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import type { ComponentType } from 'svelte';
+  import type { Component } from 'svelte';
   import Inbox from 'lucide-svelte/icons/inbox';
 
   interface Props {
-    icon?: ComponentType;
+    icon?: Component;
     title: string;
     description?: string;
     actions?: Snippet;

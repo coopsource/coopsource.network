@@ -354,7 +354,7 @@ export class MembershipService {
     await this.db
       .updateTable('membership')
       .set({
-        status: 'suspended',
+        status: 'departed',
         status_reason: reason ?? null,
         departed_at: now,
         invalidated_at: now,

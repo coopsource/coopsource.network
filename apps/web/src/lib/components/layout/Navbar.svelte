@@ -30,9 +30,18 @@
       menuOpen = false;
     }
   }
+
+  function handleKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape' && menuOpen) {
+      menuOpen = false;
+    }
+  }
 </script>
 
-<svelte:window onclick={menuOpen ? handleClickOutside : undefined} />
+<svelte:window
+  onclick={menuOpen ? handleClickOutside : undefined}
+  onkeydown={menuOpen ? handleKeydown : undefined}
+/>
 
 <header class="flex items-center justify-between h-12 px-4 border-b border-[var(--cs-border)] bg-[var(--cs-bg-card)]">
   <!-- Breadcrumb -->

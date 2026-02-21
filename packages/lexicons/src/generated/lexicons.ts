@@ -1,6 +1,128 @@
 export const lexicons = [
   {
     "lexicon": 1,
+    "id": "network.coopsource.agreement.amendment",
+    "defs": {
+      "main": {
+        "type": "record",
+        "description": "A proposed amendment to a master agreement, linked to a governance proposal for voting.",
+        "key": "tid",
+        "record": {
+          "type": "object",
+          "required": [
+            "agreementUri",
+            "title",
+            "description",
+            "changes",
+            "status",
+            "fromVersion",
+            "proposedAt"
+          ],
+          "properties": {
+            "agreementUri": {
+              "type": "string",
+              "format": "at-uri",
+              "description": "The master agreement being amended."
+            },
+            "proposalUri": {
+              "type": "string",
+              "format": "at-uri",
+              "description": "The governance proposal for voting on this amendment."
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 10000
+            },
+            "changes": {
+              "type": "ref",
+              "ref": "#amendmentChanges"
+            },
+            "status": {
+              "type": "string",
+              "knownValues": [
+                "proposed",
+                "voting",
+                "approved",
+                "applied",
+                "rejected"
+              ]
+            },
+            "fromVersion": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "toVersion": {
+              "type": "integer",
+              "minimum": 2
+            },
+            "proposedAt": {
+              "type": "string",
+              "format": "datetime"
+            },
+            "appliedAt": {
+              "type": "string",
+              "format": "datetime"
+            }
+          }
+        }
+      },
+      "amendmentChanges": {
+        "type": "object",
+        "description": "Field-level changes to the agreement. Each key maps to an object with 'from' and 'to' values.",
+        "properties": {
+          "title": {
+            "type": "ref",
+            "ref": "#fieldChange"
+          },
+          "purpose": {
+            "type": "ref",
+            "ref": "#fieldChange"
+          },
+          "scope": {
+            "type": "ref",
+            "ref": "#fieldChange"
+          },
+          "governanceFramework": {
+            "type": "ref",
+            "ref": "#fieldChange"
+          },
+          "disputeResolution": {
+            "type": "ref",
+            "ref": "#fieldChange"
+          },
+          "amendmentProcess": {
+            "type": "ref",
+            "ref": "#fieldChange"
+          },
+          "terminationConditions": {
+            "type": "ref",
+            "ref": "#fieldChange"
+          }
+        }
+      },
+      "fieldChange": {
+        "type": "object",
+        "required": [
+          "from",
+          "to"
+        ],
+        "properties": {
+          "from": {
+            "type": "unknown"
+          },
+          "to": {
+            "type": "unknown"
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
     "id": "network.coopsource.agreement.contribution",
     "defs": {
       "main": {
@@ -118,6 +240,8 @@ export const lexicons = [
                 "multi-stakeholder",
                 "platform-cooperative",
                 "open-source",
+                "producer-cooperative",
+                "hybrid-member-investor",
                 "custom"
               ]
             },
@@ -984,6 +1108,595 @@ export const lexicons = [
   },
   {
     "lexicon": 1,
+    "id": "network.coopsource.connection.binding",
+    "defs": {
+      "main": {
+        "type": "record",
+        "description": "A binding between an external resource and a project.",
+        "key": "tid",
+        "record": {
+          "type": "object",
+          "required": [
+            "connectionUri",
+            "projectUri",
+            "resourceType",
+            "resourceId",
+            "createdAt"
+          ],
+          "properties": {
+            "connectionUri": {
+              "type": "string",
+              "format": "at-uri",
+              "description": "The external connection this binding belongs to."
+            },
+            "projectUri": {
+              "type": "string",
+              "format": "at-uri",
+              "description": "The project this resource is bound to."
+            },
+            "resourceType": {
+              "type": "string",
+              "description": "The type of external resource.",
+              "knownValues": [
+                "github_repo",
+                "google_doc",
+                "google_sheet",
+                "google_drive_folder"
+              ]
+            },
+            "resourceId": {
+              "type": "string",
+              "maxLength": 1000,
+              "description": "The external identifier for the resource."
+            },
+            "metadata": {
+              "type": "ref",
+              "ref": "#resourceMetadata"
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "datetime"
+            }
+          }
+        }
+      },
+      "resourceMetadata": {
+        "type": "object",
+        "description": "Display metadata for the bound resource.",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
+    "id": "network.coopsource.connection.link",
+    "defs": {
+      "main": {
+        "type": "record",
+        "description": "An external service connection (e.g., GitHub, Google) linked to a user's account.",
+        "key": "tid",
+        "record": {
+          "type": "object",
+          "required": [
+            "service",
+            "status",
+            "createdAt"
+          ],
+          "properties": {
+            "service": {
+              "type": "string",
+              "description": "The external service provider.",
+              "knownValues": [
+                "github",
+                "google"
+              ]
+            },
+            "status": {
+              "type": "string",
+              "description": "Current status of the connection.",
+              "knownValues": [
+                "active",
+                "revoked",
+                "expired"
+              ]
+            },
+            "metadata": {
+              "type": "ref",
+              "ref": "#metadata"
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "datetime"
+            }
+          }
+        }
+      },
+      "metadata": {
+        "type": "object",
+        "description": "Metadata about the external service account.",
+        "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 255
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
+    "id": "network.coopsource.connection.sync",
+    "defs": {
+      "main": {
+        "type": "record",
+        "description": "A synchronization event for a connection binding (placeholder for Phase 3).",
+        "key": "tid",
+        "record": {
+          "type": "object",
+          "required": [
+            "bindingUri",
+            "eventType",
+            "timestamp"
+          ],
+          "properties": {
+            "bindingUri": {
+              "type": "string",
+              "format": "at-uri",
+              "description": "The connection binding this sync event relates to."
+            },
+            "eventType": {
+              "type": "string",
+              "description": "The type of sync event.",
+              "knownValues": [
+                "push",
+                "pull",
+                "webhook"
+              ]
+            },
+            "timestamp": {
+              "type": "string",
+              "format": "datetime"
+            },
+            "payload": {
+              "type": "object",
+              "description": "Event-specific data."
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
+    "id": "network.coopsource.funding.campaign",
+    "defs": {
+      "main": {
+        "type": "record",
+        "description": "A crowdfunding campaign for a cooperative, project, or the network.",
+        "key": "tid",
+        "record": {
+          "type": "object",
+          "required": [
+            "beneficiaryUri",
+            "title",
+            "tier",
+            "campaignType",
+            "goalAmount",
+            "goalCurrency",
+            "fundingModel",
+            "status",
+            "createdAt"
+          ],
+          "properties": {
+            "beneficiaryUri": {
+              "type": "string",
+              "description": "AT URI of the cooperative/project, or 'network:coopsource' for network-level campaigns."
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 256
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 5000
+            },
+            "tier": {
+              "type": "string",
+              "description": "The level at which this campaign operates.",
+              "knownValues": [
+                "network",
+                "cooperative",
+                "project"
+              ]
+            },
+            "campaignType": {
+              "type": "string",
+              "description": "The type of crowdfunding campaign.",
+              "knownValues": [
+                "rewards",
+                "patronage",
+                "donation",
+                "revenue_share"
+              ]
+            },
+            "goalAmount": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Funding goal in cents."
+            },
+            "goalCurrency": {
+              "type": "string",
+              "maxLength": 10,
+              "description": "ISO 4217 currency code."
+            },
+            "amountRaised": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Total amount raised in cents."
+            },
+            "backerCount": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of backers."
+            },
+            "fundingModel": {
+              "type": "string",
+              "description": "How funds are collected.",
+              "knownValues": [
+                "all_or_nothing",
+                "keep_it_all"
+              ]
+            },
+            "status": {
+              "type": "string",
+              "knownValues": [
+                "draft",
+                "active",
+                "funded",
+                "completed",
+                "cancelled"
+              ]
+            },
+            "startDate": {
+              "type": "string",
+              "format": "datetime"
+            },
+            "endDate": {
+              "type": "string",
+              "format": "datetime"
+            },
+            "metadata": {
+              "type": "unknown",
+              "description": "Additional campaign data (reward tiers, images, tags)."
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "datetime"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
+    "id": "network.coopsource.funding.pledge",
+    "defs": {
+      "main": {
+        "type": "record",
+        "description": "A pledge or contribution to a crowdfunding campaign.",
+        "key": "tid",
+        "record": {
+          "type": "object",
+          "required": [
+            "campaignUri",
+            "backerDid",
+            "amount",
+            "currency",
+            "paymentStatus",
+            "createdAt"
+          ],
+          "properties": {
+            "campaignUri": {
+              "type": "string",
+              "format": "at-uri",
+              "description": "The campaign this pledge is for."
+            },
+            "backerDid": {
+              "type": "string",
+              "format": "did",
+              "description": "DID of the backer."
+            },
+            "amount": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Pledge amount in cents."
+            },
+            "currency": {
+              "type": "string",
+              "maxLength": 10,
+              "description": "ISO 4217 currency code."
+            },
+            "paymentStatus": {
+              "type": "string",
+              "knownValues": [
+                "pending",
+                "completed",
+                "failed",
+                "refunded"
+              ]
+            },
+            "metadata": {
+              "type": "unknown",
+              "description": "Additional pledge data (reward tier selection, etc.)."
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "datetime"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
+    "id": "network.coopsource.governance.delegation",
+    "defs": {
+      "main": {
+        "type": "record",
+        "description": "A vote delegation from one project member to another.",
+        "key": "tid",
+        "record": {
+          "type": "object",
+          "required": [
+            "projectUri",
+            "delegatorDid",
+            "delegateeDid",
+            "scope",
+            "status",
+            "createdAt"
+          ],
+          "properties": {
+            "projectUri": {
+              "type": "string",
+              "format": "at-uri",
+              "description": "The project this delegation applies to."
+            },
+            "delegatorDid": {
+              "type": "string",
+              "format": "did",
+              "description": "The DID of the person delegating their vote."
+            },
+            "delegateeDid": {
+              "type": "string",
+              "format": "did",
+              "description": "The DID of the person receiving the delegation."
+            },
+            "scope": {
+              "type": "string",
+              "description": "Whether delegation covers all project proposals or a specific one.",
+              "knownValues": [
+                "project",
+                "proposal"
+              ]
+            },
+            "proposalUri": {
+              "type": "string",
+              "format": "at-uri",
+              "description": "Specific proposal URI when scope is 'proposal'."
+            },
+            "status": {
+              "type": "string",
+              "knownValues": [
+                "active",
+                "revoked"
+              ]
+            },
+            "revokedAt": {
+              "type": "string",
+              "format": "datetime",
+              "description": "When the delegation was revoked."
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "datetime"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
+    "id": "network.coopsource.governance.proposal",
+    "defs": {
+      "main": {
+        "type": "record",
+        "description": "A governance proposal for cooperative decision-making.",
+        "key": "tid",
+        "record": {
+          "type": "object",
+          "required": [
+            "cooperativeDid",
+            "title",
+            "body",
+            "proposalType",
+            "votingMethod",
+            "status",
+            "createdAt"
+          ],
+          "properties": {
+            "cooperativeDid": {
+              "type": "string",
+              "format": "did",
+              "description": "The cooperative this proposal belongs to."
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 256
+            },
+            "body": {
+              "type": "string",
+              "maxLength": 10000,
+              "description": "The full text of the proposal."
+            },
+            "proposalType": {
+              "type": "string",
+              "description": "The category of the proposal.",
+              "knownValues": [
+                "amendment",
+                "budget",
+                "membership",
+                "policy",
+                "election",
+                "other"
+              ]
+            },
+            "votingMethod": {
+              "type": "string",
+              "description": "How votes are counted.",
+              "knownValues": [
+                "simple_majority",
+                "supermajority",
+                "consensus",
+                "ranked_choice"
+              ]
+            },
+            "options": {
+              "type": "array",
+              "description": "For ranked_choice or multi-option proposals, the list of options.",
+              "items": {
+                "type": "string",
+                "maxLength": 256
+              }
+            },
+            "quorumRequired": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "Fraction of members required to vote (0-1)."
+            },
+            "quorumBasis": {
+              "type": "string",
+              "description": "Whether quorum is based on votes cast or total members.",
+              "knownValues": [
+                "votesCast",
+                "totalMembers"
+              ]
+            },
+            "discussionEndsAt": {
+              "type": "string",
+              "format": "datetime",
+              "description": "When the discussion period closes."
+            },
+            "votingEndsAt": {
+              "type": "string",
+              "format": "datetime",
+              "description": "When the voting period closes."
+            },
+            "status": {
+              "type": "string",
+              "knownValues": [
+                "draft",
+                "discussion",
+                "voting",
+                "passed",
+                "failed",
+                "withdrawn"
+              ]
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "datetime"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
+    "id": "network.coopsource.governance.vote",
+    "defs": {
+      "main": {
+        "type": "record",
+        "description": "A vote cast on a governance proposal.",
+        "key": "tid",
+        "record": {
+          "type": "object",
+          "required": [
+            "proposalUri",
+            "voterDid",
+            "choice",
+            "createdAt"
+          ],
+          "properties": {
+            "proposalUri": {
+              "type": "string",
+              "format": "at-uri",
+              "description": "The proposal being voted on."
+            },
+            "voterDid": {
+              "type": "string",
+              "format": "did",
+              "description": "The DID of the voter."
+            },
+            "choice": {
+              "type": "string",
+              "description": "The vote choice. 'yes', 'no', 'abstain' for standard methods; JSON array for ranked_choice.",
+              "maxLength": 1000
+            },
+            "weight": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Voting weight, defaults to 1.0. May be higher due to delegations."
+            },
+            "rationale": {
+              "type": "string",
+              "maxLength": 2000,
+              "description": "Optional explanation of the voter's reasoning."
+            },
+            "delegatedFrom": {
+              "type": "string",
+              "format": "did",
+              "description": "DID of the delegator, if this vote was cast on behalf of someone else."
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "datetime"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
     "id": "network.coopsource.org.cooperative",
     "defs": {
       "main": {
@@ -1035,51 +1748,61 @@ export const lexicons = [
   },
   {
     "lexicon": 1,
-    "id": "network.coopsource.org.membership",
+    "id": "network.coopsource.org.memberApproval",
     "defs": {
       "main": {
         "type": "record",
-        "description": "A membership linking a person to a cooperative, project, or team.",
+        "description": "An approval record created by the cooperative in its PDS. Represents the cooperative's side of a bilateral membership. Role authority lives here, never in the membership record.",
         "key": "tid",
         "record": {
           "type": "object",
           "required": [
-            "entityUri",
-            "memberDid",
-            "role",
-            "status",
-            "joinedAt"
+            "member",
+            "createdAt"
           ],
           "properties": {
-            "entityUri": {
-              "type": "string",
-              "format": "at-uri",
-              "description": "The cooperative, project, or team."
-            },
-            "memberDid": {
+            "member": {
               "type": "string",
               "format": "did",
-              "description": "The member's DID."
+              "description": "The DID of the approved member entity (person or cooperative)."
             },
-            "role": {
+            "roles": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Roles assigned by the cooperative to this member."
+            },
+            "createdAt": {
               "type": "string",
-              "knownValues": [
-                "admin",
-                "member",
-                "observer",
-                "lead"
-              ]
-            },
-            "status": {
+              "format": "datetime"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
+    "id": "network.coopsource.org.membership",
+    "defs": {
+      "main": {
+        "type": "record",
+        "description": "A membership record created by the member entity in their own PDS. Represents one side of a bilateral membership; the cooperative must also create a memberApproval record for the membership to become active.",
+        "key": "tid",
+        "record": {
+          "type": "object",
+          "required": [
+            "cooperative",
+            "createdAt"
+          ],
+          "properties": {
+            "cooperative": {
               "type": "string",
-              "knownValues": [
-                "active",
-                "inactive",
-                "suspended",
-                "removed"
-              ]
+              "format": "did",
+              "description": "The DID of the cooperative being joined."
             },
-            "joinedAt": {
+            "createdAt": {
               "type": "string",
               "format": "datetime"
             }

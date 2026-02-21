@@ -293,6 +293,9 @@ export class ProposalService {
       .executeTakeFirst();
 
     if (!proposal) throw new NotFoundError('Proposal not found');
+    if (proposal.status !== 'closed') {
+      throw new ValidationError('Can only resolve a closed proposal');
+    }
 
     // Tally votes
     const votes = await this.db

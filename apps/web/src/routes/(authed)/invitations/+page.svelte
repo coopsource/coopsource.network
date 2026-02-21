@@ -1,9 +1,17 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import Badge from '$lib/components/Badge.svelte';
-  import EmptyState from '$lib/components/EmptyState.svelte';
+  import { Badge, EmptyState } from '$lib/components/ui';
 
   let { data, form } = $props();
+
+  function statusToVariant(status: string): 'success' | 'warning' | 'danger' | 'default' {
+    switch (status) {
+      case 'active': case 'accepted': case 'resolved': case 'signed': return 'success';
+      case 'pending': case 'open': case 'closed': return 'warning';
+      case 'revoked': case 'void': case 'voided': return 'danger';
+      default: return 'default';
+    }
+  }
 </script>
 
 <svelte:head>
@@ -12,7 +20,7 @@
 
 <div class="space-y-4">
   <div class="flex items-center justify-between">
-    <h1 class="text-xl font-semibold text-gray-900">Invitations</h1>
+    <h1 class="text-xl font-semibold text-[var(--cs-text)]">Invitations</h1>
     <a
       href="/members"
       class="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
@@ -31,43 +39,43 @@
       description="Invitations will appear here after you invite members."
     />
   {:else}
-    <div class="rounded-lg border border-gray-200 bg-white">
+    <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)]">
       <table class="w-full text-sm">
         <thead>
-          <tr class="border-b border-gray-200 text-left">
-            <th class="px-4 py-3 font-medium text-gray-600">Email</th>
-            <th class="px-4 py-3 font-medium text-gray-600">Roles</th>
-            <th class="px-4 py-3 font-medium text-gray-600">Status</th>
-            <th class="px-4 py-3 font-medium text-gray-600">Expires</th>
+          <tr class="border-b border-[var(--cs-border)] text-left">
+            <th class="px-4 py-3 font-medium text-[var(--cs-text-secondary)]">Email</th>
+            <th class="px-4 py-3 font-medium text-[var(--cs-text-secondary)]">Roles</th>
+            <th class="px-4 py-3 font-medium text-[var(--cs-text-secondary)]">Status</th>
+            <th class="px-4 py-3 font-medium text-[var(--cs-text-secondary)]">Expires</th>
             <th class="px-4 py-3"></th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-gray-100">
+        <tbody class="divide-y divide-[var(--cs-border)]">
           {#each data.invitations as invitation}
             <tr>
               <td class="px-4 py-3">
-                <div class="font-medium text-gray-900">{invitation.email}</div>
+                <div class="font-medium text-[var(--cs-text)]">{invitation.email}</div>
                 {#if invitation.message}
-                  <div class="text-xs text-gray-500 italic">"{invitation.message}"</div>
+                  <div class="text-xs text-[var(--cs-text-muted)] italic">"{invitation.message}"</div>
                 {/if}
               </td>
               <td class="px-4 py-3">
                 {#if invitation.roles.length > 0}
                   <div class="flex flex-wrap gap-1">
                     {#each invitation.roles as role}
-                      <span class="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700">
+                      <span class="rounded bg-[var(--cs-bg-inset)] px-1.5 py-0.5 text-xs text-[var(--cs-text-secondary)]">
                         {role}
                       </span>
                     {/each}
                   </div>
                 {:else}
-                  <span class="text-gray-400">—</span>
+                  <span class="text-[var(--cs-text-muted)]">—</span>
                 {/if}
               </td>
               <td class="px-4 py-3">
-                <Badge status={invitation.status} />
+                <Badge variant={statusToVariant(invitation.status)}>{invitation.status}</Badge>
               </td>
-              <td class="px-4 py-3 text-gray-500">
+              <td class="px-4 py-3 text-[var(--cs-text-muted)]">
                 {new Date(invitation.expiresAt).toLocaleDateString()}
               </td>
               <td class="px-4 py-3 text-right">

@@ -18,11 +18,12 @@
     children,
   }: Props = $props();
 
+  // Pre-computed OKLCH values at 12% and 25% opacity (avoids relative color syntax)
   const styles: Record<string, string> = {
-    interest: 'bg-[oklch(from_var(--color-category-interest)_l_c_h_/_0.12)] text-[var(--color-category-interest)] border-[oklch(from_var(--color-category-interest)_l_c_h_/_0.25)]',
-    contribution: 'bg-[oklch(from_var(--color-category-contribution)_l_c_h_/_0.12)] text-[var(--color-category-contribution)] border-[oklch(from_var(--color-category-contribution)_l_c_h_/_0.25)]',
-    constraint: 'bg-[oklch(from_var(--color-category-constraint)_l_c_h_/_0.12)] text-[var(--color-category-constraint)] border-[oklch(from_var(--color-category-constraint)_l_c_h_/_0.25)]',
-    redline: 'bg-[oklch(from_var(--color-category-redline)_l_c_h_/_0.12)] text-[var(--color-category-redline)] border-[oklch(from_var(--color-category-redline)_l_c_h_/_0.25)]',
+    interest: 'bg-[oklch(0.59_0.19_264_/_0.12)] text-[var(--color-category-interest)] border-[oklch(0.59_0.19_264_/_0.25)]',
+    contribution: 'bg-[oklch(0.60_0.17_160_/_0.12)] text-[var(--color-category-contribution)] border-[oklch(0.60_0.17_160_/_0.25)]',
+    constraint: 'bg-[oklch(0.67_0.14_80_/_0.12)] text-[var(--color-category-constraint)] border-[oklch(0.67_0.14_80_/_0.25)]',
+    redline: 'bg-[oklch(0.58_0.18_18_/_0.12)] text-[var(--color-category-redline)] border-[oklch(0.58_0.18_18_/_0.25)]',
     default: 'bg-[var(--cs-bg-inset)] text-[var(--cs-text-secondary)] border-[var(--cs-border)]',
   };
 </script>

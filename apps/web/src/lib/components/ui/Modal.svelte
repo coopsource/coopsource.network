@@ -52,13 +52,15 @@
       class="w-full {widths[size]} mx-4 bg-[var(--cs-bg-elevated)] border border-[var(--cs-border)] rounded-[var(--radius-lg)] shadow-lg animate-in zoom-in-95 duration-200"
       role="dialog"
       aria-modal="true"
-      aria-label={title}
+      aria-labelledby={title ? 'modal-heading' : undefined}
+      aria-label={title ? undefined : 'Dialog'}
     >
       {#if title}
         <div class="flex items-center justify-between px-5 py-3.5 border-b border-[var(--cs-border)]">
-          <h2 class="text-[15px] font-semibold text-[var(--cs-text)]">{title}</h2>
+          <h2 id="modal-heading" class="text-[15px] font-semibold text-[var(--cs-text)]">{title}</h2>
           <button
             onclick={close}
+            aria-label="Close"
             class="p-1 rounded-[var(--radius-sm)] text-[var(--cs-text-muted)] hover:text-[var(--cs-text)] hover:bg-[var(--cs-bg-inset)] cs-transition"
           >
             <X class="h-4 w-4" />

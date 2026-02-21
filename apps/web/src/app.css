@@ -106,6 +106,7 @@
 
   /* Focus ring */
   --cs-ring: var(--color-primary-500);
+  --cs-ring-shadow: oklch(0.59 0.19 264 / 0.15);
   --cs-ring-offset: #ffffff;
 }
 
@@ -153,6 +154,7 @@
 
   /* Focus ring */
   --cs-ring: var(--color-primary-400);
+  --cs-ring-shadow: oklch(0.68 0.16 264 / 0.15);
   --cs-ring-offset: #0a0a0f;
 }
 
@@ -194,6 +196,7 @@
     --cs-input-placeholder: #475569;
 
     --cs-ring: var(--color-primary-400);
+    --cs-ring-shadow: oklch(0.68 0.16 264 / 0.15);
     --cs-ring-offset: #0a0a0f;
   }
 }
@@ -273,7 +276,7 @@ body {
 
 @utility cs-input-focus {
   border-color: var(--cs-border-focus);
-  box-shadow: 0 0 0 3px oklch(from var(--cs-ring) l c h / 0.15);
+  box-shadow: 0 0 0 3px var(--cs-ring-shadow);
   outline: none;
 }
 

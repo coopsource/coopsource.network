@@ -13,6 +13,9 @@ export { lexicons as lexiconSchemas } from './generated/lexicons.js';
 // TypeScript types for all record types
 export type {
   // Agreement types
+  AgreementAmendment,
+  AmendmentChanges,
+  FieldChange,
   AgreementContribution,
   AgreementMaster,
   AgreementSignature,
@@ -41,11 +44,28 @@ export type {
   SuccessCriterion,
   SupportEntry,
 
+  // Connection types
+  ConnectionBinding,
+  ConnectionLink,
+  ConnectionSync,
+  ConnectionMetadata,
+  ResourceMetadata,
+
+  // Funding types
+  FundingCampaign,
+  FundingPledge,
+
+  // Governance types
+  GovernanceDelegation,
+  GovernanceProposal,
+  GovernanceVote,
+
   // Org types
   OrgCooperative,
+  OrgMemberApproval,
+  OrgMembership,
   OrgProject,
   OrgTeam,
-  OrgMembership,
   OrgRole,
 
   // Utility types

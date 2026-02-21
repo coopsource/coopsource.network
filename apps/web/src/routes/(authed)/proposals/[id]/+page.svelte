@@ -1,8 +1,17 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import Badge from '$lib/components/Badge.svelte';
+  import { Badge } from '$lib/components/ui';
 
   let { data, form } = $props();
+
+  function statusToVariant(status: string): 'success' | 'warning' | 'danger' | 'default' {
+    switch (status) {
+      case 'active': case 'accepted': case 'resolved': case 'signed': return 'success';
+      case 'pending': case 'open': case 'closed': return 'warning';
+      case 'revoked': case 'void': case 'voided': return 'danger';
+      default: return 'default';
+    }
+  }
 
   const proposal = $derived(data.proposal);
   const votes = $derived(data.votes);
@@ -33,7 +42,7 @@
 
 <div class="mx-auto max-w-3xl space-y-6">
   <div class="flex items-center gap-3">
-    <a href="/proposals" class="text-sm text-gray-500 hover:text-gray-700">← Proposals</a>
+    <a href="/proposals" class="text-sm text-[var(--cs-text-muted)] hover:text-[var(--cs-text-secondary)]">← Proposals</a>
   </div>
 
   {#if form?.actionError || form?.voteError}
@@ -47,13 +56,13 @@
   {/if}
 
   <!-- Proposal Header -->
-  <div class="rounded-lg border border-gray-200 bg-white p-6">
+  <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-6">
     <div class="mb-4 flex items-start justify-between gap-4">
-      <h1 class="text-xl font-semibold text-gray-900">{proposal.title}</h1>
-      <Badge status={proposal.status} class="shrink-0" />
+      <h1 class="text-xl font-semibold text-[var(--cs-text)]">{proposal.title}</h1>
+      <Badge variant={statusToVariant(proposal.status)} class="shrink-0">{proposal.status}</Badge>
     </div>
 
-    <div class="mb-4 flex flex-wrap gap-3 text-xs text-gray-500">
+    <div class="mb-4 flex flex-wrap gap-3 text-xs text-[var(--cs-text-muted)]">
       <span>Type: <strong>{proposal.proposalType}</strong></span>
       <span>Voting: <strong>{proposal.votingMethod}</strong></span>
       {#if proposal.quorumRequired}
@@ -68,13 +77,13 @@
       </span>
     </div>
 
-    <div class="prose prose-sm max-w-none whitespace-pre-wrap text-sm text-gray-700">
+    <div class="prose prose-sm max-w-none whitespace-pre-wrap text-sm text-[var(--cs-text-secondary)]">
       {proposal.body}
     </div>
 
     <!-- Proposal Actions -->
     {#if proposal.status === 'draft'}
-      <div class="mt-4 flex gap-3 border-t border-gray-100 pt-4">
+      <div class="mt-4 flex gap-3 border-t border-[var(--cs-border)] pt-4">
         <form method="POST" action="?/open" use:enhance>
           <button
             type="submit"
@@ -85,18 +94,18 @@
         </form>
       </div>
     {:else if proposal.status === 'open'}
-      <div class="mt-4 flex gap-3 border-t border-gray-100 pt-4">
+      <div class="mt-4 flex gap-3 border-t border-[var(--cs-border)] pt-4">
         <form method="POST" action="?/close" use:enhance>
           <button
             type="submit"
-            class="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            class="rounded-md border border-[var(--cs-border)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)]"
           >
             Close voting
           </button>
         </form>
       </div>
     {:else if proposal.status === 'closed'}
-      <div class="mt-4 flex gap-3 border-t border-gray-100 pt-4">
+      <div class="mt-4 flex gap-3 border-t border-[var(--cs-border)] pt-4">
         <form method="POST" action="?/resolve" use:enhance>
           <button
             type="submit"
@@ -111,17 +120,17 @@
 
   <!-- Vote Tally -->
   {#if totalVotes > 0 || proposal.status === 'open'}
-    <div class="rounded-lg border border-gray-200 bg-white p-5">
-      <h2 class="mb-4 text-sm font-semibold text-gray-900">Vote Tally</h2>
+    <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-5">
+      <h2 class="mb-4 text-sm font-semibold text-[var(--cs-text)]">Vote Tally</h2>
       <div class="space-y-3">
         {#each [['yes', 'bg-green-500', 'Yes'], ['no', 'bg-red-500', 'No'], ['abstain', 'bg-gray-400', 'Abstain']] as [key, color, label]}
           {@const count = (tally[key] ?? 0) as number}
           <div>
             <div class="mb-1 flex justify-between text-sm">
-              <span class="font-medium text-gray-700">{label}</span>
-              <span class="text-gray-500">{count} ({pct(count)}%)</span>
+              <span class="font-medium text-[var(--cs-text-secondary)]">{label}</span>
+              <span class="text-[var(--cs-text-muted)]">{count} ({pct(count)}%)</span>
             </div>
-            <div class="h-2.5 rounded-full bg-gray-100">
+            <div class="h-2.5 rounded-full bg-[var(--cs-bg-inset)]">
               <div
                 class="h-2.5 rounded-full {color} transition-all"
                 style="width: {pct(count)}%"
@@ -129,15 +138,15 @@
             </div>
           </div>
         {/each}
-        <p class="text-xs text-gray-400">{totalVotes} total vote{totalVotes !== 1 ? 's' : ''}</p>
+        <p class="text-xs text-[var(--cs-text-muted)]">{totalVotes} total vote{totalVotes !== 1 ? 's' : ''}</p>
       </div>
     </div>
   {/if}
 
   <!-- Vote Section -->
   {#if proposal.status === 'open'}
-    <div class="rounded-lg border border-gray-200 bg-white p-5">
-      <h2 class="mb-4 text-sm font-semibold text-gray-900">Cast Your Vote</h2>
+    <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-5">
+      <h2 class="mb-4 text-sm font-semibold text-[var(--cs-text)]">Cast Your Vote</h2>
 
       {#if myVote}
         <div class="mb-4 rounded-md bg-blue-50 p-3 text-sm text-blue-800">
@@ -149,7 +158,7 @@
         <form method="POST" action="?/retractVote" use:enhance>
           <button
             type="submit"
-            class="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+            class="rounded-md border border-[var(--cs-border)] px-3 py-1.5 text-sm text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)]"
           >
             Retract vote
           </button>
@@ -182,15 +191,15 @@
             {/each}
           </div>
           <div>
-            <label for="rationale" class="block text-sm font-medium text-gray-700">
-              Rationale <span class="text-gray-400">(optional)</span>
+            <label for="rationale" class="block text-sm font-medium text-[var(--cs-text-secondary)]">
+              Rationale <span class="text-[var(--cs-text-muted)]">(optional)</span>
             </label>
             <textarea
               id="rationale"
               name="rationale"
               bind:value={rationale}
               rows={2}
-              class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
               placeholder="Why are you voting this way?"
             ></textarea>
           </div>
@@ -201,11 +210,11 @@
 
   <!-- Votes List -->
   {#if votes.length > 0}
-    <div class="rounded-lg border border-gray-200 bg-white">
-      <h2 class="border-b border-gray-200 px-5 py-4 text-sm font-semibold text-gray-900">
+    <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)]">
+      <h2 class="border-b border-[var(--cs-border)] px-5 py-4 text-sm font-semibold text-[var(--cs-text)]">
         Votes ({votes.length})
       </h2>
-      <ul class="divide-y divide-gray-100">
+      <ul class="divide-y divide-[var(--cs-border)]">
         {#each votes as vote}
           <li class="flex items-start gap-3 px-5 py-3">
             <span
@@ -214,20 +223,20 @@
                   ? 'bg-green-100 text-green-700'
                   : vote.choice === 'no'
                     ? 'bg-red-100 text-red-700'
-                    : 'bg-gray-100 text-gray-600'}"
+                    : 'bg-[var(--cs-bg-inset)] text-[var(--cs-text-secondary)]'}"
             >
               {vote.choice}
             </span>
             <div class="min-w-0 flex-1">
-              <span class="text-sm font-medium text-gray-900">{vote.voterDisplayName}</span>
+              <span class="text-sm font-medium text-[var(--cs-text)]">{vote.voterDisplayName}</span>
               {#if vote.voterHandle}
-                <span class="ml-1 text-xs text-gray-500">@{vote.voterHandle}</span>
+                <span class="ml-1 text-xs text-[var(--cs-text-muted)]">@{vote.voterHandle}</span>
               {/if}
               {#if vote.rationale}
-                <p class="mt-0.5 text-sm text-gray-600">"{vote.rationale}"</p>
+                <p class="mt-0.5 text-sm text-[var(--cs-text-secondary)]">"{vote.rationale}"</p>
               {/if}
             </div>
-            <span class="shrink-0 text-xs text-gray-400">
+            <span class="shrink-0 text-xs text-[var(--cs-text-muted)]">
               {new Date(vote.createdAt).toLocaleDateString()}
             </span>
           </li>
