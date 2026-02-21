@@ -33,3 +33,6 @@ data/
 
 # Docker
 infrastructure/pgdata/
+
+# Worktrees
+.worktrees/
