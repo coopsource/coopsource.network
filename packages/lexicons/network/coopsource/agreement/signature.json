@@ -1,0 +1,67 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.agreement.signature",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A digital signature on an agreement or stakeholder terms.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["agreementUri", "signerDid", "signatureType", "signedAt"],
+        "properties": {
+          "agreementUri": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "The agreement or terms being signed."
+          },
+          "signerDid": {
+            "type": "string",
+            "format": "did"
+          },
+          "signerRole": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "signatureType": {
+            "type": "string",
+            "knownValues": ["digital", "witnessed", "notarized"]
+          },
+          "signatureData": {
+            "type": "ref",
+            "ref": "#signatureData"
+          },
+          "signedAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    },
+    "signatureData": {
+      "type": "object",
+      "required": ["method", "timestamp"],
+      "properties": {
+        "method": {
+          "type": "string",
+          "knownValues": ["atproto-did-proof", "timestamp", "cryptographic-hash"]
+        },
+        "proof": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "datetime"
+        },
+        "witnessDids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "did"
+          }
+        }
+      }
+    }
+  }
+}

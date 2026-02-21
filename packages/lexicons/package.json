@@ -1,0 +1,31 @@
+{
+  "name": "@coopsource/lexicons",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ATProto lexicon JSON schemas and generated TypeScript types",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "lex:generate": "npx @atproto/lex-cli gen-ts-obj network/coopsource/**/*.json > src/generated/lexicons.ts",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@atproto/lex-cli": "^0.9.8",
+    "@coopsource/config": "workspace:*",
+    "tsx": "^4",
+    "typescript": "^5.7",
+    "vitest": "^3"
+  },
+  "dependencies": {
+    "@atproto/lexicon": "^0.6.1"
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.agreement.master",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A master agreement governing a project, defining governance framework and terms.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["projectUri", "title", "version", "status", "createdAt"],
+        "properties": {
+          "projectUri": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "The project this agreement governs."
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "purpose": {
+            "type": "string",
+            "maxLength": 3000
+          },
+          "scope": {
+            "type": "string",
+            "maxLength": 3000
+          },
+          "agreementType": {
+            "type": "string",
+            "description": "Template type used.",
+            "knownValues": ["worker-cooperative", "multi-stakeholder", "platform-cooperative", "open-source", "producer-cooperative", "hybrid-member-investor", "custom"]
+          },
+          "effectiveDate": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "terminationDate": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "governanceFramework": {
+            "type": "ref",
+            "ref": "#governanceFramework"
+          },
+          "terminationConditions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 2000
+            }
+          },
+          "status": {
+            "type": "string",
+            "knownValues": ["draft", "active", "amended", "terminated"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    },
+    "governanceFramework": {
+      "type": "object",
+      "properties": {
+        "decisionMethod": {
+          "type": "string",
+          "knownValues": ["consensus", "majority-vote", "supermajority", "weighted-vote"]
+        },
+        "quorum": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Quorum percentage required."
+        },
+        "votingThreshold": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Voting threshold percentage."
+        },
+        "disputeResolution": {
+          "type": "string",
+          "maxLength": 3000
+        },
+        "modificationProcess": {
+          "type": "string",
+          "maxLength": 3000
+        }
+      }
+    }
+  }
+}

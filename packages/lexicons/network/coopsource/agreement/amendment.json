@@ -1,0 +1,105 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.agreement.amendment",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A proposed amendment to a master agreement, linked to a governance proposal for voting.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["agreementUri", "title", "description", "changes", "status", "fromVersion", "proposedAt"],
+        "properties": {
+          "agreementUri": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "The master agreement being amended."
+          },
+          "proposalUri": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "The governance proposal for voting on this amendment."
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 10000
+          },
+          "changes": {
+            "type": "ref",
+            "ref": "#amendmentChanges"
+          },
+          "status": {
+            "type": "string",
+            "knownValues": ["proposed", "voting", "approved", "applied", "rejected"]
+          },
+          "fromVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "toVersion": {
+            "type": "integer",
+            "minimum": 2
+          },
+          "proposedAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "appliedAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    },
+    "amendmentChanges": {
+      "type": "object",
+      "description": "Field-level changes to the agreement. Each key maps to an object with 'from' and 'to' values.",
+      "properties": {
+        "title": {
+          "type": "ref",
+          "ref": "#fieldChange"
+        },
+        "purpose": {
+          "type": "ref",
+          "ref": "#fieldChange"
+        },
+        "scope": {
+          "type": "ref",
+          "ref": "#fieldChange"
+        },
+        "governanceFramework": {
+          "type": "ref",
+          "ref": "#fieldChange"
+        },
+        "disputeResolution": {
+          "type": "ref",
+          "ref": "#fieldChange"
+        },
+        "amendmentProcess": {
+          "type": "ref",
+          "ref": "#fieldChange"
+        },
+        "terminationConditions": {
+          "type": "ref",
+          "ref": "#fieldChange"
+        }
+      }
+    },
+    "fieldChange": {
+      "type": "object",
+      "required": ["from", "to"],
+      "properties": {
+        "from": {
+          "type": "unknown"
+        },
+        "to": {
+          "type": "unknown"
+        }
+      }
+    }
+  }
+}

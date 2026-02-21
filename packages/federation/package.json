@@ -1,0 +1,52 @@
+{
+  "name": "@coopsource/federation",
+  "version": "0.0.1",
+  "private": true,
+  "description": "PDS abstraction layer for ATProtocol federation",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./interfaces": {
+      "import": "./dist/interfaces/index.js",
+      "types": "./dist/interfaces/index.d.ts"
+    },
+    "./local": {
+      "import": "./dist/local/index.js",
+      "types": "./dist/local/index.d.ts"
+    },
+    "./clocks": {
+      "import": "./dist/clocks/index.js",
+      "types": "./dist/clocks/index.d.ts"
+    },
+    "./email": {
+      "import": "./dist/email/index.js",
+      "types": "./dist/email/index.d.ts"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@coopsource/common": "workspace:*",
+    "@coopsource/db": "workspace:*",
+    "kysely": "^0.27",
+    "pg": "^8",
+    "nodemailer": "^6"
+  },
+  "devDependencies": {
+    "@coopsource/config": "workspace:*",
+    "@types/nodemailer": "^6",
+    "@types/pg": "^8",
+    "typescript": "^5.7",
+    "vitest": "^3"
+  }
+}

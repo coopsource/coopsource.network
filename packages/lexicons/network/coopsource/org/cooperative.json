@@ -1,0 +1,43 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.org.cooperative",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A cooperative organization.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["name", "status", "createdAt"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 3000
+          },
+          "logoUrl": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2000
+          },
+          "website": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2000
+          },
+          "status": {
+            "type": "string",
+            "knownValues": ["active", "inactive", "dissolved"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

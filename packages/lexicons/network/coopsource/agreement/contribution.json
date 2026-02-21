@@ -1,0 +1,55 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.agreement.contribution",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A tracked contribution by a stakeholder toward their agreement terms.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["stakeholderTermsUri", "contributionType", "description", "status", "createdAt"],
+        "properties": {
+          "stakeholderTermsUri": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "The stakeholder terms record this contribution fulfills."
+          },
+          "contributionType": {
+            "type": "string",
+            "knownValues": ["labor", "capital", "resources", "intellectual-property", "network"]
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 3000
+          },
+          "amount": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "units": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "Hours, dollars, items, etc."
+          },
+          "startDate": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "status": {
+            "type": "string",
+            "knownValues": ["pending", "in-progress", "fulfilled", "disputed"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

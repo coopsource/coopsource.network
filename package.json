@@ -1,0 +1,31 @@
+{
+  "name": "coopsource-network",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Co-op Source Network — federated collaboration platform on ATProtocol",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "test": "turbo test",
+    "lint": "turbo lint",
+    "format": "prettier --write \"**/*.{ts,tsx,svelte,js,mjs,json,css,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,svelte,js,mjs,json,css,md}\"",
+    "clean": "turbo clean && rm -rf node_modules",
+    "dev:setup": "./scripts/dev-services.sh setup",
+    "dev:infra": "./scripts/dev-services.sh start",
+    "dev:stop": "./scripts/dev-services.sh stop",
+    "dev:status": "./scripts/dev-services.sh status",
+    "db:migrate": "./scripts/dev-services.sh db:migrate",
+    "db:reset": "./scripts/dev-services.sh db:reset",
+    "test:e2e": "pnpm --filter @coopsource/web exec playwright test"
+  },
+  "devDependencies": {
+    "prettier": "^3.4",
+    "turbo": "^2.3",
+    "typescript": "^5.7"
+  }
+}

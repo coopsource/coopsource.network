@@ -1,0 +1,159 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.agreement.stakeholderTerms",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Terms specific to one stakeholder party within a master agreement.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["masterAgreementUri", "stakeholderDid", "stakeholderType", "createdAt"],
+        "properties": {
+          "masterAgreementUri": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "The master agreement these terms belong to."
+          },
+          "stakeholderDid": {
+            "type": "string",
+            "format": "did"
+          },
+          "stakeholderType": {
+            "type": "string",
+            "knownValues": ["worker", "investor", "customer", "supplier", "community", "partner"]
+          },
+          "contributions": {
+            "type": "array",
+            "items": {
+              "type": "ref",
+              "ref": "#termsContribution"
+            }
+          },
+          "financialTerms": {
+            "type": "ref",
+            "ref": "#financialTerms"
+          },
+          "ipTerms": {
+            "type": "ref",
+            "ref": "#ipTerms"
+          },
+          "governanceRights": {
+            "type": "ref",
+            "ref": "#governanceRights"
+          },
+          "exitTerms": {
+            "type": "ref",
+            "ref": "#exitTerms"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    },
+    "termsContribution": {
+      "type": "object",
+      "required": ["type", "description"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "knownValues": ["labor", "capital", "resources", "intellectual-property", "network"]
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "amount": {
+          "type": "string",
+          "maxLength": 500
+        }
+      }
+    },
+    "financialTerms": {
+      "type": "object",
+      "properties": {
+        "compensationType": {
+          "type": "string",
+          "knownValues": ["salary", "share", "dividend", "hourly", "other"]
+        },
+        "compensationAmount": {
+          "type": "integer",
+          "description": "Amount in smallest currency unit (e.g. cents)."
+        },
+        "currency": {
+          "type": "string",
+          "maxLength": 10
+        },
+        "paymentSchedule": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "profitShare": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Percentage."
+        },
+        "equityStake": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Percentage."
+        }
+      }
+    },
+    "ipTerms": {
+      "type": "object",
+      "properties": {
+        "ownership": {
+          "type": "string",
+          "knownValues": ["individual", "collective", "shared"]
+        },
+        "licensing": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      }
+    },
+    "governanceRights": {
+      "type": "object",
+      "properties": {
+        "votingPower": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Voting power percentage."
+        },
+        "boardSeat": {
+          "type": "boolean"
+        },
+        "decisionCategories": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      }
+    },
+    "exitTerms": {
+      "type": "object",
+      "properties": {
+        "buybackPrice": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "noticePeriodDays": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "conditions": {
+          "type": "string",
+          "maxLength": 3000
+        }
+      }
+    }
+  }
+}

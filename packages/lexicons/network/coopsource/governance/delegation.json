@@ -1,0 +1,55 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.governance.delegation",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A vote delegation from one project member to another.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["projectUri", "delegatorDid", "delegateeDid", "scope", "status", "createdAt"],
+        "properties": {
+          "projectUri": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "The project this delegation applies to."
+          },
+          "delegatorDid": {
+            "type": "string",
+            "format": "did",
+            "description": "The DID of the person delegating their vote."
+          },
+          "delegateeDid": {
+            "type": "string",
+            "format": "did",
+            "description": "The DID of the person receiving the delegation."
+          },
+          "scope": {
+            "type": "string",
+            "description": "Whether delegation covers all project proposals or a specific one.",
+            "knownValues": ["project", "proposal"]
+          },
+          "proposalUri": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "Specific proposal URI when scope is 'proposal'."
+          },
+          "status": {
+            "type": "string",
+            "knownValues": ["active", "revoked"]
+          },
+          "revokedAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When the delegation was revoked."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

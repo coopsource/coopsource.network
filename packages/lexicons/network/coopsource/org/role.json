@@ -1,0 +1,55 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.org.role",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A defined role within a cooperative or project, with responsibilities and permissions.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["name", "entityUri", "createdAt"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Role name, e.g. Coordinator, Treasurer."
+          },
+          "entityUri": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "The cooperative or project this role belongs to."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 3000
+          },
+          "responsibilities": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 1000
+            }
+          },
+          "permissions": {
+            "type": "array",
+            "description": "What this role can do.",
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          "termLengthMonths": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Term length in months, if applicable."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

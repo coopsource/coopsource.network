@@ -1,0 +1,43 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.org.team",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A team within a project.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["name", "projectUri", "createdAt"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "projectUri": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "The project this team belongs to."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 3000
+          },
+          "purpose": {
+            "type": "string",
+            "maxLength": 2000,
+            "description": "Why this team exists."
+          },
+          "decisionMethod": {
+            "type": "string",
+            "knownValues": ["consensus", "voting", "lead-driven"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.governance.proposal",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A governance proposal for cooperative decision-making.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["cooperativeDid", "title", "body", "proposalType", "votingMethod", "status", "createdAt"],
+        "properties": {
+          "cooperativeDid": {
+            "type": "string",
+            "format": "did",
+            "description": "The cooperative this proposal belongs to."
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 10000,
+            "description": "The full text of the proposal."
+          },
+          "proposalType": {
+            "type": "string",
+            "description": "The category of the proposal.",
+            "knownValues": ["amendment", "budget", "membership", "policy", "election", "other"]
+          },
+          "votingMethod": {
+            "type": "string",
+            "description": "How votes are counted.",
+            "knownValues": ["simple_majority", "supermajority", "consensus", "ranked_choice"]
+          },
+          "options": {
+            "type": "array",
+            "description": "For ranked_choice or multi-option proposals, the list of options.",
+            "items": {
+              "type": "string",
+              "maxLength": 256
+            }
+          },
+          "quorumRequired": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Fraction of members required to vote (0-1)."
+          },
+          "quorumBasis": {
+            "type": "string",
+            "description": "Whether quorum is based on votes cast or total members.",
+            "knownValues": ["votesCast", "totalMembers"]
+          },
+          "discussionEndsAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When the discussion period closes."
+          },
+          "votingEndsAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When the voting period closes."
+          },
+          "status": {
+            "type": "string",
+            "knownValues": ["draft", "discussion", "voting", "passed", "failed", "withdrawn"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

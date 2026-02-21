@@ -1,0 +1,128 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.alignment.interestMap",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A computed map of alignment and conflict zones across stakeholder interests for a project.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["projectUri", "createdAt"],
+        "properties": {
+          "projectUri": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "The project this map covers."
+          },
+          "alignmentZones": {
+            "type": "array",
+            "description": "Areas where stakeholders agree.",
+            "items": {
+              "type": "ref",
+              "ref": "#alignmentZone"
+            }
+          },
+          "conflictZones": {
+            "type": "array",
+            "description": "Areas of tension between stakeholders.",
+            "items": {
+              "type": "ref",
+              "ref": "#conflictZone"
+            }
+          },
+          "aiAnalysis": {
+            "type": "ref",
+            "ref": "#aiAnalysis",
+            "description": "Optional AI-generated analysis."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    },
+    "alignmentZone": {
+      "type": "object",
+      "required": ["participants", "description", "strength"],
+      "properties": {
+        "participants": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "did"
+          }
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "strength": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Overlap percentage."
+        },
+        "interestsInvolved": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      }
+    },
+    "conflictZone": {
+      "type": "object",
+      "required": ["stakeholders", "description", "severity"],
+      "properties": {
+        "stakeholders": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "did"
+          }
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "severity": {
+          "type": "string",
+          "knownValues": ["low", "medium", "high"]
+        },
+        "potentialSolutions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        }
+      }
+    },
+    "aiAnalysis": {
+      "type": "object",
+      "properties": {
+        "summary": {
+          "type": "string",
+          "maxLength": 5000
+        },
+        "recommendations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "mediationSuggestions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        }
+      }
+    }
+  }
+}

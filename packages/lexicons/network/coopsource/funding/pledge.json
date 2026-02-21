@@ -1,0 +1,49 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.funding.pledge",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A pledge or contribution to a crowdfunding campaign.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["campaignUri", "backerDid", "amount", "currency", "paymentStatus", "createdAt"],
+        "properties": {
+          "campaignUri": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "The campaign this pledge is for."
+          },
+          "backerDid": {
+            "type": "string",
+            "format": "did",
+            "description": "DID of the backer."
+          },
+          "amount": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Pledge amount in cents."
+          },
+          "currency": {
+            "type": "string",
+            "maxLength": 10,
+            "description": "ISO 4217 currency code."
+          },
+          "paymentStatus": {
+            "type": "string",
+            "knownValues": ["pending", "completed", "failed", "refunded"]
+          },
+          "metadata": {
+            "type": "unknown",
+            "description": "Additional pledge data (reward tier selection, etc.)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

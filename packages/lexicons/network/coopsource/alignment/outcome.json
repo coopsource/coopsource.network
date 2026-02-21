@@ -1,0 +1,96 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.alignment.outcome",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A desired outcome for a project, with success criteria and stakeholder support tracking.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["projectUri", "title", "description", "category", "status", "createdAt"],
+        "properties": {
+          "projectUri": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "The project this outcome belongs to."
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 3000
+          },
+          "category": {
+            "type": "string",
+            "knownValues": ["financial", "social", "environmental", "governance", "other"]
+          },
+          "successCriteria": {
+            "type": "array",
+            "items": {
+              "type": "ref",
+              "ref": "#successCriterion"
+            }
+          },
+          "stakeholderSupport": {
+            "type": "array",
+            "items": {
+              "type": "ref",
+              "ref": "#supportEntry"
+            }
+          },
+          "status": {
+            "type": "string",
+            "knownValues": ["proposed", "endorsed", "active", "achieved", "abandoned"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    },
+    "successCriterion": {
+      "type": "object",
+      "required": ["metric", "target"],
+      "properties": {
+        "metric": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "target": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "timeline": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "ownerDid": {
+          "type": "string",
+          "format": "did"
+        }
+      }
+    },
+    "supportEntry": {
+      "type": "object",
+      "required": ["stakeholderDid", "supportLevel"],
+      "properties": {
+        "stakeholderDid": {
+          "type": "string",
+          "format": "did"
+        },
+        "supportLevel": {
+          "type": "string",
+          "knownValues": ["strong", "moderate", "conditional", "neutral", "opposed"]
+        },
+        "conditions": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      }
+    }
+  }
+}

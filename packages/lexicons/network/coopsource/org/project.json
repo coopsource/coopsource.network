@@ -1,0 +1,42 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.org.project",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A project, optionally linked to a cooperative.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["name", "status", "visibility", "createdAt"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 3000
+          },
+          "cooperativeUri": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "Parent cooperative, if any."
+          },
+          "status": {
+            "type": "string",
+            "knownValues": ["active", "completed", "on-hold", "cancelled"]
+          },
+          "visibility": {
+            "type": "string",
+            "knownValues": ["public", "members", "private"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

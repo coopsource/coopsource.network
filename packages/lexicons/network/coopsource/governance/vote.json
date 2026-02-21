@@ -1,0 +1,51 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.governance.vote",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A vote cast on a governance proposal.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["proposalUri", "voterDid", "choice", "createdAt"],
+        "properties": {
+          "proposalUri": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "The proposal being voted on."
+          },
+          "voterDid": {
+            "type": "string",
+            "format": "did",
+            "description": "The DID of the voter."
+          },
+          "choice": {
+            "type": "string",
+            "description": "The vote choice. 'yes', 'no', 'abstain' for standard methods; JSON array for ranked_choice.",
+            "maxLength": 1000
+          },
+          "weight": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Voting weight, defaults to 1.0. May be higher due to delegations."
+          },
+          "rationale": {
+            "type": "string",
+            "maxLength": 2000,
+            "description": "Optional explanation of the voter's reasoning."
+          },
+          "delegatedFrom": {
+            "type": "string",
+            "format": "did",
+            "description": "DID of the delegator, if this vote was cast on behalf of someone else."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,65 @@
+import { Router } from 'express';
+import type { Container } from '../container.js';
+import { asyncHandler } from '../lib/async-handler.js';
+import { requireAuth, requireAdmin } from '../auth/middleware.js';
+
+export function createAdminRoutes(container: Container): Router {
+  const router = Router();
+
+  // GET /api/v1/admin/pds/status
+  router.get(
+    '/api/v1/admin/pds/status',
+    requireAuth,
+    requireAdmin,
+    asyncHandler(async (_req, res) => {
+      const commitCount = await container.db
+        .selectFrom('pds_commit')
+        .select((eb) => [eb.fn.countAll<number>().as('count')])
+        .executeTakeFirst();
+
+      const lastCommit = await container.db
+        .selectFrom('pds_commit')
+        .select('global_seq')
+        .orderBy('global_seq', 'desc')
+        .limit(1)
+        .executeTakeFirst();
+
+      res.json({
+        totalCommits: commitCount?.count ?? 0,
+        lastSeq: lastCommit?.global_seq ?? 0,
+      });
+    }),
+  );
+
+  // POST /api/v1/admin/pds/reindex/:did
+  router.post(
+    '/api/v1/admin/pds/reindex/:did',
+    requireAuth,
+    requireAdmin,
+    asyncHandler(async (req, res) => {
+      // TODO: Implement reindex
+      res.json({
+        message: `TODO: reindex ${req.params.did}`,
+      });
+    }),
+  );
+
+  // GET /api/v1/admin/activity
+  router.get(
+    '/api/v1/admin/activity',
+    requireAuth,
+    requireAdmin,
+    asyncHandler(async (_req, res) => {
+      const entries = await container.db
+        .selectFrom('fact_log')
+        .selectAll()
+        .orderBy('changed_at', 'desc')
+        .limit(50)
+        .execute();
+
+      res.json({ items: entries });
+    }),
+  );
+
+  return router;
+}

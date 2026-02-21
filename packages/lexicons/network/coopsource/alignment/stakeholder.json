@@ -1,0 +1,52 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.alignment.stakeholder",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A stakeholder profile within a project, describing their role and background.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["projectUri", "name", "role", "createdAt"],
+        "properties": {
+          "projectUri": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "The project this stakeholder belongs to."
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Display name of the stakeholder."
+          },
+          "role": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "Stakeholder category.",
+            "knownValues": ["worker", "investor", "customer", "partner", "supplier", "community", "other"]
+          },
+          "stakeholderClass": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "Subclass for more specific categorization."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 3000,
+            "description": "Background and context about this stakeholder."
+          },
+          "interestsSummary": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "Brief overview of what they care about."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

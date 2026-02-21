@@ -1,0 +1,30 @@
+{
+  "name": "@coopsource/db",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Database layer using Kysely + PostgreSQL",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "migrate": "node --loader ts-node/esm src/migrate.ts",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "kysely": "^0.27",
+    "pg": "^8"
+  },
+  "devDependencies": {
+    "@coopsource/config": "workspace:*",
+    "@types/pg": "^8",
+    "ts-node": "^10",
+    "typescript": "^5.7"
+  }
+}

@@ -1,0 +1,153 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.alignment.interest",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A stakeholder's detailed interests, contributions, constraints, and red lines for a project.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["projectUri", "interests", "createdAt"],
+        "properties": {
+          "projectUri": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "The project this interest declaration relates to."
+          },
+          "interests": {
+            "type": "array",
+            "description": "Detailed interests and goals.",
+            "items": {
+              "type": "ref",
+              "ref": "#interestItem"
+            }
+          },
+          "contributions": {
+            "type": "array",
+            "description": "What the stakeholder can bring to the project.",
+            "items": {
+              "type": "ref",
+              "ref": "#contributionItem"
+            }
+          },
+          "constraints": {
+            "type": "array",
+            "description": "Limitations or conditions.",
+            "items": {
+              "type": "ref",
+              "ref": "#constraintItem"
+            }
+          },
+          "redLines": {
+            "type": "array",
+            "description": "Non-negotiable boundaries.",
+            "items": {
+              "type": "ref",
+              "ref": "#redLineItem"
+            }
+          },
+          "preferences": {
+            "type": "ref",
+            "ref": "#workPreferences",
+            "description": "Work style and decision-making preferences."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    },
+    "interestItem": {
+      "type": "object",
+      "required": ["category", "description", "priority"],
+      "properties": {
+        "category": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "priority": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "scope": {
+          "type": "string",
+          "knownValues": ["short-term", "medium-term", "long-term"]
+        }
+      }
+    },
+    "contributionItem": {
+      "type": "object",
+      "required": ["type", "description"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "knownValues": ["skill", "resource", "capital", "network", "time"]
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "capacity": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Estimated availability."
+        }
+      }
+    },
+    "constraintItem": {
+      "type": "object",
+      "required": ["description"],
+      "properties": {
+        "description": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "hardConstraint": {
+          "type": "boolean"
+        }
+      }
+    },
+    "redLineItem": {
+      "type": "object",
+      "required": ["description"],
+      "properties": {
+        "description": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      }
+    },
+    "workPreferences": {
+      "type": "object",
+      "properties": {
+        "decisionMaking": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "communication": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "pace": {
+          "type": "string",
+          "maxLength": 500
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.connection.binding",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A binding between an external resource and a project.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["connectionUri", "projectUri", "resourceType", "resourceId", "createdAt"],
+        "properties": {
+          "connectionUri": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "The external connection this binding belongs to."
+          },
+          "projectUri": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "The project this resource is bound to."
+          },
+          "resourceType": {
+            "type": "string",
+            "description": "The type of external resource.",
+            "knownValues": ["github_repo", "google_doc", "google_sheet", "google_drive_folder"]
+          },
+          "resourceId": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "The external identifier for the resource."
+          },
+          "metadata": {
+            "type": "ref",
+            "ref": "#resourceMetadata"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    },
+    "resourceMetadata": {
+      "type": "object",
+      "description": "Display metadata for the bound resource.",
+      "properties": {
+        "displayName": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "url": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      }
+    }
+  }
+}

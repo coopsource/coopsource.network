@@ -1,0 +1,26 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.org.membership",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A membership record created by the member entity in their own PDS. Represents one side of a bilateral membership; the cooperative must also create a memberApproval record for the membership to become active.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["cooperative", "createdAt"],
+        "properties": {
+          "cooperative": {
+            "type": "string",
+            "format": "did",
+            "description": "The DID of the cooperative being joined."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

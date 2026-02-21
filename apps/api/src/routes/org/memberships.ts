@@ -1,0 +1,407 @@
+import { Router } from 'express';
+import type { Container } from '../../container.js';
+import { asyncHandler } from '../../lib/async-handler.js';
+import { requireAuth, requireAdmin } from '../../auth/middleware.js';
+import { parsePagination } from '../../lib/pagination.js';
+import { formatInvitation } from '../../lib/formatters.js';
+
+export function createMembershipRoutes(container: Container): Router {
+  const router = Router();
+
+  // GET /api/v1/members
+  router.get(
+    '/api/v1/members',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const params = parsePagination(req.query as Record<string, unknown>);
+      const result = await container.membershipService.listMembers(
+        req.actor!.cooperativeDid,
+        params,
+      );
+
+      // Enrich each member with handle and email
+      const members = await Promise.all(
+        result.items.map(async (member) => {
+          const entity = await container.db
+            .selectFrom('entity')
+            .where('did', '=', member.did)
+            .select('handle')
+            .executeTakeFirst();
+
+          const cred = await container.db
+            .selectFrom('auth_credential')
+            .where('entity_did', '=', member.did)
+            .where('credential_type', '=', 'password')
+            .where('invalidated_at', 'is', null)
+            .select('identifier')
+            .executeTakeFirst();
+
+          return {
+            did: member.did,
+            handle: entity?.handle ?? null,
+            displayName: member.displayName,
+            email: cred?.identifier ?? null,
+            roles: member.roles,
+            status: member.status,
+            joinedAt: member.joinedAt ? member.joinedAt.toISOString() : null,
+          };
+        }),
+      );
+
+      res.json({ members, cursor: result.cursor ?? null });
+    }),
+  );
+
+  // GET /api/v1/members/:did
+  router.get(
+    '/api/v1/members/:did',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const member = await container.membershipService.getMember(
+        req.actor!.cooperativeDid,
+        (req.params.did as string),
+      );
+      if (!member) {
+        res.status(404).json({
+          error: { code: 'NOT_FOUND', message: 'Member not found' },
+        });
+        return;
+      }
+
+      const entity = await container.db
+        .selectFrom('entity')
+        .where('did', '=', member.did)
+        .select('handle')
+        .executeTakeFirst();
+
+      const cred = await container.db
+        .selectFrom('auth_credential')
+        .where('entity_did', '=', member.did)
+        .where('credential_type', '=', 'password')
+        .where('invalidated_at', 'is', null)
+        .select('identifier')
+        .executeTakeFirst();
+
+      res.json({
+        did: member.did,
+        handle: entity?.handle ?? null,
+        displayName: member.displayName,
+        email: cred?.identifier ?? null,
+        roles: member.roles,
+        status: member.status,
+        joinedAt: member.joinedAt ? member.joinedAt.toISOString() : null,
+      });
+    }),
+  );
+
+  // PUT /api/v1/members/:did/roles
+  router.put(
+    '/api/v1/members/:did/roles',
+    requireAuth,
+    requireAdmin,
+    asyncHandler(async (req, res) => {
+      const { roles } = req.body as { roles: string[] };
+      await container.membershipService.updateMemberRoles(
+        req.actor!.cooperativeDid,
+        (req.params.did as string),
+        roles,
+      );
+      res.json({ ok: true });
+    }),
+  );
+
+  // DELETE /api/v1/members/:did
+  router.delete(
+    '/api/v1/members/:did',
+    requireAuth,
+    requireAdmin,
+    asyncHandler(async (req, res) => {
+      await container.membershipService.removeMember(
+        req.actor!.cooperativeDid,
+        (req.params.did as string),
+      );
+      res.status(204).send();
+    }),
+  );
+
+  // ─── Invitations ────────────────────────────────────────────────────
+
+  // GET /api/v1/invitations
+  router.get(
+    '/api/v1/invitations',
+    requireAuth,
+    requireAdmin,
+    asyncHandler(async (req, res) => {
+      const rows = await container.db
+        .selectFrom('invitation')
+        .where('cooperative_did', '=', req.actor!.cooperativeDid)
+        .where('invalidated_at', 'is', null)
+        .selectAll()
+        .orderBy('created_at', 'desc')
+        .execute();
+
+      // Enrich with inviter display names
+      const invitations = await Promise.all(
+        rows.map(async (row) => {
+          const inviter = await container.db
+            .selectFrom('entity')
+            .where('did', '=', row.invited_by_did)
+            .select('display_name')
+            .executeTakeFirst();
+          return formatInvitation(row, inviter?.display_name ?? null);
+        }),
+      );
+
+      res.json({ invitations, cursor: null });
+    }),
+  );
+
+  // POST /api/v1/invitations
+  router.post(
+    '/api/v1/invitations',
+    requireAuth,
+    requireAdmin,
+    asyncHandler(async (req, res) => {
+      const { email, roles, intendedRoles, message } = req.body as {
+        email: string;
+        roles?: string[];
+        intendedRoles?: string[];
+        message?: string;
+      };
+
+      const invitation =
+        await container.membershipService.createInvitation({
+          cooperativeDid: req.actor!.cooperativeDid,
+          invitedByDid: req.actor!.did,
+          email,
+          intendedRoles: roles ?? intendedRoles,
+          message,
+          instanceUrl: 'http://localhost:5173', // TODO: from config
+        });
+
+      // Get inviter name for response
+      const inviter = await container.db
+        .selectFrom('entity')
+        .where('did', '=', req.actor!.did)
+        .select('display_name')
+        .executeTakeFirst();
+
+      res
+        .status(201)
+        .json(formatInvitation(invitation, inviter?.display_name ?? null));
+    }),
+  );
+
+  // GET /api/v1/invitations/:token (public — shows invite details before accepting)
+  router.get(
+    '/api/v1/invitations/:token',
+    asyncHandler(async (req, res) => {
+      const inv = await container.db
+        .selectFrom('invitation')
+        .where('token', '=', (req.params.token as string))
+        .where('invalidated_at', 'is', null)
+        .selectAll()
+        .executeTakeFirst();
+
+      if (!inv) {
+        res.status(404).json({ error: 'NotFound', message: 'Invitation not found' });
+        return;
+      }
+
+      const coop = await container.db
+        .selectFrom('entity')
+        .where('did', '=', inv.cooperative_did)
+        .select('display_name')
+        .executeTakeFirst();
+
+      res.json({
+        id: inv.id,
+        status: inv.status,
+        email: inv.invitee_email ?? null,
+        roles: inv.intended_roles ?? [],
+        message: inv.message ?? null,
+        expiresAt: inv.expires_at.toISOString(),
+        cooperativeName: coop?.display_name ?? null,
+      });
+    }),
+  );
+
+  // POST /api/v1/invitations/:token/accept (public — creates account + membership)
+  router.post(
+    '/api/v1/invitations/:token/accept',
+    asyncHandler(async (req, res) => {
+      const { displayName, handle, password } = req.body as {
+        displayName?: string;
+        handle?: string;
+        password?: string;
+      };
+
+      if (!displayName || !password) {
+        res.status(400).json({ error: 'ValidationError', message: 'displayName and password are required' });
+        return;
+      }
+
+      // Validate invitation
+      const inv = await container.db
+        .selectFrom('invitation')
+        .where('token', '=', (req.params.token as string))
+        .where('status', '=', 'pending')
+        .where('invalidated_at', 'is', null)
+        .selectAll()
+        .executeTakeFirst();
+
+      if (!inv) {
+        res.status(404).json({ error: 'NotFound', message: 'Invitation not found or already used' });
+        return;
+      }
+
+      if (new Date(inv.expires_at) < container.clock.now()) {
+        res.status(400).json({ error: 'ValidationError', message: 'Invitation has expired' });
+        return;
+      }
+
+      const now = container.clock.now();
+      const { hash } = await import('bcrypt');
+
+      // Create member DID
+      const memberDidDoc = await container.pdsService.createDid({
+        entityType: 'person',
+        pdsUrl: process.env.INSTANCE_URL ?? 'http://localhost:3001',
+      });
+      const memberDid = memberDidDoc.id;
+
+      // Create entity
+      await container.db
+        .insertInto('entity')
+        .values({
+          did: memberDid,
+          type: 'person',
+          display_name: displayName,
+          handle: handle ?? null,
+          status: 'active',
+          created_at: now,
+          indexed_at: now,
+        })
+        .execute();
+
+      // Create auth credential
+      const secretHash = await hash(password, 12);
+      await container.db
+        .insertInto('auth_credential')
+        .values({
+          entity_did: memberDid,
+          credential_type: 'password',
+          identifier: inv.invitee_email ?? `${handle ?? memberDid}@${inv.cooperative_did}`,
+          secret_hash: secretHash,
+          created_at: now,
+        })
+        .execute();
+
+      // Create membership row
+      const [membership] = await container.db
+        .insertInto('membership')
+        .values({
+          member_did: memberDid,
+          cooperative_did: inv.cooperative_did,
+          status: 'pending',
+          created_at: now,
+          indexed_at: now,
+        })
+        .returning('id')
+        .execute();
+
+      // Write member assertion PDS record
+      const memberRef = await container.pdsService.createRecord({
+        did: memberDid as import('@coopsource/common').DID,
+        collection: 'network.coopsource.org.membership',
+        record: {
+          cooperative: inv.cooperative_did,
+          invitationUri: `at://invitation/${inv.id}`,
+          createdAt: now.toISOString(),
+        },
+      });
+
+      await container.db
+        .updateTable('membership')
+        .set({ member_record_uri: memberRef.uri, member_record_cid: memberRef.cid })
+        .where('id', '=', membership!.id)
+        .execute();
+
+      // Write memberApproval PDS record (auto-approve with intended roles)
+      const roles = inv.intended_roles ?? ['member'];
+      const approvalRef = await container.pdsService.createRecord({
+        did: inv.cooperative_did as import('@coopsource/common').DID,
+        collection: 'network.coopsource.org.memberApproval',
+        record: {
+          member: memberDid,
+          roles,
+          createdAt: now.toISOString(),
+        },
+      });
+
+      await container.db
+        .updateTable('membership')
+        .set({
+          approval_record_uri: approvalRef.uri,
+          approval_record_cid: approvalRef.cid,
+          status: 'active',
+          joined_at: now,
+        })
+        .where('id', '=', membership!.id)
+        .execute();
+
+      // Insert roles
+      if (roles.length > 0) {
+        await container.db
+          .insertInto('membership_role')
+          .values(roles.map((role) => ({ membership_id: membership!.id, role, indexed_at: now })))
+          .execute();
+      }
+
+      // Mark invitation accepted
+      await container.db
+        .updateTable('invitation')
+        .set({ status: 'accepted', invitee_did: memberDid })
+        .where('id', '=', inv.id)
+        .execute();
+
+      // Set session
+      req.session.did = memberDid;
+
+      res.status(201).json({
+        member: {
+          did: memberDid,
+          handle: handle ?? null,
+          displayName,
+          email: inv.invitee_email ?? null,
+          roles,
+          status: 'active',
+          joinedAt: now.toISOString(),
+        },
+      });
+    }),
+  );
+
+  // DELETE /api/v1/invitations/:id
+  router.delete(
+    '/api/v1/invitations/:id',
+    requireAuth,
+    requireAdmin,
+    asyncHandler(async (req, res) => {
+      await container.db
+        .updateTable('invitation')
+        .set({
+          status: 'revoked',
+          invalidated_at: new Date(),
+          invalidated_by: req.actor!.did,
+        })
+        .where('id', '=', (req.params.id as string))
+        .where('cooperative_did', '=', req.actor!.cooperativeDid)
+        .execute();
+
+      res.status(204).send();
+    }),
+  );
+
+  return router;
+}

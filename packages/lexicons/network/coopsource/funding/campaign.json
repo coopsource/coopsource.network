@@ -1,0 +1,84 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.funding.campaign",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A crowdfunding campaign for a cooperative, project, or the network.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["beneficiaryUri", "title", "tier", "campaignType", "goalAmount", "goalCurrency", "fundingModel", "status", "createdAt"],
+        "properties": {
+          "beneficiaryUri": {
+            "type": "string",
+            "description": "AT URI of the cooperative/project, or 'network:coopsource' for network-level campaigns."
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "tier": {
+            "type": "string",
+            "description": "The level at which this campaign operates.",
+            "knownValues": ["network", "cooperative", "project"]
+          },
+          "campaignType": {
+            "type": "string",
+            "description": "The type of crowdfunding campaign.",
+            "knownValues": ["rewards", "patronage", "donation", "revenue_share"]
+          },
+          "goalAmount": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Funding goal in cents."
+          },
+          "goalCurrency": {
+            "type": "string",
+            "maxLength": 10,
+            "description": "ISO 4217 currency code."
+          },
+          "amountRaised": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total amount raised in cents."
+          },
+          "backerCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of backers."
+          },
+          "fundingModel": {
+            "type": "string",
+            "description": "How funds are collected.",
+            "knownValues": ["all_or_nothing", "keep_it_all"]
+          },
+          "status": {
+            "type": "string",
+            "knownValues": ["draft", "active", "funded", "completed", "cancelled"]
+          },
+          "startDate": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "metadata": {
+            "type": "unknown",
+            "description": "Additional campaign data (reward tiers, images, tags)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

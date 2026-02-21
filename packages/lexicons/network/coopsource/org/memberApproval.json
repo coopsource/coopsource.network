@@ -1,0 +1,33 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.org.memberApproval",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "An approval record created by the cooperative in its PDS. Represents the cooperative's side of a bilateral membership. Role authority lives here, never in the membership record.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["member", "createdAt"],
+        "properties": {
+          "member": {
+            "type": "string",
+            "format": "did",
+            "description": "The DID of the approved member entity (person or cooperative)."
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Roles assigned by the cooperative to this member."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

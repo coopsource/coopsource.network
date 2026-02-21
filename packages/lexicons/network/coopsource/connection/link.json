@@ -1,0 +1,56 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.connection.link",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "An external service connection (e.g., GitHub, Google) linked to a user's account.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["service", "status", "createdAt"],
+        "properties": {
+          "service": {
+            "type": "string",
+            "description": "The external service provider.",
+            "knownValues": ["github", "google"]
+          },
+          "status": {
+            "type": "string",
+            "description": "Current status of the connection.",
+            "knownValues": ["active", "revoked", "expired"]
+          },
+          "metadata": {
+            "type": "ref",
+            "ref": "#metadata"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Metadata about the external service account.",
+      "properties": {
+        "username": {
+          "type": "string",
+          "maxLength": 255
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 255
+        },
+        "scopes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 255
+          }
+        }
+      }
+    }
+  }
+}
