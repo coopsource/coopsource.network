@@ -141,6 +141,76 @@ export function formatAgreement(
   };
 }
 
+export interface ThreadResponse {
+  id: string;
+  title: string | null;
+  threadType: string;
+  status: string;
+  createdBy: string;
+  memberCount: number;
+  createdAt: string;
+}
+
+export interface PostResponse {
+  id: string;
+  threadId: string;
+  authorDid: string;
+  body: string;
+  bodyFormat: string;
+  parentPostId: string | null;
+  status: string;
+  createdAt: string;
+  editedAt: string | null;
+}
+
+export function formatThread(
+  row: {
+    id: string;
+    title: string | null;
+    thread_type: string;
+    status: string;
+    created_by: string;
+    created_at: Date;
+  },
+  memberCount: number = 0,
+): ThreadResponse {
+  return {
+    id: row.id,
+    title: row.title,
+    threadType: row.thread_type,
+    status: row.status,
+    createdBy: row.created_by,
+    memberCount,
+    createdAt: row.created_at.toISOString(),
+  };
+}
+
+export function formatPost(
+  row: {
+    id: string;
+    thread_id: string;
+    author_did: string;
+    body: string;
+    body_format: string;
+    parent_post_id: string | null;
+    status: string;
+    created_at: Date;
+    edited_at: Date | null;
+  },
+): PostResponse {
+  return {
+    id: row.id,
+    threadId: row.thread_id,
+    authorDid: row.author_did,
+    body: row.body,
+    bodyFormat: row.body_format,
+    parentPostId: row.parent_post_id ?? null,
+    status: row.status,
+    createdAt: row.created_at.toISOString(),
+    editedAt: row.edited_at ? row.edited_at.toISOString() : null,
+  };
+}
+
 export function formatInvitation(
   row: {
     id: string;

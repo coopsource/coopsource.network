@@ -12,6 +12,10 @@ import type {
   ProposalsResponse,
   AgreementsResponse,
   VotesResponse,
+  Thread,
+  Post,
+  ThreadsResponse,
+  PostsResponse,
 } from './types.js';
 
 export class ApiError extends Error {
@@ -338,5 +342,37 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string) {
 
     voidAgreement: (id: string) =>
       request<Agreement>(`/agreements/${id}/void`, { method: 'POST' }),
+
+    // Threads & Posts
+    getThreads: (params?: { limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<ThreadsResponse>(`/threads${qs.size ? `?${qs}` : ''}`);
+    },
+
+    createThread: (body: { title?: string; threadType?: string; memberDids?: string[] }) =>
+      request<Thread>('/threads', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+
+    getThread: (id: string) => request<Thread & { members: string[]; cooperativeDid: string; createdBy: string }>(`/threads/${id}`),
+
+    getThreadPosts: (id: string, params?: { limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<PostsResponse>(`/threads/${id}/posts${qs.size ? `?${qs}` : ''}`);
+    },
+
+    createPost: (threadId: string, body: { body: string; parentPostId?: string }) =>
+      request<Post>(`/threads/${threadId}/posts`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+
+    deletePost: (id: string) =>
+      request<void>(`/posts/${id}`, { method: 'DELETE' }),
   };
 }

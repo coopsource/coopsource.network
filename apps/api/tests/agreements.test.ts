@@ -53,6 +53,7 @@ describe('Agreements & Signatures', () => {
 
   it('GET /api/v1/agreements returns { agreements, cursor }', async () => {
     await createDraft({ title: 'Agreement A' }).expect(201);
+    testApp.clock.advance(1000);
     await createDraft({ title: 'Agreement B' }).expect(201);
 
     const res = await testApp.agent.get('/api/v1/agreements').expect(200);

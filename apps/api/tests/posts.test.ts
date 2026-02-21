@@ -21,13 +21,11 @@ describe('Threads & Posts', () => {
 
       expect(res.body.id).toBeDefined();
       expect(res.body.title).toBe('First thread');
-      expect(res.body.thread_type).toBe('discussion');
+      expect(res.body.threadType).toBe('discussion');
       expect(res.body.status).toBe('open');
-      expect(res.body.created_by).toBe(adminDid);
-      expect(res.body.cooperative_did).toBeDefined();
-      expect(res.body.created_at).toBeDefined();
-      expect(res.body.invalidated_at).toBeNull();
-      expect(res.body.invalidated_by).toBeNull();
+      expect(res.body.createdBy).toBe(adminDid);
+      expect(res.body.memberCount).toBe(1);
+      expect(res.body.createdAt).toBeDefined();
     });
 
     it('creates a thread with explicit announcement type', async () => {
@@ -41,13 +39,13 @@ describe('Threads & Posts', () => {
 
       expect(res.body.id).toBeDefined();
       expect(res.body.title).toBe('Announcements');
-      expect(res.body.thread_type).toBe('announcement');
+      expect(res.body.threadType).toBe('announcement');
       expect(res.body.status).toBe('open');
     });
   });
 
   describe('GET /api/v1/threads', () => {
-    it('lists threads with items and cursor', async () => {
+    it('lists threads with cursor-based pagination', async () => {
       const testApp = createTestApp();
       await setupAndLogin(testApp);
 
@@ -66,11 +64,14 @@ describe('Threads & Posts', () => {
         .get('/api/v1/threads')
         .expect(200);
 
-      expect(res.body).toHaveProperty('items');
-      expect(res.body.items).toHaveLength(2);
+      expect(res.body).toHaveProperty('threads');
+      expect(res.body.threads).toHaveLength(2);
       // Ordered by created_at desc, so Thread B should be first
-      expect(res.body.items[0].title).toBe('Thread B');
-      expect(res.body.items[1].title).toBe('Thread A');
+      expect(res.body.threads[0].title).toBe('Thread B');
+      expect(res.body.threads[1].title).toBe('Thread A');
+      // camelCase fields
+      expect(res.body.threads[0].threadType).toBe('discussion');
+      expect(res.body.threads[0].memberCount).toBe(1);
     });
   });
 
@@ -99,6 +100,7 @@ describe('Threads & Posts', () => {
       expect(res.body.createdBy).toBe(adminDid);
       expect(res.body.members).toBeInstanceOf(Array);
       expect(res.body.members).toContain(adminDid);
+      expect(res.body.memberCount).toBe(1);
     });
 
     it('returns 404 for non-existent thread ID', async () => {
@@ -117,7 +119,7 @@ describe('Threads & Posts', () => {
   });
 
   describe('POST /api/v1/threads/:id/posts', () => {
-    it('creates a post in a thread', async () => {
+    it('creates a post in a thread (camelCase response)', async () => {
       const testApp = createTestApp();
       const { adminDid } = await setupAndLogin(testApp);
 
@@ -134,21 +136,19 @@ describe('Threads & Posts', () => {
         .expect(201);
 
       expect(res.body.id).toBeDefined();
-      expect(res.body.thread_id).toBe(threadId);
-      expect(res.body.author_did).toBe(adminDid);
+      expect(res.body.threadId).toBe(threadId);
+      expect(res.body.authorDid).toBe(adminDid);
       expect(res.body.body).toBe('Hello, world!');
-      expect(res.body.body_format).toBe('plain');
-      expect(res.body.parent_post_id).toBeNull();
+      expect(res.body.bodyFormat).toBe('plain');
+      expect(res.body.parentPostId).toBeNull();
       expect(res.body.status).toBe('active');
-      expect(res.body.created_at).toBeDefined();
-      expect(res.body.edited_at).toBeNull();
-      expect(res.body.invalidated_at).toBeNull();
-      expect(res.body.invalidated_by).toBeNull();
+      expect(res.body.createdAt).toBeDefined();
+      expect(res.body.editedAt).toBeNull();
     });
   });
 
   describe('GET /api/v1/threads/:id/posts', () => {
-    it('lists posts in a thread with items and cursor', async () => {
+    it('lists posts in a thread (camelCase)', async () => {
       const testApp = createTestApp();
       await setupAndLogin(testApp);
 
@@ -173,11 +173,14 @@ describe('Threads & Posts', () => {
         .get(`/api/v1/threads/${threadId}/posts`)
         .expect(200);
 
-      expect(res.body).toHaveProperty('items');
-      expect(res.body.items).toHaveLength(2);
+      expect(res.body).toHaveProperty('posts');
+      expect(res.body.posts).toHaveLength(2);
       // Posts are ordered by created_at asc
-      expect(res.body.items[0].body).toBe('First post');
-      expect(res.body.items[1].body).toBe('Second post');
+      expect(res.body.posts[0].body).toBe('First post');
+      expect(res.body.posts[1].body).toBe('Second post');
+      // camelCase fields
+      expect(res.body.posts[0].authorDid).toBeDefined();
+      expect(res.body.posts[0].bodyFormat).toBe('plain');
     });
   });
 
@@ -205,7 +208,7 @@ describe('Threads & Posts', () => {
 
       expect(res.body.id).toBe(postId);
       expect(res.body.body).toBe('Updated body');
-      expect(res.body.edited_at).not.toBeNull();
+      expect(res.body.editedAt).not.toBeNull();
     });
   });
 
@@ -235,7 +238,7 @@ describe('Threads & Posts', () => {
         .get(`/api/v1/threads/${threadRes.body.id}/posts`)
         .expect(200);
 
-      expect(listRes.body.items).toHaveLength(0);
+      expect(listRes.body.posts).toHaveLength(0);
     });
 
     it('returns 404 for non-existent post', async () => {

@@ -61,6 +61,7 @@ describe('Proposals & Voting', () => {
     await setupAndLogin(testApp);
 
     await createDraftProposal(testApp.agent, { title: 'Proposal A' });
+    testApp.clock.advance(1000);
     await createDraftProposal(testApp.agent, { title: 'Proposal B' });
 
     const res = await testApp.agent.get('/api/v1/proposals').expect(200);

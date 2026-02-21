@@ -6,6 +6,7 @@
   const coop = $derived(data.cooperative);
   const proposals = $derived(data.proposals);
   const agreements = $derived(data.agreements);
+  const threads = $derived(data.threads);
 
   function statusToVariant(status: string): 'success' | 'warning' | 'danger' | 'default' {
     switch (status) {
@@ -101,6 +102,36 @@
                 <p class="text-xs text-[var(--cs-text-muted)] mt-0.5">
                   by {agreement.authorDisplayName} ·
                   {new Date(agreement.createdAt).toLocaleDateString()}
+                </p>
+              </a>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </div>
+
+    <!-- Recent Threads -->
+    <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)]">
+      <div class="flex items-center justify-between border-b border-[var(--cs-border)] px-5 py-4">
+        <h2 class="text-sm font-semibold text-[var(--cs-text)]">Recent Threads</h2>
+        <a href="/threads" class="text-xs text-blue-600 hover:underline">View all →</a>
+      </div>
+      {#if threads.length === 0}
+        <p class="px-5 py-6 text-sm text-[var(--cs-text-muted)]">No threads yet.</p>
+      {:else}
+        <ul class="divide-y divide-[var(--cs-border)]">
+          {#each threads as thread}
+            <li class="px-5 py-3">
+              <a href="/threads/{thread.id}" class="block hover:bg-[var(--cs-bg-inset)] -mx-5 px-5 py-1 rounded">
+                <div class="flex items-center justify-between">
+                  <span class="text-sm font-medium text-[var(--cs-text)] truncate">
+                    {thread.title ?? 'Untitled thread'}
+                  </span>
+                  <Badge variant="default" class="ml-2 shrink-0">{thread.threadType}</Badge>
+                </div>
+                <p class="text-xs text-[var(--cs-text-muted)] mt-0.5">
+                  {thread.memberCount} member{thread.memberCount !== 1 ? 's' : ''} ·
+                  {new Date(thread.createdAt).toLocaleDateString()}
                 </p>
               </a>
             </li>

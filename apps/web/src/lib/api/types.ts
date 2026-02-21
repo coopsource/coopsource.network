@@ -110,6 +110,38 @@ export interface VotesResponse {
   tally: Record<string, number>;
 }
 
+export interface Thread {
+  id: string;
+  title: string | null;
+  threadType: string;
+  status: string;
+  createdBy: string;
+  memberCount: number;
+  createdAt: string;
+}
+
+export interface Post {
+  id: string;
+  threadId: string;
+  authorDid: string;
+  body: string;
+  bodyFormat: string;
+  parentPostId: string | null;
+  status: string;
+  createdAt: string;
+  editedAt: string | null;
+}
+
+export interface ThreadsResponse {
+  threads: Thread[];
+  cursor?: string;
+}
+
+export interface PostsResponse {
+  posts: Post[];
+  cursor?: string;
+}
+
 export interface ApiError {
   error: string;
   message?: string;

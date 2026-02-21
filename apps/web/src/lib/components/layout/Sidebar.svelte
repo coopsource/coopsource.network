@@ -6,6 +6,7 @@
   import Mail from 'lucide-svelte/icons/mail';
   import Vote from 'lucide-svelte/icons/vote';
   import FileSignature from 'lucide-svelte/icons/file-signature';
+  import MessageSquare from 'lucide-svelte/icons/message-square';
   import Settings from 'lucide-svelte/icons/settings';
   import PanelLeftClose from 'lucide-svelte/icons/panel-left-close';
   import PanelLeftOpen from 'lucide-svelte/icons/panel-left-open';
@@ -37,6 +38,7 @@
     { href: '/invitations', label: 'Invitations', icon: Mail },
     { href: '/proposals', label: 'Proposals', icon: Vote },
     { href: '/agreements', label: 'Agreements', icon: FileSignature },
+    { href: '/threads', label: 'Threads', icon: MessageSquare },
   ];
 
   const bottomNav: NavItem[] = [

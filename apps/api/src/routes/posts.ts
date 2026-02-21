@@ -3,6 +3,7 @@ import type { Container } from '../container.js';
 import { asyncHandler } from '../lib/async-handler.js';
 import { requireAuth } from '../auth/middleware.js';
 import { parsePagination } from '../lib/pagination.js';
+import { formatThread, formatPost } from '../lib/formatters.js';
 import {
   UnauthorizedError,
   NotFoundError,
@@ -25,7 +26,20 @@ export function createPostRoutes(container: Container): Router {
         req.actor!.cooperativeDid,
         params,
       );
-      res.json(result);
+
+      // Count members for each thread
+      const threads = await Promise.all(
+        result.items.map(async (row) => {
+          const members = await container.db
+            .selectFrom('thread_member')
+            .where('thread_id', '=', row.id)
+            .select(container.db.fn.countAll().as('count'))
+            .executeTakeFirst();
+          return formatThread(row, Number(members?.count ?? 0));
+        }),
+      );
+
+      res.json({ threads, cursor: result.cursor });
     }),
   );
 
@@ -44,7 +58,13 @@ export function createPostRoutes(container: Container): Router {
         memberDids,
       });
 
-      res.status(201).json(thread);
+      // Count members (creator + specified members)
+      const memberCount = new Set([
+        req.actor!.did,
+        ...(memberDids ?? []),
+      ]).size;
+
+      res.status(201).json(formatThread(thread, memberCount));
     }),
   );
 
@@ -63,7 +83,7 @@ export function createPostRoutes(container: Container): Router {
         throw new UnauthorizedError('Not a member of this thread');
       }
 
-      res.json(thread);
+      res.json({ ...thread, memberCount: thread.members.length });
     }),
   );
 
@@ -87,7 +107,7 @@ export function createPostRoutes(container: Container): Router {
         parentPostId,
       });
 
-      res.status(201).json(post);
+      res.status(201).json(formatPost(post));
     }),
   );
 
@@ -107,7 +127,7 @@ export function createPostRoutes(container: Container): Router {
         (req.params.id as string),
         params,
       );
-      res.json(result);
+      res.json({ posts: result.items.map(formatPost), cursor: result.cursor });
     }),
   );
 
@@ -123,7 +143,7 @@ export function createPostRoutes(container: Container): Router {
         req.actor!.did,
         body,
       );
-      res.json(post);
+      res.json(formatPost(post));
     }),
   );
 
