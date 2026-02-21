@@ -21,16 +21,17 @@
     "@coopsource/common": "workspace:*"
   },
   "devDependencies": {
+    "@playwright/test": "^1",
     "@sveltejs/adapter-auto": "^4",
     "@sveltejs/kit": "^2.20",
     "@sveltejs/vite-plugin-svelte": "^5",
     "@tailwindcss/vite": "^4",
+    "lucide-svelte": "^0.575.0",
     "svelte": "^5.19",
     "svelte-check": "^4",
     "tailwindcss": "^4",
     "typescript": "^5.7",
     "vite": "^6",
-    "@playwright/test": "^1",
     "vitest": "^3"
   }
 }
