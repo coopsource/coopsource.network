@@ -30,12 +30,20 @@
 <div class="space-y-4">
   <div class="flex items-center justify-between">
     <h1 class="text-xl font-semibold text-[var(--cs-text)]">Agreements</h1>
-    <a
-      href="/agreements/new"
-      class="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
-    >
-      New agreement
-    </a>
+    <div class="flex items-center gap-2">
+      <a
+        href="/agreements/templates"
+        class="rounded-md border border-[var(--cs-border)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text)] hover:bg-[var(--cs-bg-hover)]"
+      >
+        Templates
+      </a>
+      <a
+        href="/agreements/new"
+        class="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+      >
+        New agreement
+      </a>
+    </div>
   </div>
 
   <!-- Status filter tabs -->

@@ -325,6 +325,24 @@ export interface OutcomesResponse extends PaginatedResponse<DesiredOutcome> {
   outcomes: DesiredOutcome[];
 }
 
+// ─── Agreement Templates ─────────────────────────────────────────────────────
+
+export interface AgreementTemplate {
+  id: string;
+  cooperativeDid: string;
+  createdBy: string;
+  name: string;
+  description: string | null;
+  agreementType: string;
+  templateData: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgreementTemplatesResponse extends PaginatedResponse<AgreementTemplate> {
+  templates: AgreementTemplate[];
+}
+
 // ─── Stakeholder Terms ───────────────────────────────────────────────────────
 
 export interface StakeholderTerms {

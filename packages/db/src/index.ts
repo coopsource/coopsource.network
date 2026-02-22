@@ -27,6 +27,7 @@ export type {
   AgreementTable,
   AgreementSignatureTable,
   AgreementRevisionTable,
+  AgreementTemplateTable,
   // Legacy tables
   StakeholderInterestTable,
   DesiredOutcomeTable,

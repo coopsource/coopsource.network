@@ -5,6 +5,8 @@ import type {
   Invitation,
   Proposal,
   Agreement,
+  AgreementTemplate,
+  AgreementTemplatesResponse,
   Vote,
   SetupStatus,
   MembersResponse,
@@ -394,6 +396,40 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string) {
       request<void>(`/agreements/${encodeURIComponent(agreementUri)}/terms/${encodeURIComponent(termsUri)}`, {
         method: 'DELETE',
       }),
+
+    // Agreement Templates
+    getAgreementTemplates: (params?: { limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<AgreementTemplatesResponse>(`/agreement-templates${qs.size ? `?${qs}` : ''}`);
+    },
+
+    getAgreementTemplate: (id: string) =>
+      request<AgreementTemplate>(`/agreement-templates/${id}`),
+
+    createAgreementTemplate: (body: {
+      name: string;
+      description?: string;
+      agreementType?: string;
+      templateData?: Record<string, unknown>;
+    }) =>
+      request<AgreementTemplate>('/agreement-templates', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+
+    updateAgreementTemplate: (id: string, body: Record<string, unknown>) =>
+      request<AgreementTemplate>(`/agreement-templates/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
+
+    deleteAgreementTemplate: (id: string) =>
+      request<void>(`/agreement-templates/${id}`, { method: 'DELETE' }),
+
+    useAgreementTemplate: (id: string) =>
+      request<Agreement>(`/agreement-templates/${id}/use`, { method: 'POST' }),
 
     // Threads & Posts
     getThreads: (params?: { limit?: number; cursor?: string }) => {

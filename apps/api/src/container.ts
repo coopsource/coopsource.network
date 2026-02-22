@@ -18,6 +18,7 @@ import { NetworkService } from './services/network-service.js';
 import { FundingService } from './services/funding-service.js';
 import { AlignmentService } from './services/alignment-service.js';
 import { ConnectionService } from './services/connection-service.js';
+import { AgreementTemplateService } from './services/agreement-template-service.js';
 
 export interface Container {
   db: Kysely<Database>;
@@ -31,6 +32,7 @@ export interface Container {
   postService: PostService;
   proposalService: ProposalService;
   agreementService: AgreementService;
+  agreementTemplateService: AgreementTemplateService;
   networkService: NetworkService;
   fundingService: FundingService;
   alignmentService: AlignmentService;
@@ -78,6 +80,7 @@ export function createContainer(config: AppConfig): Container {
   const postService = new PostService(db, clock);
   const proposalService = new ProposalService(db, pdsService, clock);
   const agreementService = new AgreementService(db, pdsService, clock);
+  const agreementTemplateService = new AgreementTemplateService(db, clock);
   const networkService = new NetworkService(db, pdsService, clock);
   const fundingService = new FundingService(db, pdsService, clock);
   const alignmentService = new AlignmentService(db, pdsService, clock);
@@ -95,6 +98,7 @@ export function createContainer(config: AppConfig): Container {
     postService,
     proposalService,
     agreementService,
+    agreementTemplateService,
     networkService,
     fundingService,
     alignmentService,

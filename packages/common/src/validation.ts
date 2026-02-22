@@ -228,6 +228,53 @@ export type UpdateMasterAgreementInput = z.infer<typeof UpdateMasterAgreementSch
 export type CreateStakeholderTermsInput = z.infer<typeof CreateStakeholderTermsSchema>;
 export type CreateSignatureInput = z.infer<typeof CreateSignatureSchema>;
 
+// --- Agreement Template Schemas ---
+
+const TemplateDataSchema = z.object({
+  title: z.string().min(1).max(255).optional(),
+  purpose: z.string().max(3000).optional(),
+  scope: z.string().max(3000).optional(),
+  body: z.string().max(50000).optional(),
+  bodyFormat: z.string().max(50).optional(),
+  governanceFramework: GovernanceFrameworkSchema.optional(),
+  disputeResolution: DisputeResolutionSchema.optional(),
+  amendmentProcess: AmendmentProcessSchema.optional(),
+  terminationConditions: TerminationConditionsSchema.optional(),
+});
+
+export const CreateAgreementTemplateSchema = z.object({
+  name: z.string().min(1).max(255),
+  description: z.string().max(2000).optional(),
+  agreementType: z.enum([
+    'worker-cooperative',
+    'multi-stakeholder',
+    'platform-cooperative',
+    'open-source',
+    'producer-cooperative',
+    'hybrid-member-investor',
+    'custom',
+  ]).default('custom'),
+  templateData: TemplateDataSchema.default({}),
+});
+
+export const UpdateAgreementTemplateSchema = z.object({
+  name: z.string().min(1).max(255).optional(),
+  description: z.string().max(2000).optional(),
+  agreementType: z.enum([
+    'worker-cooperative',
+    'multi-stakeholder',
+    'platform-cooperative',
+    'open-source',
+    'producer-cooperative',
+    'hybrid-member-investor',
+    'custom',
+  ]).optional(),
+  templateData: TemplateDataSchema.optional(),
+});
+
+export type CreateAgreementTemplateInput = z.infer<typeof CreateAgreementTemplateSchema>;
+export type UpdateAgreementTemplateInput = z.infer<typeof UpdateAgreementTemplateSchema>;
+
 // --- Amendment Schemas ---
 
 const FieldChangeSchema = z.object({
