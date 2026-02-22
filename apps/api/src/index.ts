@@ -85,7 +85,10 @@ async function start(): Promise<void> {
     : undefined;
 
   // Auth routes
-  app.use(createAuthRoutes(container, oauthClient));
+  app.use(createAuthRoutes(container, {
+    oauthClient,
+    frontendUrl: config.FRONTEND_URL,
+  }));
 
   // Org/member/invitation routes
   app.use(createCooperativeRoutes(container));
