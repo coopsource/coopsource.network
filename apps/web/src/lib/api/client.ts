@@ -28,8 +28,6 @@ import type {
   InterestMap,
   InterestsListResponse,
   OutcomesResponse,
-  MasterAgreement,
-  MasterAgreementsResponse,
   StakeholderTerms,
   StakeholderTermsResponse,
   ExternalConnection,
@@ -315,7 +313,7 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string) {
     retractVote: (proposalId: string) =>
       request<void>(`/proposals/${proposalId}/vote`, { method: 'DELETE' }),
 
-    // Agreements
+    // Agreements (unified)
     getAgreements: (params?: {
       status?: string;
       limit?: number;
@@ -330,39 +328,72 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string) {
 
     createAgreement: (body: {
       title: string;
-      body: string;
+      body?: string;
       agreementType?: string;
+      purpose?: string;
+      scope?: string;
+      governanceFramework?: Record<string, unknown>;
+      disputeResolution?: Record<string, unknown>;
+      amendmentProcess?: Record<string, unknown>;
+      terminationConditions?: Record<string, unknown>;
     }) =>
       request<Agreement>('/agreements', {
         method: 'POST',
         body: JSON.stringify(body),
       }),
 
-    getAgreement: (id: string) => request<Agreement>(`/agreements/${id}`),
+    getAgreement: (uri: string) =>
+      request<Agreement>(`/agreements/${encodeURIComponent(uri)}`),
 
-    updateAgreement: (
-      id: string,
-      body: Partial<{ title: string; body: string }>,
-    ) =>
-      request<Agreement>(`/agreements/${id}`, {
+    updateAgreement: (uri: string, body: Record<string, unknown>) =>
+      request<Agreement>(`/agreements/${encodeURIComponent(uri)}`, {
         method: 'PUT',
         body: JSON.stringify(body),
       }),
 
-    openAgreement: (id: string) =>
-      request<Agreement>(`/agreements/${id}/open`, { method: 'POST' }),
+    openAgreement: (uri: string) =>
+      request<Agreement>(`/agreements/${encodeURIComponent(uri)}/open`, { method: 'POST' }),
 
-    signAgreement: (id: string, body?: { signatureType?: string }) =>
-      request<Agreement>(`/agreements/${id}/sign`, {
+    activateAgreement: (uri: string) =>
+      request<Agreement>(`/agreements/${encodeURIComponent(uri)}/activate`, { method: 'POST' }),
+
+    terminateAgreement: (uri: string) =>
+      request<Agreement>(`/agreements/${encodeURIComponent(uri)}/terminate`, { method: 'POST' }),
+
+    signAgreement: (uri: string, body?: { statement?: string }) =>
+      request<Agreement>(`/agreements/${encodeURIComponent(uri)}/sign`, {
         method: 'POST',
         body: JSON.stringify(body ?? {}),
       }),
 
-    retractSignature: (id: string) =>
-      request<void>(`/agreements/${id}/sign`, { method: 'DELETE' }),
+    retractSignature: (uri: string) =>
+      request<void>(`/agreements/${encodeURIComponent(uri)}/sign`, { method: 'DELETE' }),
 
-    voidAgreement: (id: string) =>
-      request<Agreement>(`/agreements/${id}/void`, { method: 'POST' }),
+    voidAgreement: (uri: string) =>
+      request<Agreement>(`/agreements/${encodeURIComponent(uri)}/void`, { method: 'POST' }),
+
+    addStakeholderTerms: (agreementUri: string, body: {
+      stakeholderDid: string;
+      stakeholderType: string;
+      stakeholderClass?: string;
+      contributions?: Array<{ type: string; description: string; value?: string }>;
+      financialTerms?: Record<string, unknown>;
+      ipTerms?: Record<string, unknown>;
+      governanceRights?: Record<string, unknown>;
+      exitTerms?: Record<string, unknown>;
+    }) =>
+      request<StakeholderTerms>(`/agreements/${encodeURIComponent(agreementUri)}/terms`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+
+    listStakeholderTerms: (agreementUri: string) =>
+      request<StakeholderTermsResponse>(`/agreements/${encodeURIComponent(agreementUri)}/terms`),
+
+    removeStakeholderTerms: (agreementUri: string, termsUri: string) =>
+      request<void>(`/agreements/${encodeURIComponent(agreementUri)}/terms/${encodeURIComponent(termsUri)}`, {
+        method: 'DELETE',
+      }),
 
     // Threads & Posts
     getThreads: (params?: { limit?: number; cursor?: string }) => {
@@ -552,72 +583,6 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string) {
 
     getMap: () =>
       request<InterestMap | null>('/alignment/map'),
-
-    // Master Agreements
-    getMasterAgreements: (params?: { status?: string; limit?: number; cursor?: string }) => {
-      const qs = new URLSearchParams();
-      if (params?.status) qs.set('status', params.status);
-      if (params?.limit) qs.set('limit', String(params.limit));
-      if (params?.cursor) qs.set('cursor', params.cursor);
-      return request<MasterAgreementsResponse>(`/master-agreements${qs.size ? `?${qs}` : ''}`);
-    },
-
-    createMasterAgreement: (body: {
-      title: string;
-      purpose?: string;
-      scope?: string;
-      agreementType?: string;
-      governanceFramework?: Record<string, unknown>;
-      disputeResolution?: Record<string, unknown>;
-      amendmentProcess?: Record<string, unknown>;
-      terminationConditions?: Record<string, unknown>;
-    }) =>
-      request<MasterAgreement>('/master-agreements', {
-        method: 'POST',
-        body: JSON.stringify(body),
-      }),
-
-    getMasterAgreement: (uri: string) =>
-      request<MasterAgreement>(`/master-agreements/${encodeURIComponent(uri)}`),
-
-    updateMasterAgreement: (uri: string, body: Record<string, unknown>) =>
-      request<MasterAgreement>(`/master-agreements/${encodeURIComponent(uri)}`, {
-        method: 'PUT',
-        body: JSON.stringify(body),
-      }),
-
-    activateMasterAgreement: (uri: string) =>
-      request<MasterAgreement>(`/master-agreements/${encodeURIComponent(uri)}/activate`, {
-        method: 'POST',
-      }),
-
-    terminateMasterAgreement: (uri: string) =>
-      request<MasterAgreement>(`/master-agreements/${encodeURIComponent(uri)}/terminate`, {
-        method: 'POST',
-      }),
-
-    addStakeholderTerms: (agreementUri: string, body: {
-      stakeholderDid: string;
-      stakeholderType: string;
-      stakeholderClass?: string;
-      contributions?: Array<{ type: string; description: string; value?: string }>;
-      financialTerms?: Record<string, unknown>;
-      ipTerms?: Record<string, unknown>;
-      governanceRights?: Record<string, unknown>;
-      exitTerms?: Record<string, unknown>;
-    }) =>
-      request<StakeholderTerms>(`/master-agreements/${encodeURIComponent(agreementUri)}/terms`, {
-        method: 'POST',
-        body: JSON.stringify(body),
-      }),
-
-    listStakeholderTerms: (agreementUri: string) =>
-      request<StakeholderTermsResponse>(`/master-agreements/${encodeURIComponent(agreementUri)}/terms`),
-
-    removeStakeholderTerms: (agreementUri: string, termsUri: string) =>
-      request<void>(`/master-agreements/${encodeURIComponent(agreementUri)}/terms/${encodeURIComponent(termsUri)}`, {
-        method: 'DELETE',
-      }),
 
     // Connections
     getConnections: () =>

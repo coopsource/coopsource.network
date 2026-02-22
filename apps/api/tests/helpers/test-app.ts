@@ -13,11 +13,10 @@ import { EntityService } from '../../src/services/entity-service.js';
 import { MembershipService } from '../../src/services/membership-service.js';
 import { PostService } from '../../src/services/post-service.js';
 import { ProposalService } from '../../src/services/proposal-service.js';
-import { AgreementServiceV2 } from '../../src/services/agreement-service-v2.js';
+import { AgreementService } from '../../src/services/agreement-service.js';
 import { NetworkService } from '../../src/services/network-service.js';
 import { FundingService } from '../../src/services/funding-service.js';
 import { AlignmentService } from '../../src/services/alignment-service.js';
-import { MasterAgreementService } from '../../src/services/master-agreement-service.js';
 import { ConnectionService } from '../../src/services/connection-service.js';
 import type { AppConfig } from '../../src/config.js';
 import { setDb, resetSetupCache } from '../../src/auth/middleware.js';
@@ -34,7 +33,6 @@ import { createCampaignRoutes } from '../../src/routes/funding/campaigns.js';
 import { createInterestRoutes } from '../../src/routes/alignment/interests.js';
 import { createOutcomeRoutes } from '../../src/routes/alignment/outcomes.js';
 import { createMapRoutes } from '../../src/routes/alignment/map.js';
-import { createMasterAgreementRoutes } from '../../src/routes/agreement/master-agreements.js';
 import { createConnectionRoutes } from '../../src/routes/connections/connections.js';
 import { errorHandler } from '../../src/middleware/error-handler.js';
 import { getTestDb, getTestConnectionString } from './test-db.js';
@@ -78,11 +76,10 @@ export function createTestApp(): TestApp {
   );
   const postService = new PostService(db, clock);
   const proposalService = new ProposalService(db, pdsService, clock);
-  const agreementService = new AgreementServiceV2(db, pdsService, clock);
+  const agreementService = new AgreementService(db, pdsService, clock);
   const networkService = new NetworkService(db, pdsService, clock);
   const fundingService = new FundingService(db, pdsService, clock);
   const alignmentService = new AlignmentService(db, pdsService, clock);
-  const masterAgreementService = new MasterAgreementService(db, pdsService, clock);
 
   const testConfig = {
     PUBLIC_API_URL: 'http://localhost:3001',
@@ -105,7 +102,6 @@ export function createTestApp(): TestApp {
     networkService,
     fundingService,
     alignmentService,
-    masterAgreementService,
     connectionService,
   };
 
@@ -144,7 +140,6 @@ export function createTestApp(): TestApp {
   app.use(createInterestRoutes(container));
   app.use(createOutcomeRoutes(container));
   app.use(createMapRoutes(container));
-  app.use(createMasterAgreementRoutes(container));
   app.use(createConnectionRoutes(container, testConfig));
 
   // Error handler (must be last)

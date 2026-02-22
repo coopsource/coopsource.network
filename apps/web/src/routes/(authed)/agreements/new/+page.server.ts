@@ -10,18 +10,26 @@ export const actions: Actions = {
   default: async ({ request, fetch }) => {
     const data = await request.formData();
     const title = String(data.get('title') ?? '').trim();
+    const purpose = String(data.get('purpose') ?? '').trim();
+    const scope = String(data.get('scope') ?? '').trim();
     const body = String(data.get('body') ?? '').trim();
     const agreementType = String(data.get('agreementType') ?? 'custom').trim();
 
-    if (!title || !body) {
-      return fail(400, { error: 'Title and body are required.' });
+    if (!title) {
+      return fail(400, { error: 'Title is required.' });
     }
 
     const cookie = request.headers.get('cookie') ?? undefined;
     const api = createApiClient(fetch, cookie);
     let agreement;
     try {
-      agreement = await api.createAgreement({ title, body, agreementType });
+      agreement = await api.createAgreement({
+        title,
+        purpose: purpose || undefined,
+        scope: scope || undefined,
+        body: body || undefined,
+        agreementType,
+      });
     } catch (err) {
       if (err instanceof ApiError) {
         return fail(err.status, { error: err.message });
@@ -29,6 +37,6 @@ export const actions: Actions = {
       return fail(500, { error: 'Failed to create agreement.' });
     }
 
-    redirect(302, `/agreements/${agreement.id}`);
+    redirect(302, `/agreements/${encodeURIComponent(agreement.uri)}`);
   },
 };

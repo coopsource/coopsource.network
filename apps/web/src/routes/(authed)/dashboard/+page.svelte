@@ -96,7 +96,7 @@
         <ul class="divide-y divide-[var(--cs-border)]">
           {#each agreements as agreement}
             <li class="px-5 py-3">
-              <a href="/agreements/{agreement.id}" class="block hover:bg-[var(--cs-bg-inset)] -mx-5 px-5 py-1 rounded">
+              <a href="/agreements/{encodeURIComponent(agreement.uri)}" class="block hover:bg-[var(--cs-bg-inset)] -mx-5 px-5 py-1 rounded">
                 <div class="flex items-center justify-between">
                   <span class="text-sm font-medium text-[var(--cs-text)] truncate">{agreement.title}</span>
                   <Badge variant={statusToVariant(agreement.status)} class="ml-2 shrink-0">{agreement.status}</Badge>
