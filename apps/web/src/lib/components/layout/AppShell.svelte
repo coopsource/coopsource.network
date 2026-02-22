@@ -17,14 +17,14 @@
   }: Props = $props();
 
   let collapsed = $state(
-    typeof localStorage !== 'undefined'
+    typeof window !== 'undefined'
       ? localStorage.getItem('sidebar-collapsed') === 'true'
       : false,
   );
 
   // Persist sidebar state on change
   $effect(() => {
-    if (typeof localStorage !== 'undefined') {
+    if (typeof window !== 'undefined') {
       localStorage.setItem('sidebar-collapsed', String(collapsed));
     }
   });

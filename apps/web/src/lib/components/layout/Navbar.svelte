@@ -1,9 +1,9 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import type { AuthUser } from '$lib/api/types.js';
-  import ChevronRight from 'lucide-svelte/icons/chevron-right';
-  import LogOut from 'lucide-svelte/icons/log-out';
-  import User from 'lucide-svelte/icons/user';
+  import ChevronRight from '@lucide/svelte/icons/chevron-right';
+  import LogOut from '@lucide/svelte/icons/log-out';
+  import User from '@lucide/svelte/icons/user';
 
   interface Props {
     user?: AuthUser | null;

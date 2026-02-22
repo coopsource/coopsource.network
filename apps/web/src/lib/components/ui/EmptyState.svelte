@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import type { Component } from 'svelte';
-  import Inbox from 'lucide-svelte/icons/inbox';
+  import Inbox from '@lucide/svelte/icons/inbox';
 
   interface Props {
     icon?: Component;

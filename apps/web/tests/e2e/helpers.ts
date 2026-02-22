@@ -13,18 +13,34 @@ export const COOP = {
 };
 
 /**
+ * Truncate all tables and reset the API server's setup cache.
+ * Must be called before setupCooperative() to ensure a clean state.
+ */
+export async function resetDatabase(request: APIRequestContext): Promise<void> {
+  const res = await request.post('http://localhost:3002/api/v1/admin/test-reset');
+  if (!res.ok()) {
+    throw new Error(`DB reset failed (${res.status()}): ${await res.text()}`);
+  }
+}
+
+/**
  * Set up the cooperative via the API.
+ * Automatically resets the DB first for test isolation.
  * Returns the Set-Cookie header for authenticated follow-up requests.
  */
 export async function setupCooperative(
   request: APIRequestContext,
 ): Promise<{ coopDid: string; adminDid: string; cookie: string }> {
-  const res = await request.post('http://localhost:3001/api/v1/setup/initialize', {
+  await resetDatabase(request);
+
+  const res = await request.post('http://localhost:3002/api/v1/setup/initialize', {
     data: {
-      coopName: COOP.name,
+      cooperativeName: COOP.name,
+      cooperativeHandle: COOP.handle,
       adminEmail: ADMIN.email,
       adminPassword: ADMIN.password,
       adminDisplayName: ADMIN.displayName,
+      adminHandle: ADMIN.handle,
     },
   });
 
@@ -67,7 +83,7 @@ export async function createMemberViaInvitation(
   member: { email: string; displayName: string; handle: string; password: string },
 ): Promise<{ did: string; token: string }> {
   // Create invitation
-  const invRes = await request.post('http://localhost:3001/api/v1/invitations', {
+  const invRes = await request.post('http://localhost:3002/api/v1/invitations', {
     headers: { Cookie: cookie },
     data: {
       email: member.email,
@@ -83,7 +99,7 @@ export async function createMemberViaInvitation(
 
   // Accept invitation
   const acceptRes = await request.post(
-    `http://localhost:3001/api/v1/invitations/${invitation.token}/accept`,
+    `http://localhost:3002/api/v1/invitations/${invitation.token}/accept`,
     {
       data: {
         displayName: member.displayName,

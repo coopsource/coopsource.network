@@ -120,6 +120,9 @@ importers:
       '@coopsource/common':
         specifier: workspace:*
         version: link:../../packages/common
+      '@lucide/svelte':
+        specifier: 0.575.0
+        version: 0.575.0(svelte@5.49.2)
     devDependencies:
       '@playwright/test':
         specifier: ^1
@@ -142,9 +145,6 @@ importers:
       kysely:
         specifier: ^0.27
         version: 0.27.6
-      lucide-svelte:
-        specifier: ^0.575.0
-        version: 0.575.0(svelte@5.49.2)
       pg:
         specifier: ^8
         version: 8.18.0
@@ -619,6 +619,11 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.9':
     resolution: {integrity: sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ==}
+
+  '@lucide/svelte@0.575.0':
+    resolution: {integrity: sha512-FEFp/0McZwsjBqh1Dn8H+UBm1yHFQYk+utuVMFDw57155+wz2XMoc1pw027ylCPzs+bi14UEXYKbekFhuJKtnw==}
+    peerDependencies:
+      svelte: ^5
 
   '@mapbox/node-pre-gyp@1.0.11':
     resolution: {integrity: sha512-Yhlar6v9WQgUp/He7BdgzOz8lqMQ8sU+jkCq7Wx8Myc5YFJLbEe7lgui/V7G1qB1DJykHSGwreceSaD60Y0PUQ==}
@@ -1620,11 +1625,6 @@ packages:
   loupe@3.2.1:
     resolution: {integrity: sha512-CdzqowRJCeLU72bHvWqwRBBlLcMEtIvGrlvef74kMnV2AolS9Y8xUv1I0U/MNAWMhBlKIoyuEgoJ0t/bbwHbLQ==}
 
-  lucide-svelte@0.575.0:
-    resolution: {integrity: sha512-Tu15tJfbmRNPaU61yeNFf3jfRHs8ABA+NwTt7TWmwVbhlSA3H7sW65tX6RttcP7HGV4aHUlYhXixZOlntoFBdw==}
-    peerDependencies:
-      svelte: ^3 || ^4 || ^5.0.0-next.42
-
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
 
@@ -2592,6 +2592,10 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  '@lucide/svelte@0.575.0(svelte@5.49.2)':
+    dependencies:
+      svelte: 5.49.2
 
   '@mapbox/node-pre-gyp@1.0.11':
     dependencies:
@@ -3606,10 +3610,6 @@ snapshots:
   locate-character@3.0.0: {}
 
   loupe@3.2.1: {}
-
-  lucide-svelte@0.575.0(svelte@5.49.2):
-    dependencies:
-      svelte: 5.49.2
 
   magic-string@0.30.21:
     dependencies:

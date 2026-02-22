@@ -1,13 +1,8 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
 
-  let { data } = $props();
-
+  // Server-side load always redirects; this is a client-side fallback
   $effect(() => {
-    if (data.user) {
-      goto('/dashboard');
-    } else {
-      goto('/login');
-    }
+    goto('/login');
   });
 </script>

@@ -10,7 +10,6 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: 1,
   reporter: 'html',
-  globalSetup: './tests/e2e/global-setup.ts',
   use: {
     baseURL: 'http://localhost:5173',
     trace: 'on-first-retry',
@@ -24,16 +23,17 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'pnpm --filter @coopsource/api dev',
-      url: 'http://localhost:3001/health',
-      reuseExistingServer: true,
+      command: 'node --experimental-strip-types --experimental-transform-types tests/e2e/global-setup.ts && PORT=3002 pnpm --filter @coopsource/api dev',
+      url: 'http://localhost:3002/health',
+      reuseExistingServer: false,
       timeout: 30_000,
       env: {
         DATABASE_URL: TEST_DB_URL,
         KEY_ENC_KEY: TEST_KEY_ENC_KEY,
         NODE_ENV: 'development',
+        PORT: '3002',
         PLC_URL: 'local',
-        INSTANCE_URL: 'http://localhost:3001',
+        INSTANCE_URL: 'http://localhost:3002',
         SESSION_SECRET: 'e2e-test-session-secret',
       },
     },
@@ -43,7 +43,7 @@ export default defineConfig({
       reuseExistingServer: true,
       timeout: 30_000,
       env: {
-        API_URL: 'http://localhost:3001',
+        API_URL: 'http://localhost:3002',
       },
     },
   ],

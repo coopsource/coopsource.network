@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import X from 'lucide-svelte/icons/x';
+  import X from '@lucide/svelte/icons/x';
 
   interface Props {
     category?: 'interest' | 'contribution' | 'constraint' | 'redline' | 'default';

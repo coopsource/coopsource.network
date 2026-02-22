@@ -9,7 +9,7 @@ test.describe('Dashboard', () => {
 
   test('dashboard renders co-op info card', async ({ page }) => {
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
-    await expect(page.getByText(COOP.name)).toBeVisible();
+    await expect(page.getByRole('heading', { name: COOP.name })).toBeVisible();
   });
 
   test('sidebar contains Threads link', async ({ page }) => {

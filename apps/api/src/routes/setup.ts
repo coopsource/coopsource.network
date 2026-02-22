@@ -29,7 +29,7 @@ export function createSetupRoutes(container: Container): Router {
         throw new ValidationError('Setup already complete');
       }
 
-      const { coopName, coopDescription, adminEmail, adminPassword, adminDisplayName } =
+      const { cooperativeName, cooperativeHandle, adminDisplayName, adminHandle, adminEmail, adminPassword } =
         SetupInitializeSchema.parse(req.body);
 
       const now = container.clock.now();
@@ -54,8 +54,8 @@ export function createSetupRoutes(container: Container): Router {
         did: coopDid as DID,
         collection: 'network.coopsource.org.cooperative',
         record: {
-          name: coopName,
-          description: coopDescription,
+          name: cooperativeName,
+          description: undefined,
           cooperativeType: 'worker',
           createdAt: now.toISOString(),
         },
@@ -88,8 +88,9 @@ export function createSetupRoutes(container: Container): Router {
           .values({
             did: coopDid,
             type: 'cooperative',
-            display_name: coopName,
-            description: coopDescription ?? null,
+            display_name: cooperativeName,
+            handle: cooperativeHandle ?? null,
+            description: null,
             status: 'active',
             created_at: now,
             indexed_at: now,
@@ -116,6 +117,7 @@ export function createSetupRoutes(container: Container): Router {
             did: adminDid,
             type: 'person',
             display_name: adminDisplayName,
+            handle: adminHandle ?? null,
             status: 'active',
             created_at: now,
             indexed_at: now,

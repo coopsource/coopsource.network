@@ -18,7 +18,7 @@
   import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
   import ThemeToggle from '$lib/components/ui/ThemeToggle.svelte';
   import DataTable from '$lib/components/ui/DataTable.svelte';
-  import Inbox from 'lucide-svelte/icons/inbox';
+  import Inbox from '@lucide/svelte/icons/inbox';
 
   let modalOpen = $state(false);
   let confirmOpen = $state(false);

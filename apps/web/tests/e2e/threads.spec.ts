@@ -9,7 +9,7 @@ test.describe('Threads', () => {
 
   test('thread list renders with New thread button', async ({ page }) => {
     await page.goto('/threads');
-    await expect(page.getByRole('heading', { name: 'Threads' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Threads', exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: 'New thread' })).toBeVisible();
   });
 
@@ -20,7 +20,7 @@ test.describe('Threads', () => {
 
     // Should redirect to the thread detail page
     await page.waitForURL(/\/threads\/[a-f0-9-]+$/);
-    await expect(page.getByText('Test Thread')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Test Thread' })).toBeVisible();
   });
 
   test('create post in thread', async ({ page }) => {

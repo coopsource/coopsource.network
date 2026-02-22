@@ -1,7 +1,7 @@
 <script lang="ts">
-  import Sun from 'lucide-svelte/icons/sun';
-  import Moon from 'lucide-svelte/icons/moon';
-  import Monitor from 'lucide-svelte/icons/monitor';
+  import Sun from '@lucide/svelte/icons/sun';
+  import Moon from '@lucide/svelte/icons/moon';
+  import Monitor from '@lucide/svelte/icons/monitor';
 
   interface Props {
     variant?: 'icon' | 'full';
@@ -16,7 +16,7 @@
   type Theme = 'light' | 'dark' | 'system';
 
   let theme = $state<Theme>(
-    typeof localStorage !== 'undefined'
+    typeof window !== 'undefined'
       ? ((localStorage.getItem('theme') ?? 'system') as Theme)
       : 'system',
   );

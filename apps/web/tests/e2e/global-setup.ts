@@ -1,5 +1,5 @@
 import pg from 'pg';
-import { Kysely, PostgresDialect, FileMigrationProvider, Migrator, sql } from 'kysely';
+import { Kysely, PostgresDialect, FileMigrationProvider, Migrator } from 'kysely';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promises as fs } from 'node:fs';
@@ -8,7 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEST_DB_NAME = 'coopsource_test';
 const ADMIN_URL = 'postgresql://localhost:5432/postgres';
 
-export default async function globalSetup(): Promise<void> {
+async function globalSetup(): Promise<void> {
   // Drop and recreate the test database
   const client = new pg.Client({ connectionString: ADMIN_URL });
   await client.connect();
@@ -52,11 +52,12 @@ export default async function globalSetup(): Promise<void> {
     throw error;
   }
 
-  // Drop FK constraints that block PDS operations before entity insertion
-  // (same as API test helper)
-  await sql`ALTER TABLE pds_record DROP CONSTRAINT IF EXISTS pds_record_did_fkey`.execute(db);
-  await sql`ALTER TABLE pds_commit DROP CONSTRAINT IF EXISTS pds_commit_did_fkey`.execute(db);
-
   await db.destroy();
   console.log(`E2E: Test database ${TEST_DB_NAME} ready`);
 }
+
+// Self-execute when run as a standalone script
+globalSetup().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

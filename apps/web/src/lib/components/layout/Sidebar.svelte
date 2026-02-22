@@ -1,15 +1,15 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import type { Component } from 'svelte';
-  import LayoutDashboard from 'lucide-svelte/icons/layout-dashboard';
-  import Users from 'lucide-svelte/icons/users';
-  import Mail from 'lucide-svelte/icons/mail';
-  import Vote from 'lucide-svelte/icons/vote';
-  import FileSignature from 'lucide-svelte/icons/file-signature';
-  import MessageSquare from 'lucide-svelte/icons/message-square';
-  import Settings from 'lucide-svelte/icons/settings';
-  import PanelLeftClose from 'lucide-svelte/icons/panel-left-close';
-  import PanelLeftOpen from 'lucide-svelte/icons/panel-left-open';
+  import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
+  import Users from '@lucide/svelte/icons/users';
+  import Mail from '@lucide/svelte/icons/mail';
+  import Vote from '@lucide/svelte/icons/vote';
+  import FileSignature from '@lucide/svelte/icons/file-signature';
+  import MessageSquare from '@lucide/svelte/icons/message-square';
+  import Settings from '@lucide/svelte/icons/settings';
+  import PanelLeftClose from '@lucide/svelte/icons/panel-left-close';
+  import PanelLeftOpen from '@lucide/svelte/icons/panel-left-open';
   import ThemeToggle from '$lib/components/ui/ThemeToggle.svelte';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import type { AuthUser } from '$lib/api/types.js';

@@ -1,7 +1,8 @@
 import { Router } from 'express';
+import { sql } from 'kysely';
 import type { Container } from '../container.js';
 import { asyncHandler } from '../lib/async-handler.js';
-import { requireAuth, requireAdmin } from '../auth/middleware.js';
+import { requireAuth, requireAdmin, resetSetupCache } from '../auth/middleware.js';
 
 export function createAdminRoutes(container: Container): Router {
   const router = Router();
@@ -60,6 +61,30 @@ export function createAdminRoutes(container: Container): Router {
       res.json({ items: entries });
     }),
   );
+
+  // POST /api/v1/admin/test-reset — truncate all tables (non-production only)
+  if (process.env.NODE_ENV !== 'production') {
+    router.post(
+      '/api/v1/admin/test-reset',
+      asyncHandler(async (_req, res) => {
+        await sql`
+          TRUNCATE TABLE
+            agreement_signature, agreement_party, agreement,
+            vote, proposal,
+            post, thread_member, thread,
+            membership_role, membership, invitation,
+            pds_commit, pds_record, pds_firehose_cursor, plc_operation,
+            auth_credential, entity_key, session,
+            cooperative_profile, entity,
+            fact_log_redaction, fact_log,
+            data_deletion_request, system_config
+          CASCADE
+        `.execute(container.db);
+        resetSetupCache();
+        res.json({ ok: true });
+      }),
+    );
+  }
 
   return router;
 }

@@ -31,7 +31,7 @@ describe('Setup & Auth', () => {
       const res = await testApp.agent
         .post('/api/v1/setup/initialize')
         .send({
-          coopName: 'Test Co-op',
+          cooperativeName: 'Test Co-op',
           adminEmail: 'admin@test.com',
           adminPassword: 'password123',
           adminDisplayName: 'Admin User',
@@ -51,7 +51,7 @@ describe('Setup & Auth', () => {
       const res = await testApp.agent
         .post('/api/v1/setup/initialize')
         .send({
-          coopName: 'Another Co-op',
+          cooperativeName: 'Another Co-op',
           adminEmail: 'admin2@test.com',
           adminPassword: 'password123',
           adminDisplayName: 'Admin Two',
@@ -65,7 +65,7 @@ describe('Setup & Auth', () => {
       const { agent } = createTestApp();
       const res = await agent
         .post('/api/v1/setup/initialize')
-        .send({ coopName: '' })
+        .send({ cooperativeName: '' })
         .expect(400);
 
       expect(res.body.error).toBe('ValidationError');

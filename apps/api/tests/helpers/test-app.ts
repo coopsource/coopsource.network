@@ -130,7 +130,7 @@ export async function setupAndLogin(testApp: TestApp): Promise<{
   const initRes = await testApp.agent
     .post('/api/v1/setup/initialize')
     .send({
-      coopName: 'Test Cooperative',
+      cooperativeName: 'Test Cooperative',
       adminEmail: 'admin@test.com',
       adminPassword: 'password123',
       adminDisplayName: 'Test Admin',

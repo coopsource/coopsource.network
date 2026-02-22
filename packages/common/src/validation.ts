@@ -551,11 +551,12 @@ export type CreateAgentFromTemplateInput = z.infer<typeof CreateAgentFromTemplat
 // Used by API route handlers for runtime validation
 
 export const SetupInitializeSchema = z.object({
-  coopName: z.string().min(1).max(255),
-  coopDescription: z.string().max(2000).optional(),
+  cooperativeName: z.string().min(1).max(255),
+  cooperativeHandle: z.string().max(100).optional(),
+  adminDisplayName: z.string().min(1).max(255),
+  adminHandle: z.string().max(100).optional(),
   adminEmail: z.string().email(),
   adminPassword: z.string().min(8).max(256),
-  adminDisplayName: z.string().min(1).max(255),
 });
 
 export const RegisterSchema = z.object({

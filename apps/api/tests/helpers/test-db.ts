@@ -48,12 +48,6 @@ export async function migrateTestDb(): Promise<void> {
   if (error) {
     throw error;
   }
-
-  // Drop FK constraints on pds_record.did and pds_commit.did → entity.did
-  // Same rationale as migration 010 (entity_key): LocalPdsService creates
-  // PDS records and commits BEFORE the entity row exists in the DB.
-  await sql`ALTER TABLE pds_record DROP CONSTRAINT IF EXISTS pds_record_did_fkey`.execute(db);
-  await sql`ALTER TABLE pds_commit DROP CONSTRAINT IF EXISTS pds_commit_did_fkey`.execute(db);
 }
 
 let _db: Kysely<Database> | null = null;

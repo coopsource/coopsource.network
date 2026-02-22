@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { HTMLSelectAttributes } from 'svelte/elements';
   import type { Snippet } from 'svelte';
-  import ChevronDown from 'lucide-svelte/icons/chevron-down';
+  import ChevronDown from '@lucide/svelte/icons/chevron-down';
 
   interface Props extends HTMLSelectAttributes {
     label?: string;
