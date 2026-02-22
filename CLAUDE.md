@@ -157,6 +157,7 @@ Records of authority live in user PDS instances. PostgreSQL is a **materialized 
 | 009 | plc_store | `plc_operation` |
 | 010 | decouple_entity_key | Entity key management |
 | 011 | fix_indexes | Partial unique indexes for votes/sigs, perf indexes |
+| 012 | decouple_pds_fks | Drop PDS record/commit FK constraints to entity |
 
 ### Kysely Notes
 
@@ -180,6 +181,7 @@ All under `/api/v1/`:
 | Posts | `routes/posts.ts` |
 | Proposals | `routes/governance/proposals.ts` |
 | Agreements | `routes/agreement/agreements.ts` |
+| Networks | `routes/org/networks.ts` |
 | Blobs | `routes/blobs.ts` |
 | Events (SSE) | `routes/events.ts` |
 | Admin | `routes/admin.ts` |

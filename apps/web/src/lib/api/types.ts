@@ -142,6 +142,38 @@ export interface PostsResponse {
   cursor?: string;
 }
 
+export interface Network {
+  did: string;
+  handle: string | null;
+  displayName: string;
+  description: string | null;
+  cooperativeType: string;
+  membershipPolicy: string;
+  memberCount: number;
+  website?: string | null;
+  createdAt?: string;
+}
+
+export interface NetworkMember {
+  did: string;
+  handle: string | null;
+  displayName: string;
+  description: string | null;
+  cooperativeType: string;
+  status: string;
+  joinedAt: string | null;
+}
+
+export interface NetworksResponse {
+  networks: Network[];
+  cursor?: string;
+}
+
+export interface NetworkMembersResponse {
+  members: NetworkMember[];
+  cursor?: string;
+}
+
 export interface ApiError {
   error: string;
   message?: string;

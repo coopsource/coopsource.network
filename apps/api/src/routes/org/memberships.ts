@@ -176,7 +176,7 @@ export function createMembershipRoutes(container: Container): Router {
           email,
           intendedRoles: roles ?? intendedRoles,
           message,
-          instanceUrl: 'http://localhost:5173', // TODO: from config
+          instanceUrl: process.env.INSTANCE_URL ?? 'http://localhost:5173',
         });
 
       // Get inviter name for response

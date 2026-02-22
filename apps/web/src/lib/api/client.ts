@@ -16,6 +16,9 @@ import type {
   Post,
   ThreadsResponse,
   PostsResponse,
+  Network,
+  NetworksResponse,
+  NetworkMembersResponse,
 } from './types.js';
 
 export class ApiError extends Error {
@@ -374,5 +377,34 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string) {
 
     deletePost: (id: string) =>
       request<void>(`/posts/${id}`, { method: 'DELETE' }),
+
+    // Networks
+    getNetworks: (params?: { limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<NetworksResponse>(`/networks${qs.size ? `?${qs}` : ''}`);
+    },
+
+    createNetwork: (body: { name: string; description?: string; handle?: string }) =>
+      request<{ did: string }>('/networks', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+
+    getNetwork: (did: string) => request<Network>(`/networks/${encodeURIComponent(did)}`),
+
+    getNetworkMembers: (did: string, params?: { limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<NetworkMembersResponse>(`/networks/${encodeURIComponent(did)}/members${qs.size ? `?${qs}` : ''}`);
+    },
+
+    joinNetwork: (did: string) =>
+      request<{ ok: true }>(`/networks/${encodeURIComponent(did)}/join`, { method: 'POST' }),
+
+    leaveNetwork: (did: string) =>
+      request<void>(`/networks/${encodeURIComponent(did)}/leave`, { method: 'DELETE' }),
   };
 }

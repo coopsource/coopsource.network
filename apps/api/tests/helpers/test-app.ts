@@ -14,6 +14,7 @@ import { MembershipService } from '../../src/services/membership-service.js';
 import { PostService } from '../../src/services/post-service.js';
 import { ProposalService } from '../../src/services/proposal-service.js';
 import { AgreementServiceV2 } from '../../src/services/agreement-service-v2.js';
+import { NetworkService } from '../../src/services/network-service.js';
 import { setDb, resetSetupCache } from '../../src/auth/middleware.js';
 import { createHealthRoutes } from '../../src/routes/health.js';
 import { createSetupRoutes } from '../../src/routes/setup.js';
@@ -23,6 +24,7 @@ import { createMembershipRoutes } from '../../src/routes/org/memberships.js';
 import { createPostRoutes } from '../../src/routes/posts.js';
 import { createProposalRoutes } from '../../src/routes/governance/proposals.js';
 import { createAgreementRoutes } from '../../src/routes/agreement/agreements.js';
+import { createNetworkRoutes } from '../../src/routes/org/networks.js';
 import { errorHandler } from '../../src/middleware/error-handler.js';
 import { getTestDb, getTestConnectionString } from './test-db.js';
 
@@ -66,6 +68,7 @@ export function createTestApp(): TestApp {
   const postService = new PostService(db, clock);
   const proposalService = new ProposalService(db, pdsService, clock);
   const agreementService = new AgreementServiceV2(db, pdsService, clock);
+  const networkService = new NetworkService(db, pdsService, clock);
 
   const container: Container = {
     db,
@@ -79,6 +82,7 @@ export function createTestApp(): TestApp {
     postService,
     proposalService,
     agreementService,
+    networkService,
   };
 
   // Set the DB reference for auth middleware
@@ -111,6 +115,7 @@ export function createTestApp(): TestApp {
   app.use(createPostRoutes(container));
   app.use(createProposalRoutes(container));
   app.use(createAgreementRoutes(container));
+  app.use(createNetworkRoutes(container));
 
   // Error handler (must be last)
   app.use(errorHandler);

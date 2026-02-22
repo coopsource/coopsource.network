@@ -23,6 +23,7 @@ import { createSetupRoutes } from './routes/setup.js';
 import { createAuthRoutes } from './routes/auth.js';
 import { createCooperativeRoutes } from './routes/org/cooperatives.js';
 import { createMembershipRoutes } from './routes/org/memberships.js';
+import { createNetworkRoutes } from './routes/org/networks.js';
 import { createPostRoutes } from './routes/posts.js';
 import { createProposalRoutes } from './routes/governance/proposals.js';
 import { createAgreementRoutes } from './routes/agreement/agreements.js';
@@ -84,6 +85,9 @@ async function start(): Promise<void> {
   app.use(createCooperativeRoutes(container));
   app.use(createMembershipRoutes(container));
 
+  // Network routes
+  app.use(createNetworkRoutes(container));
+
   // Post/thread routes
   app.use(createPostRoutes(container));
 
@@ -96,8 +100,8 @@ async function start(): Promise<void> {
   // Admin routes
   app.use(createAdminRoutes(container));
 
-  // TODO: Stage 2 — Alignment, Connections, Funding routes
-  // TODO: Stage 3 — Automation, AI Agents, MCP, CLI Auth, OIDC
+  // TODO: Stage 2 — Real ATProto PDS, ATProto OAuth, network discovery, cross-coop firehose
+  // TODO: Stage 3 — Alignment, Connections, Funding, Automation, AI Agents, MCP, CLI Auth, OIDC
 
   // Error handling (must be last)
   app.use(errorHandler);
