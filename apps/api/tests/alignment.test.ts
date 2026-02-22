@@ -156,7 +156,7 @@ describe('Alignment Discovery', () => {
 
   it('creates a desired outcome (201)', async () => {
     const testApp = createTestApp();
-    await setupAndLogin(testApp);
+    const { adminDid } = await setupAndLogin(testApp);
 
     const res = await testApp.agent
       .post('/api/v1/alignment/outcomes')
@@ -171,6 +171,7 @@ describe('Alignment Discovery', () => {
       .expect(201);
 
     expect(res.body.uri).toBeDefined();
+    expect(res.body.did).toBe(adminDid);
     expect(res.body.title).toBe('Carbon Neutral by 2030');
     expect(res.body.category).toBe('environmental');
     expect(res.body.status).toBe('proposed');
@@ -403,6 +404,121 @@ describe('Alignment Discovery', () => {
     await testApp.agent
       .post(`/api/v1/alignment/outcomes/${encodeURIComponent(created.body.uri)}/support`)
       .send({ level: 'invalid_level' })
+      .expect(400);
+  });
+
+  // ─── Status Lifecycle ─────────────────────────────────────────────
+
+  it('transitions outcome from proposed → endorsed', async () => {
+    const testApp = createTestApp();
+    await setupAndLogin(testApp);
+
+    const created = await testApp.agent
+      .post('/api/v1/alignment/outcomes')
+      .send({ title: 'Status Test', category: 'governance' })
+      .expect(201);
+
+    const uri = encodeURIComponent(created.body.uri);
+
+    const res = await testApp.agent
+      .post(`/api/v1/alignment/outcomes/${uri}/status`)
+      .send({ status: 'endorsed' })
+      .expect(200);
+
+    expect(res.body.status).toBe('endorsed');
+  });
+
+  it('transitions outcome through full lifecycle', async () => {
+    const testApp = createTestApp();
+    await setupAndLogin(testApp);
+
+    const created = await testApp.agent
+      .post('/api/v1/alignment/outcomes')
+      .send({ title: 'Full Lifecycle', category: 'financial' })
+      .expect(201);
+
+    const uri = encodeURIComponent(created.body.uri);
+
+    // proposed → endorsed
+    await testApp.agent
+      .post(`/api/v1/alignment/outcomes/${uri}/status`)
+      .send({ status: 'endorsed' })
+      .expect(200);
+
+    // endorsed → active
+    await testApp.agent
+      .post(`/api/v1/alignment/outcomes/${uri}/status`)
+      .send({ status: 'active' })
+      .expect(200);
+
+    // active → achieved
+    const res = await testApp.agent
+      .post(`/api/v1/alignment/outcomes/${uri}/status`)
+      .send({ status: 'achieved' })
+      .expect(200);
+
+    expect(res.body.status).toBe('achieved');
+  });
+
+  it('rejects invalid status transition', async () => {
+    const testApp = createTestApp();
+    await setupAndLogin(testApp);
+
+    const created = await testApp.agent
+      .post('/api/v1/alignment/outcomes')
+      .send({ title: 'Invalid Transition', category: 'social' })
+      .expect(201);
+
+    const uri = encodeURIComponent(created.body.uri);
+
+    // proposed → active is not valid (must go through endorsed first)
+    await testApp.agent
+      .post(`/api/v1/alignment/outcomes/${uri}/status`)
+      .send({ status: 'active' })
+      .expect(400);
+  });
+
+  it('allows abandoning from any active status', async () => {
+    const testApp = createTestApp();
+    await setupAndLogin(testApp);
+
+    const created = await testApp.agent
+      .post('/api/v1/alignment/outcomes')
+      .send({ title: 'Abandon Test', category: 'other' })
+      .expect(201);
+
+    const uri = encodeURIComponent(created.body.uri);
+
+    // proposed → abandoned
+    const res = await testApp.agent
+      .post(`/api/v1/alignment/outcomes/${uri}/status`)
+      .send({ status: 'abandoned' })
+      .expect(200);
+
+    expect(res.body.status).toBe('abandoned');
+  });
+
+  it('rejects transition from terminal status', async () => {
+    const testApp = createTestApp();
+    await setupAndLogin(testApp);
+
+    const created = await testApp.agent
+      .post('/api/v1/alignment/outcomes')
+      .send({ title: 'Terminal Test', category: 'other' })
+      .expect(201);
+
+    const uri = encodeURIComponent(created.body.uri);
+
+    // Move to abandoned (terminal)
+    await testApp.agent
+      .post(`/api/v1/alignment/outcomes/${uri}/status`)
+      .send({ status: 'abandoned' })
+      .expect(200);
+
+    // Cannot transition from abandoned
+    await testApp.agent
+      .post(`/api/v1/alignment/outcomes/${uri}/status`)
+      .send({ status: 'proposed' })
       .expect(400);
   });
 });

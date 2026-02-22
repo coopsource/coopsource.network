@@ -11,6 +11,10 @@ const SupportSchema = z.object({
   conditions: z.string().max(2000).optional(),
 });
 
+const StatusTransitionSchema = z.object({
+  status: z.enum(['endorsed', 'active', 'achieved', 'abandoned']),
+});
+
 export function createOutcomeRoutes(container: Container): Router {
   const router = Router();
 
@@ -75,6 +79,24 @@ export function createOutcomeRoutes(container: Container): Router {
         uri,
         level,
         conditions,
+      );
+
+      res.json(formatOutcome(outcome));
+    }),
+  );
+
+  // POST /api/v1/alignment/outcomes/:uri/status — Update outcome status
+  router.post(
+    '/api/v1/alignment/outcomes/:uri/status',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const uri = decodeURIComponent(String(req.params.uri));
+      const { status } = StatusTransitionSchema.parse(req.body);
+
+      const outcome = await container.alignmentService.updateOutcomeStatus(
+        uri,
+        req.actor!.did,
+        status,
       );
 
       res.json(formatOutcome(outcome));

@@ -11,6 +11,11 @@ import {
   indexAgreement,
   indexSignature,
 } from './indexers/agreement-indexer.js';
+import {
+  indexInterest,
+  indexOutcome,
+  indexInterestMap,
+} from './indexers/alignment-indexer.js';
 
 const SUBSCRIBER_ID = 'appview';
 const MAX_BACKOFF_MS = 30_000;
@@ -86,6 +91,15 @@ async function runLoop(
               break;
             case 'network.coopsource.agreement.signature':
               await indexSignature(db, event);
+              break;
+            case 'network.coopsource.alignment.interest':
+              await indexInterest(db, event);
+              break;
+            case 'network.coopsource.alignment.outcome':
+              await indexOutcome(db, event);
+              break;
+            case 'network.coopsource.alignment.interestMap':
+              await indexInterestMap(db, event);
               break;
             default:
               // Unknown collection — skip

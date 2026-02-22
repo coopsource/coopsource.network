@@ -531,6 +531,12 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string) {
         body: JSON.stringify(body),
       }),
 
+    updateOutcomeStatus: (uri: string, status: string) =>
+      request<DesiredOutcome>(`/alignment/outcomes/${encodeURIComponent(uri)}/status`, {
+        method: 'POST',
+        body: JSON.stringify({ status }),
+      }),
+
     // Alignment — Map
     generateMap: () =>
       request<InterestMap>('/alignment/map/generate', { method: 'POST' }),

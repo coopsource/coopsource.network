@@ -74,7 +74,7 @@ export function createCampaignRoutes(container: Container): Router {
 
       const campaign = await container.fundingService.updateCampaign(
         uri,
-        req.actor!.did,
+        req.actor!.cooperativeDid,
         data,
       );
 
@@ -92,7 +92,7 @@ export function createCampaignRoutes(container: Container): Router {
 
       const campaign = await container.fundingService.updateCampaignStatus(
         uri,
-        req.actor!.did,
+        req.actor!.cooperativeDid,
         status,
       );
 

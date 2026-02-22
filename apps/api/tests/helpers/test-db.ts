@@ -70,6 +70,8 @@ export async function truncateAllTables(): Promise<void> {
   const db = getTestDb();
   await sql`
     TRUNCATE TABLE
+      interest_map, desired_outcome, stakeholder_interest,
+      funding_pledge, funding_campaign,
       agreement_signature, agreement_party, agreement,
       vote, proposal,
       post, thread_member, thread,

@@ -3,8 +3,22 @@
 
   let { data, form } = $props();
   let supporting = $state(false);
+  let updatingStatus = $state(false);
 
   const o = $derived(data.outcome);
+
+  const nextStatuses: Record<string, string[]> = {
+    proposed: ['endorsed', 'abandoned'],
+    endorsed: ['active', 'abandoned'],
+    active: ['achieved', 'abandoned'],
+  };
+
+  const statusButtonClass: Record<string, string> = {
+    endorsed: 'bg-blue-600 hover:bg-blue-700 text-white',
+    active: 'bg-green-600 hover:bg-green-700 text-white',
+    achieved: 'bg-emerald-600 hover:bg-emerald-700 text-white',
+    abandoned: 'bg-gray-500 hover:bg-gray-600 text-white',
+  };
 
   function categoryBadgeClass(category: string): string {
     switch (category) {
@@ -51,6 +65,36 @@
     <span>Status: <strong class="text-gray-700">{o.status}</strong></span>
     <span>Created: {new Date(o.createdAt).toLocaleDateString()}</span>
   </div>
+
+  <!-- Status Transitions -->
+  {#if nextStatuses[o.status]?.length}
+    <div class="flex items-center gap-2">
+      <span class="text-xs text-gray-500">Transition to:</span>
+      {#each nextStatuses[o.status] as target}
+        <form
+          method="POST"
+          action="?/updateStatus"
+          use:enhance={() => {
+            updatingStatus = true;
+            return async ({ update }) => {
+              updatingStatus = false;
+              await update();
+            };
+          }}
+          class="inline"
+        >
+          <input type="hidden" name="status" value={target} />
+          <button
+            type="submit"
+            disabled={updatingStatus}
+            class="rounded-md px-2.5 py-1 text-xs font-medium disabled:opacity-50 {statusButtonClass[target] ?? 'bg-gray-200 text-gray-700'}"
+          >
+            {target}
+          </button>
+        </form>
+      {/each}
+    </div>
+  {/if}
 
   <!-- Success Criteria -->
   {#if o.successCriteria.length > 0}

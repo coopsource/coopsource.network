@@ -20,4 +20,20 @@ test.describe('Dashboard', () => {
     await expect(page.getByText('Recent Proposals')).toBeVisible();
     await expect(page.getByText('Recent Agreements')).toBeVisible();
   });
+
+  test('sidebar contains Campaigns link', async ({ page }) => {
+    await expect(page.getByRole('link', { name: 'Campaigns' })).toBeVisible();
+  });
+
+  test('sidebar contains Alignment link', async ({ page }) => {
+    await expect(page.getByRole('link', { name: 'Alignment' })).toBeVisible();
+  });
+
+  test('dashboard shows Recent Campaigns section', async ({ page }) => {
+    await expect(page.getByText('Recent Campaigns')).toBeVisible();
+  });
+
+  test('dashboard shows Recent Outcomes section', async ({ page }) => {
+    await expect(page.getByText('Recent Outcomes')).toBeVisible();
+  });
 });

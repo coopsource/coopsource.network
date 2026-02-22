@@ -7,6 +7,8 @@
   import Vote from '@lucide/svelte/icons/vote';
   import FileSignature from '@lucide/svelte/icons/file-signature';
   import MessageSquare from '@lucide/svelte/icons/message-square';
+  import Compass from '@lucide/svelte/icons/compass';
+  import Banknote from '@lucide/svelte/icons/banknote';
   import Globe from '@lucide/svelte/icons/globe';
   import Settings from '@lucide/svelte/icons/settings';
   import PanelLeftClose from '@lucide/svelte/icons/panel-left-close';
@@ -39,6 +41,8 @@
     { href: '/invitations', label: 'Invitations', icon: Mail },
     { href: '/proposals', label: 'Proposals', icon: Vote },
     { href: '/agreements', label: 'Agreements', icon: FileSignature },
+    { href: '/alignment', label: 'Alignment', icon: Compass },
+    { href: '/campaigns', label: 'Campaigns', icon: Banknote },
     { href: '/threads', label: 'Threads', icon: MessageSquare },
     { href: '/networks', label: 'Networks', icon: Globe },
   ];

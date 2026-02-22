@@ -28,4 +28,19 @@ export const actions: Actions = {
       return fail(400, { error: err instanceof Error ? err.message : 'Failed' });
     }
   },
+
+  updateStatus: async ({ params, request, fetch }) => {
+    const cookie = request.headers.get('cookie') ?? undefined;
+    const api = createApiClient(fetch, cookie);
+    const uri = decodeURIComponent(params.uri);
+    const data = await request.formData();
+    const status = String(data.get('status'));
+
+    try {
+      await api.updateOutcomeStatus(uri, status);
+      return { success: true };
+    } catch (err) {
+      return fail(400, { error: err instanceof Error ? err.message : 'Failed' });
+    }
+  },
 };

@@ -137,10 +137,13 @@ export class FundingService {
 
   async updateCampaign(
     uri: string,
-    actorDid: string,
+    cooperativeDid: string,
     data: UpdateCampaignInput,
   ): Promise<CampaignRow> {
     const campaign = await this.getCampaign(uri);
+    if (campaign.did !== cooperativeDid) {
+      throw new UnauthorizedError('Not authorized to update this campaign');
+    }
     if (campaign.status !== 'draft') {
       throw new ValidationError('Can only update draft campaigns');
     }
@@ -168,10 +171,13 @@ export class FundingService {
 
   async updateCampaignStatus(
     uri: string,
-    actorDid: string,
+    cooperativeDid: string,
     newStatus: string,
   ): Promise<CampaignRow> {
     const campaign = await this.getCampaign(uri);
+    if (campaign.did !== cooperativeDid) {
+      throw new UnauthorizedError('Not authorized to update this campaign');
+    }
 
     // Validate status transitions
     const allowed: Record<string, string[]> = {

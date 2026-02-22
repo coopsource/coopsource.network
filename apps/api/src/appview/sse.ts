@@ -10,7 +10,11 @@ export type AppEventType =
   | 'vote.retracted'
   | 'agreement.opened'
   | 'agreement.signed'
-  | 'agreement.voided';
+  | 'agreement.voided'
+  | 'alignment.interest.submitted'
+  | 'alignment.interest.updated'
+  | 'alignment.outcome.created'
+  | 'alignment.outcome.supported';
 
 export interface AppEvent {
   type: AppEventType;

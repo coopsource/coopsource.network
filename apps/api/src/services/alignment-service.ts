@@ -18,6 +18,7 @@ import type {
 import type { IPdsService, IClock } from '@coopsource/federation';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
+import { emitAppEvent } from '../appview/sse.js';
 
 type InterestRow = Selectable<StakeholderInterestTable>;
 type OutcomeRow = Selectable<DesiredOutcomeTable>;
@@ -84,6 +85,12 @@ export class AlignmentService {
       })
       .returningAll()
       .execute();
+
+    emitAppEvent({
+      type: 'alignment.interest.submitted',
+      data: { did, uri: row!.uri },
+      cooperativeDid,
+    });
 
     return row!;
   }
@@ -163,6 +170,12 @@ export class AlignmentService {
       .returningAll()
       .execute();
 
+    emitAppEvent({
+      type: 'alignment.interest.updated',
+      data: { did, uri: row!.uri },
+      cooperativeDid,
+    });
+
     return row!;
   }
 
@@ -195,7 +208,7 @@ export class AlignmentService {
       .insertInto('desired_outcome')
       .values({
         uri: ref.uri,
-        did: cooperativeDid,
+        did,
         rkey,
         project_uri: cooperativeDid,
         title: data.title,
@@ -209,6 +222,12 @@ export class AlignmentService {
       })
       .returningAll()
       .execute();
+
+    emitAppEvent({
+      type: 'alignment.outcome.created',
+      data: { did, uri: row!.uri, title: data.title },
+      cooperativeDid,
+    });
 
     return row!;
   }
@@ -301,6 +320,44 @@ export class AlignmentService {
       .returningAll()
       .execute();
 
+    emitAppEvent({
+      type: 'alignment.outcome.supported',
+      data: { did, outcomeUri, level },
+      cooperativeDid: outcome.project_uri,
+    });
+
+    return row!;
+  }
+
+  async updateOutcomeStatus(
+    outcomeUri: string,
+    actorDid: string,
+    newStatus: string,
+  ): Promise<OutcomeRow> {
+    const outcome = await this.getOutcome(outcomeUri);
+
+    // Validate status transitions
+    const allowed: Record<string, string[]> = {
+      proposed: ['endorsed', 'abandoned'],
+      endorsed: ['active', 'abandoned'],
+      active: ['achieved', 'abandoned'],
+    };
+
+    const validTransitions = allowed[outcome.status] ?? [];
+    if (!validTransitions.includes(newStatus)) {
+      throw new ValidationError(
+        `Cannot transition from '${outcome.status}' to '${newStatus}'`,
+      );
+    }
+
+    const now = this.clock.now();
+    const [row] = await this.db
+      .updateTable('desired_outcome')
+      .set({ status: newStatus, indexed_at: now })
+      .where('uri', '=', outcomeUri)
+      .returningAll()
+      .execute();
+
     return row!;
   }
 
@@ -321,12 +378,7 @@ export class AlignmentService {
     // Compute conflict zones: find red line / constraint conflicts
     const conflictZones = this.computeConflictZones(allInterests);
 
-    // Delete any existing map for this cooperative
-    await this.db
-      .deleteFrom('interest_map')
-      .where('project_uri', '=', cooperativeDid)
-      .execute();
-
+    // Create PDS record first (before deleting anything) to avoid data loss on crash
     const ref = await this.pdsService.createRecord({
       did: actorDid as DID,
       collection: 'network.coopsource.alignment.interestMap',
@@ -339,23 +391,34 @@ export class AlignmentService {
     });
 
     const rkey = ref.uri.split('/').pop()!;
-    const [row] = await this.db
-      .insertInto('interest_map')
-      .values({
-        uri: ref.uri,
-        did: cooperativeDid,
-        rkey,
-        project_uri: cooperativeDid,
-        alignment_zones: JSON.stringify(alignmentZones),
-        conflict_zones: JSON.stringify(conflictZones),
-        ai_analysis: null,
-        created_at: now,
-        indexed_at: now,
-      })
-      .returningAll()
-      .execute();
 
-    return row!;
+    // Wrap delete + insert in a transaction to prevent data loss
+    const row = await this.db.transaction().execute(async (trx) => {
+      await trx
+        .deleteFrom('interest_map')
+        .where('project_uri', '=', cooperativeDid)
+        .execute();
+
+      const [inserted] = await trx
+        .insertInto('interest_map')
+        .values({
+          uri: ref.uri,
+          did: cooperativeDid,
+          rkey,
+          project_uri: cooperativeDid,
+          alignment_zones: JSON.stringify(alignmentZones),
+          conflict_zones: JSON.stringify(conflictZones),
+          ai_analysis: null,
+          created_at: now,
+          indexed_at: now,
+        })
+        .returningAll()
+        .execute();
+
+      return inserted!;
+    });
+
+    return row;
   }
 
   async getMap(cooperativeDid: string): Promise<MapRow | null> {
