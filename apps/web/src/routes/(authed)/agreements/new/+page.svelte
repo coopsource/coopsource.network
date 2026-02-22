@@ -12,8 +12,8 @@
 
 <div class="mx-auto max-w-2xl space-y-6">
   <div class="flex items-center gap-3">
-    <a href="/agreements" class="text-sm text-gray-500 hover:text-gray-700">← Agreements</a>
-    <h1 class="text-xl font-semibold text-gray-900">New Agreement</h1>
+    <a href="/agreements" class="text-sm text-[var(--cs-text-muted)] hover:text-[var(--cs-text)]">← Agreements</a>
+    <h1 class="text-xl font-semibold text-[var(--cs-text)]">New Agreement</h1>
   </div>
 
   {#if form?.error}
@@ -29,52 +29,74 @@
         await update();
       };
     }}
-    class="space-y-5 rounded-lg border border-gray-200 bg-white p-6"
+    class="space-y-5 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-6"
   >
     <div>
-      <label for="title" class="block text-sm font-medium text-gray-700">Title</label>
+      <label for="title" class="block text-sm font-medium text-[var(--cs-text)]">Title</label>
       <input
         id="title"
         name="title"
         type="text"
         required
-        class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-        placeholder="Agreement title"
+        class="mt-1 block w-full rounded-md border border-[var(--cs-border)] bg-[var(--cs-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        placeholder="e.g. Worker Cooperative Agreement"
       />
     </div>
 
     <div>
-      <label for="agreementType" class="block text-sm font-medium text-gray-700">Type</label>
+      <label for="agreementType" class="block text-sm font-medium text-[var(--cs-text)]">Type</label>
       <select
         id="agreementType"
         name="agreementType"
-        class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        class="mt-1 block w-full rounded-md border border-[var(--cs-border)] bg-[var(--cs-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
       >
-        <option value="custom">General / Custom</option>
-        <option value="membership">Membership</option>
-        <option value="contribution">Contribution</option>
-        <option value="governance">Governance</option>
-        <option value="revenueShare">Revenue Share</option>
-        <option value="service">Service</option>
+        <option value="custom">Custom</option>
+        <option value="worker-cooperative">Worker Cooperative</option>
+        <option value="multi-stakeholder">Multi-Stakeholder</option>
+        <option value="platform-cooperative">Platform Cooperative</option>
+        <option value="open-source">Open Source</option>
+        <option value="producer-cooperative">Producer Cooperative</option>
+        <option value="hybrid-member-investor">Hybrid Member-Investor</option>
       </select>
     </div>
 
     <div>
-      <label for="body" class="block text-sm font-medium text-gray-700">Content</label>
+      <label for="purpose" class="block text-sm font-medium text-[var(--cs-text)]">Purpose</label>
+      <textarea
+        id="purpose"
+        name="purpose"
+        rows={3}
+        class="mt-1 block w-full rounded-md border border-[var(--cs-border)] bg-[var(--cs-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        placeholder="What is this agreement for?"
+      ></textarea>
+    </div>
+
+    <div>
+      <label for="scope" class="block text-sm font-medium text-[var(--cs-text)]">Scope</label>
+      <textarea
+        id="scope"
+        name="scope"
+        rows={3}
+        class="mt-1 block w-full rounded-md border border-[var(--cs-border)] bg-[var(--cs-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        placeholder="Who does this agreement apply to?"
+      ></textarea>
+    </div>
+
+    <div>
+      <label for="body" class="block text-sm font-medium text-[var(--cs-text)]">Content (optional)</label>
       <textarea
         id="body"
         name="body"
-        required
-        rows={12}
-        class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-        placeholder="Write the agreement text here…"
+        rows={8}
+        class="mt-1 block w-full rounded-md border border-[var(--cs-border)] bg-[var(--cs-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        placeholder="Full agreement text (markdown supported)…"
       ></textarea>
     </div>
 
     <div class="flex justify-end gap-3 pt-2">
       <a
         href="/agreements"
-        class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        class="rounded-md border border-[var(--cs-border)] px-4 py-2 text-sm font-medium text-[var(--cs-text)] hover:bg-[var(--cs-bg-hover)]"
       >
         Cancel
       </a>

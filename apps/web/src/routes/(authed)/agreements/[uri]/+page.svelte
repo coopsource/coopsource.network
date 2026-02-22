@@ -1,17 +1,19 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import { Badge } from '$lib/components/ui';
+  import { Badge, Modal } from '$lib/components/ui';
 
   let { data, form } = $props();
 
   let submitting = $state(false);
+  let confirmSign = $state(false);
+  let confirmVoid = $state(false);
 
   function statusToVariant(status: string): 'success' | 'warning' | 'danger' | 'default' {
     switch (status) {
       case 'active': return 'success';
-      case 'draft': return 'default';
+      case 'open': return 'warning';
+      case 'terminated': case 'voided': return 'danger';
       case 'amended': return 'warning';
-      case 'terminated': return 'danger';
       default: return 'default';
     }
   }
@@ -23,7 +25,7 @@
 
 <div class="mx-auto max-w-3xl space-y-6">
   <div class="flex items-center gap-3">
-    <a href="/master-agreements" class="text-sm text-[var(--cs-text-muted)] hover:text-[var(--cs-text)]">← Master Agreements</a>
+    <a href="/agreements" class="text-sm text-[var(--cs-text-muted)] hover:text-[var(--cs-text)]">← Agreements</a>
   </div>
 
   {#if form?.actionSuccess}
@@ -41,6 +43,12 @@
         <div class="mt-1 flex items-center gap-3 text-sm text-[var(--cs-text-muted)]">
           <span>{data.agreement.agreementType}</span>
           <span>v{data.agreement.version}</span>
+          <span>
+            By <strong>{data.agreement.authorDisplayName}</strong>
+            {#if data.agreement.authorHandle}
+              (@{data.agreement.authorHandle})
+            {/if}
+          </span>
           <span>Created {new Date(data.agreement.createdAt).toLocaleDateString()}</span>
         </div>
       </div>
@@ -61,6 +69,15 @@
       </div>
     {/if}
 
+    {#if data.agreement.body}
+      <div class="mt-4">
+        <h3 class="text-sm font-medium text-[var(--cs-text)]">Content</h3>
+        <div class="mt-1 rounded-md bg-[var(--cs-bg-inset)] p-4">
+          <pre class="whitespace-pre-wrap text-sm text-[var(--cs-text-secondary)] font-sans leading-relaxed">{data.agreement.body}</pre>
+        </div>
+      </div>
+    {/if}
+
     {#if data.agreement.effectiveDate}
       <div class="mt-4">
         <h3 class="text-sm font-medium text-[var(--cs-text)]">Effective Date</h3>
@@ -68,32 +85,77 @@
       </div>
     {/if}
 
+    {#if data.agreement.signatureCount > 0}
+      <div class="mt-4 text-sm text-green-600 font-medium">
+        {data.agreement.signatureCount} signature{data.agreement.signatureCount !== 1 ? 's' : ''}
+      </div>
+    {/if}
+
     <!-- Status Actions -->
-    <div class="mt-6 flex gap-3">
+    <div class="mt-6 flex flex-wrap gap-3 border-t border-[var(--cs-border)] pt-4">
       {#if data.agreement.status === 'draft'}
+        <form method="POST" action="?/open" use:enhance={() => { submitting = true; return async ({ update }) => { submitting = false; await update(); }; }}>
+          <button type="submit" disabled={submitting} class="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+            Open for signing
+          </button>
+        </form>
         <form method="POST" action="?/activate" use:enhance={() => { submitting = true; return async ({ update }) => { submitting = false; await update(); }; }}>
-          <button
-            type="submit"
-            disabled={submitting}
-            class="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
-          >
+          <button type="submit" disabled={submitting} class="rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50">
             Activate
           </button>
         </form>
-      {/if}
-      {#if data.agreement.status === 'active'}
+        <button type="button" onclick={() => (confirmVoid = true)} class="rounded-md border border-[var(--cs-border)] px-3 py-1.5 text-sm text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)]">
+          Void
+        </button>
+      {:else if data.agreement.status === 'open'}
+        {#if !data.agreement.mySignature}
+          <button type="button" onclick={() => (confirmSign = true)} class="rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700">
+            Sign Agreement
+          </button>
+        {:else}
+          <form method="POST" action="?/retractSignature" use:enhance>
+            <button type="submit" class="rounded-md border border-[var(--cs-border)] px-3 py-1.5 text-sm text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)]">
+              Retract signature
+            </button>
+          </form>
+        {/if}
+        <form method="POST" action="?/activate" use:enhance={() => { submitting = true; return async ({ update }) => { submitting = false; await update(); }; }}>
+          <button type="submit" disabled={submitting} class="rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50">
+            Activate
+          </button>
+        </form>
+        <button type="button" onclick={() => (confirmVoid = true)} class="rounded-md border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50">
+          Void
+        </button>
+      {:else if data.agreement.status === 'active'}
         <form method="POST" action="?/terminate" use:enhance={() => { submitting = true; return async ({ update }) => { submitting = false; await update(); }; }}>
-          <button
-            type="submit"
-            disabled={submitting}
-            class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-          >
+          <button type="submit" disabled={submitting} class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">
             Terminate
           </button>
         </form>
       {/if}
     </div>
   </div>
+
+  <!-- Signature Status -->
+  {#if data.agreement.status === 'open'}
+    <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-5">
+      <h2 class="text-sm font-semibold text-[var(--cs-text)]">Signature Status</h2>
+      <div class="mt-3">
+        {#if data.agreement.mySignature}
+          <div class="flex items-center gap-2 text-sm text-green-700">
+            <span>✓</span>
+            <span>You have signed this agreement.</span>
+          </div>
+        {:else}
+          <p class="text-sm text-[var(--cs-text-muted)]">You have not signed this agreement yet.</p>
+        {/if}
+        <p class="mt-2 text-xs text-[var(--cs-text-muted)]">
+          Total signatures: {data.agreement.signatureCount}
+        </p>
+      </div>
+    </div>
+  {/if}
 
   <!-- Stakeholder Terms -->
   <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-6">
@@ -125,12 +187,7 @@
             {#if data.agreement.status === 'draft'}
               <form method="POST" action="?/removeTerms" use:enhance>
                 <input type="hidden" name="termsUri" value={term.uri} />
-                <button
-                  type="submit"
-                  class="text-xs text-red-600 hover:text-red-700"
-                >
-                  Remove
-                </button>
+                <button type="submit" class="text-xs text-red-600 hover:text-red-700">Remove</button>
               </form>
             {/if}
           </div>
@@ -202,3 +259,47 @@
     {/if}
   </div>
 </div>
+
+<!-- Sign Confirmation Modal -->
+<Modal open={confirmSign} title="Sign Agreement" onclose={() => (confirmSign = false)}>
+  <p class="mb-4 text-sm text-[var(--cs-text-secondary)]">
+    By signing, you agree to the terms set out in this agreement. This action is recorded.
+  </p>
+  <form method="POST" action="?/sign" use:enhance={() => {
+    return async ({ update }) => {
+      confirmSign = false;
+      await update();
+    };
+  }}>
+    <div class="flex justify-end gap-3">
+      <button type="button" onclick={() => (confirmSign = false)} class="rounded-md border border-[var(--cs-border)] px-3 py-1.5 text-sm text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)]">
+        Cancel
+      </button>
+      <button type="submit" class="rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700">
+        Confirm & Sign
+      </button>
+    </div>
+  </form>
+</Modal>
+
+<!-- Void Confirmation Modal -->
+<Modal open={confirmVoid} title="Void Agreement" onclose={() => (confirmVoid = false)}>
+  <p class="mb-4 text-sm text-[var(--cs-text-secondary)]">
+    Are you sure you want to void this agreement? This cannot be undone.
+  </p>
+  <form method="POST" action="?/void" use:enhance={() => {
+    return async ({ update }) => {
+      confirmVoid = false;
+      await update();
+    };
+  }}>
+    <div class="flex justify-end gap-3">
+      <button type="button" onclick={() => (confirmVoid = false)} class="rounded-md border border-[var(--cs-border)] px-3 py-1.5 text-sm text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)]">
+        Cancel
+      </button>
+      <button type="submit" class="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700">
+        Void Agreement
+      </button>
+    </div>
+  </form>
+</Modal>

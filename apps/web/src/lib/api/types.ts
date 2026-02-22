@@ -67,18 +67,28 @@ export interface Vote {
 }
 
 export interface Agreement {
-  id: string;
+  uri: string;
   did: string;
+  projectUri: string;
   title: string;
-  body: string;
+  version: number;
+  purpose: string | null;
+  scope: string | null;
+  body: string | null;
   agreementType: string;
-  status: string; // draft | open | signed | void
+  governanceFramework: Record<string, unknown> | null;
+  disputeResolution: Record<string, unknown> | null;
+  amendmentProcess: Record<string, unknown> | null;
+  terminationConditions: Record<string, unknown> | null;
+  status: string; // draft | open | active | amended | terminated | voided
+  effectiveDate: string | null;
   authorDid: string;
   authorHandle: string | null;
   authorDisplayName: string;
   signatureCount: number;
   mySignature: boolean;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface SetupStatus {
@@ -315,31 +325,12 @@ export interface OutcomesResponse extends PaginatedResponse<DesiredOutcome> {
   outcomes: DesiredOutcome[];
 }
 
-// ─── Master Agreements ───────────────────────────────────────────────────────
-
-export interface MasterAgreement {
-  uri: string;
-  did: string;
-  projectUri: string;
-  title: string;
-  version: number;
-  purpose: string | null;
-  scope: string | null;
-  agreementType: string;
-  governanceFramework: Record<string, unknown> | null;
-  disputeResolution: Record<string, unknown> | null;
-  amendmentProcess: Record<string, unknown> | null;
-  terminationConditions: Record<string, unknown> | null;
-  status: string;
-  effectiveDate: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
+// ─── Stakeholder Terms ───────────────────────────────────────────────────────
 
 export interface StakeholderTerms {
   uri: string;
   did: string;
-  masterAgreementUri: string;
+  agreementUri: string;
   stakeholderDid: string;
   stakeholderType: string;
   stakeholderClass: string | null;
@@ -350,10 +341,6 @@ export interface StakeholderTerms {
   exitTerms: Record<string, unknown>;
   signedAt: string | null;
   createdAt: string;
-}
-
-export interface MasterAgreementsResponse extends PaginatedResponse<MasterAgreement> {
-  masterAgreements: MasterAgreement[];
 }
 
 export interface StakeholderTermsResponse {

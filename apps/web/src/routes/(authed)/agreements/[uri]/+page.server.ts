@@ -9,25 +9,40 @@ export const load: PageServerLoad = async ({ params, fetch, request }) => {
 
   try {
     const [agreement, termsResult] = await Promise.all([
-      api.getMasterAgreement(uri),
+      api.getAgreement(uri),
       api.listStakeholderTerms(uri),
     ]);
     return { agreement, terms: termsResult.terms };
   } catch (err) {
     if (err instanceof ApiError && err.status === 404) {
-      error(404, 'Master agreement not found.');
+      error(404, 'Agreement not found.');
     }
-    error(500, 'Failed to load master agreement.');
+    error(500, 'Failed to load agreement.');
   }
 };
 
 export const actions: Actions = {
+  open: async ({ params, fetch, request }) => {
+    const cookie = request.headers.get('cookie') ?? undefined;
+    const api = createApiClient(fetch, cookie);
+    const uri = decodeURIComponent(params.uri);
+    try {
+      await api.openAgreement(uri);
+      return { actionSuccess: 'Agreement opened for signing.' };
+    } catch (err) {
+      if (err instanceof ApiError) {
+        return fail(err.status, { actionError: err.message });
+      }
+      return fail(500, { actionError: 'Failed to open agreement.' });
+    }
+  },
+
   activate: async ({ params, fetch, request }) => {
     const cookie = request.headers.get('cookie') ?? undefined;
     const api = createApiClient(fetch, cookie);
     const uri = decodeURIComponent(params.uri);
     try {
-      await api.activateMasterAgreement(uri);
+      await api.activateAgreement(uri);
       return { actionSuccess: 'Agreement activated.' };
     } catch (err) {
       if (err instanceof ApiError) {
@@ -42,13 +57,58 @@ export const actions: Actions = {
     const api = createApiClient(fetch, cookie);
     const uri = decodeURIComponent(params.uri);
     try {
-      await api.terminateMasterAgreement(uri);
+      await api.terminateAgreement(uri);
       return { actionSuccess: 'Agreement terminated.' };
     } catch (err) {
       if (err instanceof ApiError) {
         return fail(err.status, { actionError: err.message });
       }
       return fail(500, { actionError: 'Failed to terminate agreement.' });
+    }
+  },
+
+  sign: async ({ params, fetch, request }) => {
+    const cookie = request.headers.get('cookie') ?? undefined;
+    const api = createApiClient(fetch, cookie);
+    const uri = decodeURIComponent(params.uri);
+    try {
+      await api.signAgreement(uri);
+      return { actionSuccess: 'Agreement signed.' };
+    } catch (err) {
+      if (err instanceof ApiError) {
+        return fail(err.status, { actionError: err.message });
+      }
+      return fail(500, { actionError: 'Failed to sign agreement.' });
+    }
+  },
+
+  retractSignature: async ({ params, fetch, request }) => {
+    const cookie = request.headers.get('cookie') ?? undefined;
+    const api = createApiClient(fetch, cookie);
+    const uri = decodeURIComponent(params.uri);
+    try {
+      await api.retractSignature(uri);
+      return { actionSuccess: 'Signature retracted.' };
+    } catch (err) {
+      if (err instanceof ApiError) {
+        return fail(err.status, { actionError: err.message });
+      }
+      return fail(500, { actionError: 'Failed to retract signature.' });
+    }
+  },
+
+  void: async ({ params, fetch, request }) => {
+    const cookie = request.headers.get('cookie') ?? undefined;
+    const api = createApiClient(fetch, cookie);
+    const uri = decodeURIComponent(params.uri);
+    try {
+      await api.voidAgreement(uri);
+      return { actionSuccess: 'Agreement voided.' };
+    } catch (err) {
+      if (err instanceof ApiError) {
+        return fail(err.status, { actionError: err.message });
+      }
+      return fail(500, { actionError: 'Failed to void agreement.' });
     }
   },
 

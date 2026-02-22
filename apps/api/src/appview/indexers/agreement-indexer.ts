@@ -8,11 +8,7 @@ export async function indexAgreement(
   event: FirehoseEvent,
 ): Promise<void> {
   if (event.operation === 'delete') {
-    await db
-      .updateTable('agreement')
-      .set({ invalidated_at: new Date(), indexed_at: new Date() })
-      .where('uri', '=', event.uri)
-      .execute();
+    // Agreements are immutable post-draft; delete is a no-op for now
     return;
   }
 
@@ -22,22 +18,21 @@ export async function indexAgreement(
   const existing = await db
     .selectFrom('agreement')
     .where('uri', '=', event.uri)
-    .select('id')
+    .select('uri')
     .executeTakeFirst();
 
   if (existing) {
     await db
       .updateTable('agreement')
       .set({
-        cid: event.cid,
         title: record.title as string,
-        body: record.body as string,
+        body: (record.body as string) ?? null,
         indexed_at: new Date(),
       })
-      .where('id', '=', existing.id)
+      .where('uri', '=', event.uri)
       .execute();
   }
-  // Note: agreements are typically inserted directly by AgreementServiceV2
+  // Note: agreements are typically inserted directly by AgreementService
 }
 
 export async function indexSignature(
@@ -56,10 +51,11 @@ export async function indexSignature(
   const record = event.record as Record<string, unknown> | undefined;
   if (!record) return;
 
+  const agreementUri = (record.agreement as string) ?? '';
   const agreement = await db
     .selectFrom('agreement')
-    .where('uri', '=', (record.agreement as string) ?? '')
-    .select(['id', 'cooperative_did'])
+    .where('uri', '=', agreementUri)
+    .select(['uri', 'project_uri'])
     .executeTakeFirst();
 
   if (!agreement) return; // Agreement not yet indexed
@@ -69,8 +65,8 @@ export async function indexSignature(
     .values({
       uri: event.uri,
       cid: event.cid,
-      agreement_id: agreement.id,
-      agreement_uri: (record.agreement as string) ?? '',
+      agreement_id: null,
+      agreement_uri: agreementUri,
       agreement_cid: (record.agreementCid as string) ?? '',
       signer_did: event.did,
       statement: (record.statement as string) ?? null,
@@ -85,8 +81,8 @@ export async function indexSignature(
     type: 'agreement.signed',
     data: {
       signerDid: event.did,
-      agreementId: agreement.id,
+      agreementUri: agreement.uri,
     },
-    cooperativeDid: agreement.cooperative_did,
+    cooperativeDid: agreement.project_uri,
   });
 }

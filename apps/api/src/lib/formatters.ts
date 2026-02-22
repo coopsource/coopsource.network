@@ -30,17 +30,28 @@ export interface VoteResponse {
 }
 
 export interface AgreementResponse {
-  id: string;
+  uri: string;
+  did: string;
+  projectUri: string;
   title: string;
-  body: string;
+  version: number;
+  purpose: string | null;
+  scope: string | null;
+  body: string | null;
   agreementType: string;
+  governanceFramework: unknown | null;
+  disputeResolution: unknown | null;
+  amendmentProcess: unknown | null;
+  terminationConditions: unknown | null;
   status: string;
+  effectiveDate: string | null;
   authorDid: string;
   authorDisplayName: string | null;
   authorHandle: string | null;
   signatureCount: number;
   mySignature: boolean;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface InvitationResponse {
@@ -111,13 +122,24 @@ export function formatVote(
 
 export function formatAgreement(
   row: {
-    id: string;
+    uri: string;
+    did: string;
+    project_uri: string;
     title: string;
-    body: string;
+    version: number;
+    purpose: string | null;
+    scope: string | null;
+    body: string | null;
     agreement_type: string;
+    governance_framework: unknown | null;
+    dispute_resolution: unknown | null;
+    amendment_process: unknown | null;
+    termination_conditions: unknown | null;
     status: string;
+    effective_date: Date | null;
     created_by: string;
     created_at: Date;
+    updated_at: Date;
   },
   enrichment: {
     displayName?: string | null;
@@ -127,17 +149,30 @@ export function formatAgreement(
   } = {},
 ): AgreementResponse {
   return {
-    id: row.id,
+    uri: row.uri,
+    did: row.did,
+    projectUri: row.project_uri,
     title: row.title,
+    version: row.version,
+    purpose: row.purpose,
+    scope: row.scope,
     body: row.body,
     agreementType: row.agreement_type,
+    governanceFramework: row.governance_framework,
+    disputeResolution: row.dispute_resolution,
+    amendmentProcess: row.amendment_process,
+    terminationConditions: row.termination_conditions,
     status: row.status,
+    effectiveDate: row.effective_date
+      ? row.effective_date.toISOString()
+      : null,
     authorDid: row.created_by,
     authorDisplayName: enrichment.displayName ?? null,
     authorHandle: enrichment.handle ?? null,
     signatureCount: enrichment.signatureCount ?? 0,
     mySignature: enrichment.mySignature ?? false,
     createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
   };
 }
 

@@ -70,10 +70,9 @@ export function createAdminRoutes(container: Container): Router {
         await sql`
           TRUNCATE TABLE
             connection_binding, external_connection,
-            stakeholder_terms, master_agreement,
+            stakeholder_terms, agreement_revision, agreement_signature, agreement,
             interest_map, desired_outcome, stakeholder_interest,
             funding_pledge, funding_campaign,
-            agreement_signature, agreement_party, agreement,
             vote, proposal,
             post, thread_member, thread,
             membership_role, membership, invitation,

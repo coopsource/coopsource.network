@@ -247,39 +247,39 @@ export interface VoteTable {
   indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }
 
-export interface AgreementTable {
-  id: Generated<string>;
-  uri: string | null;
-  cid: string | null;
-  cooperative_did: string;
-  created_by: string;
-  title: string;
-  agreement_type: string;
-  body: string;
-  body_format: string;
-  status: string;
-  parent_agreement_uri: string | null;
-  effective_date: ColumnType<Date | null, Date | string | null, Date | string | null>;
-  expires_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
-  executed_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
-  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
-  invalidated_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
-  invalidated_by: string | null;
-  indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
-}
+// ──────────────────────────────────────────────
+// Unified Agreement System (018 migration)
+// ──────────────────────────────────────────────
 
-export interface AgreementPartyTable {
-  agreement_id: string;
-  entity_did: string;
-  required: boolean;
-  added_at: ColumnType<Date, Date | string | undefined, Date | string>;
+export interface AgreementTable {
+  uri: string;
+  did: string;
+  rkey: string;
+  project_uri: string;
+  title: string;
+  version: number;
+  purpose: string | null;
+  scope: string | null;
+  agreement_type: string;
+  body: string | null;
+  body_format: string;
+  created_by: string;
+  governance_framework: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
+  dispute_resolution: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
+  amendment_process: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
+  termination_conditions: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
+  status: string;
+  effective_date: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  created_at: ColumnType<Date, Date | string, Date | string>;
+  updated_at: ColumnType<Date, Date | string, Date | string>;
+  indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }
 
 export interface AgreementSignatureTable {
   id: Generated<string>;
   uri: string | null;
   cid: string | null;
-  agreement_id: string;
+  agreement_id: string | null;
   agreement_uri: string;
   agreement_cid: string;
   signer_did: string;
@@ -290,6 +290,17 @@ export interface AgreementSignatureTable {
   retracted_by: string | null;
   retraction_reason: string | null;
   indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface AgreementRevisionTable {
+  id: Generated<string>;
+  agreement_uri: string;
+  revision_number: number;
+  changed_by: string;
+  change_type: string;
+  field_changes: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
+  snapshot: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }
 
 // ──────────────────────────────────────────────
@@ -338,32 +349,11 @@ export interface InterestMapTable {
   indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }
 
-export interface MasterAgreementTable {
-  uri: string;
-  did: string;
-  rkey: string;
-  project_uri: string;
-  title: string;
-  version: number;
-  purpose: string | null;
-  scope: string | null;
-  agreement_type: string;
-  governance_framework: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
-  dispute_resolution: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
-  amendment_process: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
-  termination_conditions: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
-  status: string;
-  effective_date: ColumnType<Date | null, Date | string | null, Date | string | null>;
-  created_at: ColumnType<Date, Date | string, Date | string>;
-  updated_at: ColumnType<Date, Date | string, Date | string>;
-  indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
-}
-
 export interface StakeholderTermsTable {
   uri: string;
   did: string;
   rkey: string;
-  master_agreement_uri: string;
+  agreement_uri: string;
   stakeholder_did: string;
   stakeholder_type: string;
   stakeholder_class: string | null;
@@ -633,14 +623,13 @@ export interface Database {
   proposal: ProposalTable;
   vote: VoteTable;
   agreement: AgreementTable;
-  agreement_party: AgreementPartyTable;
   agreement_signature: AgreementSignatureTable;
+  agreement_revision: AgreementRevisionTable;
 
   // Legacy tables (kept for Stage 2-3 features)
   stakeholder_interest: StakeholderInterestTable;
   desired_outcome: DesiredOutcomeTable;
   interest_map: InterestMapTable;
-  master_agreement: MasterAgreementTable;
   stakeholder_terms: StakeholderTermsTable;
   external_connection: ExternalConnectionTable;
   connection_binding: ConnectionBindingTable;

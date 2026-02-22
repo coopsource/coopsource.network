@@ -13,11 +13,10 @@ import { EntityService } from './services/entity-service.js';
 import { MembershipService } from './services/membership-service.js';
 import { PostService } from './services/post-service.js';
 import { ProposalService } from './services/proposal-service.js';
-import { AgreementServiceV2 } from './services/agreement-service-v2.js';
+import { AgreementService } from './services/agreement-service.js';
 import { NetworkService } from './services/network-service.js';
 import { FundingService } from './services/funding-service.js';
 import { AlignmentService } from './services/alignment-service.js';
-import { MasterAgreementService } from './services/master-agreement-service.js';
 import { ConnectionService } from './services/connection-service.js';
 
 export interface Container {
@@ -31,11 +30,10 @@ export interface Container {
   membershipService: MembershipService;
   postService: PostService;
   proposalService: ProposalService;
-  agreementService: AgreementServiceV2;
+  agreementService: AgreementService;
   networkService: NetworkService;
   fundingService: FundingService;
   alignmentService: AlignmentService;
-  masterAgreementService: MasterAgreementService;
   connectionService: ConnectionService;
 }
 
@@ -79,11 +77,10 @@ export function createContainer(config: AppConfig): Container {
   );
   const postService = new PostService(db, clock);
   const proposalService = new ProposalService(db, pdsService, clock);
-  const agreementService = new AgreementServiceV2(db, pdsService, clock);
+  const agreementService = new AgreementService(db, pdsService, clock);
   const networkService = new NetworkService(db, pdsService, clock);
   const fundingService = new FundingService(db, pdsService, clock);
   const alignmentService = new AlignmentService(db, pdsService, clock);
-  const masterAgreementService = new MasterAgreementService(db, pdsService, clock);
   const connectionService = new ConnectionService(db, pdsService, clock, config);
 
   return {
@@ -101,7 +98,6 @@ export function createContainer(config: AppConfig): Container {
     networkService,
     fundingService,
     alignmentService,
-    masterAgreementService,
     connectionService,
   };
 }

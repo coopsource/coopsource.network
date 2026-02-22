@@ -4,10 +4,9 @@ import { asyncHandler } from '../../lib/async-handler.js';
 import { requireAuth, requireAdmin } from '../../auth/middleware.js';
 import { parsePagination } from '../../lib/pagination.js';
 import {
-  NotFoundError,
-  ValidationError,
-  CreateAgreementBodySchema,
-  UpdateAgreementBodySchema,
+  CreateMasterAgreementSchema,
+  UpdateMasterAgreementSchema,
+  CreateStakeholderTermsSchema,
   SignAgreementSchema,
   RetractSignatureSchema,
 } from '@coopsource/common';
@@ -18,7 +17,7 @@ import {
 
 async function enrichAgreement(
   container: Container,
-  row: Parameters<typeof formatAgreement>[0] & { created_by: string; id: string },
+  row: Parameters<typeof formatAgreement>[0],
   currentDid: string,
 ): Promise<AgreementResponse> {
   const author = await container.db
@@ -29,14 +28,14 @@ async function enrichAgreement(
 
   const sigCount = await container.db
     .selectFrom('agreement_signature')
-    .where('agreement_id', '=', row.id)
+    .where('agreement_uri', '=', row.uri)
     .where('retracted_at', 'is', null)
     .select((eb) => [eb.fn.count<string>('id').as('count')])
     .executeTakeFirst();
 
   const mySig = await container.db
     .selectFrom('agreement_signature')
-    .where('agreement_id', '=', row.id)
+    .where('agreement_uri', '=', row.uri)
     .where('signer_did', '=', currentDid)
     .where('retracted_at', 'is', null)
     .select('id')
@@ -50,48 +49,42 @@ async function enrichAgreement(
   });
 }
 
+function formatStakeholderTerms(row: Record<string, unknown>) {
+  return {
+    uri: row.uri,
+    did: row.did,
+    agreementUri: row.agreement_uri,
+    stakeholderDid: row.stakeholder_did,
+    stakeholderType: row.stakeholder_type,
+    stakeholderClass: row.stakeholder_class,
+    contributions: row.contributions,
+    financialTerms: row.financial_terms,
+    ipTerms: row.ip_terms,
+    governanceRights: row.governance_rights,
+    exitTerms: row.exit_terms,
+    signedAt: row.signed_at
+      ? (row.signed_at as Date).toISOString()
+      : null,
+    createdAt: (row.created_at as Date).toISOString(),
+  };
+}
+
 export function createAgreementRoutes(container: Container): Router {
   const router = Router();
 
-  // GET /api/v1/agreements
-  router.get(
-    '/api/v1/agreements',
-    requireAuth,
-    asyncHandler(async (req, res) => {
-      const params = parsePagination(req.query as Record<string, unknown>);
-      const result = await container.agreementService.listAgreements(
-        req.actor!.cooperativeDid,
-        params,
-      );
-
-      const agreements = await Promise.all(
-        result.items.map((row) =>
-          enrichAgreement(container, row, req.actor!.did),
-        ),
-      );
-
-      res.json({ agreements, cursor: result.cursor ?? null });
-    }),
-  );
-
-  // POST /api/v1/agreements
+  // POST /api/v1/agreements — Create agreement
   router.post(
     '/api/v1/agreements',
     requireAuth,
     asyncHandler(async (req, res) => {
-      const { title, body, bodyFormat, agreementType, partyDids } =
-        CreateAgreementBodySchema.parse(req.body);
+      const data = CreateMasterAgreementSchema.parse(req.body);
+      const body = typeof req.body.body === 'string' ? req.body.body : undefined;
+      const bodyFormat = typeof req.body.bodyFormat === 'string' ? req.body.bodyFormat : undefined;
 
       const agreement = await container.agreementService.createAgreement(
         req.actor!.did,
-        {
-          cooperativeDid: req.actor!.cooperativeDid,
-          title,
-          body,
-          bodyFormat,
-          agreementType,
-          partyDids,
-        },
+        req.actor!.cooperativeDid,
+        { ...data, body, bodyFormat },
       );
 
       res
@@ -100,106 +93,145 @@ export function createAgreementRoutes(container: Container): Router {
     }),
   );
 
-  // GET /api/v1/agreements/:id
+  // GET /api/v1/agreements — List agreements
   router.get(
-    '/api/v1/agreements/:id',
+    '/api/v1/agreements',
     requireAuth,
     asyncHandler(async (req, res) => {
-      const result = await container.agreementService.getAgreement(
-        (req.params.id as string),
+      const params = parsePagination(req.query as Record<string, unknown>);
+      const status = req.query.status ? String(req.query.status) : undefined;
+
+      const page = await container.agreementService.listAgreements(
+        req.actor!.cooperativeDid,
+        { ...params, status },
       );
-      if (!result) throw new NotFoundError('Agreement not found');
-      res.json(
-        await enrichAgreement(container, result.agreement, req.actor!.did),
+
+      const agreements = await Promise.all(
+        page.items.map((row) =>
+          enrichAgreement(container, row, req.actor!.did),
+        ),
       );
+
+      res.json({ agreements, cursor: page.cursor ?? null });
     }),
   );
 
-  // PUT /api/v1/agreements/:id (author, draft only)
-  router.put(
-    '/api/v1/agreements/:id',
+  // GET /api/v1/agreements/:uri — Get single agreement
+  router.get(
+    '/api/v1/agreements/:uri',
     requireAuth,
     asyncHandler(async (req, res) => {
-      const agreement = await container.db
-        .selectFrom('agreement')
-        .where('id', '=', (req.params.id as string))
-        .where('invalidated_at', 'is', null)
-        .selectAll()
-        .executeTakeFirst();
-
-      if (!agreement) throw new NotFoundError('Agreement not found');
-      if (agreement.created_by !== req.actor!.did) {
-        res.status(403).json({
-          error: {
-            code: 'FORBIDDEN',
-            message: 'Not the agreement author',
-          },
-        });
-        return;
-      }
-      if (agreement.status !== 'draft') {
-        throw new ValidationError('Can only edit draft agreements');
-      }
-
-      const { title, body } = UpdateAgreementBodySchema.parse(req.body);
-
-      const [updated] = await container.db
-        .updateTable('agreement')
-        .set({
-          ...(title ? { title } : {}),
-          ...(body ? { body } : {}),
-          indexed_at: new Date(),
-        })
-        .where('id', '=', (req.params.id as string))
-        .returningAll()
-        .execute();
-
-      res.json(await enrichAgreement(container, updated!, req.actor!.did));
-    }),
-  );
-
-  // POST /api/v1/agreements/:id/open
-  router.post(
-    '/api/v1/agreements/:id/open',
-    requireAuth,
-    asyncHandler(async (req, res) => {
-      const result = await container.agreementService.openAgreement(
-        (req.params.id as string),
-        req.actor!.did,
-      );
+      const uri = decodeURIComponent(String(req.params.uri));
+      const result = await container.agreementService.getAgreement(uri);
       res.json(await enrichAgreement(container, result, req.actor!.did));
     }),
   );
 
-  // POST /api/v1/agreements/:id/sign
-  router.post(
-    '/api/v1/agreements/:id/sign',
+  // PUT /api/v1/agreements/:uri — Update agreement (draft only)
+  router.put(
+    '/api/v1/agreements/:uri',
     requireAuth,
     asyncHandler(async (req, res) => {
-      const { statement } = SignAgreementSchema.parse(req.body);
-      await container.agreementService.sign(
-        (req.params.id as string),
+      const uri = decodeURIComponent(String(req.params.uri));
+      const data = UpdateMasterAgreementSchema.parse(req.body);
+      const body = typeof req.body.body === 'string' ? req.body.body : undefined;
+      const bodyFormat = typeof req.body.bodyFormat === 'string' ? req.body.bodyFormat : undefined;
+
+      const agreement = await container.agreementService.updateAgreement(
+        uri,
         req.actor!.did,
-        statement,
+        { ...data, body, bodyFormat },
       );
-      const result = await container.agreementService.getAgreement(
-        (req.params.id as string),
-      );
-      if (!result) throw new NotFoundError('Agreement not found');
-      res
-        .status(201)
-        .json(await enrichAgreement(container, result.agreement, req.actor!.did));
+
+      res.json(await enrichAgreement(container, agreement, req.actor!.did));
     }),
   );
 
-  // DELETE /api/v1/agreements/:id/sign
-  router.delete(
-    '/api/v1/agreements/:id/sign',
+  // POST /api/v1/agreements/:uri/open — Open for signing (draft→open)
+  router.post(
+    '/api/v1/agreements/:uri/open',
     requireAuth,
     asyncHandler(async (req, res) => {
+      const uri = decodeURIComponent(String(req.params.uri));
+      const agreement = await container.agreementService.openAgreement(
+        uri,
+        req.actor!.did,
+      );
+      res.json(await enrichAgreement(container, agreement, req.actor!.did));
+    }),
+  );
+
+  // POST /api/v1/agreements/:uri/activate — Activate (open→active or draft→active)
+  router.post(
+    '/api/v1/agreements/:uri/activate',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const uri = decodeURIComponent(String(req.params.uri));
+      const agreement = await container.agreementService.activateAgreement(
+        uri,
+        req.actor!.did,
+      );
+      res.json(await enrichAgreement(container, agreement, req.actor!.did));
+    }),
+  );
+
+  // POST /api/v1/agreements/:uri/terminate — Terminate (active→terminated)
+  router.post(
+    '/api/v1/agreements/:uri/terminate',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const uri = decodeURIComponent(String(req.params.uri));
+      const agreement = await container.agreementService.terminateAgreement(
+        uri,
+        req.actor!.did,
+      );
+      res.json(await enrichAgreement(container, agreement, req.actor!.did));
+    }),
+  );
+
+  // POST /api/v1/agreements/:uri/void — Void (any→voided)
+  router.post(
+    '/api/v1/agreements/:uri/void',
+    requireAuth,
+    requireAdmin,
+    asyncHandler(async (req, res) => {
+      const uri = decodeURIComponent(String(req.params.uri));
+      const agreement = await container.agreementService.voidAgreement(
+        uri,
+        req.actor!.did,
+      );
+      res.json(await enrichAgreement(container, agreement, req.actor!.did));
+    }),
+  );
+
+  // POST /api/v1/agreements/:uri/sign — Sign agreement
+  router.post(
+    '/api/v1/agreements/:uri/sign',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const uri = decodeURIComponent(String(req.params.uri));
+      const { statement } = SignAgreementSchema.parse(req.body);
+      await container.agreementService.signAgreement(
+        uri,
+        req.actor!.did,
+        statement,
+      );
+      const result = await container.agreementService.getAgreement(uri);
+      res
+        .status(201)
+        .json(await enrichAgreement(container, result, req.actor!.did));
+    }),
+  );
+
+  // DELETE /api/v1/agreements/:uri/sign — Retract signature
+  router.delete(
+    '/api/v1/agreements/:uri/sign',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const uri = decodeURIComponent(String(req.params.uri));
       const { reason } = RetractSignatureSchema.parse(req.body);
       await container.agreementService.retractSignature(
-        (req.params.id as string),
+        uri,
         req.actor!.did,
         reason,
       );
@@ -207,17 +239,70 @@ export function createAgreementRoutes(container: Container): Router {
     }),
   );
 
-  // POST /api/v1/agreements/:id/void (admin)
+  // POST /api/v1/agreements/:uri/terms — Add stakeholder terms
   router.post(
-    '/api/v1/agreements/:id/void',
+    '/api/v1/agreements/:uri/terms',
     requireAuth,
-    requireAdmin,
     asyncHandler(async (req, res) => {
-      const result = await container.agreementService.voidAgreement(
-        (req.params.id as string),
+      const uri = decodeURIComponent(String(req.params.uri));
+      const data = CreateStakeholderTermsSchema.parse(req.body);
+      const terms = await container.agreementService.addStakeholderTerms(
+        req.actor!.did,
+        uri,
+        data,
+      );
+      res.status(201).json(formatStakeholderTerms(terms as unknown as Record<string, unknown>));
+    }),
+  );
+
+  // GET /api/v1/agreements/:uri/terms — List stakeholder terms
+  router.get(
+    '/api/v1/agreements/:uri/terms',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const uri = decodeURIComponent(String(req.params.uri));
+      const terms = await container.agreementService.listStakeholderTerms(uri);
+      res.json({
+        terms: terms.map((t) =>
+          formatStakeholderTerms(t as unknown as Record<string, unknown>),
+        ),
+      });
+    }),
+  );
+
+  // DELETE /api/v1/agreements/:uri/terms/:termsUri — Remove stakeholder terms
+  router.delete(
+    '/api/v1/agreements/:uri/terms/:termsUri',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const termsUri = decodeURIComponent(String(req.params.termsUri));
+      await container.agreementService.removeStakeholderTerms(
+        termsUri,
         req.actor!.did,
       );
-      res.json(await enrichAgreement(container, result, req.actor!.did));
+      res.status(204).send();
+    }),
+  );
+
+  // GET /api/v1/agreements/:uri/history — Audit trail
+  router.get(
+    '/api/v1/agreements/:uri/history',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const uri = decodeURIComponent(String(req.params.uri));
+      const revisions = await container.agreementService.getAgreementHistory(uri);
+      res.json({
+        revisions: revisions.map((r) => ({
+          id: r.id,
+          agreementUri: r.agreement_uri,
+          revisionNumber: r.revision_number,
+          changedBy: r.changed_by,
+          changeType: r.change_type,
+          fieldChanges: r.field_changes,
+          snapshot: r.snapshot,
+          createdAt: r.created_at.toISOString(),
+        })),
+      });
     }),
   );
 
