@@ -1,9 +1,10 @@
 import type { Kysely, Selectable } from 'kysely';
-import type { Database, AgreementTemplateTable } from '@coopsource/db';
+import type { Database, AgreementTemplateTable, AgreementTable } from '@coopsource/db';
 import { NotFoundError } from '@coopsource/common';
 import type {
   CreateAgreementTemplateInput,
   UpdateAgreementTemplateInput,
+  CreateMasterAgreementInput,
 } from '@coopsource/common';
 import type { IClock } from '@coopsource/federation';
 import type { Page, PageParams } from '../lib/pagination.js';
@@ -11,6 +12,11 @@ import { encodeCursor, decodeCursor } from '../lib/pagination.js';
 import type { AgreementService } from './agreement-service.js';
 
 type TemplateRow = Selectable<AgreementTemplateTable>;
+type AgreementRow = Selectable<AgreementTable>;
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
 
 export class AgreementTemplateService {
   constructor(
@@ -133,31 +139,24 @@ export class AgreementTemplateService {
     did: string,
     cooperativeDid: string,
     agreementService: AgreementService,
-  ): Promise<unknown> {
+  ): Promise<AgreementRow> {
     const template = await this.getTemplate(id);
-    const td = template.template_data as Record<string, unknown>;
+    const td = template.template_data;
 
     const agreement = await agreementService.createAgreement(
       did,
       cooperativeDid,
       {
-        title: (td.title as string) || template.name,
-        purpose: (td.purpose as string) || undefined,
-        scope: (td.scope as string) || undefined,
-        agreementType: template.agreement_type as
-          | 'worker-cooperative'
-          | 'multi-stakeholder'
-          | 'platform-cooperative'
-          | 'open-source'
-          | 'producer-cooperative'
-          | 'hybrid-member-investor'
-          | 'custom',
-        body: (td.body as string) || undefined,
-        bodyFormat: (td.bodyFormat as string) || undefined,
-        governanceFramework: td.governanceFramework as Record<string, unknown> | undefined,
-        disputeResolution: td.disputeResolution as Record<string, unknown> | undefined,
-        amendmentProcess: td.amendmentProcess as Record<string, unknown> | undefined,
-        terminationConditions: td.terminationConditions as Record<string, unknown> | undefined,
+        title: typeof td.title === 'string' && td.title ? td.title : template.name,
+        purpose: typeof td.purpose === 'string' ? td.purpose : undefined,
+        scope: typeof td.scope === 'string' ? td.scope : undefined,
+        agreementType: template.agreement_type as CreateMasterAgreementInput['agreementType'],
+        body: typeof td.body === 'string' ? td.body : undefined,
+        bodyFormat: typeof td.bodyFormat === 'string' ? td.bodyFormat : undefined,
+        governanceFramework: isRecord(td.governanceFramework) ? td.governanceFramework : undefined,
+        disputeResolution: isRecord(td.disputeResolution) ? td.disputeResolution : undefined,
+        amendmentProcess: isRecord(td.amendmentProcess) ? td.amendmentProcess : undefined,
+        terminationConditions: isRecord(td.terminationConditions) ? td.terminationConditions : undefined,
       },
     );
 

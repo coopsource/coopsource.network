@@ -61,6 +61,31 @@ describe('Setup & Auth', () => {
       expect(res.body.error).toBe('ValidationError');
     });
 
+    it('rejects short password', async () => {
+      const testApp = createTestApp();
+      await testApp.agent
+        .post('/api/v1/setup/initialize')
+        .send({
+          cooperativeName: 'Test Cooperative',
+          adminEmail: 'admin@test.com',
+          adminPassword: 'short',
+          adminDisplayName: 'Test Admin',
+        })
+        .expect(400);
+    });
+
+    it('rejects missing email', async () => {
+      const testApp = createTestApp();
+      await testApp.agent
+        .post('/api/v1/setup/initialize')
+        .send({
+          cooperativeName: 'Test Cooperative',
+          adminPassword: 'password123',
+          adminDisplayName: 'Test Admin',
+        })
+        .expect(400);
+    });
+
     it('validates required fields', async () => {
       const { agent } = createTestApp();
       const res = await agent

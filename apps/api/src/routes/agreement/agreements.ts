@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import type { Selectable } from 'kysely';
+import type { StakeholderTermsTable } from '@coopsource/db';
 import type { Container } from '../../container.js';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { requireAuth, requireAdmin } from '../../auth/middleware.js';
@@ -49,7 +51,7 @@ async function enrichAgreement(
   });
 }
 
-function formatStakeholderTerms(row: Record<string, unknown>) {
+function formatStakeholderTerms(row: Selectable<StakeholderTermsTable>) {
   return {
     uri: row.uri,
     did: row.did,
@@ -63,9 +65,9 @@ function formatStakeholderTerms(row: Record<string, unknown>) {
     governanceRights: row.governance_rights,
     exitTerms: row.exit_terms,
     signedAt: row.signed_at
-      ? (row.signed_at as Date).toISOString()
+      ? row.signed_at.toISOString()
       : null,
-    createdAt: (row.created_at as Date).toISOString(),
+    createdAt: row.created_at.toISOString(),
   };
 }
 
@@ -251,7 +253,7 @@ export function createAgreementRoutes(container: Container): Router {
         uri,
         data,
       );
-      res.status(201).json(formatStakeholderTerms(terms as unknown as Record<string, unknown>));
+      res.status(201).json(formatStakeholderTerms(terms));
     }),
   );
 
@@ -264,7 +266,7 @@ export function createAgreementRoutes(container: Container): Router {
       const terms = await container.agreementService.listStakeholderTerms(uri);
       res.json({
         terms: terms.map((t) =>
-          formatStakeholderTerms(t as unknown as Record<string, unknown>),
+          formatStakeholderTerms(t),
         ),
       });
     }),

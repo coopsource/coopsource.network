@@ -36,6 +36,8 @@ import { createInterestRoutes } from '../../src/routes/alignment/interests.js';
 import { createOutcomeRoutes } from '../../src/routes/alignment/outcomes.js';
 import { createMapRoutes } from '../../src/routes/alignment/map.js';
 import { createConnectionRoutes } from '../../src/routes/connections/connections.js';
+import { createAdminRoutes } from '../../src/routes/admin.js';
+import { createBlobRoutes } from '../../src/routes/blobs.js';
 import { errorHandler } from '../../src/middleware/error-handler.js';
 import { getTestDb, getTestConnectionString } from './test-db.js';
 
@@ -132,6 +134,7 @@ export function createTestApp(): TestApp {
   );
 
   // Mount routes in the same order as production
+  app.use(createBlobRoutes(container));
   app.use(createSetupRoutes(container));
   app.use(createAuthRoutes(container, { frontendUrl: 'http://localhost:5173' }));
   app.use(createCooperativeRoutes(container));
@@ -146,6 +149,7 @@ export function createTestApp(): TestApp {
   app.use(createOutcomeRoutes(container));
   app.use(createMapRoutes(container));
   app.use(createConnectionRoutes(container, testConfig));
+  app.use(createAdminRoutes(container));
 
   // Error handler (must be last)
   app.use(errorHandler);

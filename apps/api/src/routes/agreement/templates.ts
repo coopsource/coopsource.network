@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import type { Selectable } from 'kysely';
+import type { AgreementTemplateTable, AgreementTable } from '@coopsource/db';
 import type { Container } from '../../container.js';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { requireAuth } from '../../auth/middleware.js';
@@ -12,17 +14,17 @@ import {
   type AgreementResponse,
 } from '../../lib/formatters.js';
 
-function formatTemplate(row: Record<string, unknown>) {
+function formatTemplate(row: Selectable<AgreementTemplateTable>) {
   return {
     id: row.id,
     cooperativeDid: row.cooperative_did,
     createdBy: row.created_by,
     name: row.name,
-    description: row.description ?? null,
+    description: row.description,
     agreementType: row.agreement_type,
     templateData: row.template_data,
-    createdAt: (row.created_at as Date).toISOString(),
-    updatedAt: (row.updated_at as Date).toISOString(),
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
   };
 }
 
@@ -76,7 +78,7 @@ export function createAgreementTemplateRoutes(container: Container): Router {
         data,
       );
 
-      res.status(201).json(formatTemplate(template as unknown as Record<string, unknown>));
+      res.status(201).json(formatTemplate(template));
     }),
   );
 
@@ -93,7 +95,7 @@ export function createAgreementTemplateRoutes(container: Container): Router {
       );
 
       const templates = page.items.map((row) =>
-        formatTemplate(row as unknown as Record<string, unknown>),
+        formatTemplate(row),
       );
 
       res.json({ templates, cursor: page.cursor ?? null });
@@ -108,7 +110,7 @@ export function createAgreementTemplateRoutes(container: Container): Router {
       const id = String(req.params.id);
       const template = await container.agreementTemplateService.getTemplate(id);
 
-      res.json(formatTemplate(template as unknown as Record<string, unknown>));
+      res.json(formatTemplate(template));
     }),
   );
 
@@ -125,7 +127,7 @@ export function createAgreementTemplateRoutes(container: Container): Router {
         data,
       );
 
-      res.json(formatTemplate(template as unknown as Record<string, unknown>));
+      res.json(formatTemplate(template));
     }),
   );
 
@@ -155,7 +157,7 @@ export function createAgreementTemplateRoutes(container: Container): Router {
 
       const enriched = await enrichAgreement(
         container,
-        agreement as Parameters<typeof formatAgreement>[0],
+        agreement as Selectable<AgreementTable>,
         req.actor!.did,
       );
 
