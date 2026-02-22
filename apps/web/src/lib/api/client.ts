@@ -23,6 +23,11 @@ import type {
   Pledge,
   CampaignsResponse,
   PledgesResponse,
+  StakeholderInterest,
+  DesiredOutcome,
+  InterestMap,
+  InterestsListResponse,
+  OutcomesResponse,
 } from './types.js';
 
 export class ApiError extends Error {
@@ -465,5 +470,72 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string) {
       if (params?.cursor) qs.set('cursor', params.cursor);
       return request<PledgesResponse>(`/campaigns/${encodeURIComponent(campaignUri)}/pledges${qs.size ? `?${qs}` : ''}`);
     },
+
+    // Alignment — Interests
+    submitInterests: (body: {
+      interests: Array<{ category: string; description: string; priority: number; scope?: string }>;
+      contributions?: Array<{ type: string; description: string; capacity?: string }>;
+      constraints?: Array<{ description: string; hardConstraint?: boolean }>;
+      redLines?: Array<{ description: string; reason?: string }>;
+      preferences?: { decisionMaking?: string; communication?: string; pace?: string };
+    }) =>
+      request<StakeholderInterest>('/alignment/interests', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+
+    getInterests: () =>
+      request<InterestsListResponse>('/alignment/interests'),
+
+    getMyInterests: () =>
+      request<StakeholderInterest | null>('/alignment/interests/me'),
+
+    updateInterests: (body: {
+      interests?: Array<{ category: string; description: string; priority: number; scope?: string }>;
+      contributions?: Array<{ type: string; description: string; capacity?: string }>;
+      constraints?: Array<{ description: string; hardConstraint?: boolean }>;
+      redLines?: Array<{ description: string; reason?: string }>;
+      preferences?: { decisionMaking?: string; communication?: string; pace?: string };
+    }) =>
+      request<StakeholderInterest>('/alignment/interests', {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
+
+    // Alignment — Outcomes
+    createOutcome: (body: {
+      title: string;
+      description?: string;
+      category: string;
+      successCriteria?: Array<{ metric: string; target: string; timeline?: string }>;
+    }) =>
+      request<DesiredOutcome>('/alignment/outcomes', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+
+    listOutcomes: (params?: { status?: string; limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.status) qs.set('status', params.status);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<OutcomesResponse>(`/alignment/outcomes${qs.size ? `?${qs}` : ''}`);
+    },
+
+    getOutcome: (uri: string) =>
+      request<DesiredOutcome>(`/alignment/outcomes/${encodeURIComponent(uri)}`),
+
+    supportOutcome: (uri: string, body: { level: string; conditions?: string }) =>
+      request<DesiredOutcome>(`/alignment/outcomes/${encodeURIComponent(uri)}/support`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+
+    // Alignment — Map
+    generateMap: () =>
+      request<InterestMap>('/alignment/map/generate', { method: 'POST' }),
+
+    getMap: () =>
+      request<InterestMap | null>('/alignment/map'),
   };
 }

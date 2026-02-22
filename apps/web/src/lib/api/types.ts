@@ -214,6 +214,107 @@ export interface PledgesResponse {
   cursor?: string;
 }
 
+// ─── Alignment ────────────────────────────────────────────────────────────────
+
+export interface InterestItem {
+  category: string;
+  description: string;
+  priority: number;
+  scope?: string;
+}
+
+export interface ContributionItem {
+  type: string;
+  description: string;
+  capacity?: string;
+}
+
+export interface ConstraintItem {
+  description: string;
+  hardConstraint?: boolean;
+}
+
+export interface RedLineItem {
+  description: string;
+  reason?: string;
+}
+
+export interface WorkPreferences {
+  decisionMaking?: string;
+  communication?: string;
+  pace?: string;
+}
+
+export interface StakeholderInterest {
+  uri: string;
+  did: string;
+  projectUri: string;
+  interests: InterestItem[];
+  contributions: ContributionItem[];
+  constraints: ConstraintItem[];
+  redLines: RedLineItem[];
+  preferences: WorkPreferences;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SuccessCriterion {
+  metric: string;
+  target: string;
+  timeline?: string;
+}
+
+export interface SupportEntry {
+  stakeholderDid: string;
+  supportLevel: string;
+  conditions?: string;
+}
+
+export interface DesiredOutcome {
+  uri: string;
+  did: string;
+  projectUri: string;
+  title: string;
+  description: string | null;
+  category: string;
+  successCriteria: SuccessCriterion[];
+  stakeholderSupport: SupportEntry[];
+  status: string;
+  createdAt: string;
+}
+
+export interface AlignmentZone {
+  participants: string[];
+  description: string;
+  strength: number;
+  interestsInvolved: string[];
+}
+
+export interface ConflictZone {
+  stakeholders: string[];
+  description: string;
+  severity: string;
+  potentialSolutions: string[];
+}
+
+export interface InterestMap {
+  uri: string;
+  did: string;
+  projectUri: string;
+  alignmentZones: AlignmentZone[];
+  conflictZones: ConflictZone[];
+  aiAnalysis: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface InterestsListResponse {
+  interests: StakeholderInterest[];
+}
+
+export interface OutcomesResponse extends PaginatedResponse<DesiredOutcome> {
+  outcomes: DesiredOutcome[];
+}
+
 export interface ApiError {
   error: string;
   message?: string;

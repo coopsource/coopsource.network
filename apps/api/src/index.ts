@@ -32,6 +32,9 @@ import { createEventRoutes } from './routes/events.js';
 import { createAdminRoutes } from './routes/admin.js';
 import { createCampaignRoutes } from './routes/funding/campaigns.js';
 import { createStripeWebhookRoutes } from './routes/funding/stripe-webhook.js';
+import { createInterestRoutes } from './routes/alignment/interests.js';
+import { createOutcomeRoutes } from './routes/alignment/outcomes.js';
+import { createMapRoutes } from './routes/alignment/map.js';
 import { startAppViewLoop } from './appview/loop.js';
 import { createOAuthClient } from './auth/oauth-client.js';
 
@@ -125,7 +128,12 @@ async function start(): Promise<void> {
   // Funding routes (Stage 3)
   app.use(createCampaignRoutes(container));
 
-  // TODO: Stage 3 — Alignment, Connections, Automation, AI Agents, MCP, CLI Auth, OIDC
+  // Alignment routes (Stage 3)
+  app.use(createInterestRoutes(container));
+  app.use(createOutcomeRoutes(container));
+  app.use(createMapRoutes(container));
+
+  // TODO: Stage 3 — Connections, Automation, AI Agents, MCP, CLI Auth, OIDC
 
   // Error handling (must be last)
   app.use(errorHandler);

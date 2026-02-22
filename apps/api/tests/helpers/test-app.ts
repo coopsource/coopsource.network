@@ -16,6 +16,7 @@ import { ProposalService } from '../../src/services/proposal-service.js';
 import { AgreementServiceV2 } from '../../src/services/agreement-service-v2.js';
 import { NetworkService } from '../../src/services/network-service.js';
 import { FundingService } from '../../src/services/funding-service.js';
+import { AlignmentService } from '../../src/services/alignment-service.js';
 import { setDb, resetSetupCache } from '../../src/auth/middleware.js';
 import { createHealthRoutes } from '../../src/routes/health.js';
 import { createSetupRoutes } from '../../src/routes/setup.js';
@@ -27,6 +28,9 @@ import { createProposalRoutes } from '../../src/routes/governance/proposals.js';
 import { createAgreementRoutes } from '../../src/routes/agreement/agreements.js';
 import { createNetworkRoutes } from '../../src/routes/org/networks.js';
 import { createCampaignRoutes } from '../../src/routes/funding/campaigns.js';
+import { createInterestRoutes } from '../../src/routes/alignment/interests.js';
+import { createOutcomeRoutes } from '../../src/routes/alignment/outcomes.js';
+import { createMapRoutes } from '../../src/routes/alignment/map.js';
 import { errorHandler } from '../../src/middleware/error-handler.js';
 import { getTestDb, getTestConnectionString } from './test-db.js';
 
@@ -72,6 +76,7 @@ export function createTestApp(): TestApp {
   const agreementService = new AgreementServiceV2(db, pdsService, clock);
   const networkService = new NetworkService(db, pdsService, clock);
   const fundingService = new FundingService(db, pdsService, clock);
+  const alignmentService = new AlignmentService(db, pdsService, clock);
 
   const container: Container = {
     db,
@@ -87,6 +92,7 @@ export function createTestApp(): TestApp {
     agreementService,
     networkService,
     fundingService,
+    alignmentService,
   };
 
   // Set the DB reference for auth middleware
@@ -121,6 +127,9 @@ export function createTestApp(): TestApp {
   app.use(createAgreementRoutes(container));
   app.use(createNetworkRoutes(container));
   app.use(createCampaignRoutes(container));
+  app.use(createInterestRoutes(container));
+  app.use(createOutcomeRoutes(container));
+  app.use(createMapRoutes(container));
 
   // Error handler (must be last)
   app.use(errorHandler);
