@@ -3,6 +3,7 @@ import type { Container } from '../../container.js';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { requireAuth, requireAdmin } from '../../auth/middleware.js';
 import { parsePagination } from '../../lib/pagination.js';
+import { validateDid } from '../../lib/validate-params.js';
 
 export function createNetworkRoutes(container: Container): Router {
   const router = Router();
@@ -58,7 +59,7 @@ export function createNetworkRoutes(container: Container): Router {
     '/api/v1/networks/:did',
     asyncHandler(async (req, res) => {
       const network = await container.networkService.getNetwork(
-        req.params.did as string,
+        validateDid(req.params.did),
       );
 
       res.json({
@@ -82,7 +83,7 @@ export function createNetworkRoutes(container: Container): Router {
     asyncHandler(async (req, res) => {
       const params = parsePagination(req.query as Record<string, unknown>);
       const result = await container.networkService.listNetworkMembers(
-        req.params.did as string,
+        validateDid(req.params.did),
         params,
       );
 
@@ -110,7 +111,7 @@ export function createNetworkRoutes(container: Container): Router {
     requireAdmin,
     asyncHandler(async (req, res) => {
       await container.networkService.joinNetwork({
-        networkDid: req.params.did as string,
+        networkDid: validateDid(req.params.did),
         cooperativeDid: req.actor!.cooperativeDid,
         instanceUrl: process.env.INSTANCE_URL ?? 'http://localhost:3001',
       });
@@ -126,7 +127,7 @@ export function createNetworkRoutes(container: Container): Router {
     requireAdmin,
     asyncHandler(async (req, res) => {
       await container.networkService.leaveNetwork(
-        req.params.did as string,
+        validateDid(req.params.did),
         req.actor!.cooperativeDid,
       );
 

@@ -333,4 +333,30 @@ describe('Proposals & Voting', () => {
       .get(`/api/v1/proposals/${created.id}`)
       .expect(404);
   });
+
+  // ---------------------------------------------------------------
+  // Edge cases
+  // ---------------------------------------------------------------
+  it('rejects voting on a draft proposal', async () => {
+    const testApp = createTestApp();
+    await setupAndLogin(testApp);
+
+    const created = await createDraftProposal(testApp.agent);
+
+    // Try to vote on a draft (not open)
+    await testApp.agent
+      .post(`/api/v1/proposals/${created.id}/vote`)
+      .send({ choice: 'yes' })
+      .expect(400);
+  });
+
+  it('rejects creating proposal with missing title', async () => {
+    const testApp = createTestApp();
+    await setupAndLogin(testApp);
+
+    await testApp.agent
+      .post('/api/v1/proposals')
+      .send({ body: 'No title', votingType: 'binary', quorumType: 'simpleMajority' })
+      .expect(400);
+  });
 });

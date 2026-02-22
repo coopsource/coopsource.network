@@ -88,8 +88,13 @@ export function createStripeWebhookRoutes(
 
         res.json({ received: true });
       } catch (err) {
-        logger.error({ err }, 'Stripe webhook error');
-        res.status(400).json({ error: 'Webhook error' });
+        if (err instanceof Error && 'type' in err && (err as Error & { type: string }).type === 'StripeSignatureVerificationError') {
+          logger.warn({ err }, 'Stripe signature verification failed');
+          res.status(400).json({ error: 'Invalid signature' });
+          return;
+        }
+        logger.error({ err }, 'Stripe webhook processing error');
+        res.status(500).json({ error: 'Webhook processing failed' });
       }
     },
   );

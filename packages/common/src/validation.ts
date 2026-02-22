@@ -10,6 +10,10 @@ export const PaginationSchema = z.object({
   cursor: z.string().optional(),
 });
 
+export const DidSchema = z.string()
+  .min(1)
+  .regex(/^did:(plc|web|key):/, 'Invalid DID format');
+
 export type MoneyInput = z.infer<typeof MoneySchema>;
 export type PaginationInput = z.infer<typeof PaginationSchema>;
 
@@ -89,18 +93,18 @@ const WorkPreferencesSchema = z.object({
 });
 
 export const CreateInterestSchema = z.object({
-  interests: z.array(InterestItemSchema).min(1),
-  contributions: z.array(ContributionItemSchema).optional(),
-  constraints: z.array(ConstraintItemSchema).optional(),
-  redLines: z.array(RedLineItemSchema).optional(),
+  interests: z.array(InterestItemSchema).min(1).max(50),
+  contributions: z.array(ContributionItemSchema).max(50).optional(),
+  constraints: z.array(ConstraintItemSchema).max(50).optional(),
+  redLines: z.array(RedLineItemSchema).max(50).optional(),
   preferences: WorkPreferencesSchema.optional(),
 });
 
 export const UpdateInterestSchema = z.object({
-  interests: z.array(InterestItemSchema).min(1).optional(),
-  contributions: z.array(ContributionItemSchema).optional(),
-  constraints: z.array(ConstraintItemSchema).optional(),
-  redLines: z.array(RedLineItemSchema).optional(),
+  interests: z.array(InterestItemSchema).min(1).max(50).optional(),
+  contributions: z.array(ContributionItemSchema).max(50).optional(),
+  constraints: z.array(ConstraintItemSchema).max(50).optional(),
+  redLines: z.array(RedLineItemSchema).max(50).optional(),
   preferences: WorkPreferencesSchema.optional(),
 });
 
@@ -112,7 +116,7 @@ export const CreateOutcomeSchema = z.object({
     metric: z.string().min(1).max(500),
     target: z.string().min(1).max(500),
     timeline: z.string().max(200).optional(),
-  })).optional(),
+  })).max(20).optional(),
 });
 
 export type CreateInterestInput = z.infer<typeof CreateInterestSchema>;
@@ -142,7 +146,7 @@ const AmendmentProcessSchema = z.object({
 
 const TerminationConditionsSchema = z.object({
   noticePeriod: z.string().max(200).optional(),
-  conditions: z.array(z.string().max(1000)).optional(),
+  conditions: z.array(z.string().max(1000)).max(20).optional(),
   consequences: z.string().max(2000).optional(),
 });
 
@@ -199,20 +203,20 @@ const IpTermsSchema = z.object({
 const GovernanceRightsSchema = z.object({
   votingPower: z.number().int().min(0).max(100).optional(),
   boardSeat: z.boolean().optional(),
-  decisionCategories: z.array(z.string().max(200)).optional(),
+  decisionCategories: z.array(z.string().max(200)).max(20).optional(),
 });
 
 const ExitTermsSchema = z.object({
   buybackPrice: z.string().max(500).optional(),
   noticePeriod: z.string().max(200).optional(),
-  conditions: z.array(z.string().max(1000)).optional(),
+  conditions: z.array(z.string().max(1000)).max(20).optional(),
 });
 
 export const CreateStakeholderTermsSchema = z.object({
   stakeholderDid: z.string().min(1),
   stakeholderType: z.enum(['worker', 'investor', 'customer', 'supplier', 'community', 'partner']),
   stakeholderClass: z.string().max(200).optional(),
-  contributions: z.array(ContributionTermSchema).optional(),
+  contributions: z.array(ContributionTermSchema).max(50).optional(),
   financialTerms: FinancialTermsSchema.optional(),
   ipTerms: IpTermsSchema.optional(),
   governanceRights: GovernanceRightsSchema.optional(),
@@ -420,11 +424,12 @@ export type CreatePledgeInput = z.infer<typeof CreatePledgeSchema>;
 
 export const RegisterOidcClientSchema = z.object({
   client_name: z.string().min(1).max(255),
-  redirect_uris: z.array(z.string().url()).min(1),
+  redirect_uris: z.array(z.string().url()).min(1).max(20),
   grant_types: z
     .array(z.enum(['authorization_code', 'refresh_token']))
+    .max(5)
     .default(['authorization_code']),
-  response_types: z.array(z.string()).default(['code']),
+  response_types: z.array(z.string()).max(5).default(['code']),
   token_endpoint_auth_method: z
     .enum(['client_secret_basic', 'client_secret_post'])
     .default('client_secret_basic'),
@@ -492,14 +497,14 @@ export const TriggerConditionSchema = z.object({
 
 export const CreateTriggerSchema = z.object({
   eventType: EventTypeEnum,
-  conditions: z.array(TriggerConditionSchema).optional(),
-  actions: z.array(TriggerActionSchema).min(1),
+  conditions: z.array(TriggerConditionSchema).max(20).optional(),
+  actions: z.array(TriggerActionSchema).min(1).max(20),
   enabled: z.boolean().default(true),
 });
 
 export const UpdateTriggerSchema = z.object({
-  conditions: z.array(TriggerConditionSchema).optional(),
-  actions: z.array(TriggerActionSchema).min(1).optional(),
+  conditions: z.array(TriggerConditionSchema).max(20).optional(),
+  actions: z.array(TriggerActionSchema).min(1).max(20).optional(),
   enabled: z.boolean().optional(),
 });
 
@@ -554,8 +559,8 @@ export const CreateAgentConfigSchema = z.object({
   agentType: AgentTypeEnum.default('custom'),
   model: z.string().min(1).max(100).default('claude-sonnet-4-20250514'),
   systemPrompt: z.string().min(1).max(10000),
-  allowedTools: z.array(z.string().min(1).max(100)).default([]),
-  contextSources: z.array(z.string().min(1).max(200)).default([]),
+  allowedTools: z.array(z.string().min(1).max(100)).max(50).default([]),
+  contextSources: z.array(z.string().min(1).max(200)).max(50).default([]),
   temperature: z.number().min(0).max(2).default(0.7),
   maxTokensPerRequest: z.number().int().min(100).max(64000).default(4096),
   maxTokensPerSession: z.number().int().min(1000).max(1000000).default(100000),
@@ -626,8 +631,8 @@ export const UpdateCoopSchema = z.object({
 
 export const CreateInvitationSchema = z.object({
   email: z.string().email(),
-  roles: z.array(z.string().min(1)).optional(),
-  intendedRoles: z.array(z.string().min(1)).optional(),
+  roles: z.array(z.string().min(1)).max(10).optional(),
+  intendedRoles: z.array(z.string().min(1)).max(10).optional(),
   message: z.string().max(2000).optional(),
 });
 
@@ -638,7 +643,7 @@ export const AcceptInvitationSchema = z.object({
 });
 
 export const UpdateRolesSchema = z.object({
-  roles: z.array(z.string().min(1)),
+  roles: z.array(z.string().min(1)).max(10),
 });
 
 export const CreateProposalBodySchema = z.object({
@@ -646,19 +651,19 @@ export const CreateProposalBodySchema = z.object({
   body: z.string().min(1).max(50000),
   bodyFormat: z.string().max(50).optional(),
   votingType: z.string().min(1),
-  options: z.array(z.unknown()).optional(),
+  options: z.array(z.unknown()).max(20).optional(),
   quorumType: z.string().min(1),
   quorumBasis: z.string().optional(),
   quorumThreshold: z.number().min(0).max(1).optional(),
   closesAt: z.string().optional(),
-  tags: z.array(z.string()).optional(),
+  tags: z.array(z.string()).max(20).optional(),
 });
 
 export const UpdateProposalBodySchema = z.object({
   title: z.string().min(1).max(256).optional(),
   body: z.string().min(1).max(50000).optional(),
   closesAt: z.string().optional(),
-  tags: z.array(z.string()).optional(),
+  tags: z.array(z.string()).max(20).optional(),
 });
 
 export const CreateAgreementBodySchema = z.object({
@@ -666,7 +671,7 @@ export const CreateAgreementBodySchema = z.object({
   body: z.string().min(1).max(50000),
   bodyFormat: z.string().max(50).optional(),
   agreementType: z.string().min(1),
-  partyDids: z.array(z.string()).optional(),
+  partyDids: z.array(z.string()).max(100).optional(),
 });
 
 export const UpdateAgreementBodySchema = z.object({
@@ -677,7 +682,7 @@ export const UpdateAgreementBodySchema = z.object({
 export const CreateThreadSchema = z.object({
   title: z.string().max(255).optional(),
   threadType: z.string().max(50).optional(),
-  memberDids: z.array(z.string()).optional(),
+  memberDids: z.array(z.string()).max(100).optional(),
 });
 
 export const CreatePostSchema = z.object({

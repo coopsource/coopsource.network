@@ -7,7 +7,7 @@ export {
   ValidationError,
   ConflictError,
 } from './errors.js';
-export { MoneySchema, PaginationSchema } from './validation.js';
+export { MoneySchema, PaginationSchema, DidSchema } from './validation.js';
 export type { MoneyInput, PaginationInput } from './validation.js';
 export {
   CreateCooperativeSchema,

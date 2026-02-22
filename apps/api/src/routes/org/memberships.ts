@@ -9,6 +9,7 @@ import {
   AcceptInvitationSchema,
   UpdateRolesSchema,
 } from '@coopsource/common';
+import { validateDid } from '../../lib/validate-params.js';
 
 export function createMembershipRoutes(container: Container): Router {
   const router = Router();
@@ -64,7 +65,7 @@ export function createMembershipRoutes(container: Container): Router {
     asyncHandler(async (req, res) => {
       const member = await container.membershipService.getMember(
         req.actor!.cooperativeDid,
-        (req.params.did as string),
+        validateDid(req.params.did),
       );
       if (!member) {
         res.status(404).json({
@@ -108,7 +109,7 @@ export function createMembershipRoutes(container: Container): Router {
       const { roles } = UpdateRolesSchema.parse(req.body);
       await container.membershipService.updateMemberRoles(
         req.actor!.cooperativeDid,
-        (req.params.did as string),
+        validateDid(req.params.did),
         roles,
       );
       res.json({ ok: true });
@@ -123,7 +124,7 @@ export function createMembershipRoutes(container: Container): Router {
     asyncHandler(async (req, res) => {
       await container.membershipService.removeMember(
         req.actor!.cooperativeDid,
-        (req.params.did as string),
+        validateDid(req.params.did),
       );
       res.status(204).send();
     }),
