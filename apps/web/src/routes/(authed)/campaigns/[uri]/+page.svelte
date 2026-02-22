@@ -1,10 +1,8 @@
 <script lang="ts">
-  import { invalidateAll } from '$app/navigation';
+  import { enhance } from '$app/forms';
 
-  let { data } = $props();
-  let pledgeAmount = $state(0);
+  let { data, form } = $props();
   let pledging = $state(false);
-  let pledgeError = $state('');
   let statusUpdating = $state(false);
 
   function formatCurrency(cents: number, currency: string): string {
@@ -27,46 +25,6 @@
       case 'completed': return 'bg-gray-100 text-gray-700';
       case 'cancelled': return 'bg-red-100 text-red-700';
       default: return 'bg-yellow-100 text-yellow-700';
-    }
-  }
-
-  async function handlePledge() {
-    if (pledgeAmount <= 0) return;
-    pledging = true;
-    pledgeError = '';
-    try {
-      const res = await fetch(`/api/v1/campaigns/${encodeURIComponent(data.campaign.uri)}/pledge`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ amount: Math.round(pledgeAmount * 100), currency: data.campaign.goalCurrency }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({})) as { error?: string };
-        pledgeError = body.error ?? `Error ${res.status}`;
-        return;
-      }
-      pledgeAmount = 0;
-      await invalidateAll();
-    } catch {
-      pledgeError = 'Failed to create pledge';
-    } finally {
-      pledging = false;
-    }
-  }
-
-  async function updateStatus(newStatus: string) {
-    statusUpdating = true;
-    try {
-      await fetch(`/api/v1/campaigns/${encodeURIComponent(data.campaign.uri)}/status`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ status: newStatus }),
-      });
-      await invalidateAll();
-    } finally {
-      statusUpdating = false;
     }
   }
 
@@ -126,41 +84,66 @@
 
   <!-- Status Actions -->
   {#if c.status === 'draft'}
-    <button
-      onclick={() => updateStatus('active')}
-      disabled={statusUpdating}
-      class="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+    <form
+      method="POST"
+      action="?/updateStatus"
+      use:enhance={() => {
+        statusUpdating = true;
+        return async ({ update }) => {
+          statusUpdating = false;
+          await update();
+        };
+      }}
     >
-      {statusUpdating ? 'Activating…' : 'Activate Campaign'}
-    </button>
+      <input type="hidden" name="status" value="active" />
+      <button
+        type="submit"
+        disabled={statusUpdating}
+        class="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+      >
+        {statusUpdating ? 'Activating…' : 'Activate Campaign'}
+      </button>
+    </form>
   {/if}
 
   <!-- Pledge Form -->
   {#if c.status === 'active'}
     <div class="rounded-lg border border-gray-200 bg-white p-4">
       <h2 class="text-sm font-medium text-gray-900">Make a Pledge</h2>
-      {#if pledgeError}
-        <div class="mt-2 rounded-md bg-red-50 p-2 text-sm text-red-700">{pledgeError}</div>
+      {#if form?.pledgeError}
+        <div class="mt-2 rounded-md bg-red-50 p-2 text-sm text-red-700">{form.pledgeError}</div>
       {/if}
-      <div class="mt-3 flex gap-3">
+      <form
+        method="POST"
+        action="?/pledge"
+        use:enhance={() => {
+          pledging = true;
+          return async ({ update }) => {
+            pledging = false;
+            await update();
+          };
+        }}
+        class="mt-3 flex gap-3"
+      >
         <div class="flex-1">
           <input
+            name="amount"
             type="number"
-            bind:value={pledgeAmount}
             min="1"
             step="1"
             placeholder="Amount ($)"
+            required
             class="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
           />
         </div>
         <button
-          onclick={handlePledge}
-          disabled={pledging || pledgeAmount <= 0}
+          type="submit"
+          disabled={pledging}
           class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
         >
           {pledging ? 'Pledging…' : 'Pledge'}
         </button>
-      </div>
+      </form>
     </div>
   {/if}
 

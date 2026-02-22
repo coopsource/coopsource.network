@@ -20,7 +20,7 @@ test.describe('Authentication', () => {
     await page.goto('/login');
     await page.getByLabel('Email').fill(ADMIN.email);
     await page.getByLabel('Password').fill('wrongpassword');
-    await page.getByRole('button', { name: 'Sign in' }).click();
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
     await expect(page.getByText(/invalid|error/i)).toBeVisible();
     await expect(page).toHaveURL(/\/login/);
   });

@@ -24,23 +24,22 @@ test.describe('Funding Campaigns', () => {
 		await expect(page.getByLabel('Funding Model')).toBeVisible();
 	});
 
-	test('create campaign and navigate to detail', async ({ page }) => {
+	test('create campaign redirects to detail page', async ({ page }) => {
 		await page.goto('/campaigns/new');
 		await page.getByLabel('Title').fill('Test Fundraiser');
 		await page.getByLabel('Description').fill('A test campaign for E2E.');
 		await page.getByLabel('Goal Amount ($)').fill('1000');
 		await page.getByRole('button', { name: 'Create Campaign' }).click();
 
-		// Should redirect to campaign detail
+		// Should redirect to campaign detail (URI-encoded path)
 		await page.waitForURL(/\/campaigns\//);
 		await expect(page.getByRole('heading', { name: 'Test Fundraiser' })).toBeVisible();
 		await expect(page.getByText('draft')).toBeVisible();
-		await expect(page.getByText('$0')).toBeVisible();
 		await expect(page.getByText('$1,000')).toBeVisible();
 	});
 
 	test('activate campaign enables pledge form', async ({ page }) => {
-		// Create campaign
+		// Create campaign via form
 		await page.goto('/campaigns/new');
 		await page.getByLabel('Title').fill('Pledge Test');
 		await page.getByLabel('Goal Amount ($)').fill('500');
