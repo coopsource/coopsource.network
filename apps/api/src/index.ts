@@ -30,6 +30,8 @@ import { createAgreementRoutes } from './routes/agreement/agreements.js';
 import { createBlobRoutes } from './routes/blobs.js';
 import { createEventRoutes } from './routes/events.js';
 import { createAdminRoutes } from './routes/admin.js';
+import { createCampaignRoutes } from './routes/funding/campaigns.js';
+import { createStripeWebhookRoutes } from './routes/funding/stripe-webhook.js';
 import { startAppViewLoop } from './appview/loop.js';
 import { createOAuthClient } from './auth/oauth-client.js';
 
@@ -62,6 +64,17 @@ async function start(): Promise<void> {
 
   // Health routes (always available, no auth required)
   app.use(createHealthRoutes(container.db));
+
+  // Stripe webhook (must be before JSON body parsing — needs raw body)
+  app.use(
+    '/api/v1/webhooks/stripe',
+    express.raw({ type: 'application/json' }),
+    (req, _res, next) => {
+      (req as typeof req & { rawBody?: Buffer }).rawBody = req.body as Buffer;
+      next();
+    },
+  );
+  app.use(createStripeWebhookRoutes(container, config));
 
   // JSON body parsing
   app.use(express.json());
@@ -109,7 +122,10 @@ async function start(): Promise<void> {
   // Admin routes
   app.use(createAdminRoutes(container));
 
-  // TODO: Stage 3 — Alignment, Connections, Funding, Automation, AI Agents, MCP, CLI Auth, OIDC
+  // Funding routes (Stage 3)
+  app.use(createCampaignRoutes(container));
+
+  // TODO: Stage 3 — Alignment, Connections, Automation, AI Agents, MCP, CLI Auth, OIDC
 
   // Error handling (must be last)
   app.use(errorHandler);

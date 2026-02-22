@@ -19,6 +19,10 @@ import type {
   Network,
   NetworksResponse,
   NetworkMembersResponse,
+  Campaign,
+  Pledge,
+  CampaignsResponse,
+  PledgesResponse,
 } from './types.js';
 
 export class ApiError extends Error {
@@ -406,5 +410,60 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string) {
 
     leaveNetwork: (did: string) =>
       request<void>(`/networks/${encodeURIComponent(did)}/leave`, { method: 'DELETE' }),
+
+    // Campaigns
+    getCampaigns: (params?: { status?: string; cooperativeDid?: string; limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.status) qs.set('status', params.status);
+      if (params?.cooperativeDid) qs.set('cooperativeDid', params.cooperativeDid);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<CampaignsResponse>(`/campaigns${qs.size ? `?${qs}` : ''}`);
+    },
+
+    getCampaign: (uri: string) =>
+      request<Campaign>(`/campaigns/${encodeURIComponent(uri)}`),
+
+    createCampaign: (body: {
+      beneficiaryUri: string;
+      title: string;
+      description?: string;
+      tier: string;
+      campaignType: string;
+      goalAmount: number;
+      goalCurrency?: string;
+      fundingModel?: string;
+      startDate?: string;
+      endDate?: string;
+    }) =>
+      request<Campaign>('/campaigns', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+
+    updateCampaign: (uri: string, body: Record<string, unknown>) =>
+      request<Campaign>(`/campaigns/${encodeURIComponent(uri)}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
+
+    updateCampaignStatus: (uri: string, status: string) =>
+      request<Campaign>(`/campaigns/${encodeURIComponent(uri)}/status`, {
+        method: 'POST',
+        body: JSON.stringify({ status }),
+      }),
+
+    createPledge: (campaignUri: string, body: { amount: number; currency?: string }) =>
+      request<Pledge>(`/campaigns/${encodeURIComponent(campaignUri)}/pledge`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+
+    getPledges: (campaignUri: string, params?: { limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<PledgesResponse>(`/campaigns/${encodeURIComponent(campaignUri)}/pledges${qs.size ? `?${qs}` : ''}`);
+    },
   };
 }

@@ -174,6 +174,46 @@ export interface NetworkMembersResponse {
   cursor?: string;
 }
 
+export interface Campaign {
+  uri: string;
+  did: string;
+  title: string;
+  description: string | null;
+  tier: string;
+  campaignType: string;
+  goalAmount: number;
+  goalCurrency: string;
+  amountRaised: number;
+  backerCount: number;
+  fundingModel: string;
+  status: string;
+  startDate: string | null;
+  endDate: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface Pledge {
+  uri: string;
+  did: string;
+  campaignUri: string;
+  backerDid: string;
+  amount: number;
+  currency: string;
+  paymentStatus: string;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface CampaignsResponse extends PaginatedResponse<Campaign> {
+  campaigns: Campaign[];
+}
+
+export interface PledgesResponse {
+  pledges: Pledge[];
+  cursor?: string;
+}
+
 export interface ApiError {
   error: string;
   message?: string;

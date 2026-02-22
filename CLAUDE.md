@@ -6,6 +6,12 @@ Co-op Source Network is a federated collaboration platform built on ATProtocol. 
 
 This monorepo is deployed to `coopsource.network`.
 
+## Git Workflow Rules
+
+- **All work must be done on feature branches**, never directly on `main`
+- **Never merge to `main` without explicit user approval** — ask first
+- **Never delete branches** — keep them as a historical record
+
 ## Critical Constraints
 
 Non-negotiable technology choices:
