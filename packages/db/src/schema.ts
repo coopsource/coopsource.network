@@ -658,4 +658,26 @@ export interface Database {
   agent_message: AgentMessageTable;
   agent_usage: AgentUsageTable;
   delegation: DelegationTable;
+
+  // OAuth tables (013)
+  oauth_state: OAuthStateTable;
+  oauth_session: OAuthSessionTable;
+}
+
+// ──────────────────────────────────────────────
+// 013 — OAuth tables
+// ──────────────────────────────────────────────
+
+export interface OAuthStateTable {
+  key: string;
+  state: ColumnType<Record<string, unknown>, string | Record<string, unknown>, string | Record<string, unknown>>;
+  expires_at: ColumnType<Date, Date | string, Date | string>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface OAuthSessionTable {
+  did: string;
+  token_set: ColumnType<Record<string, unknown>, string | Record<string, unknown>, string | Record<string, unknown>>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }

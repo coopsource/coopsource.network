@@ -31,3 +31,10 @@ export type {
 // Clocks
 export { SystemClock } from './clocks/system-clock.js';
 export { MockClock } from './clocks/mock-clock.js';
+
+// ATProto (Stage 2)
+export { AtprotoPdsService } from './atproto/atproto-pds-service.js';
+export {
+  decodeFirehoseMessage,
+  decodeFirehoseMessageWithRecords,
+} from './atproto/firehose-decoder.js';

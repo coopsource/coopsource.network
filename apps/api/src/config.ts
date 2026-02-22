@@ -13,6 +13,9 @@ const envSchema = z
     INSTANCE_URL: z.string().url().default('http://localhost:3001'),
     KEY_ENC_KEY: z.string().min(44).default('CHANGEME-generate-with-openssl-rand-base64-32=='),
     BLOB_DIR: z.string().default('./data/blobs'),
+    // Stage 2: Real ATProto PDS (when set, AtprotoPdsService is used instead of LocalPdsService)
+    PDS_URL: z.string().url().optional(),
+    PDS_ADMIN_PASSWORD: z.string().default('admin'),
     SMTP_HOST: z.string().default('localhost'),
     SMTP_PORT: z.coerce.number().default(1025),
     // Legacy / Stage 2-3 (kept for compatibility)

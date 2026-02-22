@@ -31,6 +31,7 @@ import { createBlobRoutes } from './routes/blobs.js';
 import { createEventRoutes } from './routes/events.js';
 import { createAdminRoutes } from './routes/admin.js';
 import { startAppViewLoop } from './appview/loop.js';
+import { createOAuthClient } from './auth/oauth-client.js';
 
 const config = loadConfig();
 const app: Express = express();
@@ -78,8 +79,13 @@ async function start(): Promise<void> {
   // SSE events
   app.use(createEventRoutes());
 
+  // ATProto OAuth client (Stage 2 — only when PDS_URL is configured)
+  const oauthClient = config.PDS_URL
+    ? createOAuthClient({ publicUrl: config.PUBLIC_API_URL, db: container.db })
+    : undefined;
+
   // Auth routes
-  app.use(createAuthRoutes(container));
+  app.use(createAuthRoutes(container, oauthClient));
 
   // Org/member/invitation routes
   app.use(createCooperativeRoutes(container));
@@ -100,7 +106,6 @@ async function start(): Promise<void> {
   // Admin routes
   app.use(createAdminRoutes(container));
 
-  // TODO: Stage 2 — Real ATProto PDS, ATProto OAuth, network discovery, cross-coop firehose
   // TODO: Stage 3 — Alignment, Connections, Funding, Automation, AI Agents, MCP, CLI Auth, OIDC
 
   // Error handling (must be last)

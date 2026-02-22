@@ -173,12 +173,20 @@ cmd_db_create() {
     ok "Created role '$DB_USER'"
   fi
 
-  # Create database if it doesn't exist
+  # Create main database if it doesn't exist
   if psql postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$DB_NAME'" 2>/dev/null | grep -q 1; then
     ok "Database '$DB_NAME' already exists"
   else
     createdb -O "$DB_USER" "$DB_NAME"
     ok "Created database '$DB_NAME'"
+  fi
+
+  # Create PLC database if it doesn't exist (Stage 2: used by did-method-plc container)
+  if psql postgres -tAc "SELECT 1 FROM pg_database WHERE datname='plc_dev'" 2>/dev/null | grep -q 1; then
+    ok "Database 'plc_dev' already exists"
+  else
+    createdb -O "$DB_USER" "plc_dev"
+    ok "Created database 'plc_dev'"
   fi
 }
 

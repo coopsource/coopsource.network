@@ -13,6 +13,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@atproto/oauth-client-node": "^0.3.17",
     "@coopsource/common": "workspace:*",
     "@coopsource/db": "workspace:*",
     "@coopsource/federation": "workspace:*",

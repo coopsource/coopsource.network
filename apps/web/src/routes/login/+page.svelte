@@ -4,6 +4,33 @@
   let { form } = $props();
 
   let submitting = $state(false);
+  let atprotoHandle = $state('');
+  let atprotoSubmitting = $state(false);
+  let atprotoError = $state('');
+
+  async function handleAtprotoLogin() {
+    if (!atprotoHandle.trim()) return;
+    atprotoSubmitting = true;
+    atprotoError = '';
+    try {
+      const res = await fetch('/api/v1/auth/oauth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ handle: atprotoHandle.trim() }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        atprotoError = body.error ?? `Error ${res.status}`;
+        return;
+      }
+      const { redirectUrl } = (await res.json()) as { redirectUrl: string };
+      window.location.href = redirectUrl;
+    } catch {
+      atprotoError = 'Failed to initiate ATProto login';
+    } finally {
+      atprotoSubmitting = false;
+    }
+  }
 </script>
 
 <svelte:head>
@@ -68,6 +95,39 @@
           {submitting ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
+
+      <div class="my-4 flex items-center gap-3">
+        <div class="h-px flex-1 bg-gray-200"></div>
+        <span class="text-xs text-gray-400">or</span>
+        <div class="h-px flex-1 bg-gray-200"></div>
+      </div>
+
+      <div class="space-y-3">
+        {#if atprotoError}
+          <div class="rounded-md bg-red-50 p-3 text-sm text-red-700">
+            {atprotoError}
+          </div>
+        {/if}
+
+        <label for="atproto-handle" class="block text-sm font-medium text-gray-700"
+          >ATProto Handle</label
+        >
+        <input
+          id="atproto-handle"
+          type="text"
+          bind:value={atprotoHandle}
+          placeholder="you.bsky.social"
+          class="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        />
+        <button
+          type="button"
+          onclick={handleAtprotoLogin}
+          disabled={atprotoSubmitting || !atprotoHandle.trim()}
+          class="w-full rounded-md bg-indigo-600 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+        >
+          {atprotoSubmitting ? 'Redirecting…' : 'Sign in with ATProto'}
+        </button>
+      </div>
     </div>
   </div>
 </div>

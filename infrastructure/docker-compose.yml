@@ -24,5 +24,41 @@ services:
       MP_MAX_MESSAGES: 500
       MP_SMTP_AUTH_ALLOW_INSECURE: true
 
+  # --- Stage 2: ATProto Federation ---
+
+  plc:
+    image: ghcr.io/bluesky-social/did-method-plc:latest
+    ports:
+      - "2582:2582"
+    environment:
+      DATABASE_URL: postgresql://coopsource:dev_password@postgres:5432/plc_dev
+      PORT: 2582
+    depends_on:
+      - postgres
+
+  pds:
+    image: ghcr.io/bluesky-social/pds:0.4
+    ports:
+      - "2583:3000"
+    volumes:
+      - pds-data:/pds
+    environment:
+      PDS_HOSTNAME: localhost
+      PDS_PORT: 3000
+      PDS_JWT_SECRET: ${PDS_JWT_SECRET:-dev-jwt-secret-change-me-32chars!!}
+      PDS_ADMIN_PASSWORD: ${PDS_ADMIN_PASSWORD:-admin}
+      PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX: ${PDS_ROTATION_KEY:-}
+      PDS_DATA_DIRECTORY: /pds
+      PDS_BLOBSTORE_DISK_LOCATION: /pds/blobs
+      PDS_DID_PLC_URL: http://plc:2582
+      PDS_BSKY_APP_VIEW_URL: https://api.bsky.app
+      PDS_BSKY_APP_VIEW_DID: did:web:api.bsky.app
+      PDS_REPORT_SERVICE_URL: https://mod.bsky.app
+      PDS_REPORT_SERVICE_DID: did:plc:ar7c4by46qjdydhdevvrndac
+      PDS_CRAWLERS: https://bsky.network
+    depends_on:
+      - plc
+
 volumes:
   pgdata:
+  pds-data:

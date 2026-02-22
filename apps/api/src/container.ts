@@ -2,8 +2,10 @@ import { createDb } from '@coopsource/db';
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
 import { SystemClock } from '@coopsource/federation';
+import type { IPdsService } from '@coopsource/federation';
 import { LocalPdsService, LocalBlobStore } from '@coopsource/federation/local';
 import type { FederationDatabase } from '@coopsource/federation/local';
+import { AtprotoPdsService } from '@coopsource/federation/atproto';
 import { DevEmailService } from '@coopsource/federation/email';
 import type { AppConfig } from './config.js';
 import { AuthService } from './services/auth-service.js';
@@ -16,7 +18,7 @@ import { NetworkService } from './services/network-service.js';
 
 export interface Container {
   db: Kysely<Database>;
-  pdsService: LocalPdsService;
+  pdsService: IPdsService;
   blobStore: LocalBlobStore;
   clock: SystemClock;
   emailService: DevEmailService;
@@ -33,18 +35,24 @@ export function createContainer(config: AppConfig): Container {
   const db = createDb({ connectionString: config.DATABASE_URL! });
   const clock = new SystemClock();
 
-  // LocalPdsService expects Kysely<FederationDatabase>; the main Database
-  // already includes the same tables so a type-level widening cast is safe.
-  const pdsService = new LocalPdsService(
-    db as unknown as import('kysely').Kysely<FederationDatabase>,
-    {
-      plcUrl: config.PLC_URL,
-      instanceUrl: config.INSTANCE_URL,
-      keyEncKey: config.KEY_ENC_KEY,
-      connectionString: config.DATABASE_URL!,
-    },
-    clock,
-  );
+  // When PDS_URL is set, use AtprotoPdsService (real ATProto PDS);
+  // otherwise fall back to LocalPdsService (DB-backed, Stage 0-1).
+  const pdsService: IPdsService = config.PDS_URL
+    ? new AtprotoPdsService(
+        config.PDS_URL,
+        config.PDS_ADMIN_PASSWORD,
+        config.PLC_URL === 'local' ? undefined : config.PLC_URL,
+      )
+    : new LocalPdsService(
+        db as unknown as import('kysely').Kysely<FederationDatabase>,
+        {
+          plcUrl: config.PLC_URL,
+          instanceUrl: config.INSTANCE_URL,
+          keyEncKey: config.KEY_ENC_KEY,
+          connectionString: config.DATABASE_URL!,
+        },
+        clock,
+      );
 
   const blobStore = new LocalBlobStore({ blobDir: config.BLOB_DIR });
 
