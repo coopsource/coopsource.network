@@ -367,6 +367,22 @@ export interface StakeholderTermsTable {
   indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }
 
+// ──────────────────────────────────────────────
+// Agreement Templates (019 migration)
+// ──────────────────────────────────────────────
+
+export interface AgreementTemplateTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  created_by: string;
+  name: string;
+  description: string | null;
+  agreement_type: string;
+  template_data: ColumnType<Record<string, unknown>, string | Record<string, unknown>, string | Record<string, unknown>>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
 export interface ExternalConnectionTable {
   uri: string;
   did: string;
@@ -625,6 +641,7 @@ export interface Database {
   agreement: AgreementTable;
   agreement_signature: AgreementSignatureTable;
   agreement_revision: AgreementRevisionTable;
+  agreement_template: AgreementTemplateTable;
 
   // Legacy tables (kept for Stage 2-3 features)
   stakeholder_interest: StakeholderInterestTable;

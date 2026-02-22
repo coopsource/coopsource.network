@@ -71,6 +71,7 @@ export async function truncateAllTables(): Promise<void> {
   await sql`
     TRUNCATE TABLE
       connection_binding, external_connection,
+      agreement_template,
       stakeholder_terms, agreement_revision, agreement_signature, agreement,
       interest_map, desired_outcome, stakeholder_interest,
       funding_pledge, funding_campaign,

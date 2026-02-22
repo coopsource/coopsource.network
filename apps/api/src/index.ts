@@ -27,6 +27,7 @@ import { createNetworkRoutes } from './routes/org/networks.js';
 import { createPostRoutes } from './routes/posts.js';
 import { createProposalRoutes } from './routes/governance/proposals.js';
 import { createAgreementRoutes } from './routes/agreement/agreements.js';
+import { createAgreementTemplateRoutes } from './routes/agreement/templates.js';
 import { createBlobRoutes } from './routes/blobs.js';
 import { createEventRoutes } from './routes/events.js';
 import { createAdminRoutes } from './routes/admin.js';
@@ -122,6 +123,7 @@ async function start(): Promise<void> {
 
   // Agreement routes
   app.use(createAgreementRoutes(container));
+  app.use(createAgreementTemplateRoutes(container));
 
   // Admin routes
   app.use(createAdminRoutes(container));

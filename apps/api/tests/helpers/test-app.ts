@@ -18,6 +18,7 @@ import { NetworkService } from '../../src/services/network-service.js';
 import { FundingService } from '../../src/services/funding-service.js';
 import { AlignmentService } from '../../src/services/alignment-service.js';
 import { ConnectionService } from '../../src/services/connection-service.js';
+import { AgreementTemplateService } from '../../src/services/agreement-template-service.js';
 import type { AppConfig } from '../../src/config.js';
 import { setDb, resetSetupCache } from '../../src/auth/middleware.js';
 import { createHealthRoutes } from '../../src/routes/health.js';
@@ -28,6 +29,7 @@ import { createMembershipRoutes } from '../../src/routes/org/memberships.js';
 import { createPostRoutes } from '../../src/routes/posts.js';
 import { createProposalRoutes } from '../../src/routes/governance/proposals.js';
 import { createAgreementRoutes } from '../../src/routes/agreement/agreements.js';
+import { createAgreementTemplateRoutes } from '../../src/routes/agreement/templates.js';
 import { createNetworkRoutes } from '../../src/routes/org/networks.js';
 import { createCampaignRoutes } from '../../src/routes/funding/campaigns.js';
 import { createInterestRoutes } from '../../src/routes/alignment/interests.js';
@@ -77,6 +79,7 @@ export function createTestApp(): TestApp {
   const postService = new PostService(db, clock);
   const proposalService = new ProposalService(db, pdsService, clock);
   const agreementService = new AgreementService(db, pdsService, clock);
+  const agreementTemplateService = new AgreementTemplateService(db, clock);
   const networkService = new NetworkService(db, pdsService, clock);
   const fundingService = new FundingService(db, pdsService, clock);
   const alignmentService = new AlignmentService(db, pdsService, clock);
@@ -99,6 +102,7 @@ export function createTestApp(): TestApp {
     postService,
     proposalService,
     agreementService,
+    agreementTemplateService,
     networkService,
     fundingService,
     alignmentService,
@@ -135,6 +139,7 @@ export function createTestApp(): TestApp {
   app.use(createPostRoutes(container));
   app.use(createProposalRoutes(container));
   app.use(createAgreementRoutes(container));
+  app.use(createAgreementTemplateRoutes(container));
   app.use(createNetworkRoutes(container));
   app.use(createCampaignRoutes(container));
   app.use(createInterestRoutes(container));
