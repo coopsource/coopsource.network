@@ -14,7 +14,13 @@ export type AppEventType =
   | 'alignment.interest.submitted'
   | 'alignment.interest.updated'
   | 'alignment.outcome.created'
-  | 'alignment.outcome.supported';
+  | 'alignment.outcome.supported'
+  | 'masterAgreement.created'
+  | 'masterAgreement.activated'
+  | 'stakeholderTerms.added'
+  | 'connection.connected'
+  | 'connection.disconnected'
+  | 'connection.resource.bound';
 
 export interface AppEvent {
   type: AppEventType;

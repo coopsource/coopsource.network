@@ -315,6 +315,85 @@ export interface OutcomesResponse extends PaginatedResponse<DesiredOutcome> {
   outcomes: DesiredOutcome[];
 }
 
+// ─── Master Agreements ───────────────────────────────────────────────────────
+
+export interface MasterAgreement {
+  uri: string;
+  did: string;
+  projectUri: string;
+  title: string;
+  version: number;
+  purpose: string | null;
+  scope: string | null;
+  agreementType: string;
+  governanceFramework: Record<string, unknown> | null;
+  disputeResolution: Record<string, unknown> | null;
+  amendmentProcess: Record<string, unknown> | null;
+  terminationConditions: Record<string, unknown> | null;
+  status: string;
+  effectiveDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StakeholderTerms {
+  uri: string;
+  did: string;
+  masterAgreementUri: string;
+  stakeholderDid: string;
+  stakeholderType: string;
+  stakeholderClass: string | null;
+  contributions: Array<{ type: string; description: string; value?: string }>;
+  financialTerms: Record<string, unknown>;
+  ipTerms: Record<string, unknown>;
+  governanceRights: Record<string, unknown>;
+  exitTerms: Record<string, unknown>;
+  signedAt: string | null;
+  createdAt: string;
+}
+
+export interface MasterAgreementsResponse extends PaginatedResponse<MasterAgreement> {
+  masterAgreements: MasterAgreement[];
+}
+
+export interface StakeholderTermsResponse {
+  terms: StakeholderTerms[];
+}
+
+// ─── External Connections ────────────────────────────────────────────────────
+
+export interface ExternalConnection {
+  uri: string;
+  did: string;
+  service: string;
+  status: string;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface ConnectionBinding {
+  uri: string;
+  did: string;
+  connectionUri: string;
+  projectUri: string;
+  resourceType: string;
+  resourceId: string;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface AvailableServicesResponse {
+  services: string[];
+}
+
+export interface ConnectionsResponse {
+  connections: ExternalConnection[];
+}
+
+export interface BindingsResponse {
+  bindings: ConnectionBinding[];
+}
+
 export interface ApiError {
   error: string;
   message?: string;

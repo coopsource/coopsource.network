@@ -17,6 +17,9 @@ import { AgreementServiceV2 } from '../../src/services/agreement-service-v2.js';
 import { NetworkService } from '../../src/services/network-service.js';
 import { FundingService } from '../../src/services/funding-service.js';
 import { AlignmentService } from '../../src/services/alignment-service.js';
+import { MasterAgreementService } from '../../src/services/master-agreement-service.js';
+import { ConnectionService } from '../../src/services/connection-service.js';
+import type { AppConfig } from '../../src/config.js';
 import { setDb, resetSetupCache } from '../../src/auth/middleware.js';
 import { createHealthRoutes } from '../../src/routes/health.js';
 import { createSetupRoutes } from '../../src/routes/setup.js';
@@ -31,6 +34,8 @@ import { createCampaignRoutes } from '../../src/routes/funding/campaigns.js';
 import { createInterestRoutes } from '../../src/routes/alignment/interests.js';
 import { createOutcomeRoutes } from '../../src/routes/alignment/outcomes.js';
 import { createMapRoutes } from '../../src/routes/alignment/map.js';
+import { createMasterAgreementRoutes } from '../../src/routes/agreement/master-agreements.js';
+import { createConnectionRoutes } from '../../src/routes/connections/connections.js';
 import { errorHandler } from '../../src/middleware/error-handler.js';
 import { getTestDb, getTestConnectionString } from './test-db.js';
 
@@ -77,6 +82,13 @@ export function createTestApp(): TestApp {
   const networkService = new NetworkService(db, pdsService, clock);
   const fundingService = new FundingService(db, pdsService, clock);
   const alignmentService = new AlignmentService(db, pdsService, clock);
+  const masterAgreementService = new MasterAgreementService(db, pdsService, clock);
+
+  const testConfig = {
+    PUBLIC_API_URL: 'http://localhost:3001',
+    FRONTEND_URL: 'http://localhost:5173',
+  } as AppConfig;
+  const connectionService = new ConnectionService(db, pdsService, clock, testConfig);
 
   const container: Container = {
     db,
@@ -93,6 +105,8 @@ export function createTestApp(): TestApp {
     networkService,
     fundingService,
     alignmentService,
+    masterAgreementService,
+    connectionService,
   };
 
   // Set the DB reference for auth middleware
@@ -130,6 +144,8 @@ export function createTestApp(): TestApp {
   app.use(createInterestRoutes(container));
   app.use(createOutcomeRoutes(container));
   app.use(createMapRoutes(container));
+  app.use(createMasterAgreementRoutes(container));
+  app.use(createConnectionRoutes(container, testConfig));
 
   // Error handler (must be last)
   app.use(errorHandler);

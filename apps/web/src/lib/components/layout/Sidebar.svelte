@@ -8,8 +8,10 @@
   import FileSignature from '@lucide/svelte/icons/file-signature';
   import MessageSquare from '@lucide/svelte/icons/message-square';
   import Compass from '@lucide/svelte/icons/compass';
+  import ScrollText from '@lucide/svelte/icons/scroll-text';
   import Banknote from '@lucide/svelte/icons/banknote';
   import Globe from '@lucide/svelte/icons/globe';
+  import Link2 from '@lucide/svelte/icons/link-2';
   import Settings from '@lucide/svelte/icons/settings';
   import PanelLeftClose from '@lucide/svelte/icons/panel-left-close';
   import PanelLeftOpen from '@lucide/svelte/icons/panel-left-open';
@@ -41,6 +43,7 @@
     { href: '/invitations', label: 'Invitations', icon: Mail },
     { href: '/proposals', label: 'Proposals', icon: Vote },
     { href: '/agreements', label: 'Agreements', icon: FileSignature },
+    { href: '/master-agreements', label: 'Master Agreements', icon: ScrollText },
     { href: '/alignment', label: 'Alignment', icon: Compass },
     { href: '/campaigns', label: 'Campaigns', icon: Banknote },
     { href: '/threads', label: 'Threads', icon: MessageSquare },
@@ -48,6 +51,7 @@
   ];
 
   const bottomNav: NavItem[] = [
+    { href: '/settings/connections', label: 'Connections', icon: Link2 },
     { href: '/cooperative', label: 'Settings', icon: Settings },
   ];
 

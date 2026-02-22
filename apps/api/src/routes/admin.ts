@@ -69,6 +69,8 @@ export function createAdminRoutes(container: Container): Router {
       asyncHandler(async (_req, res) => {
         await sql`
           TRUNCATE TABLE
+            connection_binding, external_connection,
+            stakeholder_terms, master_agreement,
             interest_map, desired_outcome, stakeholder_interest,
             funding_pledge, funding_campaign,
             agreement_signature, agreement_party, agreement,

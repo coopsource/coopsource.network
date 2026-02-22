@@ -28,6 +28,15 @@ import type {
   InterestMap,
   InterestsListResponse,
   OutcomesResponse,
+  MasterAgreement,
+  MasterAgreementsResponse,
+  StakeholderTerms,
+  StakeholderTermsResponse,
+  ExternalConnection,
+  ConnectionBinding,
+  AvailableServicesResponse,
+  ConnectionsResponse,
+  BindingsResponse,
 } from './types.js';
 
 export class ApiError extends Error {
@@ -543,5 +552,104 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string) {
 
     getMap: () =>
       request<InterestMap | null>('/alignment/map'),
+
+    // Master Agreements
+    getMasterAgreements: (params?: { status?: string; limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.status) qs.set('status', params.status);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<MasterAgreementsResponse>(`/master-agreements${qs.size ? `?${qs}` : ''}`);
+    },
+
+    createMasterAgreement: (body: {
+      title: string;
+      purpose?: string;
+      scope?: string;
+      agreementType?: string;
+      governanceFramework?: Record<string, unknown>;
+      disputeResolution?: Record<string, unknown>;
+      amendmentProcess?: Record<string, unknown>;
+      terminationConditions?: Record<string, unknown>;
+    }) =>
+      request<MasterAgreement>('/master-agreements', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+
+    getMasterAgreement: (uri: string) =>
+      request<MasterAgreement>(`/master-agreements/${encodeURIComponent(uri)}`),
+
+    updateMasterAgreement: (uri: string, body: Record<string, unknown>) =>
+      request<MasterAgreement>(`/master-agreements/${encodeURIComponent(uri)}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
+
+    activateMasterAgreement: (uri: string) =>
+      request<MasterAgreement>(`/master-agreements/${encodeURIComponent(uri)}/activate`, {
+        method: 'POST',
+      }),
+
+    terminateMasterAgreement: (uri: string) =>
+      request<MasterAgreement>(`/master-agreements/${encodeURIComponent(uri)}/terminate`, {
+        method: 'POST',
+      }),
+
+    addStakeholderTerms: (agreementUri: string, body: {
+      stakeholderDid: string;
+      stakeholderType: string;
+      stakeholderClass?: string;
+      contributions?: Array<{ type: string; description: string; value?: string }>;
+      financialTerms?: Record<string, unknown>;
+      ipTerms?: Record<string, unknown>;
+      governanceRights?: Record<string, unknown>;
+      exitTerms?: Record<string, unknown>;
+    }) =>
+      request<StakeholderTerms>(`/master-agreements/${encodeURIComponent(agreementUri)}/terms`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+
+    listStakeholderTerms: (agreementUri: string) =>
+      request<StakeholderTermsResponse>(`/master-agreements/${encodeURIComponent(agreementUri)}/terms`),
+
+    removeStakeholderTerms: (agreementUri: string, termsUri: string) =>
+      request<void>(`/master-agreements/${encodeURIComponent(agreementUri)}/terms/${encodeURIComponent(termsUri)}`, {
+        method: 'DELETE',
+      }),
+
+    // Connections
+    getConnections: () =>
+      request<ConnectionsResponse>('/connections'),
+
+    getAvailableServices: () =>
+      request<AvailableServicesResponse>('/connections/available'),
+
+    initiateConnection: (service: string) =>
+      request<{ authUrl: string; state: string }>('/connections/initiate', {
+        method: 'POST',
+        body: JSON.stringify({ service }),
+      }),
+
+    revokeConnection: (uri: string) =>
+      request<void>(`/connections/${encodeURIComponent(uri)}`, { method: 'DELETE' }),
+
+    bindResource: (connectionUri: string, body: {
+      projectUri: string;
+      resourceType: string;
+      resourceId: string;
+      metadata?: Record<string, unknown>;
+    }) =>
+      request<ConnectionBinding>(`/connections/${encodeURIComponent(connectionUri)}/bind`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+
+    listBindings: (connectionUri: string) =>
+      request<BindingsResponse>(`/connections/${encodeURIComponent(connectionUri)}/bindings`),
+
+    removeBinding: (uri: string) =>
+      request<void>(`/connections/bindings/${encodeURIComponent(uri)}`, { method: 'DELETE' }),
   };
 }

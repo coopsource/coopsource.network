@@ -35,6 +35,8 @@ import { createStripeWebhookRoutes } from './routes/funding/stripe-webhook.js';
 import { createInterestRoutes } from './routes/alignment/interests.js';
 import { createOutcomeRoutes } from './routes/alignment/outcomes.js';
 import { createMapRoutes } from './routes/alignment/map.js';
+import { createMasterAgreementRoutes } from './routes/agreement/master-agreements.js';
+import { createConnectionRoutes } from './routes/connections/connections.js';
 import { startAppViewLoop } from './appview/loop.js';
 import { createOAuthClient } from './auth/oauth-client.js';
 
@@ -133,7 +135,13 @@ async function start(): Promise<void> {
   app.use(createOutcomeRoutes(container));
   app.use(createMapRoutes(container));
 
-  // TODO: Stage 3 — Connections, Automation, AI Agents, MCP, CLI Auth, OIDC
+  // Master agreement routes
+  app.use(createMasterAgreementRoutes(container));
+
+  // Connection routes
+  app.use(createConnectionRoutes(container, config));
+
+  // TODO: Stage 3 — Automation, AI Agents, MCP, CLI Auth, OIDC
 
   // Error handling (must be last)
   app.use(errorHandler);
