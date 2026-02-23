@@ -23,7 +23,7 @@
     <h1 class="text-xl font-semibold text-[var(--cs-text)]">Invitations</h1>
     <a
       href="/members"
-      class="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+      class="rounded-md bg-[var(--cs-primary)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)]"
     >
       Invite member
     </a>

@@ -50,8 +50,8 @@
 
 <div class="mx-auto max-w-2xl space-y-6">
   <div>
-    <a href="/alignment" class="text-sm text-gray-500 hover:text-gray-700">&larr; Alignment</a>
-    <h1 class="mt-1 text-xl font-semibold text-gray-900">
+    <a href="/alignment" class="text-sm text-[var(--cs-text-muted)] hover:text-[var(--cs-text)]">&larr; Alignment</a>
+    <h1 class="mt-1 text-xl font-semibold text-[var(--cs-text)]">
       {isUpdate ? 'Edit My Interests' : 'Submit My Interests'}
     </h1>
   </div>
@@ -77,25 +77,25 @@
 
     <!-- Interests -->
     <fieldset class="space-y-3">
-      <legend class="text-sm font-medium text-gray-900">Interests & Goals</legend>
+      <legend class="text-sm font-medium text-[var(--cs-text)]">Interests & Goals</legend>
       <input type="hidden" name="interestCount" value={interestCount} />
 
       {#each Array(interestCount) as _, i}
-        <div class="rounded-md border border-gray-200 p-3 space-y-2">
+        <div class="rounded-md border border-[var(--cs-border)] p-3 space-y-2">
           <div class="grid grid-cols-3 gap-2">
             <div>
-              <label for="interest_category_{i}" class="block text-xs text-gray-600">Category</label>
+              <label for="interest_category_{i}" class="block text-xs text-[var(--cs-text-secondary)]">Category</label>
               <input
                 id="interest_category_{i}"
                 name="interest_category_{i}"
                 type="text"
                 required
                 maxlength="100"
-                class="mt-0.5 block w-full rounded border border-gray-300 px-2 py-1 text-sm"
+                class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm"
               />
             </div>
             <div>
-              <label for="interest_priority_{i}" class="block text-xs text-gray-600">Priority (1-5)</label>
+              <label for="interest_priority_{i}" class="block text-xs text-[var(--cs-text-secondary)]">Priority (1-5)</label>
               <input
                 id="interest_priority_{i}"
                 name="interest_priority_{i}"
@@ -103,15 +103,15 @@
                 min="1"
                 max="5"
                 value="3"
-                class="mt-0.5 block w-full rounded border border-gray-300 px-2 py-1 text-sm"
+                class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm"
               />
             </div>
             <div>
-              <label for="interest_scope_{i}" class="block text-xs text-gray-600">Scope</label>
+              <label for="interest_scope_{i}" class="block text-xs text-[var(--cs-text-secondary)]">Scope</label>
               <select
                 id="interest_scope_{i}"
                 name="interest_scope_{i}"
-                class="mt-0.5 block w-full rounded border border-gray-300 px-2 py-1 text-sm"
+                class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm"
               >
                 <option value="">—</option>
                 <option value="short-term" selected={existing?.interests[i]?.scope === 'short-term'}>Short-term</option>
@@ -121,14 +121,14 @@
             </div>
           </div>
           <div>
-            <label for="interest_description_{i}" class="block text-xs text-gray-600">Description</label>
+            <label for="interest_description_{i}" class="block text-xs text-[var(--cs-text-secondary)]">Description</label>
             <textarea
               id="interest_description_{i}"
               name="interest_description_{i}"
               required
               maxlength="2000"
               rows="2"
-              class="mt-0.5 block w-full rounded border border-gray-300 px-2 py-1 text-sm"
+              class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm"
             >{existing?.interests[i]?.description ?? ''}</textarea>
           </div>
         </div>
@@ -137,7 +137,7 @@
       <button
         type="button"
         onclick={() => interestCount++}
-        class="text-xs text-indigo-600 hover:text-indigo-700"
+        class="text-xs text-[var(--cs-primary)] hover:text-[var(--cs-primary-hover)]"
       >
         + Add Interest
       </button>
@@ -145,18 +145,18 @@
 
     <!-- Contributions -->
     <fieldset class="space-y-3">
-      <legend class="text-sm font-medium text-gray-900">Contributions (optional)</legend>
+      <legend class="text-sm font-medium text-[var(--cs-text)]">Contributions (optional)</legend>
       <input type="hidden" name="contributionCount" value={contributionCount} />
 
       {#each Array(contributionCount) as _, i}
-        <div class="rounded-md border border-gray-200 p-3 space-y-2">
+        <div class="rounded-md border border-[var(--cs-border)] p-3 space-y-2">
           <div class="grid grid-cols-2 gap-2">
             <div>
-              <label for="contribution_type_{i}" class="block text-xs text-gray-600">Type</label>
+              <label for="contribution_type_{i}" class="block text-xs text-[var(--cs-text-secondary)]">Type</label>
               <select
                 id="contribution_type_{i}"
                 name="contribution_type_{i}"
-                class="mt-0.5 block w-full rounded border border-gray-300 px-2 py-1 text-sm"
+                class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm"
               >
                 <option value="skill" selected={existing?.contributions[i]?.type === 'skill'}>Skill</option>
                 <option value="resource" selected={existing?.contributions[i]?.type === 'resource'}>Resource</option>
@@ -166,24 +166,24 @@
               </select>
             </div>
             <div>
-              <label for="contribution_capacity_{i}" class="block text-xs text-gray-600">Capacity</label>
+              <label for="contribution_capacity_{i}" class="block text-xs text-[var(--cs-text-secondary)]">Capacity</label>
               <input
                 id="contribution_capacity_{i}"
                 name="contribution_capacity_{i}"
                 type="text"
                 maxlength="500"
-                class="mt-0.5 block w-full rounded border border-gray-300 px-2 py-1 text-sm"
+                class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm"
               />
             </div>
           </div>
           <div>
-            <label for="contribution_description_{i}" class="block text-xs text-gray-600">Description</label>
+            <label for="contribution_description_{i}" class="block text-xs text-[var(--cs-text-secondary)]">Description</label>
             <textarea
               id="contribution_description_{i}"
               name="contribution_description_{i}"
               maxlength="2000"
               rows="2"
-              class="mt-0.5 block w-full rounded border border-gray-300 px-2 py-1 text-sm"
+              class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm"
             >{existing?.contributions[i]?.description ?? ''}</textarea>
           </div>
         </div>
@@ -192,7 +192,7 @@
       <button
         type="button"
         onclick={() => contributionCount++}
-        class="text-xs text-indigo-600 hover:text-indigo-700"
+        class="text-xs text-[var(--cs-primary)] hover:text-[var(--cs-primary-hover)]"
       >
         + Add Contribution
       </button>
@@ -200,27 +200,27 @@
 
     <!-- Constraints -->
     <fieldset class="space-y-3">
-      <legend class="text-sm font-medium text-gray-900">Constraints (optional)</legend>
+      <legend class="text-sm font-medium text-[var(--cs-text)]">Constraints (optional)</legend>
       <input type="hidden" name="constraintCount" value={constraintCount} />
 
       {#each Array(constraintCount) as _, i}
-        <div class="rounded-md border border-gray-200 p-3 space-y-2">
+        <div class="rounded-md border border-[var(--cs-border)] p-3 space-y-2">
           <div>
-            <label for="constraint_description_{i}" class="block text-xs text-gray-600">Description</label>
+            <label for="constraint_description_{i}" class="block text-xs text-[var(--cs-text-secondary)]">Description</label>
             <textarea
               id="constraint_description_{i}"
               name="constraint_description_{i}"
               maxlength="2000"
               rows="2"
-              class="mt-0.5 block w-full rounded border border-gray-300 px-2 py-1 text-sm"
+              class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm"
             >{existing?.constraints[i]?.description ?? ''}</textarea>
           </div>
-          <label class="flex items-center gap-2 text-xs text-gray-600">
+          <label class="flex items-center gap-2 text-xs text-[var(--cs-text-secondary)]">
             <input
               type="checkbox"
               name="constraint_hard_{i}"
               checked={existing?.constraints[i]?.hardConstraint ?? false}
-              class="rounded border-gray-300"
+              class="rounded border-[var(--cs-border)]"
             />
             Hard constraint (non-negotiable)
           </label>
@@ -230,7 +230,7 @@
       <button
         type="button"
         onclick={() => constraintCount++}
-        class="text-xs text-indigo-600 hover:text-indigo-700"
+        class="text-xs text-[var(--cs-primary)] hover:text-[var(--cs-primary-hover)]"
       >
         + Add Constraint
       </button>
@@ -238,29 +238,29 @@
 
     <!-- Red Lines -->
     <fieldset class="space-y-3">
-      <legend class="text-sm font-medium text-gray-900">Red Lines (optional)</legend>
+      <legend class="text-sm font-medium text-[var(--cs-text)]">Red Lines (optional)</legend>
       <input type="hidden" name="redLineCount" value={redLineCount} />
 
       {#each Array(redLineCount) as _, i}
         <div class="rounded-md border border-red-100 p-3 space-y-2">
           <div>
-            <label for="redline_description_{i}" class="block text-xs text-gray-600">Description</label>
+            <label for="redline_description_{i}" class="block text-xs text-[var(--cs-text-secondary)]">Description</label>
             <textarea
               id="redline_description_{i}"
               name="redline_description_{i}"
               maxlength="2000"
               rows="2"
-              class="mt-0.5 block w-full rounded border border-gray-300 px-2 py-1 text-sm"
+              class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm"
             >{existing?.redLines[i]?.description ?? ''}</textarea>
           </div>
           <div>
-            <label for="redline_reason_{i}" class="block text-xs text-gray-600">Reason (optional)</label>
+            <label for="redline_reason_{i}" class="block text-xs text-[var(--cs-text-secondary)]">Reason (optional)</label>
             <input
               id="redline_reason_{i}"
               name="redline_reason_{i}"
               type="text"
               maxlength="2000"
-              class="mt-0.5 block w-full rounded border border-gray-300 px-2 py-1 text-sm"
+              class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm"
             />
           </div>
         </div>
@@ -269,7 +269,7 @@
       <button
         type="button"
         onclick={() => redLineCount++}
-        class="text-xs text-indigo-600 hover:text-indigo-700"
+        class="text-xs text-[var(--cs-primary)] hover:text-[var(--cs-primary-hover)]"
       >
         + Add Red Line
       </button>
@@ -277,41 +277,41 @@
 
     <!-- Work Preferences -->
     <fieldset class="space-y-3">
-      <legend class="text-sm font-medium text-gray-900">Work Preferences (optional)</legend>
+      <legend class="text-sm font-medium text-[var(--cs-text)]">Work Preferences (optional)</legend>
 
       <div>
-        <label for="pref_decisionMaking" class="block text-xs text-gray-600">Decision Making</label>
+        <label for="pref_decisionMaking" class="block text-xs text-[var(--cs-text-secondary)]">Decision Making</label>
         <input
           id="pref_decisionMaking"
           name="pref_decisionMaking"
           type="text"
           maxlength="500"
           placeholder="e.g., Consensus-based, majority vote"
-          class="mt-0.5 block w-full rounded border border-gray-300 px-2 py-1 text-sm"
+          class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm"
         />
       </div>
 
       <div>
-        <label for="pref_communication" class="block text-xs text-gray-600">Communication</label>
+        <label for="pref_communication" class="block text-xs text-[var(--cs-text-secondary)]">Communication</label>
         <input
           id="pref_communication"
           name="pref_communication"
           type="text"
           maxlength="500"
           placeholder="e.g., Async-first, weekly syncs"
-          class="mt-0.5 block w-full rounded border border-gray-300 px-2 py-1 text-sm"
+          class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm"
         />
       </div>
 
       <div>
-        <label for="pref_pace" class="block text-xs text-gray-600">Pace</label>
+        <label for="pref_pace" class="block text-xs text-[var(--cs-text-secondary)]">Pace</label>
         <input
           id="pref_pace"
           name="pref_pace"
           type="text"
           maxlength="500"
           placeholder="e.g., Steady iteration, rapid sprints"
-          class="mt-0.5 block w-full rounded border border-gray-300 px-2 py-1 text-sm"
+          class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm"
         />
       </div>
     </fieldset>
@@ -320,11 +320,11 @@
       <button
         type="submit"
         disabled={submitting}
-        class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+        class="rounded-md bg-[var(--cs-primary)] px-4 py-2 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)] disabled:opacity-50"
       >
         {submitting ? 'Saving…' : isUpdate ? 'Update Interests' : 'Submit Interests'}
       </button>
-      <a href="/alignment" class="rounded-md px-4 py-2 text-sm text-gray-600 hover:text-gray-900">Cancel</a>
+      <a href="/alignment" class="rounded-md px-4 py-2 text-sm text-[var(--cs-text-secondary)] hover:text-[var(--cs-text)]">Cancel</a>
     </div>
   </form>
 </div>

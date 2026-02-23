@@ -18,7 +18,7 @@
   }: Props = $props();
 
   const variants: Record<string, string> = {
-    default: 'bg-[var(--cs-bg-inset)] text-[var(--cs-text-secondary)]',
+    default: 'bg-[var(--cs-badge-default-bg,var(--cs-bg-inset))] text-[var(--cs-text-secondary)] border border-[var(--cs-border)]',
     primary: 'bg-[var(--cs-primary-soft)] text-[var(--cs-primary)]',
     success: 'bg-[var(--color-success-light)] text-[var(--color-success-dark)]',
     warning: 'bg-[var(--color-warning-light)] text-[var(--color-warning-dark)]',

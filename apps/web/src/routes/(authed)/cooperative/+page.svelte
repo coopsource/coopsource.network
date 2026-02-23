@@ -30,7 +30,7 @@
       <button
         type="button"
         onclick={() => (editing = true)}
-        class="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+        class="rounded-md bg-[var(--cs-primary)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)]"
       >
         Edit
       </button>
@@ -104,7 +104,7 @@
           <button
             type="submit"
             disabled={submitting}
-            class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            class="rounded-md bg-[var(--cs-primary)] px-4 py-2 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)] disabled:opacity-50"
           >
             {submitting ? 'Saving…' : 'Save changes'}
           </button>
@@ -149,7 +149,7 @@
                 href={coop.website}
                 target="_blank"
                 rel="noreferrer"
-                class="text-sm text-blue-600 hover:underline"
+                class="text-sm text-[var(--cs-primary)] hover:underline"
               >
                 {coop.website}
               </a>

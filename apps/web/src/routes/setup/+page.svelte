@@ -44,11 +44,11 @@
   <title>Setup — Co-op Source</title>
 </svelte:head>
 
-<div class="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
+<div class="flex min-h-screen flex-col items-center justify-center bg-[var(--cs-bg-inset)] p-4">
   <div class="w-full max-w-md">
     <div class="mb-8 text-center">
-      <h1 class="text-2xl font-bold text-gray-900">Welcome to Co-op Source</h1>
-      <p class="mt-2 text-sm text-gray-600">Let's set up your cooperative network.</p>
+      <h1 class="text-2xl font-bold text-[var(--cs-text)]">Welcome to Co-op Source</h1>
+      <p class="mt-2 text-sm text-[var(--cs-text-secondary)]">Let's set up your cooperative network.</p>
     </div>
 
     <!-- Step indicator -->
@@ -58,21 +58,21 @@
           <div
             class="flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium
               {step === s
-                ? 'bg-blue-600 text-white'
+                ? 'bg-[var(--cs-primary)] text-[var(--cs-text-on-primary)]'
                 : step > s
                   ? 'bg-green-500 text-white'
-                  : 'bg-gray-200 text-gray-600'}"
+                  : 'bg-[var(--cs-bg-inset)] text-[var(--cs-text-secondary)]'}"
           >
             {step > s ? '✓' : s}
           </div>
           {#if s < 3}
-            <div class="h-px w-8 {step > s ? 'bg-green-400' : 'bg-gray-200'}"></div>
+            <div class="h-px w-8 {step > s ? 'bg-green-400' : 'bg-[var(--cs-border)]'}"></div>
           {/if}
         </div>
       {/each}
     </div>
 
-    <div class="rounded-lg bg-white p-6 shadow-sm">
+    <div class="rounded-lg bg-[var(--cs-bg-card)] p-6 shadow-sm">
       {#if form?.error}
         <div class="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
           {form.error}
@@ -99,10 +99,10 @@
 
         <!-- Step 1: Co-op Info -->
         {#if step === 1}
-          <h2 class="mb-4 text-base font-semibold text-gray-900">Co-op Information</h2>
+          <h2 class="mb-4 text-base font-semibold text-[var(--cs-text)]">Co-op Information</h2>
           <div class="space-y-4">
             <div>
-              <label for="cooperativeName" class="block text-sm font-medium text-gray-700">
+              <label for="cooperativeName" class="block text-sm font-medium text-[var(--cs-text-secondary)]">
                 Co-op Name
               </label>
               <input
@@ -110,16 +110,16 @@
                 type="text"
                 bind:value={cooperativeName}
                 required
-                class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                class="mt-1 block w-full rounded-md border border-[var(--cs-border)] px-3 py-2 text-sm focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
                 placeholder="My Cooperative"
               />
             </div>
             <div>
-              <label for="cooperativeHandle" class="block text-sm font-medium text-gray-700">
+              <label for="cooperativeHandle" class="block text-sm font-medium text-[var(--cs-text-secondary)]">
                 Handle
               </label>
-              <div class="mt-1 flex rounded-md border border-gray-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
-                <span class="flex items-center pl-3 text-sm text-gray-500">@</span>
+              <div class="mt-1 flex rounded-md border border-[var(--cs-border)] focus-within:border-[var(--cs-border-focus)] focus-within:ring-1 focus-within:ring-[var(--cs-ring)]">
+                <span class="flex items-center pl-3 text-sm text-[var(--cs-text-muted)]">@</span>
                 <input
                   id="cooperativeHandle"
                   type="text"
@@ -136,7 +136,7 @@
               type="button"
               onclick={nextStep}
               disabled={!cooperativeName || !cooperativeHandle}
-              class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              class="rounded-md bg-[var(--cs-primary)] px-4 py-2 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)] disabled:opacity-50"
             >
               Next →
             </button>
@@ -144,10 +144,10 @@
 
         <!-- Step 2: Admin Account -->
         {:else if step === 2}
-          <h2 class="mb-4 text-base font-semibold text-gray-900">Admin Account</h2>
+          <h2 class="mb-4 text-base font-semibold text-[var(--cs-text)]">Admin Account</h2>
           <div class="space-y-4">
             <div>
-              <label for="adminDisplayName" class="block text-sm font-medium text-gray-700">
+              <label for="adminDisplayName" class="block text-sm font-medium text-[var(--cs-text-secondary)]">
                 Display Name
               </label>
               <input
@@ -155,16 +155,16 @@
                 type="text"
                 bind:value={adminDisplayName}
                 required
-                class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                class="mt-1 block w-full rounded-md border border-[var(--cs-border)] px-3 py-2 text-sm focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
                 placeholder="Your Name"
               />
             </div>
             <div>
-              <label for="adminHandle" class="block text-sm font-medium text-gray-700">
+              <label for="adminHandle" class="block text-sm font-medium text-[var(--cs-text-secondary)]">
                 Handle
               </label>
-              <div class="mt-1 flex rounded-md border border-gray-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
-                <span class="flex items-center pl-3 text-sm text-gray-500">@</span>
+              <div class="mt-1 flex rounded-md border border-[var(--cs-border)] focus-within:border-[var(--cs-border-focus)] focus-within:ring-1 focus-within:ring-[var(--cs-ring)]">
+                <span class="flex items-center pl-3 text-sm text-[var(--cs-text-muted)]">@</span>
                 <input
                   id="adminHandle"
                   type="text"
@@ -176,7 +176,7 @@
               </div>
             </div>
             <div>
-              <label for="adminEmail" class="block text-sm font-medium text-gray-700">
+              <label for="adminEmail" class="block text-sm font-medium text-[var(--cs-text-secondary)]">
                 Email
               </label>
               <input
@@ -184,12 +184,12 @@
                 type="email"
                 bind:value={adminEmail}
                 required
-                class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                class="mt-1 block w-full rounded-md border border-[var(--cs-border)] px-3 py-2 text-sm focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
                 placeholder="you@example.com"
               />
             </div>
             <div>
-              <label for="adminPassword" class="block text-sm font-medium text-gray-700">
+              <label for="adminPassword" class="block text-sm font-medium text-[var(--cs-text-secondary)]">
                 Password
               </label>
               <input
@@ -198,7 +198,7 @@
                 bind:value={adminPassword}
                 required
                 minlength={8}
-                class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                class="mt-1 block w-full rounded-md border border-[var(--cs-border)] px-3 py-2 text-sm focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
                 placeholder="Min. 8 characters"
               />
             </div>
@@ -207,7 +207,7 @@
             <button
               type="button"
               onclick={prevStep}
-              class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              class="rounded-md border border-[var(--cs-border)] px-4 py-2 text-sm font-medium text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-hover)]"
             >
               ← Back
             </button>
@@ -215,7 +215,7 @@
               type="button"
               onclick={nextStep}
               disabled={!adminDisplayName || !adminHandle || !adminEmail || adminPassword.length < 8}
-              class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              class="rounded-md bg-[var(--cs-primary)] px-4 py-2 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)] disabled:opacity-50"
             >
               Next →
             </button>
@@ -223,28 +223,28 @@
 
         <!-- Step 3: Review -->
         {:else if step === 3}
-          <h2 class="mb-4 text-base font-semibold text-gray-900">Review</h2>
-          <div class="space-y-3 rounded-md bg-gray-50 p-4 text-sm">
+          <h2 class="mb-4 text-base font-semibold text-[var(--cs-text)]">Review</h2>
+          <div class="space-y-3 rounded-md bg-[var(--cs-bg-inset)] p-4 text-sm">
             <div>
-              <span class="font-medium text-gray-600">Co-op:</span>
-              <span class="ml-2 text-gray-900">{cooperativeName}</span>
-              <span class="ml-1 text-gray-500">(@{cooperativeHandle})</span>
+              <span class="font-medium text-[var(--cs-text-secondary)]">Co-op:</span>
+              <span class="ml-2 text-[var(--cs-text)]">{cooperativeName}</span>
+              <span class="ml-1 text-[var(--cs-text-muted)]">(@{cooperativeHandle})</span>
             </div>
             <div>
-              <span class="font-medium text-gray-600">Admin:</span>
-              <span class="ml-2 text-gray-900">{adminDisplayName}</span>
-              <span class="ml-1 text-gray-500">(@{adminHandle})</span>
+              <span class="font-medium text-[var(--cs-text-secondary)]">Admin:</span>
+              <span class="ml-2 text-[var(--cs-text)]">{adminDisplayName}</span>
+              <span class="ml-1 text-[var(--cs-text-muted)]">(@{adminHandle})</span>
             </div>
             <div>
-              <span class="font-medium text-gray-600">Email:</span>
-              <span class="ml-2 text-gray-900">{adminEmail}</span>
+              <span class="font-medium text-[var(--cs-text-secondary)]">Email:</span>
+              <span class="ml-2 text-[var(--cs-text)]">{adminEmail}</span>
             </div>
           </div>
           <div class="mt-6 flex justify-between">
             <button
               type="button"
               onclick={prevStep}
-              class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              class="rounded-md border border-[var(--cs-border)] px-4 py-2 text-sm font-medium text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-hover)]"
             >
               ← Back
             </button>

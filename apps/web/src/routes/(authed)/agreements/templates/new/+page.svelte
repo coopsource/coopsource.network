@@ -41,7 +41,7 @@
           name="name"
           type="text"
           required
-          class="mt-1 block w-full rounded-md border border-[var(--cs-border)] bg-[var(--cs-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          class="mt-1 block w-full rounded-md border border-[var(--cs-border)] bg-[var(--cs-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
           placeholder="e.g. Standard Worker Agreement"
         />
       </div>
@@ -52,7 +52,7 @@
           id="description"
           name="description"
           rows={2}
-          class="mt-1 block w-full rounded-md border border-[var(--cs-border)] bg-[var(--cs-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          class="mt-1 block w-full rounded-md border border-[var(--cs-border)] bg-[var(--cs-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
           placeholder="When to use this template…"
         ></textarea>
       </div>
@@ -62,7 +62,7 @@
         <select
           id="agreementType"
           name="agreementType"
-          class="mt-1 block w-full rounded-md border border-[var(--cs-border)] bg-[var(--cs-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          class="mt-1 block w-full rounded-md border border-[var(--cs-border)] bg-[var(--cs-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
         >
           <option value="custom">Custom</option>
           <option value="worker-cooperative">Worker Cooperative</option>
@@ -84,7 +84,7 @@
           id="title"
           name="title"
           type="text"
-          class="mt-1 block w-full rounded-md border border-[var(--cs-border)] bg-[var(--cs-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          class="mt-1 block w-full rounded-md border border-[var(--cs-border)] bg-[var(--cs-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
           placeholder="Agreement title when using this template"
         />
       </div>
@@ -95,7 +95,7 @@
           id="purpose"
           name="purpose"
           rows={3}
-          class="mt-1 block w-full rounded-md border border-[var(--cs-border)] bg-[var(--cs-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          class="mt-1 block w-full rounded-md border border-[var(--cs-border)] bg-[var(--cs-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
           placeholder="What is this agreement for?"
         ></textarea>
       </div>
@@ -106,7 +106,7 @@
           id="scope"
           name="scope"
           rows={3}
-          class="mt-1 block w-full rounded-md border border-[var(--cs-border)] bg-[var(--cs-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          class="mt-1 block w-full rounded-md border border-[var(--cs-border)] bg-[var(--cs-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
           placeholder="Who does this agreement apply to?"
         ></textarea>
       </div>
@@ -117,7 +117,7 @@
           id="body"
           name="body"
           rows={8}
-          class="mt-1 block w-full rounded-md border border-[var(--cs-border)] bg-[var(--cs-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          class="mt-1 block w-full rounded-md border border-[var(--cs-border)] bg-[var(--cs-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
           placeholder="Full agreement text (markdown supported)…"
         ></textarea>
       </div>
@@ -133,7 +133,7 @@
       <button
         type="submit"
         disabled={submitting}
-        class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        class="rounded-md bg-[var(--cs-primary)] px-4 py-2 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)] disabled:opacity-50"
       >
         {submitting ? 'Creating…' : 'Create template'}
       </button>

@@ -30,7 +30,7 @@
     <h1 class="text-xl font-semibold text-[var(--cs-text)]">Proposals</h1>
     <a
       href="/proposals/new"
-      class="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+      class="rounded-md bg-[var(--cs-primary)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)]"
     >
       New proposal
     </a>
@@ -43,7 +43,7 @@
         href={filter.value ? `?status=${filter.value}` : '/proposals'}
         class="px-3 py-2 text-sm font-medium transition-colors
           {data.filterStatus === filter.value
-            ? 'border-b-2 border-blue-600 text-blue-600'
+            ? 'border-b-2 border-[var(--cs-primary)] text-[var(--cs-primary)]'
             : 'text-[var(--cs-text-secondary)] hover:text-[var(--cs-text)]'}"
       >
         {filter.label}

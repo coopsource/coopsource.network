@@ -37,14 +37,14 @@
   <title>Sign In — Co-op Source</title>
 </svelte:head>
 
-<div class="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
+<div class="flex min-h-screen flex-col items-center justify-center bg-[var(--cs-bg-inset)] p-4">
   <div class="w-full max-w-sm">
     <div class="mb-8 text-center">
-      <h1 class="text-2xl font-bold text-gray-900">Co-op Source</h1>
-      <p class="mt-2 text-sm text-gray-600">Sign in to your account</p>
+      <h1 class="text-2xl font-bold text-[var(--cs-text)]">Co-op Source</h1>
+      <p class="mt-2 text-sm text-[var(--cs-text-secondary)]">Sign in to your account</p>
     </div>
 
-    <div class="rounded-lg bg-white p-6 shadow-sm">
+    <div class="rounded-lg bg-[var(--cs-bg-card)] p-6 shadow-sm">
       {#if form?.error}
         <div class="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
           {form.error}
@@ -63,43 +63,43 @@
         class="space-y-4"
       >
         <div>
-          <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+          <label for="email" class="block text-sm font-medium text-[var(--cs-text-secondary)]">Email</label>
           <input
             id="email"
             name="email"
             type="email"
             required
             autocomplete="email"
-            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            class="mt-1 block w-full rounded-md border border-[var(--cs-border)] px-3 py-2 text-sm focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
             placeholder="you@example.com"
           />
         </div>
 
         <div>
-          <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+          <label for="password" class="block text-sm font-medium text-[var(--cs-text-secondary)]">Password</label>
           <input
             id="password"
             name="password"
             type="password"
             required
             autocomplete="current-password"
-            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            class="mt-1 block w-full rounded-md border border-[var(--cs-border)] px-3 py-2 text-sm focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
           />
         </div>
 
         <button
           type="submit"
           disabled={submitting}
-          class="w-full rounded-md bg-blue-600 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          class="w-full rounded-md bg-[var(--cs-primary)] py-2 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)] disabled:opacity-50"
         >
           {submitting ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
 
       <div class="my-4 flex items-center gap-3">
-        <div class="h-px flex-1 bg-gray-200"></div>
-        <span class="text-xs text-gray-400">or</span>
-        <div class="h-px flex-1 bg-gray-200"></div>
+        <div class="h-px flex-1 bg-[var(--cs-border)]"></div>
+        <span class="text-xs text-[var(--cs-text-muted)]">or</span>
+        <div class="h-px flex-1 bg-[var(--cs-border)]"></div>
       </div>
 
       <div class="space-y-3">
@@ -109,7 +109,7 @@
           </div>
         {/if}
 
-        <label for="atproto-handle" class="block text-sm font-medium text-gray-700"
+        <label for="atproto-handle" class="block text-sm font-medium text-[var(--cs-text-secondary)]"
           >ATProto Handle</label
         >
         <input
@@ -117,13 +117,13 @@
           type="text"
           bind:value={atprotoHandle}
           placeholder="you.bsky.social"
-          class="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          class="block w-full rounded-md border border-[var(--cs-border)] px-3 py-2 text-sm focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
         />
         <button
           type="button"
           onclick={handleAtprotoLogin}
           disabled={atprotoSubmitting || !atprotoHandle.trim()}
-          class="w-full rounded-md bg-indigo-600 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+          class="w-full rounded-md bg-[var(--cs-primary)] py-2 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)] disabled:opacity-50"
         >
           {atprotoSubmitting ? 'Redirecting…' : 'Sign in with ATProto'}
         </button>
