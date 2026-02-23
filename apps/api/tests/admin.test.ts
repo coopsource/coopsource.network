@@ -30,9 +30,10 @@ describe('Admin', () => {
     await unauthApp.agent.get('/api/v1/admin/activity').expect(401);
   });
 
-  it('POST /admin/test-reset requires auth (401)', async () => {
+  it('POST /admin/test-reset succeeds without auth (dev-only endpoint)', async () => {
     const unauthApp = createTestApp();
-    await unauthApp.agent.post('/api/v1/admin/test-reset').expect(401);
+    const res = await unauthApp.agent.post('/api/v1/admin/test-reset').expect(200);
+    expect(res.body.ok).toBe(true);
   });
 
   // ─── Successful Admin Operations ──────────────────────────────────
