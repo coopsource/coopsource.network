@@ -76,7 +76,7 @@ test.describe('Agreements (Unified)', () => {
 		await page.getByRole('button', { name: 'Terminate' }).click();
 		await page.waitForLoadState('networkidle');
 
-		await expect(page.getByText('terminated')).toBeVisible();
+		await expect(page.getByText('terminated', { exact: true })).toBeVisible();
 	});
 
 	test('sign agreement increments signature count', async ({ page }) => {
@@ -143,7 +143,7 @@ test.describe('Agreements (Unified)', () => {
 		await page.waitForLoadState('networkidle');
 
 		await expect(page.getByText(adminDid)).toBeVisible();
-		await expect(page.getByText('worker')).toBeVisible();
+		await expect(page.getByText('worker', { exact: true })).toBeVisible();
 		await expect(page.getByText('founding-member')).toBeVisible();
 	});
 

@@ -63,11 +63,10 @@ export function createAdminRoutes(container: Container): Router {
   );
 
   // POST /api/v1/admin/test-reset — truncate all tables (non-production only)
+  // No auth required: endpoint only exists when NODE_ENV !== 'production'
   if (process.env.NODE_ENV !== 'production') {
     router.post(
       '/api/v1/admin/test-reset',
-      requireAuth,
-      requireAdmin,
       asyncHandler(async (_req, res) => {
         await sql`
           TRUNCATE TABLE
