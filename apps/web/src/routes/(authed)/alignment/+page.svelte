@@ -7,7 +7,7 @@
       case 'social': return 'bg-blue-100 text-blue-700';
       case 'environmental': return 'bg-emerald-100 text-emerald-700';
       case 'governance': return 'bg-purple-100 text-purple-700';
-      default: return 'bg-gray-100 text-gray-700';
+      default: return 'bg-[var(--cs-bg-inset)] text-[var(--cs-text-secondary)]';
     }
   }
 </script>
@@ -18,16 +18,16 @@
 
 <div class="space-y-6">
   <div class="flex items-center justify-between">
-    <h1 class="text-xl font-semibold text-gray-900">Alignment Discovery</h1>
+    <h1 class="text-xl font-semibold text-[var(--cs-text)]">Alignment Discovery</h1>
   </div>
 
   <!-- My Interests Summary -->
-  <div class="rounded-lg border border-gray-200 bg-white p-4">
+  <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-4">
     <div class="flex items-center justify-between">
-      <h2 class="text-sm font-medium text-gray-900">My Interests</h2>
+      <h2 class="text-sm font-medium text-[var(--cs-text)]">My Interests</h2>
       <a
         href="/alignment/interests"
-        class="text-sm text-indigo-600 hover:text-indigo-700"
+        class="text-sm text-[var(--cs-primary)] hover:text-[var(--cs-primary-hover)]"
       >
         {data.myInterests ? 'Edit' : 'Submit Interests'}
       </a>
@@ -43,7 +43,7 @@
           {/each}
         </div>
         {#if data.myInterests.contributions.length > 0}
-          <p class="text-xs text-gray-500">
+          <p class="text-xs text-[var(--cs-text-muted)]">
             {data.myInterests.contributions.length} contribution{data.myInterests.contributions.length !== 1 ? 's' : ''} offered
           </p>
         {/if}
@@ -54,41 +54,41 @@
         {/if}
       </div>
     {:else}
-      <p class="mt-2 text-sm text-gray-500">You haven't submitted your interests yet.</p>
+      <p class="mt-2 text-sm text-[var(--cs-text-muted)]">You haven't submitted your interests yet.</p>
     {/if}
   </div>
 
   <!-- Desired Outcomes -->
-  <div class="rounded-lg border border-gray-200 bg-white p-4">
+  <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-4">
     <div class="flex items-center justify-between">
-      <h2 class="text-sm font-medium text-gray-900">Desired Outcomes</h2>
+      <h2 class="text-sm font-medium text-[var(--cs-text)]">Desired Outcomes</h2>
       <a
         href="/alignment/outcomes/new"
-        class="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
+        class="rounded-md bg-[var(--cs-primary)] px-3 py-1.5 text-xs font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)]"
       >
         New Outcome
       </a>
     </div>
 
     {#if data.outcomes.length === 0}
-      <p class="mt-2 text-sm text-gray-500">No desired outcomes proposed yet.</p>
+      <p class="mt-2 text-sm text-[var(--cs-text-muted)]">No desired outcomes proposed yet.</p>
     {:else}
       <div class="mt-3 space-y-2">
         {#each data.outcomes as outcome}
           <a
             href="/alignment/outcomes/{encodeURIComponent(outcome.uri)}"
-            class="block rounded-md border border-gray-100 bg-gray-50 p-3 transition-colors hover:bg-gray-100"
+            class="block rounded-md border border-[var(--cs-border)] bg-[var(--cs-bg-inset)] p-3 transition-colors hover:bg-[var(--cs-bg-hover)]"
           >
             <div class="flex items-start justify-between">
-              <span class="text-sm font-medium text-gray-900">{outcome.title}</span>
+              <span class="text-sm font-medium text-[var(--cs-text)]">{outcome.title}</span>
               <span class="rounded-full px-2 py-0.5 text-xs font-medium {categoryBadgeClass(outcome.category)}">
                 {outcome.category}
               </span>
             </div>
             {#if outcome.description}
-              <p class="mt-1 text-xs text-gray-500 line-clamp-1">{outcome.description}</p>
+              <p class="mt-1 text-xs text-[var(--cs-text-muted)] line-clamp-1">{outcome.description}</p>
             {/if}
-            <div class="mt-1 flex gap-2 text-xs text-gray-400">
+            <div class="mt-1 flex gap-2 text-xs text-[var(--cs-text-muted)]">
               <span>{outcome.status}</span>
               <span>{outcome.stakeholderSupport.length} supporter{outcome.stakeholderSupport.length !== 1 ? 's' : ''}</span>
             </div>
@@ -99,12 +99,12 @@
   </div>
 
   <!-- Interest Map Preview -->
-  <div class="rounded-lg border border-gray-200 bg-white p-4">
+  <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-4">
     <div class="flex items-center justify-between">
-      <h2 class="text-sm font-medium text-gray-900">Interest Map</h2>
+      <h2 class="text-sm font-medium text-[var(--cs-text)]">Interest Map</h2>
       <a
         href="/alignment/map"
-        class="text-sm text-indigo-600 hover:text-indigo-700"
+        class="text-sm text-[var(--cs-primary)] hover:text-[var(--cs-primary-hover)]"
       >
         View Full Map
       </a>
@@ -122,7 +122,7 @@
         </div>
       </div>
     {:else}
-      <p class="mt-2 text-sm text-gray-500">No interest map generated yet.</p>
+      <p class="mt-2 text-sm text-[var(--cs-text-muted)]">No interest map generated yet.</p>
     {/if}
   </div>
 </div>

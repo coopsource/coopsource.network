@@ -26,7 +26,7 @@
       case 'social': return 'bg-blue-100 text-blue-700';
       case 'environmental': return 'bg-emerald-100 text-emerald-700';
       case 'governance': return 'bg-purple-100 text-purple-700';
-      default: return 'bg-gray-100 text-gray-700';
+      default: return 'bg-[var(--cs-bg-inset)] text-[var(--cs-text-secondary)]';
     }
   }
 
@@ -49,8 +49,8 @@
 <div class="mx-auto max-w-2xl space-y-6">
   <div class="flex items-start justify-between">
     <div>
-      <a href="/alignment" class="text-sm text-gray-500 hover:text-gray-700">&larr; Alignment</a>
-      <h1 class="mt-1 text-xl font-semibold text-gray-900">{o.title}</h1>
+      <a href="/alignment" class="text-sm text-[var(--cs-text-muted)] hover:text-[var(--cs-text)]">&larr; Alignment</a>
+      <h1 class="mt-1 text-xl font-semibold text-[var(--cs-text)]">{o.title}</h1>
     </div>
     <span class="rounded-full px-2.5 py-1 text-xs font-medium {categoryBadgeClass(o.category)}">
       {o.category}
@@ -58,18 +58,18 @@
   </div>
 
   {#if o.description}
-    <p class="text-sm text-gray-600">{o.description}</p>
+    <p class="text-sm text-[var(--cs-text-secondary)]">{o.description}</p>
   {/if}
 
-  <div class="flex gap-3 text-xs text-gray-400">
-    <span>Status: <strong class="text-gray-700">{o.status}</strong></span>
+  <div class="flex gap-3 text-xs text-[var(--cs-text-muted)]">
+    <span>Status: <strong class="text-[var(--cs-text-secondary)]">{o.status}</strong></span>
     <span>Created: {new Date(o.createdAt).toLocaleDateString()}</span>
   </div>
 
   <!-- Status Transitions -->
   {#if nextStatuses[o.status]?.length}
     <div class="flex items-center gap-2">
-      <span class="text-xs text-gray-500">Transition to:</span>
+      <span class="text-xs text-[var(--cs-text-muted)]">Transition to:</span>
       {#each nextStatuses[o.status] as target}
         <form
           method="POST"
@@ -98,15 +98,15 @@
 
   <!-- Success Criteria -->
   {#if o.successCriteria.length > 0}
-    <div class="rounded-lg border border-gray-200 bg-white p-4">
-      <h2 class="text-sm font-medium text-gray-900">Success Criteria</h2>
+    <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-4">
+      <h2 class="text-sm font-medium text-[var(--cs-text)]">Success Criteria</h2>
       <div class="mt-2 space-y-2">
         {#each o.successCriteria as criterion}
-          <div class="rounded-md bg-gray-50 p-2 text-sm">
-            <span class="font-medium text-gray-700">{criterion.metric}:</span>
-            <span class="text-gray-600">{criterion.target}</span>
+          <div class="rounded-md bg-[var(--cs-bg-inset)] p-2 text-sm">
+            <span class="font-medium text-[var(--cs-text-secondary)]">{criterion.metric}:</span>
+            <span class="text-[var(--cs-text-secondary)]">{criterion.target}</span>
             {#if criterion.timeline}
-              <span class="text-xs text-gray-400"> ({criterion.timeline})</span>
+              <span class="text-xs text-[var(--cs-text-muted)]"> ({criterion.timeline})</span>
             {/if}
           </div>
         {/each}
@@ -115,25 +115,25 @@
   {/if}
 
   <!-- Stakeholder Support -->
-  <div class="rounded-lg border border-gray-200 bg-white p-4">
-    <h2 class="text-sm font-medium text-gray-900">Stakeholder Support ({o.stakeholderSupport.length})</h2>
+  <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-4">
+    <h2 class="text-sm font-medium text-[var(--cs-text)]">Stakeholder Support ({o.stakeholderSupport.length})</h2>
 
     {#if o.stakeholderSupport.length > 0}
       <div class="mt-2 space-y-1">
         {#each o.stakeholderSupport as entry}
-          <div class="flex items-center justify-between rounded-md bg-gray-50 px-3 py-2 text-sm">
-            <span class="text-gray-600">{entry.stakeholderDid.slice(0, 24)}…</span>
+          <div class="flex items-center justify-between rounded-md bg-[var(--cs-bg-inset)] px-3 py-2 text-sm">
+            <span class="text-[var(--cs-text-secondary)]">{entry.stakeholderDid.slice(0, 24)}…</span>
             <span class="font-medium {supportLevelClass(entry.supportLevel)}">{entry.supportLevel}</span>
           </div>
         {/each}
       </div>
     {:else}
-      <p class="mt-2 text-sm text-gray-500">No support declarations yet.</p>
+      <p class="mt-2 text-sm text-[var(--cs-text-muted)]">No support declarations yet.</p>
     {/if}
 
     <!-- Support Form -->
-    <div class="mt-4 border-t border-gray-100 pt-4">
-      <h3 class="text-xs font-medium text-gray-700">Declare Your Support</h3>
+    <div class="mt-4 border-t border-[var(--cs-border)] pt-4">
+      <h3 class="text-xs font-medium text-[var(--cs-text-secondary)]">Declare Your Support</h3>
       {#if form?.error}
         <div class="mt-2 rounded-md bg-red-50 p-2 text-sm text-red-700">{form.error}</div>
       {/if}
@@ -150,11 +150,11 @@
         class="mt-2 space-y-3"
       >
         <div>
-          <label for="level" class="block text-xs text-gray-600">Support Level</label>
+          <label for="level" class="block text-xs text-[var(--cs-text-secondary)]">Support Level</label>
           <select
             id="level"
             name="level"
-            class="mt-0.5 block w-full rounded border border-gray-300 px-2 py-1 text-sm"
+            class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm"
           >
             <option value="strong">Strong</option>
             <option value="moderate">Moderate</option>
@@ -164,19 +164,19 @@
           </select>
         </div>
         <div>
-          <label for="conditions" class="block text-xs text-gray-600">Conditions (optional)</label>
+          <label for="conditions" class="block text-xs text-[var(--cs-text-secondary)]">Conditions (optional)</label>
           <textarea
             id="conditions"
             name="conditions"
             rows="2"
             maxlength="2000"
-            class="mt-0.5 block w-full rounded border border-gray-300 px-2 py-1 text-sm"
+            class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm"
           ></textarea>
         </div>
         <button
           type="submit"
           disabled={supporting}
-          class="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+          class="rounded-md bg-[var(--cs-primary)] px-3 py-1.5 text-xs font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)] disabled:opacity-50"
         >
           {supporting ? 'Saving…' : 'Submit Support'}
         </button>

@@ -44,7 +44,7 @@
               href={coop.website}
               target="_blank"
               rel="noreferrer"
-              class="mt-1 block text-sm text-blue-600 hover:underline"
+              class="mt-1 block text-sm text-[var(--cs-primary)] hover:underline"
             >
               {coop.website}
             </a>
@@ -60,7 +60,7 @@
     <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)]">
       <div class="flex items-center justify-between border-b border-[var(--cs-border)] px-5 py-4">
         <h2 class="text-sm font-semibold text-[var(--cs-text)]">Recent Proposals</h2>
-        <a href="/proposals" class="text-xs text-blue-600 hover:underline">View all →</a>
+        <a href="/proposals" class="text-xs text-[var(--cs-primary)] hover:underline">View all →</a>
       </div>
       {#if proposals.length === 0}
         <p class="px-5 py-6 text-sm text-[var(--cs-text-muted)]">No proposals yet.</p>
@@ -88,7 +88,7 @@
     <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)]">
       <div class="flex items-center justify-between border-b border-[var(--cs-border)] px-5 py-4">
         <h2 class="text-sm font-semibold text-[var(--cs-text)]">Recent Agreements</h2>
-        <a href="/agreements" class="text-xs text-blue-600 hover:underline">View all →</a>
+        <a href="/agreements" class="text-xs text-[var(--cs-primary)] hover:underline">View all →</a>
       </div>
       {#if agreements.length === 0}
         <p class="px-5 py-6 text-sm text-[var(--cs-text-muted)]">No agreements yet.</p>
@@ -116,7 +116,7 @@
     <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)]">
       <div class="flex items-center justify-between border-b border-[var(--cs-border)] px-5 py-4">
         <h2 class="text-sm font-semibold text-[var(--cs-text)]">Recent Threads</h2>
-        <a href="/threads" class="text-xs text-blue-600 hover:underline">View all →</a>
+        <a href="/threads" class="text-xs text-[var(--cs-primary)] hover:underline">View all →</a>
       </div>
       {#if threads.length === 0}
         <p class="px-5 py-6 text-sm text-[var(--cs-text-muted)]">No threads yet.</p>
@@ -146,7 +146,7 @@
     <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)]">
       <div class="flex items-center justify-between border-b border-[var(--cs-border)] px-5 py-4">
         <h2 class="text-sm font-semibold text-[var(--cs-text)]">Recent Campaigns</h2>
-        <a href="/campaigns" class="text-xs text-blue-600 hover:underline">View all →</a>
+        <a href="/campaigns" class="text-xs text-[var(--cs-primary)] hover:underline">View all →</a>
       </div>
       {#if campaigns.length === 0}
         <p class="px-5 py-6 text-sm text-[var(--cs-text-muted)]">No campaigns yet.</p>
@@ -173,7 +173,7 @@
     <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)]">
       <div class="flex items-center justify-between border-b border-[var(--cs-border)] px-5 py-4">
         <h2 class="text-sm font-semibold text-[var(--cs-text)]">Recent Outcomes</h2>
-        <a href="/alignment" class="text-xs text-blue-600 hover:underline">View all →</a>
+        <a href="/alignment" class="text-xs text-[var(--cs-primary)] hover:underline">View all →</a>
       </div>
       {#if outcomes.length === 0}
         <p class="px-5 py-6 text-sm text-[var(--cs-text-muted)]">No outcomes yet.</p>

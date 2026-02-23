@@ -95,7 +95,7 @@
     <div class="mt-6 flex flex-wrap gap-3 border-t border-[var(--cs-border)] pt-4">
       {#if data.agreement.status === 'draft'}
         <form method="POST" action="?/open" use:enhance={() => { submitting = true; return async ({ update }) => { submitting = false; await update(); }; }}>
-          <button type="submit" disabled={submitting} class="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+          <button type="submit" disabled={submitting} class="rounded-md bg-[var(--cs-primary)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)] disabled:opacity-50">
             Open for signing
           </button>
         </form>
@@ -218,7 +218,7 @@
               name="stakeholderDid"
               type="text"
               required
-              class="mt-1 block w-full rounded-md border border-[var(--cs-border)] bg-[var(--cs-bg)] px-2 py-1.5 text-sm text-[var(--cs-text)] focus:border-blue-500 focus:outline-none"
+              class="mt-1 block w-full rounded-md border border-[var(--cs-border)] bg-[var(--cs-bg)] px-2 py-1.5 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none"
               placeholder="did:plc:..."
             />
           </div>
@@ -227,7 +227,7 @@
             <select
               id="stakeholderType"
               name="stakeholderType"
-              class="mt-1 block rounded-md border border-[var(--cs-border)] bg-[var(--cs-bg)] px-2 py-1.5 text-sm text-[var(--cs-text)] focus:border-blue-500 focus:outline-none"
+              class="mt-1 block rounded-md border border-[var(--cs-border)] bg-[var(--cs-bg)] px-2 py-1.5 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none"
             >
               <option value="worker">Worker</option>
               <option value="investor">Investor</option>
@@ -243,14 +243,14 @@
               id="stakeholderClass"
               name="stakeholderClass"
               type="text"
-              class="mt-1 block rounded-md border border-[var(--cs-border)] bg-[var(--cs-bg)] px-2 py-1.5 text-sm text-[var(--cs-text)] focus:border-blue-500 focus:outline-none"
+              class="mt-1 block rounded-md border border-[var(--cs-border)] bg-[var(--cs-bg)] px-2 py-1.5 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none"
               placeholder="e.g. founding-member"
             />
           </div>
           <button
             type="submit"
             disabled={submitting}
-            class="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            class="rounded-md bg-[var(--cs-primary)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)] disabled:opacity-50"
           >
             Add
           </button>

@@ -40,10 +40,10 @@
 
 <div class="space-y-4">
   <div class="flex items-center justify-between">
-    <h1 class="text-xl font-semibold text-gray-900">Funding Campaigns</h1>
+    <h1 class="text-xl font-semibold text-[var(--cs-text)]">Funding Campaigns</h1>
     <a
       href="/campaigns/new"
-      class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+      class="rounded-md bg-[var(--cs-primary)] px-3 py-2 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)]"
     >
       New Campaign
     </a>
@@ -53,7 +53,7 @@
     {#each statusFilters as filter}
       <a
         href="/campaigns{filter.value ? `?status=${filter.value}` : ''}"
-        class="rounded-full px-3 py-1 text-xs font-medium transition-colors {data.filterStatus === filter.value ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}"
+        class="rounded-full px-3 py-1 text-xs font-medium transition-colors {data.filterStatus === filter.value ? 'bg-[var(--cs-primary)] text-[var(--cs-text-on-primary)]' : 'bg-[var(--cs-bg-inset)] text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-hover)]'}"
       >
         {filter.label}
       </a>
@@ -61,21 +61,21 @@
   </div>
 
   {#if data.campaigns.length === 0}
-    <div class="rounded-lg border border-dashed border-gray-300 p-8 text-center">
-      <p class="text-sm text-gray-500">No campaigns yet.</p>
+    <div class="rounded-lg border border-dashed border-[var(--cs-border)] p-8 text-center">
+      <p class="text-sm text-[var(--cs-text-muted)]">No campaigns yet.</p>
     </div>
   {:else}
     <div class="space-y-3">
       {#each data.campaigns as campaign}
         <a
           href="/campaigns/{encodeURIComponent(campaign.uri)}"
-          class="block rounded-lg border border-gray-200 bg-white p-4 transition-shadow hover:shadow-sm"
+          class="block rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-4 transition-shadow hover:shadow-sm"
         >
           <div class="flex items-start justify-between">
             <div class="space-y-1">
-              <h2 class="font-medium text-gray-900">{campaign.title}</h2>
+              <h2 class="font-medium text-[var(--cs-text)]">{campaign.title}</h2>
               {#if campaign.description}
-                <p class="text-sm text-gray-500 line-clamp-2">{campaign.description}</p>
+                <p class="text-sm text-[var(--cs-text-muted)] line-clamp-2">{campaign.description}</p>
               {/if}
             </div>
             <span class="rounded-full px-2 py-0.5 text-xs font-medium {statusBadgeClass(campaign.status)}">
@@ -85,20 +85,20 @@
 
           <div class="mt-3">
             <div class="flex items-center justify-between text-sm">
-              <span class="text-gray-600">
+              <span class="text-[var(--cs-text-secondary)]">
                 {formatCurrency(campaign.amountRaised, campaign.goalCurrency)} of {formatCurrency(campaign.goalAmount, campaign.goalCurrency)}
               </span>
-              <span class="text-gray-500">{campaign.backerCount} backers</span>
+              <span class="text-[var(--cs-text-muted)]">{campaign.backerCount} backers</span>
             </div>
-            <div class="mt-1 h-2 overflow-hidden rounded-full bg-gray-100">
+            <div class="mt-1 h-2 overflow-hidden rounded-full bg-[var(--cs-bg-inset)]">
               <div
-                class="h-full rounded-full bg-indigo-600 transition-all"
+                class="h-full rounded-full bg-[var(--cs-primary)] transition-all"
                 style="width: {progressPercent(campaign.amountRaised, campaign.goalAmount)}%"
               ></div>
             </div>
           </div>
 
-          <div class="mt-2 flex gap-3 text-xs text-gray-400">
+          <div class="mt-2 flex gap-3 text-xs text-[var(--cs-text-muted)]">
             <span>{campaign.tier}</span>
             <span>{campaign.campaignType}</span>
             <span>{campaign.fundingModel.replace('_', ' ')}</span>
@@ -112,7 +112,7 @@
     <div class="text-center">
       <a
         href="/campaigns?cursor={data.cursor}{data.filterStatus ? `&status=${data.filterStatus}` : ''}"
-        class="text-sm text-indigo-600 hover:text-indigo-700"
+        class="text-sm text-[var(--cs-primary)] hover:text-[var(--cs-primary-hover)]"
       >
         Load more
       </a>

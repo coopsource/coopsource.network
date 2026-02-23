@@ -12,8 +12,8 @@
 <div class="mx-auto max-w-3xl space-y-6">
   <div class="flex items-center justify-between">
     <div>
-      <a href="/alignment" class="text-sm text-gray-500 hover:text-gray-700">&larr; Alignment</a>
-      <h1 class="mt-1 text-xl font-semibold text-gray-900">Interest Map</h1>
+      <a href="/alignment" class="text-sm text-[var(--cs-text-muted)] hover:text-[var(--cs-text)]">&larr; Alignment</a>
+      <h1 class="mt-1 text-xl font-semibold text-[var(--cs-text)]">Interest Map</h1>
     </div>
     <form
       method="POST"
@@ -29,7 +29,7 @@
       <button
         type="submit"
         disabled={generating}
-        class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+        class="rounded-md bg-[var(--cs-primary)] px-3 py-2 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)] disabled:opacity-50"
       >
         {generating ? 'Generating…' : data.map ? 'Regenerate Map' : 'Generate Map'}
       </button>
@@ -40,14 +40,14 @@
     <div class="rounded-md bg-red-50 p-3 text-sm text-red-700">{form.error}</div>
   {/if}
 
-  <p class="text-sm text-gray-500">
+  <p class="text-sm text-[var(--cs-text-muted)]">
     {data.stakeholderCount} stakeholder{data.stakeholderCount !== 1 ? 's' : ''} have submitted interests.
   </p>
 
   {#if !data.map}
-    <div class="rounded-lg border border-dashed border-gray-300 p-8 text-center">
-      <p class="text-sm text-gray-500">No interest map has been generated yet.</p>
-      <p class="mt-1 text-xs text-gray-400">Click "Generate Map" to analyze stakeholder interests.</p>
+    <div class="rounded-lg border border-dashed border-[var(--cs-border)] p-8 text-center">
+      <p class="text-sm text-[var(--cs-text-muted)]">No interest map has been generated yet.</p>
+      <p class="mt-1 text-xs text-[var(--cs-text-muted)]">Click "Generate Map" to analyze stakeholder interests.</p>
     </div>
   {:else}
     <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -58,7 +58,7 @@
         </h2>
 
         {#if data.map.alignmentZones.length === 0}
-          <p class="text-sm text-gray-500">No alignment zones detected.</p>
+          <p class="text-sm text-[var(--cs-text-muted)]">No alignment zones detected.</p>
         {:else}
           <div class="space-y-3">
             {#each data.map.alignmentZones as zone}
@@ -94,7 +94,7 @@
         </h2>
 
         {#if data.map.conflictZones.length === 0}
-          <p class="text-sm text-gray-500">No conflict zones detected.</p>
+          <p class="text-sm text-[var(--cs-text-muted)]">No conflict zones detected.</p>
         {:else}
           <div class="space-y-3">
             {#each data.map.conflictZones as zone}
@@ -138,7 +138,7 @@
       </div>
     {/if}
 
-    <p class="text-xs text-gray-400">
+    <p class="text-xs text-[var(--cs-text-muted)]">
       Last generated: {new Date(data.map.createdAt).toLocaleString()}
     </p>
   {/if}
