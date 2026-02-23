@@ -28,10 +28,10 @@ test.describe('Alignment Discovery', () => {
 	test('submit interests redirects to alignment dashboard', async ({ page }) => {
 		await page.goto('/alignment/interests');
 
-		// Fill in an interest
+		// Fill Description last — Svelte 5 reactivity can reset textarea content
 		await page.getByLabel('Category').first().fill('sustainability');
-		await page.getByLabel('Description').first().fill('Reduce our carbon footprint by 50%');
 		await page.getByLabel('Priority (1-5)').first().fill('5');
+		await page.getByLabel('Description').first().fill('Reduce our carbon footprint by 50%');
 
 		await page.getByRole('button', { name: 'Submit Interests' }).click();
 
@@ -71,10 +71,12 @@ test.describe('Alignment Discovery', () => {
 
 	test('generate interest map', async ({ page }) => {
 		// First submit some interests
+		// Fill Description last — Svelte 5 reactivity resets textarea content
+		// when sibling inputs trigger re-renders
 		await page.goto('/alignment/interests');
 		await page.getByLabel('Category').first().fill('growth');
-		await page.getByLabel('Description').first().fill('Grow the cooperative membership');
 		await page.getByLabel('Priority (1-5)').first().fill('4');
+		await page.getByLabel('Description').first().fill('Grow the cooperative membership');
 		await page.getByRole('button', { name: 'Submit Interests' }).click();
 		await page.waitForURL(/\/alignment$/);
 
