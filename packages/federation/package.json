@@ -40,14 +40,14 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@atproto/api": "^0.18.21",
+    "@atproto/api": "^0.19.0",
     "@atproto/xrpc": "^0.7.7",
     "@coopsource/common": "workspace:*",
     "@coopsource/db": "workspace:*",
     "@ipld/car": "^5.4.2",
     "@ipld/dag-cbor": "^9.2.5",
     "cborg": "^4.5.8",
-    "kysely": "^0.27.6",
+    "kysely": "^0.28.11",
     "multiformats": "^13.4.2",
     "nodemailer": "^8.0.1",
     "pg": "^8.19.0"

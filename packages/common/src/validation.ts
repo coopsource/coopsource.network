@@ -385,7 +385,7 @@ export const CreateCampaignSchema = z.object({
   fundingModel: FundingModel.default('all_or_nothing'),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const UpdateCampaignSchema = z.object({
@@ -396,7 +396,7 @@ export const UpdateCampaignSchema = z.object({
   fundingModel: FundingModel.optional(),
   startDate: z.string().nullable().optional(),
   endDate: z.string().nullable().optional(),
-  metadata: z.record(z.unknown()).nullable().optional(),
+  metadata: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 export const UpdateCampaignStatusSchema = z.object({
@@ -415,7 +415,7 @@ export const CreatePledgeSchema = z.object({
   campaignUri: z.string().min(1),
   amount: z.number().int().min(1),
   currency: z.string().min(1).max(10).default('USD'),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type CreatePledgeInput = z.infer<typeof CreatePledgeSchema>;
@@ -486,7 +486,7 @@ export const UpdateWorkflowSchema = z.object({
 
 export const TriggerActionSchema = z.object({
   type: TriggerActionTypeEnum,
-  config: z.record(z.unknown()),
+  config: z.record(z.string(), z.unknown()),
 });
 
 export const TriggerConditionSchema = z.object({
@@ -516,7 +516,7 @@ export const WorkflowNodeSchema = z.object({
   id: z.string().min(1),
   type: WorkflowNodeTypeEnum,
   label: z.string().max(255).optional(),
-  config: z.record(z.unknown()).default({}),
+  config: z.record(z.string(), z.unknown()).default({}),
   position: z.object({ x: z.number(), y: z.number() }).optional(),
 });
 

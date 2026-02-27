@@ -43,17 +43,14 @@ const envSchema = z
     if (data.NODE_ENV === 'production') {
       if (data.SESSION_SECRET.length < 32) {
         ctx.addIssue({
-          code: z.ZodIssueCode.too_small,
-          minimum: 32,
-          type: 'string',
-          inclusive: true,
+          code: 'custom',
           path: ['SESSION_SECRET'],
           message: 'SESSION_SECRET must be at least 32 characters in production',
         });
       }
       if (data.KEY_ENC_KEY.startsWith('CHANGEME')) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: 'custom',
           path: ['KEY_ENC_KEY'],
           message: 'KEY_ENC_KEY must be set to a real value in production',
         });
