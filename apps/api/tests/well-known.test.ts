@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
+import { truncateAllTables } from './helpers/test-db.js';
 import { createTestApp, setupAndLogin, type TestApp } from './helpers/test-app.js';
 
 describe('/.well-known/did.json', () => {
@@ -6,6 +7,7 @@ describe('/.well-known/did.json', () => {
   let coopDid: string;
 
   beforeAll(async () => {
+    await truncateAllTables();
     testApp = createTestApp();
     const result = await setupAndLogin(testApp);
     coopDid = result.coopDid;
