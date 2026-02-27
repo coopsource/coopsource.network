@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { DID } from '@coopsource/common';
-import { ValidationError, SetupInitializeSchema } from '@coopsource/common';
+import { ValidationError, SetupInitializeSchema, BUILT_IN_ROLES } from '@coopsource/common';
 import type { Container } from '../container.js';
 import { asyncHandler } from '../lib/async-handler.js';
 import {
@@ -172,6 +172,23 @@ export function createSetupRoutes(container: Container): Router {
         await trx
           .insertInto('system_config')
           .values({ key: 'cooperative_did', value: JSON.stringify(coopDid) })
+          .execute();
+
+        // Seed built-in role definitions
+        const roleRows = Object.entries(BUILT_IN_ROLES).map(
+          ([name, def]) => ({
+            cooperative_did: coopDid,
+            name,
+            permissions: def.permissions,
+            inherits: def.inherits ?? [],
+            is_builtin: true,
+            created_at: now,
+            updated_at: now,
+          }),
+        );
+        await trx
+          .insertInto('role_definition')
+          .values(roleRows)
           .execute();
       });
 
