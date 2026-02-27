@@ -6,6 +6,8 @@ Co-op Source Network is a federated collaboration platform built on ATProtocol. 
 
 This monorepo is deployed to `coopsource.network`.
 
+**For the full architecture, federation design, dependency upgrade plan, and implementation phases, see [ARCHITECTURE-V3.md](./ARCHITECTURE-V3.md).**
+
 ## Git Workflow Rules
 
 - **All work must be done on feature branches**, never directly on `main`
@@ -17,13 +19,17 @@ This monorepo is deployed to `coopsource.network`.
 Non-negotiable technology choices:
 
 - **TypeScript strict mode** for all application code
-- **Express 4** for backend (standard Express routes; `@atproto/xrpc-server` is NOT used in our codebase)
-- **Kysely 0.27+** for database (PostgreSQL 16). NOT Prisma, NOT Drizzle
-- **SvelteKit 2.20+** with **Svelte 5.19+** runes (`$state`, `$derived`, `$effect`, `$props`)
+- **Express 5** for backend (standard Express routes; `@atproto/xrpc-server` is NOT used in our codebase)
+- **Kysely 0.28+** for database (PostgreSQL 16+). NOT Prisma, NOT Drizzle
+- **SvelteKit 2** with **Svelte 5** runes (`$state`, `$derived`, `$effect`, `$props`)
+- **Vite 7** with **@sveltejs/vite-plugin-svelte 6**
 - **Tailwind CSS 4** via `@tailwindcss/vite` — MUST come BEFORE `sveltekit()` in vite.config.ts
-- **pnpm 9+** workspace with **Turborepo 2+**
+- **pnpm 10+** workspace with **Turborepo 2+**
+- **Vitest 4** for all tests
+- **Zod 4** for validation
 - **ATProtocol only** for federation. No cross-protocol bridges
-- Node.js 22 LTS runtime
+- **Node.js 24 LTS** runtime
+- **Federated from day one** — cross-co-op operations always go through `IFederationClient`, never direct DB access across co-op boundaries (see ARCHITECTURE-V3.md §3)
 
 ## Build Commands
 
@@ -41,6 +47,12 @@ pnpm --filter @coopsource/db migrate   # Run Kysely migrations
 # Build & test
 pnpm build                             # Build all packages (turbo)
 pnpm test                              # Run all tests (Vitest)
+
+# Federation development
+make dev                               # Standalone mode (one process, one DB)
+make dev-federation                    # Multi-instance mode (Docker Compose: hub + coop-a + coop-b)
+make migrate-all                       # Run migrations on all federation databases
+make test-federation                   # Run federation integration tests
 
 # Lexicon codegen
 pnpm --filter @coopsource/lexicons lex:generate  # Generate TS types from lexicon JSON
@@ -67,14 +79,17 @@ coopsource.network/
 │   └── web/          # @coopsource/web — SvelteKit frontend
 ├── packages/
 │   ├── lexicons/     # @coopsource/lexicons — ATProto lexicon JSON + generated TS
-│   ├── federation/   # @coopsource/federation — LocalPdsService, LocalPlcClient, blobs, email
+│   ├── federation/   # @coopsource/federation — IPdsService, IFederationClient,
+│   │                 #   LocalPdsService, DidWebResolver, HTTP signing, blobs, email
 │   ├── db/           # @coopsource/db — Kysely database layer + migrations
 │   ├── common/       # @coopsource/common — Shared types, constants, errors, validation
 │   └── config/       # @coopsource/config — Shared tsconfig, eslint, prettier
 ├── infrastructure/
-│   └── docker-compose.yml  # PostgreSQL 16 + Redis 7 + Mailpit (dev)
+│   ├── docker-compose.yml              # PostgreSQL 16 + Redis 7 + Mailpit (dev)
+│   └── docker-compose.federation.yml   # Multi-instance federation dev environment
 ├── scripts/
 │   └── dev-services.sh     # Homebrew-based local dev setup
+├── ARCHITECTURE-V3.md      # Full architecture document
 ├── turbo.json
 └── pnpm-workspace.yaml
 ```
@@ -87,18 +102,28 @@ Layer 2 — Core:        api (auth, entities, membership, governance, agreements
 Layer 3 — Frontend:    web (SvelteKit, design system)
 ```
 
-### Key Library Versions
+### Key Library Versions (Target)
 
-| Package | Version |
-|---------|---------|
-| `express` | ^4.21 |
-| `kysely` | ^0.27 |
-| `svelte` | ^5.19 |
-| `@sveltejs/kit` | ^2.20 |
-| `tailwindcss` | ^4 |
-| `vitest` | ^3 |
-| `zod` | ^3.23 |
-| `typescript` | ^5.7 |
+See ARCHITECTURE-V3.md §7 for the full upgrade matrix and phased migration plan.
+
+| Package | Target Version |
+|---------|---------------|
+| `express` | ^5.2 |
+| `kysely` | ^0.28 |
+| `svelte` | ^5.53 |
+| `@sveltejs/kit` | ^2.53 |
+| `vite` | ^7.3 |
+| `@sveltejs/vite-plugin-svelte` | ^6.2 |
+| `@sveltejs/adapter-auto` | ^7.0 |
+| `tailwindcss` | ^4.2 |
+| `vitest` | ^4.0 |
+| `zod` | ^4.3 |
+| `pino` | ^10.3 |
+| `pino-http` | ^11.0 |
+| `nodemailer` | ^8.0 |
+| `typescript` | ^5.9 |
+| `pnpm` | 10.30+ |
+| `Node.js` | 24 LTS |
 
 ## The Recursive Cooperative Model
 
@@ -114,6 +139,34 @@ Same machinery at every level:
 - **Proposal**: An entity creates a record; others in the same co-op cast votes
 - **Agreement**: Entities co-sign a record; each signature in the signer's PDS
 - **Project**: A cooperative entity with its own membership (projects are mini-co-ops)
+
+## Federation Architecture
+
+The platform is federated from day one. See ARCHITECTURE-V3.md for complete details.
+
+### Core Abstractions
+
+- **`IFederationClient`** — interface for all cross-co-op operations, with two implementations:
+  - `LocalFederationClient`: dispatches locally (standalone mode)
+  - `HttpFederationClient`: makes signed HTTP calls (federated mode)
+- **`IPdsService`** — interface for PDS operations, with two implementations:
+  - `LocalPdsService`: PostgreSQL-backed PDS (our primary implementation)
+  - `AtprotoPdsService`: real ATProto XRPC (future, via rsky-pds)
+- **`DidWebResolver`** — resolves `did:web` identifiers via HTTP GET to `/.well-known/did.json`
+
+### Instance Roles
+
+Controlled by `INSTANCE_ROLE` env var:
+
+| Mode | What it runs | Use case |
+|------|-------------|----------|
+| `standalone` | Hub + Co-op + AppView in one process, one DB | Development, demos |
+| `hub` | Network directory, cross-co-op AppView | coopsource.network in production |
+| `coop` | Single co-op's API, PDS, local AppView | Individual co-op server |
+
+### Identity: did:web
+
+Entities use `did:web` identifiers resolved via `/.well-known/did.json`. This works with `localhost:PORT` in dev and custom domains in production. No external PLC directory dependency.
 
 ## ATProtocol Patterns
 
@@ -134,7 +187,7 @@ Active lexicons under `network.coopsource.*`:
 network.coopsource.org.*         — cooperatives, memberships, memberApprovals, teams
 network.coopsource.governance.*  — proposals, votes, delegations
 network.coopsource.agreement.*   — agreements, signatures, amendments
-network.coopsource.alignment.*   — interests, outcomes, maps (Stage 3)
+network.coopsource.alignment.*   — interests, outcomes, maps (future)
 ```
 
 ### PDS Record Pattern
@@ -147,23 +200,6 @@ Records of authority live in user PDS instances. PostgreSQL is a **materialized 
 ```
 
 ## Database
-
-### Migrations (11 total)
-
-| # | Name | Tables |
-|---|------|--------|
-| 001 | foundation | Core setup |
-| 002 | entities | `entity`, `cooperative_profile` |
-| 003 | auth | `auth_credential`, `session` |
-| 004 | pds_store | `pds_record`, `signing_key`, `blob` |
-| 005 | membership | `membership`, `membership_role`, `invitation` |
-| 006 | posts | `post`, `thread` |
-| 007 | governance | `proposal`, `vote` |
-| 008 | agreements | `agreement`, `agreement_party`, `agreement_signature` |
-| 009 | plc_store | `plc_operation` |
-| 010 | decouple_entity_key | Entity key management |
-| 011 | fix_indexes | Partial unique indexes for votes/sigs, perf indexes |
-| 012 | decouple_pds_fks | Drop PDS record/commit FK constraints to entity |
 
 ### Kysely Notes
 
@@ -191,6 +227,7 @@ All under `/api/v1/`:
 | Blobs | `routes/blobs.ts` |
 | Events (SSE) | `routes/events.ts` |
 | Admin | `routes/admin.ts` |
+| Federation | `routes/federation.ts` *(server-to-server, signed HTTP)* |
 
 ## Frontend Patterns
 
@@ -217,37 +254,31 @@ export default defineConfig({
 - Dark sidebar (#0f172a), light content area (#fafafa)
 - Primary: Indigo-600, Accent: Violet-500
 - 13px base, Inter font, 6px border-radius for cards
-- Lucide icons via `lucide-svelte`
+- Lucide icons via `@lucide/svelte`
 
 ## DI Container
 
 `apps/api/src/container.ts` instantiates:
 - `db` (Kysely), `pdsService` (LocalPdsService), `blobStore` (LocalBlobStore)
+- `federationClient` (LocalFederationClient or HttpFederationClient, based on INSTANCE_ROLE)
+- `didResolver` (DidWebResolver)
 - `clock` (SystemClock), `emailService` (DevEmailService)
 - `authService`, `entityService`, `membershipService`
 - `postService`, `proposalService`, `agreementService`
+- `networkService`, `fundingService`, `alignmentService`, `connectionService`
 
-## ATProtocol Pitfalls
+## Pitfalls
 
-1. **Never generate fake DIDs.** LocalPlcClient uses real SHA-256 + base32 matching plc.directory
+1. **Never generate fake DIDs.** Use real `did:web` format derived from instance URL
 2. **Bilateral membership is non-negotiable.** Both member PDS record AND co-op approval record must exist
 3. **Role authority is ONLY in memberApproval**, never in the membership record
-4. **Build federation package after changes:** `pnpm --filter @coopsource/federation build`
-5. **PostgreSQL bigint returns string.** Use `Number()` conversion
-6. **Tailwind CSS 4 plugin order:** `tailwindcss()` MUST come before `sveltekit()` in vite.config.ts
-7. **AT URI as PK for PDS tables; UUID for app tables.** Don't mix these
-8. **Cursor-based pagination everywhere.** Not offset-based
-9. **Don't add `role` to membership lexicon.** Self-declared role is semantically wrong
-10. **Run PDS as separate service (Stage 2).** Don't embed xrpc-server
-
-## Implementation Stages
-
-| Stage | Focus |
-|-------|-------|
-| **0: Bootstrap** | Repo setup, backend cleanup, design system, landing page, auth, dashboard |
-| **1: Co-op MVP** | Governance UI, agreements UI, posts, network membership API, E2E tests |
-| **2: Network** | Real ATProto PDS, ATProto OAuth, network discovery, cross-coop firehose |
-| **3: Differentiators** | Alignment discovery, enhanced agreements, crowdfunding, AI agents |
+4. **Cross-co-op operations always go through IFederationClient**, never direct DB access across boundaries
+5. **Build federation package after changes:** `pnpm --filter @coopsource/federation build`
+6. **PostgreSQL bigint returns string.** Use `Number()` conversion
+7. **Tailwind CSS 4 plugin order:** `tailwindcss()` MUST come before `sveltekit()` in vite.config.ts
+8. **AT URI as PK for PDS tables; UUID for app tables.** Don't mix these
+9. **Cursor-based pagination everywhere.** Not offset-based
+10. **Don't add `role` to membership lexicon.** Self-declared role is semantically wrong
 
 ## Troubleshooting
 
