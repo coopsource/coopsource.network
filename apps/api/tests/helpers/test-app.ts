@@ -23,6 +23,7 @@ import { ConnectionService } from '../../src/services/connection-service.js';
 import { AgreementTemplateService } from '../../src/services/agreement-template-service.js';
 import type { AppConfig } from '../../src/config.js';
 import { setDb, resetSetupCache } from '../../src/auth/middleware.js';
+import { setPermissionsDb } from '../../src/middleware/permissions.js';
 import { createHealthRoutes } from '../../src/routes/health.js';
 import { createWellKnownRoutes } from '../../src/routes/well-known.js';
 import { createSetupRoutes } from '../../src/routes/setup.js';
@@ -128,8 +129,9 @@ export function createTestApp(): TestApp {
     connectionService,
   };
 
-  // Set the DB reference for auth middleware
+  // Set the DB reference for auth middleware + permissions middleware
   setDb(db);
+  setPermissionsDb(db);
   resetSetupCache();
 
   const app = express();

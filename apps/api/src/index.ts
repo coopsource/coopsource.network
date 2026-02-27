@@ -17,6 +17,7 @@ import { httpLogger, logger } from './middleware/logger.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { createContainer } from './container.js';
 import { setDb } from './auth/middleware.js';
+import { setPermissionsDb } from './middleware/permissions.js';
 import { createSessionMiddleware } from './auth/session.js';
 import { createHealthRoutes } from './routes/health.js';
 import { createSetupRoutes } from './routes/setup.js';
@@ -67,6 +68,7 @@ async function start(): Promise<void> {
   // Create dependency injection container
   const container = createContainer(config);
   setDb(container.db);
+  setPermissionsDb(container.db);
   logger.info('Container created');
 
   // Health routes (always available, no auth required)
