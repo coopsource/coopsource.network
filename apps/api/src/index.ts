@@ -38,6 +38,7 @@ import { createInterestRoutes } from './routes/alignment/interests.js';
 import { createOutcomeRoutes } from './routes/alignment/outcomes.js';
 import { createMapRoutes } from './routes/alignment/map.js';
 import { createConnectionRoutes } from './routes/connections/connections.js';
+import { createExploreRoutes } from './routes/explore.js';
 import { createWellKnownRoutes } from './routes/well-known.js';
 import { createFederationRoutes } from './routes/federation.js';
 import { startAppViewLoop } from './appview/loop.js';
@@ -94,6 +95,9 @@ async function start(): Promise<void> {
 
   // Session middleware (PostgreSQL-backed)
   app.use(createSessionMiddleware(config));
+
+  // Public explore routes (no auth required)
+  app.use(createExploreRoutes(container));
 
   // Setup routes (available before setup is complete)
   app.use(createSetupRoutes(container));

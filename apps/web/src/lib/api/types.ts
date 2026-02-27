@@ -399,6 +399,32 @@ export interface BindingsResponse {
   bindings: ConnectionBinding[];
 }
 
+// ─── Explore (Public) ─────────────────────────────────────────────────────────
+
+export interface ExploreCooperative {
+  did: string;
+  handle: string | null;
+  displayName: string;
+  description: string | null;
+  cooperativeType: string;
+  memberCount: number;
+  website: string | null;
+}
+
+export interface ExploreCooperativeDetail extends ExploreCooperative {
+  networks: Array<{ did: string; displayName: string }>;
+}
+
+export interface ExploreCooperativesResponse {
+  cooperatives: ExploreCooperative[];
+  cursor: string | null;
+}
+
+export interface ExploreNetworksResponse {
+  networks: Network[];
+  cursor: string | null;
+}
+
 export interface ApiError {
   error: string;
   message?: string;

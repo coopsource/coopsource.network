@@ -37,6 +37,9 @@ import type {
   AvailableServicesResponse,
   ConnectionsResponse,
   BindingsResponse,
+  ExploreCooperativesResponse,
+  ExploreCooperativeDetail,
+  ExploreNetworksResponse,
 } from './types.js';
 
 export class ApiError extends Error {
@@ -652,5 +655,23 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string) {
 
     removeBinding: (uri: string) =>
       request<void>(`/connections/bindings/${encodeURIComponent(uri)}`, { method: 'DELETE' }),
+
+    // Explore (public, no auth needed)
+    getExploreCooperatives: (params?: { limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<ExploreCooperativesResponse>(`/explore/cooperatives${qs.size ? `?${qs}` : ''}`);
+    },
+
+    getExploreCooperative: (handle: string) =>
+      request<ExploreCooperativeDetail>(`/explore/cooperatives/${encodeURIComponent(handle)}`),
+
+    getExploreNetworks: (params?: { limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<ExploreNetworksResponse>(`/explore/networks${qs.size ? `?${qs}` : ''}`);
+    },
   };
 }
