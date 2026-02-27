@@ -35,6 +35,9 @@ export type {
   NotificationEmailParams,
 } from './interfaces/email-service.js';
 
+// Local implementations
+export { LocalFederationClient } from './local/local-federation-client.js';
+
 // Clocks
 export { SystemClock } from './clocks/system-clock.js';
 export { MockClock } from './clocks/mock-clock.js';

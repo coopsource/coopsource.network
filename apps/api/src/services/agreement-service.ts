@@ -17,7 +17,7 @@ import type {
   UpdateMasterAgreementInput,
   CreateStakeholderTermsInput,
 } from '@coopsource/common';
-import type { IPdsService, IClock } from '@coopsource/federation';
+import type { IPdsService, IFederationClient, IClock } from '@coopsource/federation';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
 import { emitAppEvent } from '../appview/sse.js';
@@ -47,6 +47,7 @@ export class AgreementService {
   constructor(
     private db: Kysely<Database>,
     private pdsService: IPdsService,
+    private federationClient: IFederationClient,
     private clock: IClock,
   ) {}
 

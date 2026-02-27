@@ -4,7 +4,8 @@ import supertest from 'supertest';
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
 import { MockClock } from '@coopsource/federation';
-import { LocalPdsService, LocalBlobStore } from '@coopsource/federation/local';
+import type { IFederationClient } from '@coopsource/federation';
+import { LocalPdsService, LocalBlobStore, LocalFederationClient } from '@coopsource/federation/local';
 import type { FederationDatabase } from '@coopsource/federation/local';
 import { DevEmailService } from '@coopsource/federation/email';
 import type { Container } from '../../src/container.js';
@@ -65,6 +66,12 @@ export function createTestApp(): TestApp {
 
   const blobStore = new LocalBlobStore({ blobDir: '/tmp/coopsource-test-blobs' });
 
+  const federationClient: IFederationClient = new LocalFederationClient(
+    db as unknown as Kysely<FederationDatabase>,
+    pdsService,
+    clock,
+  );
+
   const emailService = new DevEmailService({
     host: 'localhost',
     port: 1025,
@@ -75,14 +82,15 @@ export function createTestApp(): TestApp {
   const membershipService = new MembershipService(
     db,
     pdsService,
+    federationClient,
     emailService,
     clock,
   );
   const postService = new PostService(db, clock);
   const proposalService = new ProposalService(db, pdsService, clock);
-  const agreementService = new AgreementService(db, pdsService, clock);
+  const agreementService = new AgreementService(db, pdsService, federationClient, clock);
   const agreementTemplateService = new AgreementTemplateService(db, clock);
-  const networkService = new NetworkService(db, pdsService, clock);
+  const networkService = new NetworkService(db, pdsService, federationClient, clock);
   const fundingService = new FundingService(db, pdsService, clock);
   const alignmentService = new AlignmentService(db, pdsService, clock);
 
@@ -95,6 +103,7 @@ export function createTestApp(): TestApp {
   const container: Container = {
     db,
     pdsService,
+    federationClient,
     blobStore,
     clock,
     emailService,

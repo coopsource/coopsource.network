@@ -2,7 +2,7 @@ import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
 import type { DID } from '@coopsource/common';
 import { NotFoundError, ConflictError } from '@coopsource/common';
-import type { IPdsService, IClock } from '@coopsource/federation';
+import type { IPdsService, IFederationClient, IClock } from '@coopsource/federation';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
 
@@ -35,6 +35,7 @@ export class NetworkService {
   constructor(
     private db: Kysely<Database>,
     private pdsService: IPdsService,
+    private federationClient: IFederationClient,
     private clock: IClock,
   ) {}
 
@@ -328,15 +329,13 @@ export class NetworkService {
       },
     });
 
-    // 2. PDS memberApproval record in network's PDS
-    const approvalRef = await this.pdsService.createRecord({
-      did: params.networkDid as DID,
-      collection: 'network.coopsource.org.memberApproval',
-      record: {
-        member: params.cooperativeDid,
-        roles: ['member'],
-        createdAt: now.toISOString(),
-      },
+    // 2. Cross-boundary: request approval from the network
+    // In standalone mode: LocalFederationClient dispatches locally
+    // In federated mode:  HttpFederationClient POSTs to the network's API
+    const approvalResult = await this.federationClient.approveMembership({
+      cooperativeDid: params.networkDid,
+      memberDid: params.cooperativeDid,
+      roles: ['member'],
     });
 
     // 3+4. DB writes in transaction
@@ -351,8 +350,8 @@ export class NetworkService {
           joined_at: now,
           member_record_uri: memberRef.uri,
           member_record_cid: memberRef.cid,
-          approval_record_uri: approvalRef.uri,
-          approval_record_cid: approvalRef.cid,
+          approval_record_uri: approvalResult.approvalRecordUri,
+          approval_record_cid: approvalResult.approvalRecordCid,
           created_at: now,
           indexed_at: now,
         })

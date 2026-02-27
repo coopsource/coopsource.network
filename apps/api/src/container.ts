@@ -2,8 +2,8 @@ import { createDb } from '@coopsource/db';
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
 import { SystemClock } from '@coopsource/federation';
-import type { IPdsService } from '@coopsource/federation';
-import { LocalPdsService, LocalBlobStore } from '@coopsource/federation/local';
+import type { IPdsService, IFederationClient } from '@coopsource/federation';
+import { LocalPdsService, LocalBlobStore, LocalFederationClient } from '@coopsource/federation/local';
 import type { FederationDatabase } from '@coopsource/federation/local';
 import { AtprotoPdsService } from '@coopsource/federation/atproto';
 import { DevEmailService } from '@coopsource/federation/email';
@@ -23,6 +23,7 @@ import { AgreementTemplateService } from './services/agreement-template-service.
 export interface Container {
   db: Kysely<Database>;
   pdsService: IPdsService;
+  federationClient: IFederationClient;
   blobStore: LocalBlobStore;
   clock: SystemClock;
   emailService: DevEmailService;
@@ -62,6 +63,14 @@ export function createContainer(config: AppConfig): Container {
         clock,
       );
 
+  // Federation client — standalone mode uses local dispatch.
+  // Phase 2 will add HttpFederationClient for hub/coop roles.
+  const federationClient: IFederationClient = new LocalFederationClient(
+    db as unknown as import('kysely').Kysely<FederationDatabase>,
+    pdsService,
+    clock,
+  );
+
   const blobStore = new LocalBlobStore({ blobDir: config.BLOB_DIR });
 
   const emailService = new DevEmailService({
@@ -74,14 +83,15 @@ export function createContainer(config: AppConfig): Container {
   const membershipService = new MembershipService(
     db,
     pdsService,
+    federationClient,
     emailService,
     clock,
   );
   const postService = new PostService(db, clock);
   const proposalService = new ProposalService(db, pdsService, clock);
-  const agreementService = new AgreementService(db, pdsService, clock);
+  const agreementService = new AgreementService(db, pdsService, federationClient, clock);
   const agreementTemplateService = new AgreementTemplateService(db, clock);
-  const networkService = new NetworkService(db, pdsService, clock);
+  const networkService = new NetworkService(db, pdsService, federationClient, clock);
   const fundingService = new FundingService(db, pdsService, clock);
   const alignmentService = new AlignmentService(db, pdsService, clock);
   const connectionService = new ConnectionService(db, pdsService, clock, config);
@@ -89,6 +99,7 @@ export function createContainer(config: AppConfig): Container {
   return {
     db,
     pdsService,
+    federationClient,
     blobStore,
     clock,
     emailService,

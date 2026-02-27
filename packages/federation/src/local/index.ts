@@ -1,3 +1,4 @@
+export { LocalFederationClient } from './local-federation-client.js';
 export { LocalPdsService } from './local-pds-service.js';
 export type { LocalPdsConfig } from './local-pds-service.js';
 export { LocalBlobStore } from './local-blob-store.js';
