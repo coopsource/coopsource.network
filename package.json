@@ -5,7 +5,7 @@
   "description": "Co-op Source Network — federated collaboration platform on ATProtocol",
   "packageManager": "pnpm@10.30.3",
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "scripts": {
     "dev": "turbo dev",
