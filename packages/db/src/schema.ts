@@ -368,6 +368,21 @@ export interface StakeholderTermsTable {
 }
 
 // ──────────────────────────────────────────────
+// Role Definitions (020 migration)
+// ──────────────────────────────────────────────
+
+export interface RoleDefinitionTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  name: string;
+  permissions: string[];
+  inherits: string[];
+  is_builtin: boolean;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+// ──────────────────────────────────────────────
 // Agreement Templates (019 migration)
 // ──────────────────────────────────────────────
 
@@ -642,6 +657,7 @@ export interface Database {
   agreement_signature: AgreementSignatureTable;
   agreement_revision: AgreementRevisionTable;
   agreement_template: AgreementTemplateTable;
+  role_definition: RoleDefinitionTable;
 
   // Legacy tables (kept for Stage 2-3 features)
   stakeholder_interest: StakeholderInterestTable;
