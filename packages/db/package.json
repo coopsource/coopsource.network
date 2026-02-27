@@ -18,13 +18,13 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "kysely": "^0.27",
-    "pg": "^8"
+    "kysely": "^0.27.6",
+    "pg": "^8.19.0"
   },
   "devDependencies": {
     "@coopsource/config": "workspace:*",
-    "@types/pg": "^8",
-    "ts-node": "^10",
-    "typescript": "^5.7"
+    "@types/pg": "^8.16.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
   }
 }

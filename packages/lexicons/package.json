@@ -21,9 +21,9 @@
   "devDependencies": {
     "@atproto/lex-cli": "^0.9.8",
     "@coopsource/config": "workspace:*",
-    "tsx": "^4",
-    "typescript": "^5.7",
-    "vitest": "^3"
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
   },
   "dependencies": {
     "@atproto/lexicon": "^0.6.1"
