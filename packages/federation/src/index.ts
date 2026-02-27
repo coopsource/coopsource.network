@@ -38,6 +38,10 @@ export type {
 // Local implementations
 export { LocalFederationClient } from './local/local-federation-client.js';
 
+// HTTP / did:web
+export { DidWebResolver } from './http/did-web-resolver.js';
+export type { DidWebResolverOptions } from './http/did-web-resolver.js';
+
 // Clocks
 export { SystemClock } from './clocks/system-clock.js';
 export { MockClock } from './clocks/mock-clock.js';

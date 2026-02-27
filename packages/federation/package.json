@@ -25,6 +25,10 @@
       "import": "./dist/email/index.js",
       "types": "./dist/email/index.d.ts"
     },
+    "./http": {
+      "import": "./dist/http/index.js",
+      "types": "./dist/http/index.d.ts"
+    },
     "./atproto": {
       "import": "./dist/atproto/index.js",
       "types": "./dist/atproto/index.d.ts"

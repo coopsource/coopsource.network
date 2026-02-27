@@ -23,6 +23,7 @@ import { AgreementTemplateService } from '../../src/services/agreement-template-
 import type { AppConfig } from '../../src/config.js';
 import { setDb, resetSetupCache } from '../../src/auth/middleware.js';
 import { createHealthRoutes } from '../../src/routes/health.js';
+import { createWellKnownRoutes } from '../../src/routes/well-known.js';
 import { createSetupRoutes } from '../../src/routes/setup.js';
 import { createAuthRoutes } from '../../src/routes/auth.js';
 import { createCooperativeRoutes } from '../../src/routes/org/cooperatives.js';
@@ -96,6 +97,7 @@ export function createTestApp(): TestApp {
 
   const testConfig = {
     PUBLIC_API_URL: 'http://localhost:3001',
+    INSTANCE_URL: 'http://localhost:3001',
     FRONTEND_URL: 'http://localhost:5173',
   } as AppConfig;
   const connectionService = new ConnectionService(db, pdsService, clock, testConfig);
@@ -128,6 +130,9 @@ export function createTestApp(): TestApp {
 
   // Health routes (no body parsing needed)
   app.use(createHealthRoutes(db));
+
+  // DID document (public, no auth required)
+  app.use(createWellKnownRoutes(db, testConfig));
 
   // JSON body parsing
   app.use(express.json());

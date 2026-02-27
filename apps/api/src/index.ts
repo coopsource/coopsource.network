@@ -37,6 +37,7 @@ import { createInterestRoutes } from './routes/alignment/interests.js';
 import { createOutcomeRoutes } from './routes/alignment/outcomes.js';
 import { createMapRoutes } from './routes/alignment/map.js';
 import { createConnectionRoutes } from './routes/connections/connections.js';
+import { createWellKnownRoutes } from './routes/well-known.js';
 import { startAppViewLoop } from './appview/loop.js';
 import { createOAuthClient } from './auth/oauth-client.js';
 
@@ -69,6 +70,9 @@ async function start(): Promise<void> {
 
   // Health routes (always available, no auth required)
   app.use(createHealthRoutes(container.db));
+
+  // DID document (public, no auth required)
+  app.use(createWellKnownRoutes(container.db, config));
 
   // Stripe webhook (must be before JSON body parsing — needs raw body)
   app.use(
