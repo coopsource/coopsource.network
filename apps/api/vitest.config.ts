@@ -11,6 +11,7 @@ export default defineConfig({
     pool: 'forks',
     maxWorkers: 1,
     isolate: false,
+    exclude: ['tests/federation-e2e/**', 'node_modules/**'],
     server: {
       deps: {
         // Allow Vitest to resolve native pg package and workspace packages
