@@ -2,7 +2,8 @@ import { Router } from 'express';
 import multer from 'multer';
 import type { Container } from '../../container.js';
 import { asyncHandler } from '../../lib/async-handler.js';
-import { requireAuth, requireAdmin } from '../../auth/middleware.js';
+import { requireAuth } from '../../auth/middleware.js';
+import { requirePermission } from '../../middleware/permissions.js';
 import { UpdateCoopSchema } from '@coopsource/common';
 
 const upload = multer({ limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB
@@ -42,7 +43,7 @@ export function createCooperativeRoutes(container: Container): Router {
   router.put(
     '/api/v1/cooperative',
     requireAuth,
-    requireAdmin,
+    requirePermission('coop.settings.edit'),
     asyncHandler(async (req, res) => {
       const { displayName, description, website } = UpdateCoopSchema.parse(req.body);
 
@@ -60,7 +61,7 @@ export function createCooperativeRoutes(container: Container): Router {
   router.post(
     '/api/v1/cooperative/avatar',
     requireAuth,
-    requireAdmin,
+    requirePermission('coop.settings.edit'),
     upload.single('avatar'),
     asyncHandler(async (req, res) => {
       const file = req.file;

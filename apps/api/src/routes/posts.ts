@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Container } from '../container.js';
 import { asyncHandler } from '../lib/async-handler.js';
 import { requireAuth } from '../auth/middleware.js';
+import { requirePermission } from '../middleware/permissions.js';
 import { parsePagination } from '../lib/pagination.js';
 import { formatThread, formatPost } from '../lib/formatters.js';
 import {
@@ -47,6 +48,7 @@ export function createPostRoutes(container: Container): Router {
   router.post(
     '/api/v1/threads',
     requireAuth,
+    requirePermission('post.create'),
     asyncHandler(async (req, res) => {
       const { title, threadType, memberDids } = CreateThreadSchema.parse(req.body);
 
@@ -91,6 +93,7 @@ export function createPostRoutes(container: Container): Router {
   router.post(
     '/api/v1/threads/:id/posts',
     requireAuth,
+    requirePermission('post.create'),
     asyncHandler(async (req, res) => {
       const thread = await container.postService.getThread((req.params.id as string));
       if (!thread) throw new NotFoundError('Thread not found');

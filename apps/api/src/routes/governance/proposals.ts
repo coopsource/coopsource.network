@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import type { Container } from '../../container.js';
 import { asyncHandler } from '../../lib/async-handler.js';
-import { requireAuth, requireAdmin } from '../../auth/middleware.js';
+import { requireAuth } from '../../auth/middleware.js';
+import { requirePermission } from '../../middleware/permissions.js';
 import { parsePagination } from '../../lib/pagination.js';
 import {
   NotFoundError,
@@ -76,6 +77,7 @@ export function createProposalRoutes(container: Container): Router {
   router.post(
     '/api/v1/proposals',
     requireAuth,
+    requirePermission('proposal.create'),
     asyncHandler(async (req, res) => {
       const {
         title,
@@ -207,6 +209,7 @@ export function createProposalRoutes(container: Container): Router {
   router.post(
     '/api/v1/proposals/:id/open',
     requireAuth,
+    requirePermission('proposal.open'),
     asyncHandler(async (req, res) => {
       const result = await container.proposalService.openProposal(
         (req.params.id as string),
@@ -216,11 +219,11 @@ export function createProposalRoutes(container: Container): Router {
     }),
   );
 
-  // POST /api/v1/proposals/:id/close (admin)
+  // POST /api/v1/proposals/:id/close
   router.post(
     '/api/v1/proposals/:id/close',
     requireAuth,
-    requireAdmin,
+    requirePermission('proposal.close'),
     asyncHandler(async (req, res) => {
       const result = await container.proposalService.closeProposal(
         (req.params.id as string),
@@ -230,11 +233,11 @@ export function createProposalRoutes(container: Container): Router {
     }),
   );
 
-  // POST /api/v1/proposals/:id/resolve (admin)
+  // POST /api/v1/proposals/:id/resolve
   router.post(
     '/api/v1/proposals/:id/resolve',
     requireAuth,
-    requireAdmin,
+    requirePermission('proposal.resolve'),
     asyncHandler(async (req, res) => {
       const result = await container.proposalService.resolveProposal(
         (req.params.id as string),
@@ -273,6 +276,7 @@ export function createProposalRoutes(container: Container): Router {
   router.post(
     '/api/v1/proposals/:id/vote',
     requireAuth,
+    requirePermission('vote.cast'),
     asyncHandler(async (req, res) => {
       const { choice, rationale } = CastVoteSchema.parse(req.body);
 

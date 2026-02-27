@@ -3,7 +3,8 @@ import type { Selectable } from 'kysely';
 import type { StakeholderTermsTable } from '@coopsource/db';
 import type { Container } from '../../container.js';
 import { asyncHandler } from '../../lib/async-handler.js';
-import { requireAuth, requireAdmin } from '../../auth/middleware.js';
+import { requireAuth } from '../../auth/middleware.js';
+import { requirePermission } from '../../middleware/permissions.js';
 import { parsePagination } from '../../lib/pagination.js';
 import {
   CreateMasterAgreementSchema,
@@ -78,6 +79,7 @@ export function createAgreementRoutes(container: Container): Router {
   router.post(
     '/api/v1/agreements',
     requireAuth,
+    requirePermission('agreement.create'),
     asyncHandler(async (req, res) => {
       const data = CreateMasterAgreementSchema.parse(req.body);
       const body = typeof req.body.body === 'string' ? req.body.body : undefined;
@@ -195,7 +197,7 @@ export function createAgreementRoutes(container: Container): Router {
   router.post(
     '/api/v1/agreements/:uri/void',
     requireAuth,
-    requireAdmin,
+    requirePermission('agreement.amend'),
     asyncHandler(async (req, res) => {
       const uri = decodeURIComponent(String(req.params.uri));
       const agreement = await container.agreementService.voidAgreement(
@@ -210,6 +212,7 @@ export function createAgreementRoutes(container: Container): Router {
   router.post(
     '/api/v1/agreements/:uri/sign',
     requireAuth,
+    requirePermission('agreement.sign'),
     asyncHandler(async (req, res) => {
       const uri = decodeURIComponent(String(req.params.uri));
       const { statement } = SignAgreementSchema.parse(req.body);

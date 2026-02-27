@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import type { Container } from '../../container.js';
 import { asyncHandler } from '../../lib/async-handler.js';
-import { requireAuth, requireAdmin } from '../../auth/middleware.js';
+import { requireAuth } from '../../auth/middleware.js';
+import { requirePermission } from '../../middleware/permissions.js';
 import { parsePagination } from '../../lib/pagination.js';
 import { formatInvitation } from '../../lib/formatters.js';
 import {
@@ -104,7 +105,7 @@ export function createMembershipRoutes(container: Container): Router {
   router.put(
     '/api/v1/members/:did/roles',
     requireAuth,
-    requireAdmin,
+    requirePermission('member.roles.assign'),
     asyncHandler(async (req, res) => {
       const { roles } = UpdateRolesSchema.parse(req.body);
       await container.membershipService.updateMemberRoles(
@@ -120,7 +121,7 @@ export function createMembershipRoutes(container: Container): Router {
   router.delete(
     '/api/v1/members/:did',
     requireAuth,
-    requireAdmin,
+    requirePermission('member.remove'),
     asyncHandler(async (req, res) => {
       await container.membershipService.removeMember(
         req.actor!.cooperativeDid,
@@ -136,7 +137,7 @@ export function createMembershipRoutes(container: Container): Router {
   router.get(
     '/api/v1/invitations',
     requireAuth,
-    requireAdmin,
+    requirePermission('member.invite'),
     asyncHandler(async (req, res) => {
       const rows = await container.db
         .selectFrom('invitation')
@@ -166,7 +167,7 @@ export function createMembershipRoutes(container: Container): Router {
   router.post(
     '/api/v1/invitations',
     requireAuth,
-    requireAdmin,
+    requirePermission('member.invite'),
     asyncHandler(async (req, res) => {
       const { email, roles, intendedRoles, message } = CreateInvitationSchema.parse(req.body);
 
@@ -367,7 +368,7 @@ export function createMembershipRoutes(container: Container): Router {
   router.delete(
     '/api/v1/invitations/:id',
     requireAuth,
-    requireAdmin,
+    requirePermission('member.invite'),
     asyncHandler(async (req, res) => {
       await container.db
         .updateTable('invitation')
