@@ -9,7 +9,8 @@ export default defineConfig({
     testTimeout: 30_000,
     fileParallelism: false,
     pool: 'forks',
-    poolOptions: { forks: { singleFork: true } },
+    maxWorkers: 1,
+    isolate: false,
     server: {
       deps: {
         // Allow Vitest to resolve native pg package and workspace packages
