@@ -6,7 +6,7 @@ SHELL := /bin/bash
 
 SCRIPTS := ./scripts/dev-services.sh
 
-.PHONY: help setup dev start stop status install db-migrate db-reset clean test\:e2e test\:e2e\:real test\:e2e\:mocked pds-up pds-status pds-logs pds-down
+.PHONY: help setup dev start stop status install db-migrate db-reset clean test\:e2e test\:e2e\:real test\:e2e\:mocked pds-up pds-status pds-logs pds-down dev-federation stop-federation migrate-all test-federation
 
 help: ## Show all targets
 	@echo ""
@@ -64,3 +64,21 @@ pds-down: ## Stop PDS + PLC containers
 
 clean: stop ## Stop services + clean build artifacts
 	pnpm clean
+
+# ─── Federation (multi-instance) ─────────────────────────────────────
+
+dev-federation: ## Start federation stack (hub + coop-a + coop-b)
+	cd infrastructure && docker compose -f docker-compose.federation.yml up --build
+
+stop-federation: ## Stop federation stack
+	cd infrastructure && docker compose -f docker-compose.federation.yml down
+
+migrate-all: ## Run migrations on all federation databases
+	DATABASE_URL=postgresql://coopsource:dev_password@localhost:5432/coopsource_hub pnpm --filter @coopsource/db migrate
+	DATABASE_URL=postgresql://coopsource:dev_password@localhost:5432/coopsource_coop_a pnpm --filter @coopsource/db migrate
+	DATABASE_URL=postgresql://coopsource:dev_password@localhost:5432/coopsource_coop_b pnpm --filter @coopsource/db migrate
+
+test-federation: ## Run federation integration tests (requires running stack)
+	cd infrastructure && docker compose -f docker-compose.federation.yml up -d --wait
+	pnpm --filter @coopsource/api test:federation
+	cd infrastructure && docker compose -f docker-compose.federation.yml down

@@ -1,0 +1,13 @@
+FROM node:24-alpine
+RUN corepack enable
+WORKDIR /app
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY apps/api/package.json apps/api/
+COPY apps/web/package.json apps/web/
+COPY packages/common/package.json packages/common/
+COPY packages/config/package.json packages/config/
+COPY packages/db/package.json packages/db/
+COPY packages/federation/package.json packages/federation/
+COPY packages/lexicons/package.json packages/lexicons/
+RUN pnpm install --frozen-lockfile
+# Source code is volume-mounted, not copied — enables hot reload

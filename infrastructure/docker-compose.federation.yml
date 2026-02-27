@@ -1,0 +1,153 @@
+# Multi-instance federation development environment.
+# Runs hub + coop-a + coop-b with separate databases.
+#
+# Usage: docker compose -f docker-compose.federation.yml up --build
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: coopsource
+      POSTGRES_PASSWORD: dev_password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init-federation-dbs.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U coopsource"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    environment:
+      MP_MAX_MESSAGES: 500
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+
+  hub:
+    build:
+      context: ..
+      dockerfile: infrastructure/Dockerfile.dev
+    command: pnpm --filter @coopsource/api dev
+    volumes:
+      - ../apps/api/src:/app/apps/api/src
+      - ../packages:/app/packages
+    environment:
+      DATABASE_URL: postgresql://coopsource:dev_password@postgres:5432/coopsource_hub
+      INSTANCE_URL: http://hub:3001
+      INSTANCE_ROLE: hub
+      PORT: 3001
+      SESSION_SECRET: dev-hub-session-secret-32chars!!!
+      KEY_ENC_KEY: aHViLWRldi1rZXktZW5jLWtleS0zMi1ieXRlcw==
+      REDIS_URL: redis://redis:6379
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3001/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+
+  coop-a:
+    build:
+      context: ..
+      dockerfile: infrastructure/Dockerfile.dev
+    command: pnpm --filter @coopsource/api dev
+    volumes:
+      - ../apps/api/src:/app/apps/api/src
+      - ../packages:/app/packages
+    environment:
+      DATABASE_URL: postgresql://coopsource:dev_password@postgres:5432/coopsource_coop_a
+      INSTANCE_URL: http://coop-a:3002
+      INSTANCE_ROLE: coop
+      HUB_URL: http://hub:3001
+      PORT: 3002
+      SESSION_SECRET: dev-coop-a-session-secret-32chars!
+      KEY_ENC_KEY: Y29vcC1hLWRldi1rZXktZW5jLWtleS0zMg==
+      REDIS_URL: redis://redis:6379
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+    ports:
+      - "3002:3002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3002/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+
+  coop-b:
+    build:
+      context: ..
+      dockerfile: infrastructure/Dockerfile.dev
+    command: pnpm --filter @coopsource/api dev
+    volumes:
+      - ../apps/api/src:/app/apps/api/src
+      - ../packages:/app/packages
+    environment:
+      DATABASE_URL: postgresql://coopsource:dev_password@postgres:5432/coopsource_coop_b
+      INSTANCE_URL: http://coop-b:3003
+      INSTANCE_ROLE: coop
+      HUB_URL: http://hub:3001
+      PORT: 3003
+      SESSION_SECRET: dev-coop-b-session-secret-32chars!
+      KEY_ENC_KEY: Y29vcC1iLWRldi1rZXktZW5jLWtleS0zMg==
+      REDIS_URL: redis://redis:6379
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+    ports:
+      - "3003:3003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3003/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+
+  web:
+    build:
+      context: ..
+      dockerfile: infrastructure/Dockerfile.dev
+    command: pnpm --filter @coopsource/web dev -- --host 0.0.0.0
+    volumes:
+      - ../apps/web/src:/app/apps/web/src
+    environment:
+      PUBLIC_API_URL: http://localhost:3001
+    ports:
+      - "5173:5173"
+
+volumes:
+  pgdata:
