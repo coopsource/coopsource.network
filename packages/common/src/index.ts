@@ -117,3 +117,4 @@ export type {
   CreateAgentFromTemplateInput,
 } from './validation.js';
 export { encodeAtUri, decodeAtUri, extractRkey, buildAtUri } from './uri.js';
+export { didWebToUrl, urlToDidWeb, buildMemberDidWeb, isDidWeb } from './did-web.js';

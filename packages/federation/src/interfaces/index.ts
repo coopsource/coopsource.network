@@ -6,6 +6,13 @@ export type {
   NotificationEmailParams,
 } from './email-service.js';
 export type {
+  IFederationClient,
+  EntityInfo,
+  CoopProfile,
+  CoopMetadata,
+  FederationEvent,
+} from './federation-client.js';
+export type {
   IPdsService,
   CreateDidOptions,
   UpdateDidOptions,

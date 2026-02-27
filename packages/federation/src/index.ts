@@ -13,6 +13,13 @@ export type {
 
 // Interfaces
 export type {
+  IFederationClient,
+  EntityInfo,
+  CoopProfile,
+  CoopMetadata,
+  FederationEvent,
+} from './interfaces/federation-client.js';
+export type {
   IPdsService,
   CreateDidOptions,
   UpdateDidOptions,

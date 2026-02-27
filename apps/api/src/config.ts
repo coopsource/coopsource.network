@@ -38,6 +38,10 @@ const envSchema = z
     STRIPE_WEBHOOK_SECRET: z.string().optional(),
     OIDC_JWKS: z.string().optional(),
     ANTHROPIC_API_KEY: z.string().optional(),
+    // Federation
+    INSTANCE_ROLE: z.enum(['standalone', 'hub', 'coop']).default('standalone'),
+    INSTANCE_DID: z.string().optional(),   // Override auto-derived DID
+    HUB_URL: z.string().optional(),        // Hub URL for co-op instances to register with
   })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV === 'production') {
