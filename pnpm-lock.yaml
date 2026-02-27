@@ -248,6 +248,9 @@ importers:
       pg:
         specifier: ^8.19.0
         version: 8.19.0
+      structured-headers:
+        specifier: ^2.0.2
+        version: 2.0.2
     devDependencies:
       '@coopsource/config':
         specifier: workspace:*
@@ -1876,6 +1879,10 @@ packages:
     peerDependenciesMeta:
       '@types/node':
         optional: true
+
+  structured-headers@2.0.2:
+    resolution: {integrity: sha512-IUul56vVHuMg2UxWhwDj9zVJE6ztYEQQkynr1FQ/NydPhivtk5+Qb2N1RS36owEFk2fNUriTguJ2R7htRObcdA==}
+    engines: {node: '>=18', npm: '>=6'}
 
   superagent@10.3.0:
     resolution: {integrity: sha512-B+4Ik7ROgVKrQsXTV0Jwp2u+PXYLSlqtDAhYnkkD+zn3yg8s/zjA2MeGayPoY/KICrbitwneDHrjSotxKL+0XQ==}
@@ -3687,6 +3694,8 @@ snapshots:
   stripe@20.4.0(@types/node@25.3.2):
     optionalDependencies:
       '@types/node': 25.3.2
+
+  structured-headers@2.0.2: {}
 
   superagent@10.3.0:
     dependencies:
