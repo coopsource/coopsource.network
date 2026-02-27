@@ -49,12 +49,12 @@
     "cborg": "^4.5.8",
     "kysely": "^0.27.6",
     "multiformats": "^13.4.2",
-    "nodemailer": "^6.10.1",
+    "nodemailer": "^8.0.1",
     "pg": "^8.19.0"
   },
   "devDependencies": {
     "@coopsource/config": "workspace:*",
-    "@types/nodemailer": "^6.4.23",
+    "@types/nodemailer": "^7.0.11",
     "@types/pg": "^8.16.0",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"

@@ -1,9 +1,5 @@
 import pino from 'pino';
-import type { HttpLogger, Options } from 'pino-http';
-import { createRequire } from 'node:module';
-
-const require = createRequire(import.meta.url);
-const pinoHttp = require('pino-http') as (opts?: Options) => HttpLogger;
+import { pinoHttp as createPinoHttp } from 'pino-http';
 
 export const logger = pino({
   transport:
@@ -12,4 +8,4 @@ export const logger = pino({
       : undefined,
 });
 
-export const httpLogger = pinoHttp({ logger });
+export const httpLogger = createPinoHttp({ logger });
