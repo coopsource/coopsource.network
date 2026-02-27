@@ -23,9 +23,9 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
-    "@sveltejs/adapter-auto": "^4.0.0",
+    "@sveltejs/adapter-auto": "^7.0.1",
     "@sveltejs/kit": "^2.53.3",
-    "@sveltejs/vite-plugin-svelte": "^5.1.1",
+    "@sveltejs/vite-plugin-svelte": "^6.2.4",
     "@tailwindcss/vite": "^4.2.1",
     "@types/pg": "^8.16.0",
     "kysely": "^0.27.6",
@@ -34,7 +34,7 @@
     "svelte-check": "^4.4.4",
     "tailwindcss": "^4.2.1",
     "typescript": "^5.9.3",
-    "vite": "^6.4.1",
+    "vite": "^7.3.1",
     "vitest": "^3.2.4"
   }
 }
