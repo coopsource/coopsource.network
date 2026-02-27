@@ -1,3 +1,4 @@
+export { HttpFederationClient } from './http-federation-client.js';
 export { DidWebResolver } from './did-web-resolver.js';
 export type { DidWebResolverOptions } from './did-web-resolver.js';
 export { SigningKeyResolver } from './signing-key-resolver.js';

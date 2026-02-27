@@ -38,6 +38,7 @@ import { createOutcomeRoutes } from './routes/alignment/outcomes.js';
 import { createMapRoutes } from './routes/alignment/map.js';
 import { createConnectionRoutes } from './routes/connections/connections.js';
 import { createWellKnownRoutes } from './routes/well-known.js';
+import { createFederationRoutes } from './routes/federation.js';
 import { startAppViewLoop } from './appview/loop.js';
 import { createOAuthClient } from './auth/oauth-client.js';
 
@@ -142,6 +143,9 @@ async function start(): Promise<void> {
 
   // Connection routes
   app.use(createConnectionRoutes(container, config));
+
+  // Federation routes (server-to-server, signed HTTP)
+  app.use(createFederationRoutes(container, container.didResolver, config));
 
   // TODO: Stage 3 — Automation, AI Agents, MCP, CLI Auth, OIDC
 

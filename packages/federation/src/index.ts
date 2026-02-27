@@ -38,9 +38,12 @@ export type {
 // Local implementations
 export { LocalFederationClient } from './local/local-federation-client.js';
 
-// HTTP / did:web
+// HTTP / did:web / Federation
+export { HttpFederationClient } from './http/http-federation-client.js';
 export { DidWebResolver } from './http/did-web-resolver.js';
 export type { DidWebResolverOptions } from './http/did-web-resolver.js';
+export { SigningKeyResolver } from './http/signing-key-resolver.js';
+export { signRequest, verifyRequest } from './http/signing.js';
 
 // Clocks
 export { SystemClock } from './clocks/system-clock.js';

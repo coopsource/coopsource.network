@@ -5,8 +5,10 @@ import { SystemClock } from '@coopsource/federation';
 import type { IPdsService, IFederationClient } from '@coopsource/federation';
 import { LocalPdsService, LocalBlobStore, LocalFederationClient } from '@coopsource/federation/local';
 import type { FederationDatabase } from '@coopsource/federation/local';
+import { HttpFederationClient, DidWebResolver, SigningKeyResolver } from '@coopsource/federation/http';
 import { AtprotoPdsService } from '@coopsource/federation/atproto';
 import { DevEmailService } from '@coopsource/federation/email';
+import { urlToDidWeb } from '@coopsource/common';
 import type { AppConfig } from './config.js';
 import { AuthService } from './services/auth-service.js';
 import { EntityService } from './services/entity-service.js';
@@ -24,6 +26,7 @@ export interface Container {
   db: Kysely<Database>;
   pdsService: IPdsService;
   federationClient: IFederationClient;
+  didResolver: DidWebResolver;
   blobStore: LocalBlobStore;
   clock: SystemClock;
   emailService: DevEmailService;
@@ -63,13 +66,25 @@ export function createContainer(config: AppConfig): Container {
         clock,
       );
 
-  // Federation client — standalone mode uses local dispatch.
-  // Phase 2 will add HttpFederationClient for hub/coop roles.
-  const federationClient: IFederationClient = new LocalFederationClient(
-    db as unknown as import('kysely').Kysely<FederationDatabase>,
-    pdsService,
-    clock,
-  );
+  const didResolver = new DidWebResolver();
+
+  // Federation client — standalone uses local dispatch, hub/coop use signed HTTP.
+  const federationClient: IFederationClient =
+    config.INSTANCE_ROLE === 'standalone'
+      ? new LocalFederationClient(
+          db as unknown as import('kysely').Kysely<FederationDatabase>,
+          pdsService,
+          clock,
+        )
+      : new HttpFederationClient(
+          new SigningKeyResolver(
+            db as unknown as import('kysely').Kysely<FederationDatabase>,
+            config.KEY_ENC_KEY,
+          ),
+          didResolver,
+          config.INSTANCE_DID ?? urlToDidWeb(config.INSTANCE_URL),
+          config.HUB_URL,
+        );
 
   const blobStore = new LocalBlobStore({ blobDir: config.BLOB_DIR });
 
@@ -100,6 +115,7 @@ export function createContainer(config: AppConfig): Container {
     db,
     pdsService,
     federationClient,
+    didResolver,
     blobStore,
     clock,
     emailService,

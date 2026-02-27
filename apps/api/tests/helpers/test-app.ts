@@ -7,6 +7,7 @@ import { MockClock } from '@coopsource/federation';
 import type { IFederationClient } from '@coopsource/federation';
 import { LocalPdsService, LocalBlobStore, LocalFederationClient } from '@coopsource/federation/local';
 import type { FederationDatabase } from '@coopsource/federation/local';
+import { DidWebResolver } from '@coopsource/federation/http';
 import { DevEmailService } from '@coopsource/federation/email';
 import type { Container } from '../../src/container.js';
 import { AuthService } from '../../src/services/auth-service.js';
@@ -40,6 +41,7 @@ import { createMapRoutes } from '../../src/routes/alignment/map.js';
 import { createConnectionRoutes } from '../../src/routes/connections/connections.js';
 import { createAdminRoutes } from '../../src/routes/admin.js';
 import { createBlobRoutes } from '../../src/routes/blobs.js';
+import { createFederationRoutes } from '../../src/routes/federation.js';
 import { errorHandler } from '../../src/middleware/error-handler.js';
 import { getTestDb, getTestConnectionString } from './test-db.js';
 
@@ -66,6 +68,8 @@ export function createTestApp(): TestApp {
   );
 
   const blobStore = new LocalBlobStore({ blobDir: '/tmp/coopsource-test-blobs' });
+
+  const didResolver = new DidWebResolver();
 
   const federationClient: IFederationClient = new LocalFederationClient(
     db as unknown as Kysely<FederationDatabase>,
@@ -98,6 +102,7 @@ export function createTestApp(): TestApp {
   const testConfig = {
     PUBLIC_API_URL: 'http://localhost:3001',
     INSTANCE_URL: 'http://localhost:3001',
+    INSTANCE_ROLE: 'standalone',
     FRONTEND_URL: 'http://localhost:5173',
   } as AppConfig;
   const connectionService = new ConnectionService(db, pdsService, clock, testConfig);
@@ -106,6 +111,7 @@ export function createTestApp(): TestApp {
     db,
     pdsService,
     federationClient,
+    didResolver,
     blobStore,
     clock,
     emailService,
@@ -164,6 +170,7 @@ export function createTestApp(): TestApp {
   app.use(createMapRoutes(container));
   app.use(createConnectionRoutes(container, testConfig));
   app.use(createAdminRoutes(container));
+  app.use(createFederationRoutes(container, didResolver, testConfig));
 
   // Error handler (must be last)
   app.use(errorHandler);
