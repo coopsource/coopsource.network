@@ -124,7 +124,7 @@ export function createExploreRoutes(container: Container): Router {
 
       if (!row) {
         res.status(404).json({
-          error: { code: 'NOT_FOUND', message: 'Cooperative not found' },
+          error: 'NOT_FOUND', message: 'Cooperative not found',
         });
         return;
       }

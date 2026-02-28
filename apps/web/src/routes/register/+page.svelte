@@ -31,7 +31,7 @@
 
     <div class="rounded-lg bg-[var(--cs-bg-card)] p-6 shadow-sm">
       {#if form?.error}
-        <div class="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
+        <div class="mb-4 rounded-md bg-[var(--color-danger-light)] p-3 text-sm text-[var(--color-danger-dark)]">
           {form.error}
         </div>
       {/if}

@@ -31,7 +31,7 @@ export function createCooperativeRoutes(container: Container): Router {
       const result = await container.entityService.getCooperative();
       if (!result) {
         res.status(404).json({
-          error: { code: 'NOT_FOUND', message: 'Cooperative not found' },
+          error: 'NOT_FOUND', message: 'Cooperative not found',
         });
         return;
       }
@@ -67,7 +67,7 @@ export function createCooperativeRoutes(container: Container): Router {
       const file = req.file;
       if (!file) {
         res.status(400).json({
-          error: { code: 'VALIDATION', message: 'No file provided' },
+          error: 'VALIDATION', message: 'No file provided',
         });
         return;
       }

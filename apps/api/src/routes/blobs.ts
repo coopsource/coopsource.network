@@ -22,7 +22,7 @@ export function createBlobRoutes(container: Container): Router {
       } catch (err) {
         if (err instanceof NotFoundError) {
           res.status(404).json({
-            error: { code: 'NOT_FOUND', message: 'Blob not found' },
+            error: 'NOT_FOUND', message: 'Blob not found',
           });
           return;
         }

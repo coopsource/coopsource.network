@@ -19,6 +19,7 @@ export class AuthService {
     private db: Kysely<Database>,
     private pdsService: IPdsService,
     private clock: IClock,
+    private instanceUrl: string = 'http://localhost:3001',
   ) {}
 
   async register(params: {
@@ -63,7 +64,7 @@ export class AuthService {
     // Create DID via pdsService
     const didDoc = await this.pdsService.createDid({
       entityType: 'person',
-      pdsUrl: 'http://localhost:3001',
+      pdsUrl: this.instanceUrl,
     });
     const did = didDoc.id;
 

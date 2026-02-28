@@ -141,7 +141,7 @@ export function createProposalRoutes(container: Container): Router {
       if (!proposal) throw new NotFoundError('Proposal not found');
       if (proposal.author_did !== req.actor!.did) {
         res.status(403).json({
-          error: { code: 'FORBIDDEN', message: 'Not the proposal author' },
+          error: 'FORBIDDEN', message: 'Not the proposal author',
         });
         return;
       }
@@ -186,7 +186,7 @@ export function createProposalRoutes(container: Container): Router {
       const isAdmin = req.actor!.hasRole('admin', 'owner');
       if (!isAuthor && !isAdmin) {
         res.status(403).json({
-          error: { code: 'FORBIDDEN', message: 'Not authorized' },
+          error: 'FORBIDDEN', message: 'Not authorized',
         });
         return;
       }

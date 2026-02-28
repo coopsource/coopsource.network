@@ -84,7 +84,7 @@ export function createTestApp(): TestApp {
     port: 1025,
   });
 
-  const authService = new AuthService(db, pdsService, clock);
+  const authService = new AuthService(db, pdsService, clock, 'http://localhost:3001');
   const entityService = new EntityService(db, blobStore);
   const membershipService = new MembershipService(
     db,

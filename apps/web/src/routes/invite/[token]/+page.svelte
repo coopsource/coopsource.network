@@ -24,32 +24,32 @@
   <title>Accept Invitation — Co-op Source</title>
 </svelte:head>
 
-<div class="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
+<div class="flex min-h-screen flex-col items-center justify-center bg-[var(--cs-bg-inset)] p-4">
   <div class="w-full max-w-sm">
     <div class="mb-8 text-center">
-      <h1 class="text-2xl font-bold text-gray-900">You're Invited!</h1>
-      <p class="mt-2 text-sm text-gray-600">
+      <h1 class="text-2xl font-bold text-[var(--cs-text)]">You're Invited!</h1>
+      <p class="mt-2 text-sm text-[var(--cs-text-secondary)]">
         Accept your invitation to join the cooperative.
       </p>
     </div>
 
-    <div class="mb-4 rounded-lg bg-blue-50 p-4">
-      <p class="text-sm text-blue-800">
+    <div class="mb-4 rounded-lg bg-[var(--cs-primary-soft)] p-4">
+      <p class="text-sm text-[var(--cs-primary)]">
         <strong>Invitation for:</strong> {inv.email}
       </p>
       {#if inv.message}
-        <p class="mt-2 text-sm text-blue-700">"{inv.message}"</p>
+        <p class="mt-2 text-sm text-[var(--cs-primary)]">"{inv.message}"</p>
       {/if}
       {#if inv.roles.length > 0}
-        <p class="mt-2 text-sm text-blue-700">
+        <p class="mt-2 text-sm text-[var(--cs-primary)]">
           <strong>Roles:</strong> {inv.roles.join(', ')}
         </p>
       {/if}
     </div>
 
-    <div class="rounded-lg bg-white p-6 shadow-sm">
+    <div class="rounded-lg bg-[var(--cs-bg-card)] p-6 shadow-sm">
       {#if form?.error}
-        <div class="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
+        <div class="mb-4 rounded-md bg-[var(--color-danger-light)] p-3 text-sm text-[var(--color-danger-dark)]">
           {form.error}
         </div>
       {/if}
@@ -69,7 +69,7 @@
         <input type="hidden" name="handle" value={handle} />
 
         <div>
-          <label for="displayName" class="block text-sm font-medium text-gray-700">
+          <label for="displayName" class="block text-sm font-medium text-[var(--cs-text-secondary)]">
             Display Name
           </label>
           <input
@@ -78,15 +78,15 @@
             type="text"
             required
             bind:value={displayName}
-            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            class="mt-1 block w-full rounded-md border border-[var(--cs-border)] px-3 py-2 text-sm focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
             placeholder="Your Name"
           />
         </div>
 
         <div>
-          <label for="handle" class="block text-sm font-medium text-gray-700">Handle</label>
-          <div class="mt-1 flex rounded-md border border-gray-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
-            <span class="flex items-center pl-3 text-sm text-gray-500">@</span>
+          <label for="handle" class="block text-sm font-medium text-[var(--cs-text-secondary)]">Handle</label>
+          <div class="mt-1 flex rounded-md border border-[var(--cs-border)] focus-within:border-[var(--cs-border-focus)] focus-within:ring-1 focus-within:ring-[var(--cs-ring)]">
+            <span class="flex items-center pl-3 text-sm text-[var(--cs-text-muted)]">@</span>
             <input
               id="handle"
               type="text"
@@ -99,7 +99,7 @@
         </div>
 
         <div>
-          <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+          <label for="password" class="block text-sm font-medium text-[var(--cs-text-secondary)]">Password</label>
           <input
             id="password"
             name="password"
@@ -107,7 +107,7 @@
             required
             minlength={8}
             autocomplete="new-password"
-            class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            class="mt-1 block w-full rounded-md border border-[var(--cs-border)] px-3 py-2 text-sm focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
             placeholder="Min. 8 characters"
           />
         </div>
@@ -115,7 +115,7 @@
         <button
           type="submit"
           disabled={submitting}
-          class="w-full rounded-md bg-green-600 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+          class="w-full rounded-md bg-[var(--cs-primary)] py-2 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)] disabled:opacity-50"
         >
           {submitting ? 'Accepting…' : 'Accept Invitation'}
         </button>

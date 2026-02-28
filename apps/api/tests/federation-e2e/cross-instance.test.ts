@@ -206,9 +206,9 @@ describe('Cross-Instance Federation', () => {
     };
 
     const res = await signedFetch(url, 'POST', body, privateKey, keyId);
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(501);
     const result = await res.json() as Record<string, unknown>;
-    expect(result).toHaveProperty('registered', true);
+    expect(result).toHaveProperty('error', 'NotImplemented');
 
     await db.destroy();
     dbs.pop();

@@ -93,7 +93,7 @@ export function createContainer(config: AppConfig): Container {
     port: config.SMTP_PORT,
   });
 
-  const authService = new AuthService(db, pdsService, clock);
+  const authService = new AuthService(db, pdsService, clock, config.INSTANCE_URL ?? 'http://localhost:3001');
   const entityService = new EntityService(db, blobStore);
   const membershipService = new MembershipService(
     db,

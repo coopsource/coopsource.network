@@ -26,7 +26,7 @@ describe('Blobs', () => {
       .get('/api/v1/blobs/bafyblobnonexistent')
       .expect(404);
 
-    expect(res.body.error.code).toBe('NOT_FOUND');
+    expect(res.body.error).toBe('NOT_FOUND');
   });
 
   it('returns blob data with correct headers', async () => {

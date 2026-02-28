@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import type { Container } from '../../container.js';
 import { asyncHandler } from '../../lib/async-handler.js';
-import { requireAuth, requireAdmin } from '../../auth/middleware.js';
+import { requireAuth } from '../../auth/middleware.js';
+import { requirePermission } from '../../middleware/permissions.js';
 import { parsePagination } from '../../lib/pagination.js';
 import { validateDid } from '../../lib/validate-params.js';
 
@@ -26,7 +27,7 @@ export function createNetworkRoutes(container: Container): Router {
   router.post(
     '/api/v1/networks',
     requireAuth,
-    requireAdmin,
+    requirePermission('network.create'),
     asyncHandler(async (req, res) => {
       const { name, description, handle, cooperativeType } = req.body as {
         name?: string;
@@ -37,7 +38,7 @@ export function createNetworkRoutes(container: Container): Router {
 
       if (!name || typeof name !== 'string' || name.trim().length === 0) {
         res.status(400).json({
-          error: { code: 'VALIDATION', message: 'Name is required' },
+          error: 'VALIDATION', message: 'Name is required',
         });
         return;
       }
@@ -108,7 +109,7 @@ export function createNetworkRoutes(container: Container): Router {
   router.post(
     '/api/v1/networks/:did/join',
     requireAuth,
-    requireAdmin,
+    requirePermission('network.manage'),
     asyncHandler(async (req, res) => {
       await container.networkService.joinNetwork({
         networkDid: validateDid(req.params.did),
@@ -124,7 +125,7 @@ export function createNetworkRoutes(container: Container): Router {
   router.delete(
     '/api/v1/networks/:did/leave',
     requireAuth,
-    requireAdmin,
+    requirePermission('network.manage'),
     asyncHandler(async (req, res) => {
       await container.networkService.leaveNetwork(
         validateDid(req.params.did),

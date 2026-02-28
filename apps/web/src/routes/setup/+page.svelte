@@ -207,7 +207,7 @@
             <button
               type="button"
               onclick={prevStep}
-              class="rounded-md border border-[var(--cs-border)] px-4 py-2 text-sm font-medium text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-hover)]"
+              class="rounded-md border border-[var(--cs-border)] px-4 py-2 text-sm font-medium text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)]"
             >
               ← Back
             </button>
@@ -244,7 +244,7 @@
             <button
               type="button"
               onclick={prevStep}
-              class="rounded-md border border-[var(--cs-border)] px-4 py-2 text-sm font-medium text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-hover)]"
+              class="rounded-md border border-[var(--cs-border)] px-4 py-2 text-sm font-medium text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)]"
             >
               ← Back
             </button>

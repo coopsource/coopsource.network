@@ -43,10 +43,11 @@
 <svelte:window onkeydown={open ? handleKeydown : undefined} />
 
 {#if open}
-  <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
   <div
     class="fixed inset-0 z-50 flex items-center justify-center bg-[var(--cs-bg-overlay)] animate-in fade-in duration-150"
     onclick={handleBackdrop}
+    onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') close(); }}
+    role="presentation"
   >
     <div
       class="w-full {widths[size]} mx-4 bg-[var(--cs-bg-elevated)] border border-[var(--cs-border)] rounded-[var(--radius-lg)] shadow-lg animate-in zoom-in-95 duration-200"

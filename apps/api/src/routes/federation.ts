@@ -207,8 +207,7 @@ export function createFederationRoutes(
     fedAuth,
     asyncHandler(async (req, res) => {
       const _params = AgreementSignRequestSchema.parse(req.body);
-      // Stub — full implementation in later phase
-      res.json({ acknowledged: true });
+      res.status(501).json({ error: 'NotImplemented', message: 'Agreement signing federation not yet implemented' });
     }),
   );
 
@@ -216,8 +215,7 @@ export function createFederationRoutes(
     '/api/v1/federation/agreement/signature',
     fedAuth,
     asyncHandler(async (_req, res) => {
-      // Stub — full implementation in later phase
-      res.json({ acknowledged: true });
+      res.status(501).json({ error: 'NotImplemented', message: 'Agreement signature federation not yet implemented' });
     }),
   );
 
@@ -238,8 +236,7 @@ export function createFederationRoutes(
         return;
       }
       const _params = HubRegisterSchema.parse(req.body);
-      // TODO: Store registration in federation_peer table
-      res.status(201).json({ registered: true });
+      res.status(501).json({ error: 'NotImplemented', message: 'Hub registration not yet implemented' });
     }),
   );
 
@@ -258,8 +255,7 @@ export function createFederationRoutes(
         return;
       }
       const _event = HubNotifySchema.parse(req.body);
-      // TODO: Index event for network-level discovery
-      res.json({ acknowledged: true });
+      res.status(501).json({ error: 'NotImplemented', message: 'Hub notification not yet implemented' });
     }),
   );
 

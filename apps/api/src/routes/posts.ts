@@ -28,16 +28,20 @@ export function createPostRoutes(container: Container): Router {
         params,
       );
 
-      // Count members for each thread
-      const threads = await Promise.all(
-        result.items.map(async (row) => {
-          const members = await container.db
+      // Batch-load member counts to avoid N+1 queries
+      const threadIds = result.items.map((t) => t.id);
+      const memberCounts = threadIds.length > 0
+        ? await container.db
             .selectFrom('thread_member')
-            .where('thread_id', '=', row.id)
-            .select(container.db.fn.countAll().as('count'))
-            .executeTakeFirst();
-          return formatThread(row, Number(members?.count ?? 0));
-        }),
+            .where('thread_id', 'in', threadIds)
+            .groupBy('thread_id')
+            .select(['thread_id', container.db.fn.countAll<number>().as('count')])
+            .execute()
+        : [];
+      const countMap = new Map(memberCounts.map((c) => [c.thread_id, Number(c.count)]));
+
+      const threads = result.items.map((row) =>
+        formatThread(row, countMap.get(row.id) ?? 0),
       );
 
       res.json({ threads, cursor: result.cursor });

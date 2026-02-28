@@ -26,34 +26,38 @@ export function createMembershipRoutes(container: Container): Router {
         params,
       );
 
-      // Enrich each member with handle and email
-      const members = await Promise.all(
-        result.items.map(async (member) => {
-          const entity = await container.db
-            .selectFrom('entity')
-            .where('did', '=', member.did)
-            .select('handle')
-            .executeTakeFirst();
+      // Batch-load handles and emails to avoid N+1 queries
+      const dids = result.items.map((m) => m.did);
 
-          const cred = await container.db
+      const entities = dids.length > 0
+        ? await container.db
+            .selectFrom('entity')
+            .where('did', 'in', dids)
+            .select(['did', 'handle'])
+            .execute()
+        : [];
+      const entityMap = new Map(entities.map((e) => [e.did, e]));
+
+      const creds = dids.length > 0
+        ? await container.db
             .selectFrom('auth_credential')
-            .where('entity_did', '=', member.did)
+            .where('entity_did', 'in', dids)
             .where('credential_type', '=', 'password')
             .where('invalidated_at', 'is', null)
-            .select('identifier')
-            .executeTakeFirst();
+            .select(['entity_did', 'identifier'])
+            .execute()
+        : [];
+      const credMap = new Map(creds.map((c) => [c.entity_did, c]));
 
-          return {
-            did: member.did,
-            handle: entity?.handle ?? null,
-            displayName: member.displayName,
-            email: cred?.identifier ?? null,
-            roles: member.roles,
-            status: member.status,
-            joinedAt: member.joinedAt ? member.joinedAt.toISOString() : null,
-          };
-        }),
-      );
+      const members = result.items.map((member) => ({
+        did: member.did,
+        handle: entityMap.get(member.did)?.handle ?? null,
+        displayName: member.displayName,
+        email: credMap.get(member.did)?.identifier ?? null,
+        roles: member.roles,
+        status: member.status,
+        joinedAt: member.joinedAt ? member.joinedAt.toISOString() : null,
+      }));
 
       res.json({ members, cursor: result.cursor ?? null });
     }),
@@ -70,7 +74,7 @@ export function createMembershipRoutes(container: Container): Router {
       );
       if (!member) {
         res.status(404).json({
-          error: { code: 'NOT_FOUND', message: 'Member not found' },
+          error: 'NOT_FOUND', message: 'Member not found',
         });
         return;
       }
@@ -147,16 +151,19 @@ export function createMembershipRoutes(container: Container): Router {
         .orderBy('created_at', 'desc')
         .execute();
 
-      // Enrich with inviter display names
-      const invitations = await Promise.all(
-        rows.map(async (row) => {
-          const inviter = await container.db
+      // Batch-load inviter display names to avoid N+1 queries
+      const inviterDids = [...new Set(rows.map((r) => r.invited_by_did))];
+      const inviters = inviterDids.length > 0
+        ? await container.db
             .selectFrom('entity')
-            .where('did', '=', row.invited_by_did)
-            .select('display_name')
-            .executeTakeFirst();
-          return formatInvitation(row, inviter?.display_name ?? null);
-        }),
+            .where('did', 'in', inviterDids)
+            .select(['did', 'display_name'])
+            .execute()
+        : [];
+      const inviterMap = new Map(inviters.map((i) => [i.did, i.display_name]));
+
+      const invitations = rows.map((row) =>
+        formatInvitation(row, inviterMap.get(row.invited_by_did) ?? null),
       );
 
       res.json({ invitations, cursor: null });

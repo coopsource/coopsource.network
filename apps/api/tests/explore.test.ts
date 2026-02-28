@@ -86,7 +86,7 @@ describe('Explore', () => {
       .get('/api/v1/explore/cooperatives/nonexistent')
       .expect(404);
 
-    expect(res.body.error.code).toBe('NOT_FOUND');
+    expect(res.body.error).toBe('NOT_FOUND');
   });
 
   it('GET /api/v1/explore/cooperatives does not include networks', async () => {

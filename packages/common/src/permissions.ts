@@ -25,6 +25,8 @@ export const PERMISSIONS = {
   'coop.settings.edit': 'Edit cooperative settings',
   'coop.roles.manage': 'Manage role definitions',
   'coop.billing.manage': 'Manage billing and subscriptions',
+  'network.create': 'Create networks',
+  'network.manage': 'Manage network membership',
   'network.coop.approve': 'Approve cooperatives joining network',
   'network.coop.remove': 'Remove cooperatives from network',
 } as const;
@@ -58,6 +60,8 @@ export const BUILT_IN_ROLES: Record<
       'project.manage',
       'coop.settings.edit',
       'coop.roles.manage',
+      'network.create',
+      'network.manage',
     ],
     inherits: ['member'],
   },

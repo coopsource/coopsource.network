@@ -110,7 +110,7 @@ describe('Federation endpoints', () => {
   });
 
   describe('POST /api/v1/federation/hub/register', () => {
-    it('accepts registration on standalone instance', async () => {
+    it('returns 501 Not Implemented (stub)', async () => {
       const res = await testApp.agent
         .post('/api/v1/federation/hub/register')
         .send({
@@ -120,14 +120,14 @@ describe('Federation endpoints', () => {
             displayName: 'Test Cooperative',
           },
         })
-        .expect(201);
+        .expect(501);
 
-      expect(res.body.registered).toBe(true);
+      expect(res.body.error).toBe('NotImplemented');
     });
   });
 
   describe('POST /api/v1/federation/hub/notify', () => {
-    it('accepts notification on standalone instance', async () => {
+    it('returns 501 Not Implemented (stub)', async () => {
       const res = await testApp.agent
         .post('/api/v1/federation/hub/notify')
         .send({
@@ -136,14 +136,14 @@ describe('Federation endpoints', () => {
           data: { memberDid: adminDid },
           timestamp: new Date().toISOString(),
         })
-        .expect(200);
+        .expect(501);
 
-      expect(res.body.acknowledged).toBe(true);
+      expect(res.body.error).toBe('NotImplemented');
     });
   });
 
   describe('POST /api/v1/federation/agreement/sign-request', () => {
-    it('returns acknowledged (stub)', async () => {
+    it('returns 501 Not Implemented (stub)', async () => {
       const res = await testApp.agent
         .post('/api/v1/federation/agreement/sign-request')
         .send({
@@ -151,9 +151,9 @@ describe('Federation endpoints', () => {
           signerDid: adminDid,
           cooperativeDid: coopDid,
         })
-        .expect(200);
+        .expect(501);
 
-      expect(res.body.acknowledged).toBe(true);
+      expect(res.body.error).toBe('NotImplemented');
     });
   });
 });
