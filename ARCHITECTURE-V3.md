@@ -456,7 +456,38 @@ POST /api/v1/federation/hub/notify
 
 **All federation endpoints accept HTTP Message Signatures.** In standalone mode, these endpoints exist but are never called externally — the `LocalFederationClient` bypasses them.
 
-### 3.6 Service Refactoring
+**Implementation status:** GET endpoints (entity, coop profile) and POST membership endpoints (request, approve) are fully implemented. Agreement signing and hub endpoints return 501 Not Implemented (see §9 Remaining Gaps).
+
+### 3.6 Complete API Route Map
+
+All routes under `/api/v1/`:
+
+| Category | Endpoints | Auth |
+|----------|-----------|------|
+| **Health** | `GET /health` | None |
+| **Setup** | `GET /setup/status`, `POST /setup/initialize` | None / None |
+| **Auth** | `POST /auth/register`, `POST /auth/login`, `DELETE /auth/session`, `GET /auth/me` | Setup / None / Auth / Auth |
+| **Auth (OAuth)** | `GET /auth/oauth/client-metadata.json`, `POST /auth/oauth/login`, `GET /auth/oauth/callback`, `POST /auth/oauth/exchange` | None |
+| **Me** | `GET /me/memberships` | Auth |
+| **Cooperative** | `GET /cooperative`, `PUT /cooperative`, `GET /cooperative/by-handle/:handle` | Auth / Permission / Auth |
+| **Members** | `GET /members`, `DELETE /members/:did` | Auth / Permission |
+| **Invitations** | `POST /invitations`, `GET /invitations`, `POST /invitations/:token/accept`, `DELETE /invitations/:id` | Permission / Auth / None / Permission |
+| **Posts** | `POST /threads`, `GET /threads`, `GET /threads/:id`, `POST /threads/:id/posts`, `DELETE /posts/:id` | Permission / Auth / Auth / Permission / Permission |
+| **Governance** | `POST /proposals`, `GET /proposals`, `GET /proposals/:id`, `PUT /proposals/:id`, `POST /proposals/:id/vote` | Permission / Auth / Auth / Permission / Permission |
+| **Agreements** | `POST /agreements`, `GET /agreements`, `GET /agreements/:uri`, `PUT /agreements/:uri`, `POST /agreements/:uri/sign`, `DELETE /agreements/:uri/sign` | Permission / Auth / Auth / Permission / Permission / Permission |
+| **Agreement Templates** | `POST /agreement-templates`, `GET /agreement-templates`, `GET /agreement-templates/:id`, `PUT /agreement-templates/:id`, `DELETE /agreement-templates/:id`, `POST /agreement-templates/:id/use` | Permission / Auth / Auth / Permission / Permission / Permission |
+| **Networks** | `POST /networks`, `GET /networks`, `GET /networks/:did`, `POST /networks/:did/join`, `DELETE /networks/:did/leave` | Permission / Auth / Auth / Permission / Permission |
+| **Campaigns** | `POST /campaigns`, `GET /campaigns`, `GET /campaigns/:uri`, `PUT /campaigns/:uri`, `POST /campaigns/:uri/pledge` | Permission / Auth / Auth / Permission / Auth |
+| **Alignment** | `POST /alignment/interests`, `GET /alignment/interests`, `POST /alignment/outcomes`, `GET /alignment/outcomes`, `GET /alignment/outcomes/:uri`, `POST /alignment/map/generate`, `GET /alignment/map` | Auth (all) |
+| **Connections** | `GET /connections/services`, `POST /connections/initiate/:service`, `GET /connections/callback/:service`, `GET /connections`, `DELETE /connections/:id`, `POST /connections/:id/bindings`, `DELETE /connections/:id/bindings/:bindingId` | Auth (all) |
+| **Explore** | `GET /explore/cooperatives`, `GET /explore/cooperatives/:handle`, `GET /explore/networks` | None (public) |
+| **Blobs** | `GET /blobs/:cid`, `POST /blobs` | None / Auth |
+| **Events** | `GET /events` (SSE) | Auth |
+| **Admin** | `POST /admin/test-reset`, `GET /admin/pds/status`, `POST /admin/pds/reindex/:did`, `GET /admin/activity` | Dev / Admin / Admin / Admin |
+| **Federation** | See §3.5 above | Signed HTTP |
+| **Well-Known** | `GET /.well-known/did.json` | None |
+
+### 3.7 Service Refactoring
 
 Services that currently do cross-co-op operations need to use `FederationClient` instead of direct DB access for the "other side" of bilateral operations.
 
@@ -526,7 +557,7 @@ async joinNetwork(params) {
 - `AgreementService` — cross-co-op signing
 - `ConnectionService` — external connections are inherently cross-boundary
 
-### 3.7 Saga Coordinator
+### 3.8 Saga Coordinator
 
 For multi-step cross-boundary operations that need compensating transactions:
 
@@ -967,35 +998,86 @@ async function resolvePermissions(
 
 ## 6. Site Architecture: Contextual UX
 
-**Single SvelteKit app with role-based routing:**
+**Single SvelteKit app with workspace-scoped routing (implemented in Phase 7):**
 
 ```
-coopsource.network/                     — Public landing page
-coopsource.network/explore              — Public directory of co-ops and networks
-coopsource.network/explore/:handle      — Public co-op profile page
-coopsource.network/join                 — Sign up / create co-op flow
-coopsource.network/login                — Auth flow
+Public routes (no auth):
+  /                                     — Landing page (hero + CTA)
+  /explore                              — Public directory of co-ops and networks
+  /explore/:handle                      — Public co-op profile page
+  /join                                 — Multi-step cooperative creation (3-step wizard)
+  /login                                — Email/password + ATProto OAuth sign-in
+  /register                             — New account registration
+  /invite/:token                        — Invitation acceptance (public)
 
-coopsource.network/dashboard            — User's personal dashboard
-  ├── My co-ops
-  ├── My networks
-  └── Invitations
+Authenticated routes:
+  /dashboard                            — Workspace picker (no sidebar)
+    ├── My Cooperatives (cards → /coop/{handle})
+    ├── My Networks (cards → /net/{handle})
+    └── Pending Invitations
 
-coopsource.network/c/:handle/           — Co-op workspace (authed)
-  ├── members
-  ├── governance
-  ├── agreements
-  ├── posts
-  ├── projects
-  └── settings
+  /coop/:handle/                        — Cooperative workspace (sidebar-scoped)
+    ├── members                         — Member list + invite modal
+    ├── invitations                     — Invitation management
+    ├── governance                      — Proposals (renamed from /proposals)
+    │   ├── new                         — Create proposal
+    │   └── :id                         — Proposal detail + voting
+    ├── agreements                      — Agreement list
+    │   ├── new                         — Create agreement
+    │   ├── :uri                        — Agreement detail + signing
+    │   └── templates/                  — Agreement templates (CRUD + use)
+    ├── posts                           — Threads (renamed from /threads)
+    │   ├── new                         — Create thread
+    │   └── :id                         — Thread detail + replies
+    ├── alignment                       — Alignment discovery dashboard
+    │   ├── interests                   — Submit my interests
+    │   ├── outcomes/new                — Create desired outcome
+    │   ├── outcomes/:uri               — Outcome detail
+    │   └── map                         — Interest map visualization
+    ├── campaigns                       — Funding campaigns
+    │   ├── new                         — Create campaign
+    │   └── :uri                        — Campaign detail + pledges
+    ├── networks                        — Network memberships
+    │   ├── new                         — Create network
+    │   └── :did                        — Network detail + join/leave
+    └── settings                        — Cooperative settings
+        └── connections                 — External OAuth connections
 
-coopsource.network/n/:handle/           — Network workspace (authed)
-  ├── cooperatives
-  ├── governance
-  └── agreements
+  /net/:handle/                         — Network workspace (sidebar-scoped)
+    ├── cooperatives                    — Member cooperatives
+    ├── governance                      — Network-level proposals
+    └── agreements                      — Network-level agreements
+
+Legacy redirects (301):
+  /proposals/*  → /coop/:handle/governance/*
+  /threads/*    → /coop/:handle/posts/*
+  /members      → /coop/:handle/members
+  /invitations  → /coop/:handle/invitations
+  /cooperative  → /coop/:handle/settings
 ```
 
-The `/c/` and `/n/` routes share components — a network IS a cooperative. The recursive model means the same governance/agreement/membership components render at both levels.
+### Frontend Architecture
+
+**Route groups** use SvelteKit's parenthesized directory convention:
+- `(public)/` — No auth required, minimal nav layout
+- `(authed)/` — Auth guard in `+layout.server.ts`, redirects to `/login` if no session
+
+**Workspace context** flows through the layout:
+- `WorkspaceContext` type in `$lib/api/types.ts` holds cooperative info + prefix
+- `$workspacePrefix` derived store provides `/coop/{handle}` or `/net/{handle}`
+- `AppShell`, `Sidebar`, and `Navbar` are parameterized with optional workspace prop
+- Sidebar items dynamically scope links: `{prefix}/governance`, `{prefix}/agreements`, etc.
+
+**Component library** in `$lib/components/`:
+- `ui/` — Badge, EmptyState, Modal, ThemeToggle
+- `layout/` — AppShell, Sidebar, Navbar (all workspace-aware)
+
+**Design system** uses CSS custom properties (`--cs-*`) defined in `app.css`:
+- Colors: `--cs-primary`, `--cs-bg-card`, `--cs-text`, `--cs-border`, etc.
+- Danger tokens: `--color-danger-light`, `--color-danger-dark`
+- Icons: Lucide via `@lucide/svelte`
+
+The `/coop/` and `/net/` routes share components — a network IS a cooperative. The recursive model means the same governance/agreement/membership components render at both levels.
 
 ---
 
@@ -1173,10 +1255,106 @@ Upgrade together:
   └── (workspace)/c/[handle]/ — co-op workspace
 ```
 
-### Database Migrations
+### Phase 6: Codebase Quality (completed February 2026)
 
 ```
-020_role_definitions.ts       — role_definition table + built-in role seeding
+6.1 API fixes
+  ├── AuthService: instanceUrl as constructor param (was hardcoded localhost)
+  ├── Standardized error responses to flat { error, message } format across all routes
+  ├── N+1 query fixes: member list, invitation list, thread list (batch WHERE IN)
+  └── Federation stubs: 4 unimplemented endpoints now return 501 Not Implemented
+
+6.2 Frontend fixes
+  ├── Invite page: hardcoded Tailwind colors → --cs-* design tokens
+  ├── Error alerts: --color-danger-light/dark tokens
+  ├── Setup page: --cs-bg-hover → --cs-bg-inset
+  ├── Modal: a11y fix (role="presentation" + keyboard handler)
+  └── Error page: smart link (explore for unauth, dashboard for auth)
+
+6.3 Permissions expansion
+  ├── Added network.create + network.manage permissions (23 total, was 21)
+  └── Network routes: requireAdmin → requirePermission('network.create'/'network.manage')
+```
+
+### Phase 7: Site Architecture (completed February 2026)
+
+```
+7.1 Workspace routing
+  ├── /coop/[handle]/ — Cooperative workspace with scoped sidebar
+  │   ├── members, governance, agreements, posts
+  │   ├── alignment, campaigns, networks, settings
+  │   └── settings/connections
+  ├── /net/[handle]/ — Network workspace
+  │   ├── cooperatives, governance, agreements
+  │   └── Reuses cooperative components (recursive model)
+  └── 301 redirect stubs for old flat routes
+
+7.2 Dashboard redesign
+  ├── Workspace picker: My Cooperatives, My Networks, Pending Invitations
+  ├── Co-op cards link to /coop/{handle}
+  └── No sidebar on dashboard (sidebar is workspace-scoped)
+
+7.3 New API endpoints
+  ├── GET /api/v1/cooperative/by-handle/:handle
+  ├── GET /api/v1/me/memberships (user's co-ops + networks)
+  └── getCooperativeByHandle() in EntityService
+
+7.4 Frontend infrastructure
+  ├── WorkspaceContext type + workspacePrefix derived store
+  ├── Parameterized AppShell/Sidebar/Navbar with workspace context
+  ├── Landing page for unauthenticated users at /
+  ├── /join multi-step cooperative creation flow (3-step wizard)
+  └── Route renames: proposals→governance, threads→posts, cooperative→settings
+```
+
+### Phase 8: Auth Bug Fixes (completed February 2026)
+
+```
+8.1 Register bug
+  ├── register() created membership with status 'pending' → getSessionActor() returned null
+  ├── Fix: bilateral PDS records + active membership + member role for non-invitation flow
+  └── Invitation flow keeps pending status (handled by accept endpoint)
+
+8.2 Signout bug
+  ├── /logout route had +page.server.ts but no +page.svelte
+  ├── SvelteKit form actions require a page component
+  └── Fix: added minimal +page.svelte
+
+8.3 E2E test updates
+  ├── All 13 spec files updated for workspace routing (/coop/{handle}/...)
+  ├── Added registerAs() helper + WORKSPACE constant + wp() path builder
+  ├── New auth tests: landing page, registration, login flow, signout via UI
+  └── 184 API tests + 13 E2E spec files
+```
+
+### Database Migrations (implemented)
+
+```
+001_foundation.ts              — System config, session store
+002_entities.ts                — Entity table (person + cooperative)
+003_auth.ts                    — Auth credentials, OAuth state
+004_pds_store.ts               — PDS records, commits, blobs
+005_membership.ts              — Memberships, invitations
+006_posts.ts                   — Threads and posts
+007_governance.ts              — Proposals, votes, delegations
+008_agreements.ts              — Agreements, signatures
+009_plc_store.ts               — PLC directory integration
+010_decouple_entity_key.ts     — Separate entity keys from PLC
+011_fix_indexes.ts             — Performance index fixes
+012_decouple_pds_fks.ts        — Remove PDS foreign key constraints
+013_oauth_tables.ts            — OAuth client state
+014_funding_tables.ts          — Campaigns, pledges, Stripe webhook
+015_alignment_tables.ts        — Interests, outcomes, alignment maps
+016_master_agreement_tables.ts — Unified agreement model
+017_external_connection_tables.ts — OAuth service connections
+018_unify_agreements.ts        — Agreement model unification
+019_agreement_templates.ts     — Reusable agreement templates
+020_role_definitions.ts        — Role definitions + built-in role seeding
+```
+
+### Database Migrations (planned, not yet implemented)
+
+```
 021_did_web_support.ts        — Add did_web column to entity, update entity_key indices
 022_federation_endpoints.ts   — Add federation_peer table (known remote instances)
 023_cross_coop_outbox.ts      — Outbox table for cross-co-op operations
@@ -1185,7 +1363,62 @@ Upgrade together:
 
 ---
 
-## 9. ATProto Ecosystem Context (February 2026)
+## 9. Remaining Stage 2 Gaps
+
+The following items from the federation architecture are designed but not yet implemented:
+
+**Federation endpoint stubs (return 501):**
+- `POST /api/v1/federation/agreement/sign-request` — cross-instance agreement signing
+- `POST /api/v1/federation/agreement/signature` — remote signature submission
+- `POST /api/v1/federation/hub/register` — co-op registration with network hub
+- `POST /api/v1/federation/hub/notify` — event notification to hub
+
+**Infrastructure not built:**
+- **SagaCoordinator** (`packages/federation/src/saga.ts`) — compensating transactions for multi-step cross-boundary operations (interface designed in §3.7)
+- **Federation peer registry** — no `federation_peer` table to track known remote instances
+- **Cross-co-op outbox** — no reliability layer for cross-instance operations (retry, dedup)
+- **Public visibility flags** — no control over which alignment/profile data is publicly visible
+
+**Services not federated:**
+- `AgreementService` — `federationClient` injected but unused in signing flow
+- `AlignmentService` — no `federationClient` support (local-only)
+- `FundingService` — no cross-instance campaign sharing
+
+---
+
+## 10. Undocumented Features (Stage 1 legacy)
+
+Several features were built in Stage 1 before the federation architecture was designed. They work locally but are not yet federated:
+
+**Funding Campaigns** (migration 014, `funding-service.ts`):
+- Campaign lifecycle: draft → active → completed/cancelled
+- Pledges by members, Stripe webhook stub for payment processing
+- Campaign tiers, types (one-time/recurring), funding models
+
+**Alignment Discovery** (migration 015, `alignment-service.ts`):
+- Members submit interests (category, priority, description + contributions/constraints/red-lines/work-preferences)
+- Desired outcomes (title, description, category) with voting
+- Interest map generation (finds alignment zones and conflict zones across members)
+
+**External Connections** (migration 017, `connection-service.ts`):
+- OAuth integration framework for external services (GitHub, Google, etc.)
+- Connection lifecycle: initiate → callback → active, with bindings to entities
+- No OAuth providers configured in dev (returns empty service list)
+
+**Agreement Templates** (migration 019, `agreement-template-service.ts`):
+- Reusable templates with pre-filled agreement fields
+- Template CRUD + "Use template" to create draft agreement from template
+- Template name, description, default title/purpose/type
+
+**Unified Agreements** (migration 016+018):
+- Consolidated agreement model: draft → open-for-signing → active → terminated/voided
+- Stakeholder terms (type, class per signer DID)
+- Signature + retraction flow with PDS records
+- Agreement types: worker-cooperative, consumer, producer, multi-stakeholder, purchasing, marketing
+
+---
+
+## 11. ATProto Ecosystem Context (February 2026)
 
 **Why this architecture aligns with ATProto's direction:**
 
@@ -1201,7 +1434,7 @@ Upgrade together:
 
 ---
 
-## 10. Security Considerations
+## 12. Security Considerations
 
 1. **HTTP Message Signatures** — Use ES256 (P-256) keys. Verify `created` timestamp is within 5 minutes to prevent replay. Include `content-digest` for request bodies.
 
@@ -1217,7 +1450,7 @@ Upgrade together:
 
 ---
 
-## 11. Deployment Architecture
+## 13. Deployment Architecture
 
 ### Standalone (Development / Small Deployment)
 
