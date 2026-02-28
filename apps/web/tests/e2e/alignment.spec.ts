@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ADMIN, setupCooperative, loginAs } from './helpers.js';
+import { ADMIN, wp, setupCooperative, loginAs } from './helpers.js';
 
 test.describe('Alignment Discovery', () => {
 	test.beforeEach(async ({ page, request }) => {
@@ -8,7 +8,7 @@ test.describe('Alignment Discovery', () => {
 	});
 
 	test('alignment dashboard renders', async ({ page }) => {
-		await page.goto('/alignment');
+		await page.goto(wp('/alignment'));
 		await expect(page.getByRole('heading', { name: 'Alignment Discovery' })).toBeVisible();
 		await expect(page.getByRole('heading', { name: 'My Interests' })).toBeVisible();
 		await expect(page.getByRole('heading', { name: 'Desired Outcomes' })).toBeVisible();
@@ -16,7 +16,7 @@ test.describe('Alignment Discovery', () => {
 	});
 
 	test('submit interests form shows fields', async ({ page }) => {
-		await page.goto('/alignment/interests');
+		await page.goto(wp('/alignment/interests'));
 		await expect(page.getByRole('heading', { name: 'Submit My Interests' })).toBeVisible();
 		await expect(page.getByText('Interests & Goals')).toBeVisible();
 		await expect(page.getByText('Contributions')).toBeVisible();
@@ -26,7 +26,7 @@ test.describe('Alignment Discovery', () => {
 	});
 
 	test('submit interests redirects to alignment dashboard', async ({ page }) => {
-		await page.goto('/alignment/interests');
+		await page.goto(wp('/alignment/interests'));
 
 		// Fill Description last — Svelte 5 reactivity can reset textarea content
 		await page.getByLabel('Category').first().fill('sustainability');
@@ -42,7 +42,7 @@ test.describe('Alignment Discovery', () => {
 	});
 
 	test('create outcome form shows fields', async ({ page }) => {
-		await page.goto('/alignment/outcomes/new');
+		await page.goto(wp('/alignment/outcomes/new'));
 		await expect(page.getByRole('heading', { name: 'Create Desired Outcome' })).toBeVisible();
 		await expect(page.getByLabel('Title')).toBeVisible();
 		await expect(page.getByLabel('Description')).toBeVisible();
@@ -50,7 +50,7 @@ test.describe('Alignment Discovery', () => {
 	});
 
 	test('create outcome redirects to detail page', async ({ page }) => {
-		await page.goto('/alignment/outcomes/new');
+		await page.goto(wp('/alignment/outcomes/new'));
 		await page.getByLabel('Title').fill('Carbon Neutral by 2030');
 		await page.getByLabel('Description').fill('Achieve net-zero emissions.');
 		await page.getByLabel('Category').selectOption('environmental');
@@ -64,7 +64,7 @@ test.describe('Alignment Discovery', () => {
 	});
 
 	test('interest map page renders', async ({ page }) => {
-		await page.goto('/alignment/map');
+		await page.goto(wp('/alignment/map'));
 		await expect(page.getByRole('heading', { name: 'Interest Map' })).toBeVisible();
 		await expect(page.getByText('No interest map has been generated yet')).toBeVisible();
 	});
@@ -73,7 +73,7 @@ test.describe('Alignment Discovery', () => {
 		// First submit some interests
 		// Fill Description last — Svelte 5 reactivity resets textarea content
 		// when sibling inputs trigger re-renders
-		await page.goto('/alignment/interests');
+		await page.goto(wp('/alignment/interests'));
 		await page.getByLabel('Category').first().fill('growth');
 		await page.getByLabel('Priority (1-5)').first().fill('4');
 		await page.getByLabel('Description').first().fill('Grow the cooperative membership');
@@ -81,7 +81,7 @@ test.describe('Alignment Discovery', () => {
 		await page.waitForURL(/\/alignment$/);
 
 		// Now go to map and generate
-		await page.goto('/alignment/map');
+		await page.goto(wp('/alignment/map'));
 		await page.getByRole('button', { name: 'Generate Map' }).click();
 		await page.waitForLoadState('networkidle');
 

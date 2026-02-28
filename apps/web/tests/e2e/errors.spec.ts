@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ADMIN, setupCooperative, loginAs } from './helpers.js';
+import { ADMIN, wp, setupCooperative, loginAs } from './helpers.js';
 
 test.describe('Error Scenarios', () => {
 	test.beforeEach(async ({ page, request }) => {
@@ -8,7 +8,7 @@ test.describe('Error Scenarios', () => {
 	});
 
 	test('creating agreement without title shows validation error', async ({ page }) => {
-		await page.goto('/agreements/new');
+		await page.goto(wp('/agreements/new'));
 
 		// Remove the required attribute so the form submits with empty title
 		await page.getByLabel('Title').evaluate((el: HTMLInputElement) => el.removeAttribute('required'));
@@ -19,7 +19,7 @@ test.describe('Error Scenarios', () => {
 	});
 
 	test('creating proposal without title shows validation error', async ({ page }) => {
-		await page.goto('/proposals/new');
+		await page.goto(wp('/governance/new'));
 
 		// Remove required attributes so the form submits with empty fields
 		await page.getByLabel('Title').evaluate((el: HTMLInputElement) => el.removeAttribute('required'));
@@ -31,7 +31,7 @@ test.describe('Error Scenarios', () => {
 	});
 
 	test('navigating to non-existent agreement shows error', async ({ page }) => {
-		const response = await page.goto('/agreements/at%3A%2F%2Fdid%3Aplc%3Afake%2Fnetwork.coopsource.agreement.agreement%2Fnonexistent');
+		const response = await page.goto(wp('/agreements/at%3A%2F%2Fdid%3Aplc%3Afake%2Fnetwork.coopsource.agreement.agreement%2Fnonexistent'));
 		// Should get a non-200 response or show an error
 		expect(response?.status()).toBeGreaterThanOrEqual(400);
 	});

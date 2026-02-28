@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ADMIN, COOP, setupCooperative, loginAs } from './helpers.js';
+import { ADMIN, COOP, wp, setupCooperative, loginAs } from './helpers.js';
 
 test.describe('Networks', () => {
   test.beforeEach(async ({ page, request }) => {
@@ -8,24 +8,24 @@ test.describe('Networks', () => {
   });
 
   test('network list renders with Create network button', async ({ page }) => {
-    await page.goto('/networks');
+    await page.goto(wp('/networks'));
     await expect(page.getByRole('heading', { name: 'Networks', exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Create network' })).toBeVisible();
   });
 
   test('create network and see it in list', async ({ page }) => {
-    await page.goto('/networks/new');
+    await page.goto(wp('/networks/new'));
     await page.getByLabel('Name').fill('Test Network');
     await page.getByLabel('Description').fill('A network for E2E testing.');
     await page.getByRole('button', { name: 'Create network' }).click();
 
     // Should redirect to network detail page (DID contains colons, URL-encoded)
-    await page.waitForURL(/\/networks\/did/);
+    await page.waitForURL(/\/coop\/[^/]+\/networks\/did/);
     await expect(page.getByRole('heading', { name: 'Test Network' })).toBeVisible();
     await expect(page.getByText('A network for E2E testing.')).toBeVisible();
 
     // Go back to list and verify it's there
-    await page.goto('/networks');
+    await page.goto(wp('/networks'));
     await expect(page.getByText('Test Network')).toBeVisible();
   });
 
@@ -41,7 +41,7 @@ test.describe('Networks', () => {
     const { did: networkDid } = await createRes.json();
 
     // Navigate to network detail
-    await page.goto(`/networks/${encodeURIComponent(networkDid)}`);
+    await page.goto(wp(`/networks/${encodeURIComponent(networkDid)}`));
     await expect(page.getByRole('heading', { name: 'Joinable Network' })).toBeVisible();
 
     // Join the network

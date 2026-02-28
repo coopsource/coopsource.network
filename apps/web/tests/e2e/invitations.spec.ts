@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ADMIN, setupCooperative, loginAs } from './helpers.js';
+import { ADMIN, wp, setupCooperative, loginAs } from './helpers.js';
 
 test.describe('Invitations', () => {
   test.beforeEach(async ({ page, request }) => {
@@ -8,13 +8,13 @@ test.describe('Invitations', () => {
   });
 
   test('members page shows Invite member button', async ({ page }) => {
-    await page.goto('/members');
+    await page.goto(wp('/members'));
     await expect(page.getByRole('heading', { name: 'Members', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Invite member' })).toBeVisible();
   });
 
   test('create invitation via members page modal', async ({ page }) => {
-    await page.goto('/members');
+    await page.goto(wp('/members'));
     await page.getByRole('button', { name: 'Invite member' }).click();
 
     // Fill the invitation form in the modal
@@ -23,7 +23,7 @@ test.describe('Invitations', () => {
     await page.waitForLoadState('networkidle');
 
     // Navigate to invitations page to verify
-    await page.goto('/invitations');
+    await page.goto(wp('/invitations'));
     await expect(page.getByText('newmember@e2e-test.com')).toBeVisible();
   });
 
@@ -38,7 +38,7 @@ test.describe('Invitations', () => {
       data: { email: 'pending@e2e-test.com', roles: ['member'] },
     });
 
-    await page.goto('/invitations');
+    await page.goto(wp('/invitations'));
     await expect(page.getByRole('heading', { name: 'Invitations', exact: true })).toBeVisible();
     await expect(page.getByText('pending@e2e-test.com')).toBeVisible();
   });
@@ -53,7 +53,7 @@ test.describe('Invitations', () => {
       data: { email: 'revoke@e2e-test.com', roles: ['member'] },
     });
 
-    await page.goto('/invitations');
+    await page.goto(wp('/invitations'));
     await expect(page.getByText('revoke@e2e-test.com')).toBeVisible();
 
     // Click revoke button

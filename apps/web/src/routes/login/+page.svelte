@@ -40,7 +40,7 @@
 <div class="flex min-h-screen flex-col items-center justify-center bg-[var(--cs-bg-inset)] p-4">
   <div class="w-full max-w-sm">
     <div class="mb-8 text-center">
-      <h1 class="text-2xl font-bold text-[var(--cs-text)]">Co-op Source</h1>
+      <a href="/" class="text-2xl font-bold text-[var(--cs-text)] hover:text-[var(--cs-primary)] cs-transition">Co-op Source</a>
       <p class="mt-2 text-sm text-[var(--cs-text-secondary)]">Sign in to your account</p>
     </div>
 
@@ -129,5 +129,11 @@
         </button>
       </div>
     </div>
+
+    <p class="mt-4 text-center text-sm text-[var(--cs-text-muted)]">
+      Don't have an account?
+      <a href="/register" class="text-[var(--cs-primary)] hover:underline">Create one</a>
+      · <a href="/" class="text-[var(--cs-primary)] hover:underline">Back to home</a>
+    </p>
   </div>
 </div>

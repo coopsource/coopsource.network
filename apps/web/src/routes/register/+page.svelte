@@ -25,7 +25,8 @@
 <div class="flex min-h-screen flex-col items-center justify-center bg-[var(--cs-bg-inset)] p-4">
   <div class="w-full max-w-sm">
     <div class="mb-8 text-center">
-      <h1 class="text-2xl font-bold text-[var(--cs-text)]">Create Account</h1>
+      <a href="/" class="text-2xl font-bold text-[var(--cs-text)] hover:text-[var(--cs-primary)] cs-transition">Co-op Source</a>
+      <h2 class="mt-1 text-lg font-semibold text-[var(--cs-text)]">Create Account</h2>
       <p class="mt-2 text-sm text-[var(--cs-text-secondary)]">Join your cooperative network</p>
     </div>
 
@@ -118,6 +119,7 @@
       <p class="mt-4 text-center text-sm text-[var(--cs-text-muted)]">
         Already have an account?
         <a href="/login" class="text-[var(--cs-primary)] hover:underline">Sign in</a>
+        · <a href="/" class="text-[var(--cs-primary)] hover:underline">Back to home</a>
       </p>
     </div>
   </div>

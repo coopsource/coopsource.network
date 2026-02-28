@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ADMIN, COOP, setupCooperative, loginAs } from './helpers.js';
+import { ADMIN, COOP, WORKSPACE, wp, setupCooperative, loginAs } from './helpers.js';
 
 test.describe('Dashboard', () => {
   test.beforeEach(async ({ page, request }) => {
@@ -7,33 +7,36 @@ test.describe('Dashboard', () => {
     await loginAs(page, ADMIN.email, ADMIN.password);
   });
 
-  test('dashboard renders co-op info card', async ({ page }) => {
+  test('dashboard renders with cooperative card', async ({ page }) => {
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: COOP.name })).toBeVisible();
+    await expect(page.getByText(COOP.name)).toBeVisible();
   });
 
-  test('sidebar contains Threads link', async ({ page }) => {
-    await expect(page.getByRole('link', { name: 'Threads' })).toBeVisible();
+  test('cooperative card navigates to workspace', async ({ page }) => {
+    await page.getByText(COOP.name).click();
+    await expect(page).toHaveURL(new RegExp(WORKSPACE));
   });
 
-  test('recent Proposals and Agreements sections visible', async ({ page }) => {
-    await expect(page.getByText('Recent Proposals')).toBeVisible();
-    await expect(page.getByText('Recent Agreements')).toBeVisible();
+  test('workspace sidebar contains Posts link', async ({ page }) => {
+    await page.goto(WORKSPACE);
+    await expect(page.getByRole('link', { name: 'Posts' })).toBeVisible();
   });
 
-  test('sidebar contains Campaigns link', async ({ page }) => {
+  test('workspace sidebar contains Campaigns link', async ({ page }) => {
+    await page.goto(WORKSPACE);
     await expect(page.getByRole('link', { name: 'Campaigns' })).toBeVisible();
   });
 
-  test('sidebar contains Alignment link', async ({ page }) => {
+  test('workspace sidebar contains Alignment link', async ({ page }) => {
+    await page.goto(WORKSPACE);
     await expect(page.getByRole('link', { name: 'Alignment' })).toBeVisible();
   });
 
-  test('dashboard shows Recent Campaigns section', async ({ page }) => {
-    await expect(page.getByText('Recent Campaigns')).toBeVisible();
+  test('dashboard shows My Cooperatives section', async ({ page }) => {
+    await expect(page.getByText('My Cooperatives')).toBeVisible();
   });
 
-  test('dashboard shows Recent Outcomes section', async ({ page }) => {
-    await expect(page.getByText('Recent Outcomes')).toBeVisible();
+  test('dashboard shows My Networks section', async ({ page }) => {
+    await expect(page.getByText('My Networks')).toBeVisible();
   });
 });
