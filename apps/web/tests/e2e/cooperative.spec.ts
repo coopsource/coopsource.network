@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ADMIN, COOP, setupCooperative, loginAs } from './helpers.js';
+import { ADMIN, COOP, wp, setupCooperative, loginAs } from './helpers.js';
 
 test.describe('Cooperative Profile', () => {
 	test.beforeEach(async ({ page, request }) => {
@@ -8,7 +8,7 @@ test.describe('Cooperative Profile', () => {
 	});
 
 	test('cooperative page shows name, status, and DID', async ({ page }) => {
-		await page.goto('/cooperative');
+		await page.goto(wp('/settings'));
 		await expect(page.getByRole('heading', { name: 'Co-op Settings' })).toBeVisible();
 		await expect(page.getByRole('main').getByText(COOP.name)).toBeVisible();
 		await expect(page.getByRole('main').getByText('active', { exact: true })).toBeVisible();
@@ -16,7 +16,7 @@ test.describe('Cooperative Profile', () => {
 	});
 
 	test('edit button toggles edit form', async ({ page }) => {
-		await page.goto('/cooperative');
+		await page.goto(wp('/settings'));
 
 		// View mode — Edit button visible, no form inputs
 		await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible();
@@ -29,7 +29,7 @@ test.describe('Cooperative Profile', () => {
 	});
 
 	test('update display name shows Settings saved message', async ({ page }) => {
-		await page.goto('/cooperative');
+		await page.goto(wp('/settings'));
 		await page.getByRole('button', { name: 'Edit' }).click();
 
 		await page.getByLabel('Display Name').fill('Renamed Co-op');
@@ -41,7 +41,7 @@ test.describe('Cooperative Profile', () => {
 	});
 
 	test('cancel edit returns to view mode', async ({ page }) => {
-		await page.goto('/cooperative');
+		await page.goto(wp('/settings'));
 		await page.getByRole('button', { name: 'Edit' }).click();
 		await expect(page.getByLabel('Display Name')).toBeVisible();
 

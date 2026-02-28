@@ -108,21 +108,11 @@ export class AuthService {
       },
     });
 
-    // Create membership
+    // Create bilateral membership PDS records
     const cooperativeDid = params.cooperativeDid;
-    await this.db
-      .insertInto('membership')
-      .values({
-        member_did: did,
-        cooperative_did: cooperativeDid,
-        status: 'pending',
-        created_at: now,
-        indexed_at: now,
-      })
-      .execute();
 
-    // Write org.membership PDS record (member's assertion)
-    await this.pdsService.createRecord({
+    // Member's assertion: org.membership record
+    const memberRef = await this.pdsService.createRecord({
       did: did as DID,
       collection: 'network.coopsource.org.membership',
       record: {
@@ -130,6 +120,47 @@ export class AuthService {
         createdAt: now.toISOString(),
       },
     });
+
+    // Cooperative's approval: org.memberApproval record
+    const approvalRef = await this.pdsService.createRecord({
+      did: cooperativeDid as DID,
+      collection: 'network.coopsource.org.memberApproval',
+      record: {
+        member: did,
+        roles: ['member'],
+        createdAt: now.toISOString(),
+      },
+    });
+
+    // Insert active membership with bilateral PDS record references
+    const [membership] = await this.db
+      .insertInto('membership')
+      .values({
+        member_did: did,
+        cooperative_did: cooperativeDid,
+        status: invitation ? 'pending' : 'active',
+        joined_at: invitation ? undefined : now,
+        member_record_uri: memberRef.uri,
+        member_record_cid: memberRef.cid,
+        approval_record_uri: approvalRef.uri,
+        approval_record_cid: approvalRef.cid,
+        created_at: now,
+        indexed_at: now,
+      })
+      .returning('id')
+      .execute();
+
+    // Assign default 'member' role when not using invitation flow
+    if (!invitation) {
+      await this.db
+        .insertInto('membership_role')
+        .values({
+          membership_id: membership!.id,
+          role: 'member',
+          indexed_at: now,
+        })
+        .execute();
+    }
 
     // Mark invitation accepted if token provided
     if (invitation) {

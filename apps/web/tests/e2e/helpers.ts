@@ -12,6 +12,14 @@ export const COOP = {
   handle: 'e2e-test-coop',
 };
 
+/** Base workspace path for the E2E test cooperative. */
+export const WORKSPACE = `/coop/${COOP.handle}`;
+
+/** Build a path under the workspace. */
+export function wp(path: string): string {
+  return `${WORKSPACE}${path}`;
+}
+
 /**
  * Truncate all tables and reset the API server's setup cache.
  * Must be called before setupCooperative() to ensure a clean state.
@@ -115,4 +123,21 @@ export async function createMemberViaInvitation(
 
   const result = await acceptRes.json();
   return { did: result.member.did, token: invitation.token };
+}
+
+/**
+ * Register a new account via the UI register page.
+ * Expects a cooperative to already be set up.
+ */
+export async function registerAs(
+  page: Page,
+  user: { displayName: string; handle: string; email: string; password: string },
+): Promise<void> {
+  await page.goto('/register');
+  await page.getByLabel('Display Name').fill(user.displayName);
+  await page.locator('#handle').fill(user.handle);
+  await page.getByLabel('Email').fill(user.email);
+  await page.getByLabel('Password').fill(user.password);
+  await page.getByRole('button', { name: 'Create account' }).click();
+  await page.waitForURL('/dashboard');
 }

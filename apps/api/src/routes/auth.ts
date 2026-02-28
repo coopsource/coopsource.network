@@ -34,11 +34,7 @@ export function createAuthRoutes(
         .executeTakeFirst();
 
       const cooperativeDid = coopConfig
-        ? JSON.parse(
-            typeof coopConfig.value === 'string'
-              ? coopConfig.value
-              : JSON.stringify(coopConfig.value),
-          )
+        ? String(coopConfig.value)
         : null;
 
       if (!cooperativeDid) {

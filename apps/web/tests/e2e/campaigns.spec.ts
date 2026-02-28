@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ADMIN, setupCooperative, loginAs } from './helpers.js';
+import { ADMIN, wp, setupCooperative, loginAs } from './helpers.js';
 
 test.describe('Funding Campaigns', () => {
 	test.beforeEach(async ({ page, request }) => {
@@ -8,13 +8,13 @@ test.describe('Funding Campaigns', () => {
 	});
 
 	test('campaign list renders with New Campaign button', async ({ page }) => {
-		await page.goto('/campaigns');
+		await page.goto(wp('/campaigns'));
 		await expect(page.getByRole('heading', { name: 'Funding Campaigns' })).toBeVisible();
 		await expect(page.getByRole('link', { name: 'New Campaign' })).toBeVisible();
 	});
 
 	test('create campaign shows form fields', async ({ page }) => {
-		await page.goto('/campaigns/new');
+		await page.goto(wp('/campaigns/new'));
 		await expect(page.getByRole('heading', { name: 'Create Campaign' })).toBeVisible();
 		await expect(page.getByLabel('Title')).toBeVisible();
 		await expect(page.getByLabel('Description')).toBeVisible();
@@ -25,14 +25,14 @@ test.describe('Funding Campaigns', () => {
 	});
 
 	test('create campaign redirects to detail page', async ({ page }) => {
-		await page.goto('/campaigns/new');
+		await page.goto(wp('/campaigns/new'));
 		await page.getByLabel('Title').fill('Test Fundraiser');
 		await page.getByLabel('Description').fill('A test campaign for E2E.');
 		await page.getByLabel('Goal Amount ($)').fill('1000');
 		await page.getByRole('button', { name: 'Create Campaign' }).click();
 
 		// Should redirect to campaign detail (URI-encoded path)
-		await page.waitForURL(/\/campaigns\//);
+		await page.waitForURL(/\/coop\/[^/]+\/campaigns\//);
 		await expect(page.getByRole('heading', { name: 'Test Fundraiser' })).toBeVisible();
 		await expect(page.getByText('draft')).toBeVisible();
 		await expect(page.getByText('$1,000')).toBeVisible();
@@ -40,11 +40,11 @@ test.describe('Funding Campaigns', () => {
 
 	test('activate campaign enables pledge form', async ({ page }) => {
 		// Create campaign via form
-		await page.goto('/campaigns/new');
+		await page.goto(wp('/campaigns/new'));
 		await page.getByLabel('Title').fill('Pledge Test');
 		await page.getByLabel('Goal Amount ($)').fill('500');
 		await page.getByRole('button', { name: 'Create Campaign' }).click();
-		await page.waitForURL(/\/campaigns\//);
+		await page.waitForURL(/\/coop\/[^/]+\/campaigns\//);
 
 		// Activate
 		await page.getByRole('button', { name: 'Activate Campaign' }).click();
@@ -56,7 +56,7 @@ test.describe('Funding Campaigns', () => {
 	});
 
 	test('status filters work on campaign list', async ({ page }) => {
-		await page.goto('/campaigns');
+		await page.goto(wp('/campaigns'));
 
 		// Click Active filter
 		await page.getByRole('link', { name: 'Active' }).click();
@@ -64,6 +64,6 @@ test.describe('Funding Campaigns', () => {
 
 		// Click All filter
 		await page.getByRole('link', { name: 'All' }).click();
-		await expect(page).toHaveURL('/campaigns');
+		await expect(page).toHaveURL(wp('/campaigns'));
 	});
 });

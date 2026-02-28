@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ADMIN, setupCooperative, loginAs } from './helpers.js';
+import { ADMIN, WORKSPACE, wp, setupCooperative, loginAs } from './helpers.js';
 
 test.describe('Agreements (Unified)', () => {
 	test.beforeEach(async ({ page, request }) => {
@@ -8,13 +8,13 @@ test.describe('Agreements (Unified)', () => {
 	});
 
 	test('agreement list renders with New agreement button', async ({ page }) => {
-		await page.goto('/agreements');
+		await page.goto(wp('/agreements'));
 		await expect(page.getByRole('heading', { name: 'Agreements', exact: true })).toBeVisible();
 		await expect(page.getByRole('link', { name: 'New agreement' })).toBeVisible();
 	});
 
 	test('create agreement with structured fields redirects to detail page', async ({ page }) => {
-		await page.goto('/agreements/new');
+		await page.goto(wp('/agreements/new'));
 		await page.getByLabel('Title').fill('Worker Co-op Agreement');
 		await page.getByLabel('Type').selectOption('worker-cooperative');
 		await page.getByLabel('Purpose').fill('Govern the cooperative structure.');
@@ -23,27 +23,27 @@ test.describe('Agreements (Unified)', () => {
 		await page.getByRole('button', { name: 'Create agreement' }).click();
 
 		// Should redirect to detail page (URI-encoded path)
-		await page.waitForURL(/\/agreements\//);
+		await page.waitForURL(/\/coop\/[^/]+\/agreements\//);
 		await expect(page.getByRole('heading', { name: 'Worker Co-op Agreement' })).toBeVisible();
 		await expect(page.getByText('draft')).toBeVisible();
 		await expect(page.getByText('worker-cooperative')).toBeVisible();
 	});
 
 	test('create agreement with body text', async ({ page }) => {
-		await page.goto('/agreements/new');
+		await page.goto(wp('/agreements/new'));
 		await page.getByLabel('Title').fill('Code of Conduct');
 		await page.getByLabel('Content', { exact: false }).fill('All members shall treat each other with respect.');
 		await page.getByRole('button', { name: 'Create agreement' }).click();
 
-		await page.waitForURL(/\/agreements\//);
+		await page.waitForURL(/\/coop\/[^/]+\/agreements\//);
 		await expect(page.getByRole('heading', { name: 'Code of Conduct' })).toBeVisible();
 	});
 
 	test('open agreement for signing', async ({ page }) => {
-		await page.goto('/agreements/new');
+		await page.goto(wp('/agreements/new'));
 		await page.getByLabel('Title').fill('Open Test');
 		await page.getByRole('button', { name: 'Create agreement' }).click();
-		await page.waitForURL(/\/agreements\//);
+		await page.waitForURL(/\/coop\/[^/]+\/agreements\//);
 
 		await page.getByRole('button', { name: 'Open for signing' }).click();
 		await page.waitForLoadState('networkidle');
@@ -52,10 +52,10 @@ test.describe('Agreements (Unified)', () => {
 	});
 
 	test('activate a draft agreement', async ({ page }) => {
-		await page.goto('/agreements/new');
+		await page.goto(wp('/agreements/new'));
 		await page.getByLabel('Title').fill('Activate Test');
 		await page.getByRole('button', { name: 'Create agreement' }).click();
-		await page.waitForURL(/\/agreements\//);
+		await page.waitForURL(/\/coop\/[^/]+\/agreements\//);
 
 		await page.getByRole('button', { name: 'Activate' }).click();
 		await page.waitForLoadState('networkidle');
@@ -65,10 +65,10 @@ test.describe('Agreements (Unified)', () => {
 	});
 
 	test('terminate an active agreement', async ({ page }) => {
-		await page.goto('/agreements/new');
+		await page.goto(wp('/agreements/new'));
 		await page.getByLabel('Title').fill('Terminate Test');
 		await page.getByRole('button', { name: 'Create agreement' }).click();
-		await page.waitForURL(/\/agreements\//);
+		await page.waitForURL(/\/coop\/[^/]+\/agreements\//);
 
 		await page.getByRole('button', { name: 'Activate' }).click();
 		await page.waitForLoadState('networkidle');
@@ -80,10 +80,10 @@ test.describe('Agreements (Unified)', () => {
 	});
 
 	test('sign agreement increments signature count', async ({ page }) => {
-		await page.goto('/agreements/new');
+		await page.goto(wp('/agreements/new'));
 		await page.getByLabel('Title').fill('Sign Test');
 		await page.getByRole('button', { name: 'Create agreement' }).click();
-		await page.waitForURL(/\/agreements\//);
+		await page.waitForURL(/\/coop\/[^/]+\/agreements\//);
 		await page.getByRole('button', { name: 'Open for signing' }).click();
 		await page.waitForLoadState('networkidle');
 
@@ -96,10 +96,10 @@ test.describe('Agreements (Unified)', () => {
 	});
 
 	test('retract signature', async ({ page }) => {
-		await page.goto('/agreements/new');
+		await page.goto(wp('/agreements/new'));
 		await page.getByLabel('Title').fill('Retract Test');
 		await page.getByRole('button', { name: 'Create agreement' }).click();
-		await page.waitForURL(/\/agreements\//);
+		await page.waitForURL(/\/coop\/[^/]+\/agreements\//);
 		await page.getByRole('button', { name: 'Open for signing' }).click();
 		await page.waitForLoadState('networkidle');
 		await page.getByRole('button', { name: 'Sign Agreement' }).click();
@@ -114,10 +114,10 @@ test.describe('Agreements (Unified)', () => {
 	});
 
 	test('void agreement', async ({ page }) => {
-		await page.goto('/agreements/new');
+		await page.goto(wp('/agreements/new'));
 		await page.getByLabel('Title').fill('Void Test');
 		await page.getByRole('button', { name: 'Create agreement' }).click();
-		await page.waitForURL(/\/agreements\//);
+		await page.waitForURL(/\/coop\/[^/]+\/agreements\//);
 
 		await page.getByRole('button', { name: 'Void' }).click();
 		await page.getByRole('button', { name: 'Void Agreement' }).click();
@@ -131,10 +131,10 @@ test.describe('Agreements (Unified)', () => {
 		const { adminDid } = await setupCooperative(request);
 		await loginAs(page, ADMIN.email, ADMIN.password);
 
-		await page.goto('/agreements/new');
+		await page.goto(wp('/agreements/new'));
 		await page.getByLabel('Title').fill('Terms Test');
 		await page.getByRole('button', { name: 'Create agreement' }).click();
-		await page.waitForURL(/\/agreements\//);
+		await page.waitForURL(/\/coop\/[^/]+\/agreements\//);
 
 		await page.getByLabel('Stakeholder DID').fill(adminDid);
 		await page.getByLabel('Type', { exact: false }).last().selectOption('worker');
@@ -151,10 +151,10 @@ test.describe('Agreements (Unified)', () => {
 		const { adminDid } = await setupCooperative(request);
 		await loginAs(page, ADMIN.email, ADMIN.password);
 
-		await page.goto('/agreements/new');
+		await page.goto(wp('/agreements/new'));
 		await page.getByLabel('Title').fill('Remove Terms Test');
 		await page.getByRole('button', { name: 'Create agreement' }).click();
-		await page.waitForURL(/\/agreements\//);
+		await page.waitForURL(/\/coop\/[^/]+\/agreements\//);
 
 		await page.getByLabel('Stakeholder DID').fill(adminDid);
 		await page.getByRole('button', { name: 'Add' }).click();
@@ -167,19 +167,19 @@ test.describe('Agreements (Unified)', () => {
 	});
 
 	test('status filters work on list page', async ({ page }) => {
-		await page.goto('/agreements');
+		await page.goto(wp('/agreements'));
 
 		await page.getByRole('link', { name: 'Active' }).click();
 		await expect(page).toHaveURL(/status=active/);
 
 		await page.getByRole('link', { name: 'All' }).click();
-		await expect(page).toHaveURL('/agreements');
+		await expect(page).toHaveURL(wp('/agreements'));
 	});
 
 	test('sidebar navigation to agreements works', async ({ page }) => {
-		await page.goto('/dashboard');
+		await page.goto(WORKSPACE);
 		await page.getByRole('link', { name: 'Agreements' }).click();
-		await expect(page).toHaveURL('/agreements');
+		await expect(page).toHaveURL(wp('/agreements'));
 		await expect(page.getByRole('heading', { name: 'Agreements', exact: true })).toBeVisible();
 	});
 });
