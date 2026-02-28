@@ -39,6 +39,33 @@ export function createCooperativeRoutes(container: Container): Router {
     }),
   );
 
+  // GET /api/v1/cooperative/by-handle/:handle
+  router.get(
+    '/api/v1/cooperative/by-handle/:handle',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const result = await container.entityService.getCooperativeByHandle(
+        req.params.handle as string,
+      );
+      if (!result) {
+        res.status(404).json({
+          error: 'NOT_FOUND', message: 'Cooperative not found',
+        });
+        return;
+      }
+      res.json({
+        did: result.entity.did,
+        handle: result.entity.handle,
+        displayName: result.entity.display_name,
+        description: result.entity.description,
+        website: result.profile.website,
+        isNetwork: result.profile.is_network,
+        status: result.entity.status,
+        createdAt: null,
+      });
+    }),
+  );
+
   // PUT /api/v1/cooperative
   router.put(
     '/api/v1/cooperative',

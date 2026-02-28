@@ -1,20 +1,13 @@
-import { error } from '@sveltejs/kit';
+import { redirect } from '@sveltejs/kit';
+import { createApiClient } from '$lib/api/client.js';
 import type { PageServerLoad } from './$types.js';
-import { createApiClient, ApiError } from '$lib/api/client.js';
 
-export const load: PageServerLoad = async ({ fetch, request, url }) => {
+export const load: PageServerLoad = async ({ fetch, request }) => {
   const cookie = request.headers.get('cookie') ?? undefined;
   const api = createApiClient(fetch, cookie);
-  const status = url.searchParams.get('status') ?? undefined;
-  const cursor = url.searchParams.get('cursor') ?? undefined;
-
   try {
-    const result = await api.getCampaigns({ status, limit: 20, cursor });
-    return { campaigns: result.campaigns, cursor: result.cursor, filterStatus: status ?? '' };
-  } catch (err) {
-    if (err instanceof ApiError) {
-      error(err.status >= 500 ? 500 : err.status, 'Failed to load campaigns.');
-    }
-    error(500, 'Failed to load campaigns.');
-  }
+    const coop = await api.getCooperative();
+    if (coop?.handle) redirect(301, `/coop/${coop.handle}/campaigns`);
+  } catch { /* fallthrough */ }
+  redirect(302, '/dashboard');
 };

@@ -1,46 +1,13 @@
-import { fail } from '@sveltejs/kit';
-import type { PageServerLoad, Actions } from './$types.js';
+import { redirect } from '@sveltejs/kit';
 import { createApiClient } from '$lib/api/client.js';
+import type { PageServerLoad } from './$types.js';
 
 export const load: PageServerLoad = async ({ params, fetch, request }) => {
   const cookie = request.headers.get('cookie') ?? undefined;
   const api = createApiClient(fetch, cookie);
-  const uri = decodeURIComponent(params.uri);
-
-  const outcome = await api.getOutcome(uri);
-
-  return { outcome };
-};
-
-export const actions: Actions = {
-  support: async ({ params, request, fetch }) => {
-    const cookie = request.headers.get('cookie') ?? undefined;
-    const api = createApiClient(fetch, cookie);
-    const uri = decodeURIComponent(params.uri);
-    const data = await request.formData();
-    const level = String(data.get('level') ?? 'neutral');
-    const conditions = String(data.get('conditions') ?? '').trim() || undefined;
-
-    try {
-      await api.supportOutcome(uri, { level, conditions });
-      return { success: true };
-    } catch (err) {
-      return fail(400, { error: err instanceof Error ? err.message : 'Failed' });
-    }
-  },
-
-  updateStatus: async ({ params, request, fetch }) => {
-    const cookie = request.headers.get('cookie') ?? undefined;
-    const api = createApiClient(fetch, cookie);
-    const uri = decodeURIComponent(params.uri);
-    const data = await request.formData();
-    const status = String(data.get('status'));
-
-    try {
-      await api.updateOutcomeStatus(uri, status);
-      return { success: true };
-    } catch (err) {
-      return fail(400, { error: err instanceof Error ? err.message : 'Failed' });
-    }
-  },
+  try {
+    const coop = await api.getCooperative();
+    if (coop?.handle) redirect(301, `/coop/${coop.handle}/alignment/outcomes/${params.uri}`);
+  } catch { /* fallthrough */ }
+  redirect(302, '/dashboard');
 };

@@ -1,15 +1,16 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import type { AuthUser } from '$lib/api/types.js';
+  import type { AuthUser, WorkspaceContext } from '$lib/api/types.js';
   import ChevronRight from '@lucide/svelte/icons/chevron-right';
   import LogOut from '@lucide/svelte/icons/log-out';
   import User from '@lucide/svelte/icons/user';
 
   interface Props {
     user?: AuthUser | null;
+    workspace?: WorkspaceContext | null;
   }
 
-  let { user = null }: Props = $props();
+  let { user = null, workspace = null }: Props = $props();
 
   let menuOpen = $state(false);
 
@@ -17,12 +18,34 @@
   const breadcrumbs = $derived.by(() => {
     const path = $page.url.pathname;
     const segments = path.split('/').filter(Boolean);
+
+    // Workspace-aware breadcrumbs: skip "coop"/"net" prefix, replace handle with display name
+    if (workspace && segments.length >= 2 && (segments[0] === 'coop' || segments[0] === 'net')) {
+      const contextSegments = segments.slice(2);
+      const crumbs = [
+        {
+          label: workspace.cooperative.displayName,
+          href: workspace.prefix,
+          isLast: contextSegments.length === 0,
+        },
+        ...contextSegments.map((seg, i) => ({
+          label: seg.charAt(0).toUpperCase() + seg.slice(1).replace(/-/g, ' '),
+          href: `${workspace.prefix}/${contextSegments.slice(0, i + 1).join('/')}`,
+          isLast: i === contextSegments.length - 1,
+        })),
+      ];
+      return crumbs;
+    }
+
+    // Default: original behavior
     return segments.map((seg, i) => ({
       label: seg.charAt(0).toUpperCase() + seg.slice(1).replace(/-/g, ' '),
       href: '/' + segments.slice(0, i + 1).join('/'),
       isLast: i === segments.length - 1,
     }));
   });
+
+  const settingsHref = $derived(workspace ? `${workspace.prefix}/settings` : '/cooperative');
 
   function handleClickOutside(e: MouseEvent) {
     const target = e.target as HTMLElement;
@@ -81,7 +104,7 @@
           </div>
           <div class="py-1">
             <a
-              href="/cooperative"
+              href={settingsHref}
               class="flex items-center gap-2 px-3 py-1.5 text-[13px] text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)] cs-transition"
               onclick={() => (menuOpen = false)}
             >

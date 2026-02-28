@@ -1,32 +1,13 @@
-import { redirect, fail } from '@sveltejs/kit';
-import type { PageServerLoad, Actions } from './$types.js';
-import { createApiClient, ApiError } from '$lib/api/client.js';
+import { redirect } from '@sveltejs/kit';
+import { createApiClient } from '$lib/api/client.js';
+import type { PageServerLoad } from './$types.js';
 
-export const load: PageServerLoad = async () => {
-  return {};
-};
-
-export const actions: Actions = {
-  default: async ({ request, fetch }) => {
-    const data = await request.formData();
-    const title = String(data.get('title') ?? '').trim();
-    const threadType = String(data.get('threadType') ?? 'discussion').trim();
-
-    const cookie = request.headers.get('cookie') ?? undefined;
-    const api = createApiClient(fetch, cookie);
-    let thread;
-    try {
-      thread = await api.createThread({
-        title: title || undefined,
-        threadType,
-      });
-    } catch (err) {
-      if (err instanceof ApiError) {
-        return fail(err.status, { error: err.message });
-      }
-      return fail(500, { error: 'Failed to create thread.' });
-    }
-
-    redirect(302, `/threads/${thread.id}`);
-  },
+export const load: PageServerLoad = async ({ fetch, request }) => {
+  const cookie = request.headers.get('cookie') ?? undefined;
+  const api = createApiClient(fetch, cookie);
+  try {
+    const coop = await api.getCooperative();
+    if (coop?.handle) redirect(301, `/coop/${coop.handle}/posts/new`);
+  } catch { /* fallthrough */ }
+  redirect(302, '/dashboard');
 };

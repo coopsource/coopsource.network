@@ -1,20 +1,13 @@
-import type { PageServerLoad } from './$types.js';
+import { redirect } from '@sveltejs/kit';
 import { createApiClient } from '$lib/api/client.js';
+import type { PageServerLoad } from './$types.js';
 
 export const load: PageServerLoad = async ({ fetch, request }) => {
   const cookie = request.headers.get('cookie') ?? undefined;
   const api = createApiClient(fetch, cookie);
-
-  const [myInterestsResult, outcomesResult, mapResult] = await Promise.allSettled([
-    api.getMyInterests(),
-    api.listOutcomes({ limit: 5 }),
-    api.getMap(),
-  ]);
-
-  return {
-    myInterests: myInterestsResult.status === 'fulfilled' ? myInterestsResult.value : null,
-    outcomes: outcomesResult.status === 'fulfilled' ? outcomesResult.value.outcomes : [],
-    outcomesCursor: outcomesResult.status === 'fulfilled' ? outcomesResult.value.cursor : undefined,
-    map: mapResult.status === 'fulfilled' ? mapResult.value : null,
-  };
+  try {
+    const coop = await api.getCooperative();
+    if (coop?.handle) redirect(301, `/coop/${coop.handle}/alignment`);
+  } catch { /* fallthrough */ }
+  redirect(302, '/dashboard');
 };

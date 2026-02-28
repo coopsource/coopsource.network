@@ -16,18 +16,20 @@
   import PanelLeftOpen from '@lucide/svelte/icons/panel-left-open';
   import ThemeToggle from '$lib/components/ui/ThemeToggle.svelte';
   import Avatar from '$lib/components/ui/Avatar.svelte';
-  import type { AuthUser } from '$lib/api/types.js';
+  import type { AuthUser, WorkspaceContext } from '$lib/api/types.js';
 
   interface Props {
     user?: AuthUser | null;
     coopName?: string;
     collapsed?: boolean;
+    workspace?: WorkspaceContext | null;
   }
 
   let {
     user = null,
     coopName = 'Co-op Source',
     collapsed = $bindable(false),
+    workspace = null,
   }: Props = $props();
 
   interface NavItem {
@@ -36,24 +38,64 @@
     icon: Component;
   }
 
-  const mainNav: NavItem[] = [
-    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/members', label: 'Members', icon: Users },
-    { href: '/invitations', label: 'Invitations', icon: Mail },
-    { href: '/proposals', label: 'Proposals', icon: Vote },
-    { href: '/agreements', label: 'Agreements', icon: FileSignature },
-    { href: '/alignment', label: 'Alignment', icon: Compass },
-    { href: '/campaigns', label: 'Campaigns', icon: Banknote },
-    { href: '/threads', label: 'Threads', icon: MessageSquare },
-    { href: '/networks', label: 'Networks', icon: Globe },
-  ];
+  const mainNav: NavItem[] = $derived.by(() => {
+    const prefix = workspace?.prefix ?? '';
 
-  const bottomNav: NavItem[] = [
-    { href: '/settings/connections', label: 'Connections', icon: Link2 },
-    { href: '/cooperative', label: 'Settings', icon: Settings },
-  ];
+    if (workspace?.type === 'network') {
+      return [
+        { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { href: `${prefix}/cooperatives`, label: 'Cooperatives', icon: Users },
+        { href: `${prefix}/governance`, label: 'Governance', icon: Vote },
+        { href: `${prefix}/agreements`, label: 'Agreements', icon: FileSignature },
+      ];
+    }
+
+    if (prefix) {
+      return [
+        { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { href: `${prefix}/members`, label: 'Members', icon: Users },
+        { href: `${prefix}/invitations`, label: 'Invitations', icon: Mail },
+        { href: `${prefix}/governance`, label: 'Governance', icon: Vote },
+        { href: `${prefix}/agreements`, label: 'Agreements', icon: FileSignature },
+        { href: `${prefix}/alignment`, label: 'Alignment', icon: Compass },
+        { href: `${prefix}/campaigns`, label: 'Campaigns', icon: Banknote },
+        { href: `${prefix}/posts`, label: 'Posts', icon: MessageSquare },
+        { href: `${prefix}/networks`, label: 'Networks', icon: Globe },
+      ];
+    }
+
+    // Fallback: no workspace context (shouldn't happen, but safe default)
+    return [
+      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { href: '/members', label: 'Members', icon: Users },
+      { href: '/invitations', label: 'Invitations', icon: Mail },
+      { href: '/proposals', label: 'Proposals', icon: Vote },
+      { href: '/agreements', label: 'Agreements', icon: FileSignature },
+      { href: '/alignment', label: 'Alignment', icon: Compass },
+      { href: '/campaigns', label: 'Campaigns', icon: Banknote },
+      { href: '/threads', label: 'Threads', icon: MessageSquare },
+      { href: '/networks', label: 'Networks', icon: Globe },
+    ];
+  });
+
+  const bottomNav: NavItem[] = $derived.by(() => {
+    const prefix = workspace?.prefix ?? '';
+    if (prefix) {
+      return [
+        { href: `${prefix}/settings/connections`, label: 'Connections', icon: Link2 },
+        { href: `${prefix}/settings`, label: 'Settings', icon: Settings },
+      ];
+    }
+    return [
+      { href: '/settings/connections', label: 'Connections', icon: Link2 },
+      { href: '/cooperative', label: 'Settings', icon: Settings },
+    ];
+  });
 
   function isActive(href: string): boolean {
+    if (href === '/dashboard') {
+      return $page.url.pathname === '/dashboard';
+    }
     return $page.url.pathname === href || $page.url.pathname.startsWith(href + '/');
   }
 </script>

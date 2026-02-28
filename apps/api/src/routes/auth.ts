@@ -131,6 +131,59 @@ export function createAuthRoutes(
     }),
   );
 
+  // GET /api/v1/me/memberships — list all cooperatives/networks user belongs to
+  router.get(
+    '/api/v1/me/memberships',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const rows = await container.db
+        .selectFrom('membership')
+        .innerJoin('entity', 'entity.did', 'membership.cooperative_did')
+        .innerJoin('cooperative_profile', 'cooperative_profile.entity_did', 'entity.did')
+        .where('membership.member_did', '=', req.session.did!)
+        .where('membership.status', '=', 'active')
+        .where('membership.invalidated_at', 'is', null)
+        .select([
+          'entity.did',
+          'entity.handle',
+          'entity.display_name',
+          'entity.description',
+          'cooperative_profile.is_network',
+          'cooperative_profile.website',
+          'membership.joined_at',
+        ])
+        .execute();
+
+      const cooperatives = rows
+        .filter((r) => !r.is_network)
+        .map((r) => ({
+          did: r.did,
+          handle: r.handle,
+          displayName: r.display_name,
+          description: r.description,
+          website: r.website,
+          isNetwork: false,
+          status: 'active',
+          createdAt: r.joined_at ? r.joined_at.toISOString() : null,
+        }));
+
+      const networks = rows
+        .filter((r) => r.is_network)
+        .map((r) => ({
+          did: r.did,
+          handle: r.handle,
+          displayName: r.display_name,
+          description: r.description,
+          website: r.website,
+          isNetwork: true,
+          status: 'active',
+          createdAt: r.joined_at ? r.joined_at.toISOString() : null,
+        }));
+
+      res.json({ cooperatives, networks });
+    }),
+  );
+
   // ─── ATProto OAuth Routes (Stage 2) ─────────────────────────────────────
 
   if (oauthClient) {

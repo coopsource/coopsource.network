@@ -74,6 +74,78 @@ export class EntityService {
     };
   }
 
+  async getCooperativeByHandle(handle: string): Promise<{
+    entity: {
+      did: string;
+      type: string;
+      handle: string | null;
+      display_name: string;
+      description: string | null;
+      avatar_cid: string | null;
+      status: string;
+    };
+    profile: {
+      cooperative_type: string;
+      membership_policy: string;
+      max_members: number | null;
+      location: string | null;
+      website: string | null;
+      founded_date: string | null;
+      is_network: boolean;
+    };
+  } | null> {
+    const row = await this.db
+      .selectFrom('entity')
+      .innerJoin(
+        'cooperative_profile',
+        'cooperative_profile.entity_did',
+        'entity.did',
+      )
+      .where('entity.type', '=', 'cooperative')
+      .where('entity.status', '=', 'active')
+      .where('entity.handle', '=', handle)
+      .select([
+        'entity.did',
+        'entity.type',
+        'entity.handle',
+        'entity.display_name',
+        'entity.description',
+        'entity.avatar_cid',
+        'entity.status',
+        'cooperative_profile.cooperative_type',
+        'cooperative_profile.membership_policy',
+        'cooperative_profile.max_members',
+        'cooperative_profile.location',
+        'cooperative_profile.website',
+        'cooperative_profile.founded_date',
+        'cooperative_profile.is_network',
+      ])
+      .executeTakeFirst();
+
+    if (!row) return null;
+
+    return {
+      entity: {
+        did: row.did,
+        type: row.type,
+        handle: row.handle,
+        display_name: row.display_name,
+        description: row.description,
+        avatar_cid: row.avatar_cid,
+        status: row.status,
+      },
+      profile: {
+        cooperative_type: row.cooperative_type,
+        membership_policy: row.membership_policy,
+        max_members: row.max_members,
+        location: row.location,
+        website: row.website,
+        founded_date: row.founded_date,
+        is_network: row.is_network,
+      },
+    };
+  }
+
   async updateCooperative(
     did: string,
     updates: {

@@ -1,199 +1,126 @@
 <script lang="ts">
-  import { Badge } from '$lib/components/ui';
+  import { Badge, EmptyState } from '$lib/components/ui';
+  import Globe from '@lucide/svelte/icons/globe';
+  import Building2 from '@lucide/svelte/icons/building-2';
+  import Mail from '@lucide/svelte/icons/mail';
 
   let { data } = $props();
 
-  const coop = $derived(data.cooperative);
-  const proposals = $derived(data.proposals);
-  const agreements = $derived(data.agreements);
-  const threads = $derived(data.threads);
-  const campaigns = $derived(data.campaigns);
-  const outcomes = $derived(data.outcomes);
-
-  function statusToVariant(status: string): 'success' | 'warning' | 'danger' | 'default' {
-    switch (status) {
-      case 'active': case 'accepted': case 'resolved': case 'signed': return 'success';
-      case 'pending': case 'open': case 'closed': return 'warning';
-      case 'revoked': case 'void': case 'voided': return 'danger';
-      default: return 'default';
-    }
-  }
+  const cooperatives = $derived(data.cooperatives);
+  const networks = $derived(data.networks);
+  const invitations = $derived(data.invitations);
 </script>
 
 <svelte:head>
   <title>Dashboard — Co-op Source</title>
 </svelte:head>
 
-<div class="space-y-6">
-  <h1 class="text-xl font-semibold text-[var(--cs-text)]">Dashboard</h1>
-
-  <!-- Co-op Info Card -->
-  {#if coop}
-    <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-5">
-      <div class="flex items-start justify-between">
-        <div>
-          <h2 class="text-base font-semibold text-[var(--cs-text)]">{coop.displayName}</h2>
-          {#if coop.handle}
-            <p class="text-sm text-[var(--cs-text-muted)]">@{coop.handle}</p>
-          {/if}
-          {#if coop.description}
-            <p class="mt-2 text-sm text-[var(--cs-text-secondary)]">{coop.description}</p>
-          {/if}
-          {#if coop.website}
-            <a
-              href={coop.website}
-              target="_blank"
-              rel="noreferrer"
-              class="mt-1 block text-sm text-[var(--cs-primary)] hover:underline"
-            >
-              {coop.website}
-            </a>
-          {/if}
-        </div>
-        <Badge variant={statusToVariant(coop.status)}>{coop.status}</Badge>
-      </div>
-    </div>
-  {/if}
-
-  <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-    <!-- Recent Proposals -->
-    <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)]">
-      <div class="flex items-center justify-between border-b border-[var(--cs-border)] px-5 py-4">
-        <h2 class="text-sm font-semibold text-[var(--cs-text)]">Recent Proposals</h2>
-        <a href="/proposals" class="text-xs text-[var(--cs-primary)] hover:underline">View all →</a>
-      </div>
-      {#if proposals.length === 0}
-        <p class="px-5 py-6 text-sm text-[var(--cs-text-muted)]">No proposals yet.</p>
-      {:else}
-        <ul class="divide-y divide-[var(--cs-border)]">
-          {#each proposals as proposal}
-            <li class="px-5 py-3">
-              <a href="/proposals/{proposal.id}" class="block hover:bg-[var(--cs-bg-inset)] -mx-5 px-5 py-1 rounded">
-                <div class="flex items-center justify-between">
-                  <span class="text-sm font-medium text-[var(--cs-text)] truncate">{proposal.title}</span>
-                  <Badge variant={statusToVariant(proposal.status)} class="ml-2 shrink-0">{proposal.status}</Badge>
-                </div>
-                <p class="text-xs text-[var(--cs-text-muted)] mt-0.5">
-                  by {proposal.authorDisplayName} ·
-                  {new Date(proposal.createdAt).toLocaleDateString()}
-                </p>
-              </a>
-            </li>
-          {/each}
-        </ul>
-      {/if}
-    </div>
-
-    <!-- Recent Agreements -->
-    <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)]">
-      <div class="flex items-center justify-between border-b border-[var(--cs-border)] px-5 py-4">
-        <h2 class="text-sm font-semibold text-[var(--cs-text)]">Recent Agreements</h2>
-        <a href="/agreements" class="text-xs text-[var(--cs-primary)] hover:underline">View all →</a>
-      </div>
-      {#if agreements.length === 0}
-        <p class="px-5 py-6 text-sm text-[var(--cs-text-muted)]">No agreements yet.</p>
-      {:else}
-        <ul class="divide-y divide-[var(--cs-border)]">
-          {#each agreements as agreement}
-            <li class="px-5 py-3">
-              <a href="/agreements/{encodeURIComponent(agreement.uri)}" class="block hover:bg-[var(--cs-bg-inset)] -mx-5 px-5 py-1 rounded">
-                <div class="flex items-center justify-between">
-                  <span class="text-sm font-medium text-[var(--cs-text)] truncate">{agreement.title}</span>
-                  <Badge variant={statusToVariant(agreement.status)} class="ml-2 shrink-0">{agreement.status}</Badge>
-                </div>
-                <p class="text-xs text-[var(--cs-text-muted)] mt-0.5">
-                  by {agreement.authorDisplayName} ·
-                  {new Date(agreement.createdAt).toLocaleDateString()}
-                </p>
-              </a>
-            </li>
-          {/each}
-        </ul>
-      {/if}
-    </div>
-
-    <!-- Recent Threads -->
-    <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)]">
-      <div class="flex items-center justify-between border-b border-[var(--cs-border)] px-5 py-4">
-        <h2 class="text-sm font-semibold text-[var(--cs-text)]">Recent Threads</h2>
-        <a href="/threads" class="text-xs text-[var(--cs-primary)] hover:underline">View all →</a>
-      </div>
-      {#if threads.length === 0}
-        <p class="px-5 py-6 text-sm text-[var(--cs-text-muted)]">No threads yet.</p>
-      {:else}
-        <ul class="divide-y divide-[var(--cs-border)]">
-          {#each threads as thread}
-            <li class="px-5 py-3">
-              <a href="/threads/{thread.id}" class="block hover:bg-[var(--cs-bg-inset)] -mx-5 px-5 py-1 rounded">
-                <div class="flex items-center justify-between">
-                  <span class="text-sm font-medium text-[var(--cs-text)] truncate">
-                    {thread.title ?? 'Untitled thread'}
-                  </span>
-                  <Badge variant="default" class="ml-2 shrink-0">{thread.threadType}</Badge>
-                </div>
-                <p class="text-xs text-[var(--cs-text-muted)] mt-0.5">
-                  {thread.memberCount} member{thread.memberCount !== 1 ? 's' : ''} ·
-                  {new Date(thread.createdAt).toLocaleDateString()}
-                </p>
-              </a>
-            </li>
-          {/each}
-        </ul>
-      {/if}
-    </div>
-
-    <!-- Recent Campaigns -->
-    <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)]">
-      <div class="flex items-center justify-between border-b border-[var(--cs-border)] px-5 py-4">
-        <h2 class="text-sm font-semibold text-[var(--cs-text)]">Recent Campaigns</h2>
-        <a href="/campaigns" class="text-xs text-[var(--cs-primary)] hover:underline">View all →</a>
-      </div>
-      {#if campaigns.length === 0}
-        <p class="px-5 py-6 text-sm text-[var(--cs-text-muted)]">No campaigns yet.</p>
-      {:else}
-        <ul class="divide-y divide-[var(--cs-border)]">
-          {#each campaigns as campaign}
-            <li class="px-5 py-3">
-              <a href="/campaigns/{encodeURIComponent(campaign.uri)}" class="block hover:bg-[var(--cs-bg-inset)] -mx-5 px-5 py-1 rounded">
-                <div class="flex items-center justify-between">
-                  <span class="text-sm font-medium text-[var(--cs-text)] truncate">{campaign.title}</span>
-                  <Badge variant={statusToVariant(campaign.status)} class="ml-2 shrink-0">{campaign.status}</Badge>
-                </div>
-                <p class="text-xs text-[var(--cs-text-muted)] mt-0.5">
-                  {campaign.tier} · {new Date(campaign.createdAt).toLocaleDateString()}
-                </p>
-              </a>
-            </li>
-          {/each}
-        </ul>
-      {/if}
-    </div>
-
-    <!-- Recent Outcomes -->
-    <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)]">
-      <div class="flex items-center justify-between border-b border-[var(--cs-border)] px-5 py-4">
-        <h2 class="text-sm font-semibold text-[var(--cs-text)]">Recent Outcomes</h2>
-        <a href="/alignment" class="text-xs text-[var(--cs-primary)] hover:underline">View all →</a>
-      </div>
-      {#if outcomes.length === 0}
-        <p class="px-5 py-6 text-sm text-[var(--cs-text-muted)]">No outcomes yet.</p>
-      {:else}
-        <ul class="divide-y divide-[var(--cs-border)]">
-          {#each outcomes as outcome}
-            <li class="px-5 py-3">
-              <a href="/alignment/outcomes/{encodeURIComponent(outcome.uri)}" class="block hover:bg-[var(--cs-bg-inset)] -mx-5 px-5 py-1 rounded">
-                <div class="flex items-center justify-between">
-                  <span class="text-sm font-medium text-[var(--cs-text)] truncate">{outcome.title}</span>
-                  <Badge variant={statusToVariant(outcome.status)} class="ml-2 shrink-0">{outcome.status}</Badge>
-                </div>
-                <p class="text-xs text-[var(--cs-text-muted)] mt-0.5">
-                  {outcome.category} · {new Date(outcome.createdAt).toLocaleDateString()}
-                </p>
-              </a>
-            </li>
-          {/each}
-        </ul>
-      {/if}
-    </div>
+<div class="space-y-8">
+  <div>
+    <h1 class="text-xl font-semibold text-[var(--cs-text)]">Dashboard</h1>
+    <p class="mt-1 text-sm text-[var(--cs-text-secondary)]">Welcome back{data.user?.displayName ? `, ${data.user.displayName}` : ''}.</p>
   </div>
+
+  <!-- My Cooperatives -->
+  <section>
+    <h2 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--cs-text-muted)]">
+      My Cooperatives
+    </h2>
+    {#if cooperatives.length === 0}
+      <EmptyState
+        title="No cooperatives"
+        description="You're not a member of any cooperative yet."
+      />
+    {:else}
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {#each cooperatives as coop}
+          <a
+            href="/coop/{coop.handle ?? coop.did}"
+            class="group rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-5 cs-transition hover:border-[var(--cs-border-hover)] hover:shadow-sm"
+          >
+            <div class="flex items-start gap-3">
+              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--cs-primary-soft)]">
+                <Building2 class="h-5 w-5 text-[var(--cs-primary)]" />
+              </div>
+              <div class="min-w-0 flex-1">
+                <h3 class="text-sm font-semibold text-[var(--cs-text)] truncate group-hover:text-[var(--cs-primary)]">
+                  {coop.displayName}
+                </h3>
+                {#if coop.handle}
+                  <p class="text-xs text-[var(--cs-text-muted)]">@{coop.handle}</p>
+                {/if}
+              </div>
+            </div>
+            {#if coop.description}
+              <p class="mt-3 text-xs text-[var(--cs-text-secondary)] line-clamp-2">{coop.description}</p>
+            {/if}
+          </a>
+        {/each}
+      </div>
+    {/if}
+  </section>
+
+  <!-- My Networks -->
+  <section>
+    <h2 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--cs-text-muted)]">
+      My Networks
+    </h2>
+    {#if networks.length === 0}
+      <EmptyState
+        title="No networks"
+        description="You're not part of any network yet."
+      />
+    {:else}
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {#each networks as network}
+          <a
+            href="/net/{network.handle ?? network.did}"
+            class="group rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-5 cs-transition hover:border-[var(--cs-border-hover)] hover:shadow-sm"
+          >
+            <div class="flex items-start gap-3">
+              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--cs-primary-soft)]">
+                <Globe class="h-5 w-5 text-[var(--cs-primary)]" />
+              </div>
+              <div class="min-w-0 flex-1">
+                <h3 class="text-sm font-semibold text-[var(--cs-text)] truncate group-hover:text-[var(--cs-primary)]">
+                  {network.displayName}
+                </h3>
+                {#if network.handle}
+                  <p class="text-xs text-[var(--cs-text-muted)]">@{network.handle}</p>
+                {/if}
+              </div>
+            </div>
+            {#if network.description}
+              <p class="mt-3 text-xs text-[var(--cs-text-secondary)] line-clamp-2">{network.description}</p>
+            {/if}
+          </a>
+        {/each}
+      </div>
+    {/if}
+  </section>
+
+  <!-- Pending Invitations -->
+  {#if invitations.length > 0}
+    <section>
+      <h2 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--cs-text-muted)]">
+        Pending Invitations
+      </h2>
+      <div class="space-y-3">
+        {#each invitations.filter(i => i.status === 'pending') as inv}
+          <div class="flex items-center justify-between rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] px-5 py-4">
+            <div class="flex items-center gap-3">
+              <Mail class="h-4 w-4 text-[var(--cs-text-muted)]" />
+              <div>
+                <p class="text-sm font-medium text-[var(--cs-text)]">{inv.email}</p>
+                {#if inv.message}
+                  <p class="text-xs text-[var(--cs-text-secondary)]">"{inv.message}"</p>
+                {/if}
+              </div>
+            </div>
+            <Badge variant="warning">pending</Badge>
+          </div>
+        {/each}
+      </div>
+    </section>
+  {/if}
 </div>

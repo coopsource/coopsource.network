@@ -40,6 +40,7 @@ import type {
   ExploreCooperativesResponse,
   ExploreCooperativeDetail,
   ExploreNetworksResponse,
+  MyMembershipsResponse,
 } from './types.js';
 
 export class ApiError extends Error {
@@ -179,9 +180,12 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string) {
       request<void>('/auth/session', { method: 'DELETE' }),
 
     getMe: () => request<AuthUser>('/auth/me'),
+    getMyMemberships: () => request<MyMembershipsResponse>('/me/memberships'),
 
     // Co-op
     getCooperative: () => request<CoopEntity>('/cooperative'),
+    getCooperativeByHandle: (handle: string) =>
+      request<CoopEntity>(`/cooperative/by-handle/${encodeURIComponent(handle)}`),
 
     updateCooperative: (body: {
       displayName?: string;

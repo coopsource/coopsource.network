@@ -12,8 +12,21 @@ export interface CoopEntity {
   displayName: string;
   description: string | null;
   website: string | null;
+  isNetwork?: boolean;
   status: string;
   createdAt: string;
+}
+
+export interface WorkspaceContext {
+  type: 'coop' | 'network';
+  handle: string;
+  prefix: string;
+  cooperative: CoopEntity;
+}
+
+export interface MyMembershipsResponse {
+  cooperatives: CoopEntity[];
+  networks: CoopEntity[];
 }
 
 export interface Member {

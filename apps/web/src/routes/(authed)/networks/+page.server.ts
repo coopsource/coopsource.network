@@ -1,10 +1,13 @@
-import type { PageServerLoad } from './$types.js';
+import { redirect } from '@sveltejs/kit';
 import { createApiClient } from '$lib/api/client.js';
+import type { PageServerLoad } from './$types.js';
 
-export const load: PageServerLoad = async ({ fetch, request, url }) => {
+export const load: PageServerLoad = async ({ fetch, request }) => {
   const cookie = request.headers.get('cookie') ?? undefined;
   const api = createApiClient(fetch, cookie);
-  const cursor = url.searchParams.get('cursor') ?? undefined;
-  const result = await api.getNetworks({ limit: 20, cursor });
-  return { networks: result.networks, cursor: result.cursor };
+  try {
+    const coop = await api.getCooperative();
+    if (coop?.handle) redirect(301, `/coop/${coop.handle}/networks`);
+  } catch { /* fallthrough */ }
+  redirect(302, '/dashboard');
 };
