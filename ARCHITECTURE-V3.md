@@ -1352,12 +1352,66 @@ Upgrade together:
 020_role_definitions.ts        — Role definitions + built-in role seeding
 ```
 
+### Phase 9: Remaining Federation Gaps (completed February 2026)
+
+```
+9A Hub Registration & Discovery
+  ├── Migration 021: federation_peer table (registry of known remote instances)
+  ├── POST /api/v1/federation/hub/register — upsert peer, DID resolution for PDS URL
+  ├── POST /api/v1/federation/hub/notify — event acknowledgment, last_seen_at update
+  └── Defined event types: membership.approved/departed, agreement.created/signed, profile.updated, cooperative.created
+
+9B Agreement Signing Federation
+  ├── Migration 022: signature_request table (cross-instance signature lifecycle)
+  │   ├── Partial unique index: one pending request per agreement+signer
+  │   ├── States: pending → signed | rejected | cancelled | expired | retracted
+  │   └── Signer index for GET /me/signature-requests
+  ├── IFederationClient: +submitSignature, +rejectSignatureRequest, +cancelSignatureRequest, +retractSignature
+  ├── POST /api/v1/federation/agreement/sign-request — creates pending request for known signer
+  ├── POST /api/v1/federation/agreement/signature — records signature, updates request to 'signed'
+  ├── POST /api/v1/federation/agreement/sign-reject — rejects pending request
+  ├── POST /api/v1/federation/agreement/sign-cancel — cancels pending request (either side)
+  ├── POST /api/v1/federation/agreement/signature-retract — retracts active signature
+  ├── GET /api/v1/me/signature-requests — pending requests for authenticated user
+  ├── AgreementService: signAgreement/retractSignature update matching signature_request
+  └── AgreementService: voidAgreement/terminateAgreement cascade-cancel pending requests
+
+9C SagaCoordinator + Outbox
+  ├── SagaCoordinator: ordered steps with reverse-order compensation on failure
+  ├── Migration 023: federation_outbox table (reliable delivery queue)
+  ├── OutboxProcessor: poll → sign → send, exponential backoff, dead letter after max_attempts
+  └── enqueueOutboxMessage helper for enqueueing outbound federation messages
+```
+
+Signature request state diagram:
+```
+                    ┌─────────┐
+         request    │ pending │──── timeout ────→ expired
+         ────────→  └────┬────┘
+                         │
+              ┌──────────┼──────────┐
+              ▼          ▼          ▼
+         ┌────────┐ ┌────────┐ ┌──────────┐
+         │ signed │ │rejected│ │cancelled │
+         └───┬────┘ └────────┘ └──────────┘
+             │                  (by originator
+             ▼                   or target)
+        ┌──────────┐
+        │retracted │
+        └──────────┘
+```
+
+### Database Migrations (implemented continued)
+
+```
+021_federation_peer.ts        — Federation peer registry (known remote instances)
+022_signature_request.ts      — Cross-instance signature request lifecycle tracking
+023_federation_outbox.ts      — Reliable outbox for outbound federation messages
+```
+
 ### Database Migrations (planned, not yet implemented)
 
 ```
-021_did_web_support.ts        — Add did_web column to entity, update entity_key indices
-022_federation_endpoints.ts   — Add federation_peer table (known remote instances)
-023_cross_coop_outbox.ts      — Outbox table for cross-co-op operations
 024_public_profile_fields.ts  — Add public visibility flags
 ```
 
@@ -1365,22 +1419,13 @@ Upgrade together:
 
 ## 9. Remaining Stage 2 Gaps
 
-The following items from the federation architecture are designed but not yet implemented:
-
-**Federation endpoint stubs (return 501):**
-- `POST /api/v1/federation/agreement/sign-request` — cross-instance agreement signing
-- `POST /api/v1/federation/agreement/signature` — remote signature submission
-- `POST /api/v1/federation/hub/register` — co-op registration with network hub
-- `POST /api/v1/federation/hub/notify` — event notification to hub
+Phase 9 addressed the major federation infrastructure gaps. The following items remain:
 
 **Infrastructure not built:**
-- **SagaCoordinator** (`packages/federation/src/saga.ts`) — compensating transactions for multi-step cross-boundary operations (interface designed in §3.7)
-- **Federation peer registry** — no `federation_peer` table to track known remote instances
-- **Cross-co-op outbox** — no reliability layer for cross-instance operations (retry, dedup)
-- **Public visibility flags** — no control over which alignment/profile data is publicly visible
+- **Public visibility flags** — no control over which alignment/profile data is publicly visible (migration 024, deferred until settings UI is built)
 
-**Services not federated:**
-- `AgreementService` — `federationClient` injected but unused in signing flow
+**Services not fully federated:**
+- `NetworkService` — `joinNetwork()` should use `federationClient` for cross-instance network joining (separate concern from Phase 9 infrastructure)
 - `AlignmentService` — no `federationClient` support (local-only)
 - `FundingService` — no cross-instance campaign sharing
 

@@ -45,6 +45,16 @@ export type { DidWebResolverOptions } from './http/did-web-resolver.js';
 export { SigningKeyResolver } from './http/signing-key-resolver.js';
 export { signRequest, verifyRequest } from './http/signing.js';
 
+// Saga Coordinator
+export { SagaCoordinator } from './saga.js';
+export type { SagaStep, SagaLogger } from './saga.js';
+
+// Outbox
+export { OutboxProcessor } from './outbox/outbox-processor.js';
+export type { OutboxProcessorOptions, OutboxLogger } from './outbox/outbox-processor.js';
+export { enqueueOutboxMessage } from './outbox/enqueue.js';
+export type { EnqueueParams } from './outbox/enqueue.js';
+
 // Clocks
 export { SystemClock } from './clocks/system-clock.js';
 export { MockClock } from './clocks/mock-clock.js';

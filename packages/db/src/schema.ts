@@ -383,6 +383,69 @@ export interface RoleDefinitionTable {
 }
 
 // ──────────────────────────────────────────────
+// Federation Peer Registry (021 migration)
+// ──────────────────────────────────────────────
+
+export interface FederationPeerTable {
+  id: Generated<string>;
+  did: string;
+  display_name: string;
+  description: string | null;
+  cooperative_type: string | null;
+  website: string | null;
+  pds_url: string;
+  registered_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  last_seen_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  status: string;
+  metadata: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+// ──────────────────────────────────────────────
+// Signature Request Tracking (022 migration)
+// ──────────────────────────────────────────────
+
+export interface SignatureRequestTable {
+  id: Generated<string>;
+  agreement_uri: string;
+  agreement_title: string | null;
+  signer_did: string;
+  cooperative_did: string;
+  requester_did: string;
+  status: string;
+  requested_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  responded_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  expires_at: ColumnType<Date, Date | string, Date | string>;
+  response_message: string | null;
+  signature_uri: string | null;
+  signature_cid: string | null;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+// ──────────────────────────────────────────────
+// Federation Outbox (023 migration)
+// ──────────────────────────────────────────────
+
+export interface FederationOutboxTable {
+  id: Generated<string>;
+  target_did: string;
+  target_url: string;
+  endpoint: string;
+  method: string;
+  payload: ColumnType<Record<string, unknown>, string | Record<string, unknown>, string | Record<string, unknown>>;
+  idempotency_key: string | null;
+  status: string;
+  attempts: number;
+  max_attempts: number;
+  next_attempt_at: ColumnType<Date, Date | string, Date | string>;
+  last_error: string | null;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  sent_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  completed_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+}
+
+// ──────────────────────────────────────────────
 // Agreement Templates (019 migration)
 // ──────────────────────────────────────────────
 
@@ -658,6 +721,9 @@ export interface Database {
   agreement_revision: AgreementRevisionTable;
   agreement_template: AgreementTemplateTable;
   role_definition: RoleDefinitionTable;
+  federation_peer: FederationPeerTable;
+  signature_request: SignatureRequestTable;
+  federation_outbox: FederationOutboxTable;
 
   // Legacy tables (kept for Stage 2-3 features)
   stakeholder_interest: StakeholderInterestTable;

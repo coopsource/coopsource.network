@@ -10,11 +10,12 @@ Copy this prompt into Claude Code when working in the coopsource.network reposit
 Read the file ARCHITECTURE-V3.md in the project root. This is the comprehensive architecture document for Co-op Source Network's federated-from-day-one approach, produced by analyzing this codebase in detail plus ATProto ecosystem research as of February 2026.
 
 CURRENT STATE (February 2026):
-- Phases 0-8 of Stage 2 are COMPLETE and merged to main.
-- 184 API integration tests + 13 Playwright E2E spec files, all passing.
-- 20 database migrations implemented (001-020).
+- Phases 0-9 of Stage 2 are COMPLETE and merged to main.
+- 207 API integration tests + 46 federation package tests + 13 Playwright E2E spec files, all passing.
+- 23 database migrations implemented (001-023).
 - Workspace routing: /coop/[handle]/ and /net/[handle]/ with scoped sidebars.
-- Federation: 4 of 8 endpoints fully implemented, 4 return 501 stubs.
+- Federation: All 8 endpoints fully implemented + 3 new agreement signing endpoints + GET /me/signature-requests.
+- Phase 9 added: federation_peer registry, signature_request lifecycle, SagaCoordinator, federation_outbox.
 
 CRITICAL CONTEXT:
 - This is a pnpm monorepo with Turborepo. Express API, SvelteKit frontend, Kysely/PostgreSQL.
