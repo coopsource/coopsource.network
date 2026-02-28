@@ -42,8 +42,25 @@ const HubNotifySchema = z.object({
 
 const AgreementSignRequestSchema = z.object({
   agreementUri: z.string().min(1),
+  agreementTitle: z.string().optional(),
   signerDid: z.string().min(1),
   cooperativeDid: z.string().min(1),
+});
+
+const AgreementSignatureSchema = z.object({
+  agreementUri: z.string().min(1),
+  signerDid: z.string().min(1),
+  signatureUri: z.string().min(1),
+  signatureCid: z.string().min(1),
+  cooperativeDid: z.string().min(1),
+  statement: z.string().optional(),
+});
+
+const AgreementSignResponseSchema = z.object({
+  agreementUri: z.string().min(1),
+  signerDid: z.string().min(1),
+  cooperativeDid: z.string().min(1),
+  reason: z.string().optional(),
 });
 
 /**
@@ -202,20 +219,250 @@ export function createFederationRoutes(
     }),
   );
 
+  // ── Agreement signing federation endpoints ──
+
   router.post(
     '/api/v1/federation/agreement/sign-request',
     fedAuth,
     asyncHandler(async (req, res) => {
-      const _params = AgreementSignRequestSchema.parse(req.body);
-      res.status(501).json({ error: 'NotImplemented', message: 'Agreement signing federation not yet implemented' });
+      const params = AgreementSignRequestSchema.parse(req.body);
+
+      // Verify signer exists on this instance
+      const signer = await container.db
+        .selectFrom('entity')
+        .where('did', '=', params.signerDid)
+        .where('invalidated_at', 'is', null)
+        .select('did')
+        .executeTakeFirst();
+
+      if (!signer) {
+        throw new NotFoundError(`Signer not found: ${params.signerDid}`);
+      }
+
+      // Check no pending request already exists
+      const existing = await container.db
+        .selectFrom('signature_request')
+        .where('agreement_uri', '=', params.agreementUri)
+        .where('signer_did', '=', params.signerDid)
+        .where('status', '=', 'pending')
+        .select('id')
+        .executeTakeFirst();
+
+      if (existing) {
+        res.status(409).json({
+          error: 'Conflict',
+          message: 'A pending signature request already exists for this agreement and signer',
+        });
+        return;
+      }
+
+      const now = container.clock.now();
+      const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+      const [request] = await container.db
+        .insertInto('signature_request')
+        .values({
+          agreement_uri: params.agreementUri,
+          agreement_title: params.agreementTitle ?? null,
+          signer_did: params.signerDid,
+          cooperative_did: params.cooperativeDid,
+          requester_did: params.cooperativeDid,
+          status: 'pending',
+          requested_at: now,
+          expires_at: expiresAt,
+          created_at: now,
+        })
+        .returningAll()
+        .execute();
+
+      res.json({
+        acknowledged: true,
+        requestId: request!.id,
+        expiresAt: expiresAt.toISOString(),
+      });
     }),
   );
 
   router.post(
     '/api/v1/federation/agreement/signature',
     fedAuth,
-    asyncHandler(async (_req, res) => {
-      res.status(501).json({ error: 'NotImplemented', message: 'Agreement signature federation not yet implemented' });
+    asyncHandler(async (req, res) => {
+      const params = AgreementSignatureSchema.parse(req.body);
+
+      // Verify agreement exists locally and is open
+      const agreement = await container.db
+        .selectFrom('agreement')
+        .where('uri', '=', params.agreementUri)
+        .select(['uri', 'status', 'title'])
+        .executeTakeFirst();
+
+      if (!agreement) {
+        throw new NotFoundError(`Agreement not found: ${params.agreementUri}`);
+      }
+
+      if (agreement.status !== 'open') {
+        res.status(400).json({
+          error: 'BadRequest',
+          message: 'Agreement is not open for signing',
+        });
+        return;
+      }
+
+      // Check no duplicate active signature
+      const existingSig = await container.db
+        .selectFrom('agreement_signature')
+        .where('agreement_uri', '=', params.agreementUri)
+        .where('signer_did', '=', params.signerDid)
+        .where('retracted_at', 'is', null)
+        .select('id')
+        .executeTakeFirst();
+
+      if (existingSig) {
+        res.status(409).json({
+          error: 'Conflict',
+          message: 'Signer already has an active signature on this agreement',
+        });
+        return;
+      }
+
+      const now = container.clock.now();
+
+      // Insert into agreement_signature
+      const [sig] = await container.db
+        .insertInto('agreement_signature')
+        .values({
+          uri: params.signatureUri,
+          cid: params.signatureCid,
+          agreement_id: null,
+          agreement_uri: params.agreementUri,
+          agreement_cid: '',
+          signer_did: params.signerDid,
+          statement: params.statement ?? null,
+          signed_at: now,
+          created_at: now,
+          indexed_at: now,
+        })
+        .returningAll()
+        .execute();
+
+      // Update matching signature_request status to 'signed' (if exists)
+      await container.db
+        .updateTable('signature_request')
+        .set({
+          status: 'signed',
+          responded_at: now,
+          signature_uri: params.signatureUri,
+          signature_cid: params.signatureCid,
+        })
+        .where('agreement_uri', '=', params.agreementUri)
+        .where('signer_did', '=', params.signerDid)
+        .where('status', '=', 'pending')
+        .execute();
+
+      res.status(201).json({ recorded: true, signatureId: sig!.id });
+    }),
+  );
+
+  router.post(
+    '/api/v1/federation/agreement/sign-reject',
+    fedAuth,
+    asyncHandler(async (req, res) => {
+      const params = AgreementSignResponseSchema.parse(req.body);
+      const now = container.clock.now();
+
+      const result = await container.db
+        .updateTable('signature_request')
+        .set({
+          status: 'rejected',
+          responded_at: now,
+          response_message: params.reason ?? null,
+        })
+        .where('agreement_uri', '=', params.agreementUri)
+        .where('signer_did', '=', params.signerDid)
+        .where('status', '=', 'pending')
+        .executeTakeFirst();
+
+      if (!result || BigInt(result.numUpdatedRows) === 0n) {
+        throw new NotFoundError('No pending signature request found');
+      }
+
+      res.json({ acknowledged: true });
+    }),
+  );
+
+  router.post(
+    '/api/v1/federation/agreement/sign-cancel',
+    fedAuth,
+    asyncHandler(async (req, res) => {
+      const params = AgreementSignResponseSchema.parse(req.body);
+      const now = container.clock.now();
+
+      const result = await container.db
+        .updateTable('signature_request')
+        .set({
+          status: 'cancelled',
+          responded_at: now,
+          response_message: params.reason ?? null,
+        })
+        .where('agreement_uri', '=', params.agreementUri)
+        .where('signer_did', '=', params.signerDid)
+        .where('status', '=', 'pending')
+        .executeTakeFirst();
+
+      if (!result || BigInt(result.numUpdatedRows) === 0n) {
+        throw new NotFoundError('No pending signature request found');
+      }
+
+      res.json({ acknowledged: true });
+    }),
+  );
+
+  router.post(
+    '/api/v1/federation/agreement/signature-retract',
+    fedAuth,
+    asyncHandler(async (req, res) => {
+      const params = AgreementSignResponseSchema.parse(req.body);
+
+      // Verify matching active signature exists
+      const sig = await container.db
+        .selectFrom('agreement_signature')
+        .where('agreement_uri', '=', params.agreementUri)
+        .where('signer_did', '=', params.signerDid)
+        .where('retracted_at', 'is', null)
+        .select('id')
+        .executeTakeFirst();
+
+      if (!sig) {
+        throw new NotFoundError('No active signature found');
+      }
+
+      const now = container.clock.now();
+
+      // Retract the signature
+      await container.db
+        .updateTable('agreement_signature')
+        .set({
+          retracted_at: now,
+          retracted_by: params.signerDid,
+          retraction_reason: params.reason ?? null,
+        })
+        .where('id', '=', sig.id)
+        .execute();
+
+      // Update matching signature_request status to 'retracted' (if exists)
+      await container.db
+        .updateTable('signature_request')
+        .set({
+          status: 'retracted',
+          responded_at: now,
+          response_message: params.reason ?? null,
+        })
+        .where('agreement_uri', '=', params.agreementUri)
+        .where('signer_did', '=', params.signerDid)
+        .where('status', '=', 'signed')
+        .execute();
+
+      res.json({ acknowledged: true });
     }),
   );
 
@@ -235,8 +482,56 @@ export function createFederationRoutes(
         });
         return;
       }
-      const _params = HubRegisterSchema.parse(req.body);
-      res.status(501).json({ error: 'NotImplemented', message: 'Hub registration not yet implemented' });
+      const params = HubRegisterSchema.parse(req.body);
+
+      // Resolve DID to get PDS URL
+      let pdsUrl: string;
+      try {
+        const doc = await didResolver.resolve(params.cooperativeDid);
+        const service = doc.service.find(
+          (s: { type: string; serviceEndpoint: string }) =>
+            s.type === 'CoopSourcePds' ||
+            s.type === 'AtprotoPersonalDataServer',
+        );
+        pdsUrl = service?.serviceEndpoint ?? params.hubUrl;
+      } catch {
+        // Fallback: use the hubUrl as pds_url if DID resolution fails
+        pdsUrl = params.hubUrl;
+      }
+
+      const now = container.clock.now();
+
+      // Upsert: insert or update on conflict (idempotent re-registration)
+      await container.db
+        .insertInto('federation_peer')
+        .values({
+          did: params.cooperativeDid,
+          display_name: params.metadata.displayName,
+          description: params.metadata.description ?? null,
+          cooperative_type: params.metadata.cooperativeType ?? null,
+          website: params.metadata.website ?? null,
+          pds_url: pdsUrl,
+          registered_at: now,
+          last_seen_at: now,
+          status: 'active',
+          created_at: now,
+          updated_at: now,
+        })
+        .onConflict((oc) =>
+          oc.column('did').doUpdateSet({
+            display_name: params.metadata.displayName,
+            description: params.metadata.description ?? null,
+            cooperative_type: params.metadata.cooperativeType ?? null,
+            website: params.metadata.website ?? null,
+            pds_url: pdsUrl,
+            last_seen_at: now,
+            status: 'active',
+            updated_at: now,
+          }),
+        )
+        .execute();
+
+      res.json({ registered: true, did: params.cooperativeDid });
     }),
   );
 
@@ -254,8 +549,17 @@ export function createFederationRoutes(
         });
         return;
       }
-      const _event = HubNotifySchema.parse(req.body);
-      res.status(501).json({ error: 'NotImplemented', message: 'Hub notification not yet implemented' });
+      const event = HubNotifySchema.parse(req.body);
+
+      // Update last_seen_at for the source peer
+      const now = container.clock.now();
+      await container.db
+        .updateTable('federation_peer')
+        .set({ last_seen_at: now, updated_at: now })
+        .where('did', '=', event.sourceDid)
+        .execute();
+
+      res.json({ acknowledged: true, eventType: event.type });
     }),
   );
 

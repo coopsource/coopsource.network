@@ -57,6 +57,37 @@ export interface IFederationClient {
     agreementUri: string;
     signerDid: string;
     cooperativeDid: string;
+    agreementTitle?: string;
+  }): Promise<{ acknowledged: boolean }>;
+
+  submitSignature(params: {
+    agreementUri: string;
+    signerDid: string;
+    signatureUri: string;
+    signatureCid: string;
+    cooperativeDid: string;
+    statement?: string;
+  }): Promise<{ recorded: boolean }>;
+
+  rejectSignatureRequest(params: {
+    agreementUri: string;
+    signerDid: string;
+    cooperativeDid: string;
+    reason?: string;
+  }): Promise<{ acknowledged: boolean }>;
+
+  cancelSignatureRequest(params: {
+    agreementUri: string;
+    signerDid: string;
+    cooperativeDid: string;
+    reason?: string;
+  }): Promise<{ acknowledged: boolean }>;
+
+  retractSignature(params: {
+    agreementUri: string;
+    signerDid: string;
+    cooperativeDid: string;
+    reason?: string;
   }): Promise<{ acknowledged: boolean }>;
 
   // Network

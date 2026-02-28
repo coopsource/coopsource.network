@@ -419,7 +419,18 @@ export class AgreementService {
   }
 
   async terminateAgreement(uri: string, actorDid: string): Promise<AgreementRow> {
-    return this.transitionStatus(uri, actorDid, 'terminated');
+    const row = await this.transitionStatus(uri, actorDid, 'terminated');
+
+    // Cancel all pending signature requests for this agreement
+    const now = this.clock.now();
+    await this.db
+      .updateTable('signature_request')
+      .set({ status: 'cancelled', responded_at: now, response_message: 'Agreement terminated' })
+      .where('agreement_uri', '=', uri)
+      .where('status', '=', 'pending')
+      .execute();
+
+    return row;
   }
 
   async voidAgreement(uri: string, actorDid: string): Promise<AgreementRow> {
@@ -443,6 +454,14 @@ export class AgreementService {
     await this.insertRevision(uri, actorDid, 'voided', {
       fieldChanges: { status: { from: existing.status, to: 'voided' } },
     });
+
+    // Cancel all pending signature requests for this agreement
+    await this.db
+      .updateTable('signature_request')
+      .set({ status: 'cancelled', responded_at: now, response_message: 'Agreement voided' })
+      .where('agreement_uri', '=', uri)
+      .where('status', '=', 'pending')
+      .execute();
 
     emitAppEvent({
       type: 'agreement.voided',
@@ -501,6 +520,20 @@ export class AgreementService {
       .returningAll()
       .execute();
 
+    // Update matching signature_request if one exists
+    await this.db
+      .updateTable('signature_request')
+      .set({
+        status: 'signed',
+        responded_at: now,
+        signature_uri: ref.uri,
+        signature_cid: ref.cid,
+      })
+      .where('agreement_uri', '=', uri)
+      .where('signer_did', '=', signerDid)
+      .where('status', '=', 'pending')
+      .execute();
+
     await this.insertRevision(uri, signerDid, 'signed', {
       fieldChanges: { signerDid, signatureUri: ref.uri },
     });
@@ -538,6 +571,19 @@ export class AgreementService {
         retraction_reason: reason ?? null,
       })
       .where('id', '=', sig.id)
+      .execute();
+
+    // Update matching signature_request if one exists
+    await this.db
+      .updateTable('signature_request')
+      .set({
+        status: 'retracted',
+        responded_at: now,
+        response_message: reason ?? null,
+      })
+      .where('agreement_uri', '=', uri)
+      .where('signer_did', '=', signerDid)
+      .where('status', '=', 'signed')
       .execute();
 
     await this.insertRevision(uri, signerDid, 'signature_retracted', {

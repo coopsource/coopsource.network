@@ -140,11 +140,74 @@ export class HttpFederationClient implements IFederationClient {
     agreementUri: string;
     signerDid: string;
     cooperativeDid: string;
+    agreementTitle?: string;
   }): Promise<{ acknowledged: boolean }> {
     const doc = await this.didResolver.resolve(params.cooperativeDid);
     const pdsUrl = this.getPdsEndpoint(doc);
     const response = await this.signedFetch(
       `${pdsUrl}/api/v1/federation/agreement/sign-request`,
+      { method: 'POST', body: params },
+    );
+    return response.json() as Promise<{ acknowledged: boolean }>;
+  }
+
+  async submitSignature(params: {
+    agreementUri: string;
+    signerDid: string;
+    signatureUri: string;
+    signatureCid: string;
+    cooperativeDid: string;
+    statement?: string;
+  }): Promise<{ recorded: boolean }> {
+    const doc = await this.didResolver.resolve(params.cooperativeDid);
+    const pdsUrl = this.getPdsEndpoint(doc);
+    const response = await this.signedFetch(
+      `${pdsUrl}/api/v1/federation/agreement/signature`,
+      { method: 'POST', body: params },
+    );
+    return response.json() as Promise<{ recorded: boolean }>;
+  }
+
+  async rejectSignatureRequest(params: {
+    agreementUri: string;
+    signerDid: string;
+    cooperativeDid: string;
+    reason?: string;
+  }): Promise<{ acknowledged: boolean }> {
+    const doc = await this.didResolver.resolve(params.cooperativeDid);
+    const pdsUrl = this.getPdsEndpoint(doc);
+    const response = await this.signedFetch(
+      `${pdsUrl}/api/v1/federation/agreement/sign-reject`,
+      { method: 'POST', body: params },
+    );
+    return response.json() as Promise<{ acknowledged: boolean }>;
+  }
+
+  async cancelSignatureRequest(params: {
+    agreementUri: string;
+    signerDid: string;
+    cooperativeDid: string;
+    reason?: string;
+  }): Promise<{ acknowledged: boolean }> {
+    const doc = await this.didResolver.resolve(params.cooperativeDid);
+    const pdsUrl = this.getPdsEndpoint(doc);
+    const response = await this.signedFetch(
+      `${pdsUrl}/api/v1/federation/agreement/sign-cancel`,
+      { method: 'POST', body: params },
+    );
+    return response.json() as Promise<{ acknowledged: boolean }>;
+  }
+
+  async retractSignature(params: {
+    agreementUri: string;
+    signerDid: string;
+    cooperativeDid: string;
+    reason?: string;
+  }): Promise<{ acknowledged: boolean }> {
+    const doc = await this.didResolver.resolve(params.cooperativeDid);
+    const pdsUrl = this.getPdsEndpoint(doc);
+    const response = await this.signedFetch(
+      `${pdsUrl}/api/v1/federation/agreement/signature-retract`,
       { method: 'POST', body: params },
     );
     return response.json() as Promise<{ acknowledged: boolean }>;

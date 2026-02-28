@@ -180,6 +180,54 @@ export function createAuthRoutes(
     }),
   );
 
+  // GET /api/v1/me/signature-requests — list pending signature requests for the current user
+  router.get(
+    '/api/v1/me/signature-requests',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const now = new Date();
+
+      // Auto-expire past-due requests
+      await container.db
+        .updateTable('signature_request')
+        .set({ status: 'expired' })
+        .where('signer_did', '=', req.session.did!)
+        .where('status', '=', 'pending')
+        .where('expires_at', '<', now)
+        .execute();
+
+      // Fetch pending requests
+      const requests = await container.db
+        .selectFrom('signature_request')
+        .where('signer_did', '=', req.session.did!)
+        .where('status', '=', 'pending')
+        .where('expires_at', '>', now)
+        .select([
+          'id',
+          'agreement_uri',
+          'agreement_title',
+          'cooperative_did',
+          'requester_did',
+          'requested_at',
+          'expires_at',
+        ])
+        .orderBy('requested_at', 'desc')
+        .execute();
+
+      res.json(
+        requests.map((r) => ({
+          id: r.id,
+          agreementUri: r.agreement_uri,
+          agreementTitle: r.agreement_title,
+          cooperativeDid: r.cooperative_did,
+          requesterDid: r.requester_did,
+          requestedAt: r.requested_at instanceof Date ? r.requested_at.toISOString() : r.requested_at,
+          expiresAt: r.expires_at instanceof Date ? r.expires_at.toISOString() : r.expires_at,
+        })),
+      );
+    }),
+  );
+
   // ─── ATProto OAuth Routes (Stage 2) ─────────────────────────────────────
 
   if (oauthClient) {

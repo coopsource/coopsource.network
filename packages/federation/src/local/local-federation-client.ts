@@ -117,8 +117,48 @@ export class LocalFederationClient implements IFederationClient {
     agreementUri: string;
     signerDid: string;
     cooperativeDid: string;
+    agreementTitle?: string;
   }): Promise<{ acknowledged: boolean }> {
     // In standalone mode, the signer is on this instance — no remote call needed.
+    return { acknowledged: true };
+  }
+
+  async submitSignature(_params: {
+    agreementUri: string;
+    signerDid: string;
+    signatureUri: string;
+    signatureCid: string;
+    cooperativeDid: string;
+    statement?: string;
+  }): Promise<{ recorded: boolean }> {
+    // In standalone mode, the signature is recorded locally — no remote call needed.
+    return { recorded: true };
+  }
+
+  async rejectSignatureRequest(_params: {
+    agreementUri: string;
+    signerDid: string;
+    cooperativeDid: string;
+    reason?: string;
+  }): Promise<{ acknowledged: boolean }> {
+    return { acknowledged: true };
+  }
+
+  async cancelSignatureRequest(_params: {
+    agreementUri: string;
+    signerDid: string;
+    cooperativeDid: string;
+    reason?: string;
+  }): Promise<{ acknowledged: boolean }> {
+    return { acknowledged: true };
+  }
+
+  async retractSignature(_params: {
+    agreementUri: string;
+    signerDid: string;
+    cooperativeDid: string;
+    reason?: string;
+  }): Promise<{ acknowledged: boolean }> {
     return { acknowledged: true };
   }
 
