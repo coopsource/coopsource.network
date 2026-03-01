@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Container } from '../../container.js';
 import { asyncHandler } from '../../lib/async-handler.js';
+import { BCRYPT_ROUNDS } from '../../lib/crypto-config.js';
 import { requireAuth } from '../../auth/middleware.js';
 import { requirePermission } from '../../middleware/permissions.js';
 import { parsePagination } from '../../lib/pagination.js';
@@ -262,7 +263,7 @@ export function createMembershipRoutes(container: Container): Router {
 
       const now = container.clock.now();
       const { hash } = await import('bcrypt');
-      const secretHash = await hash(password, 12);
+      const secretHash = await hash(password, BCRYPT_ROUNDS);
       const roles = inv.intended_roles ?? ['member'];
 
       // Create DID and PDS records outside the transaction (non-DB operations)

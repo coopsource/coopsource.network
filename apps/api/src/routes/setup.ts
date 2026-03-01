@@ -3,6 +3,7 @@ import type { DID } from '@coopsource/common';
 import { ValidationError, SetupInitializeSchema, BUILT_IN_ROLES } from '@coopsource/common';
 import type { Container } from '../container.js';
 import { asyncHandler } from '../lib/async-handler.js';
+import { BCRYPT_ROUNDS } from '../lib/crypto-config.js';
 import {
   checkSetupComplete,
   markSetupComplete,
@@ -34,7 +35,7 @@ export function createSetupRoutes(container: Container): Router {
 
       const now = container.clock.now();
       const { hash } = await import('bcrypt');
-      const secretHash = await hash(adminPassword, 12);
+      const secretHash = await hash(adminPassword, BCRYPT_ROUNDS);
 
       // Create DIDs outside the transaction (PDS operations are not DB-transactional)
       const coopDidDoc = await container.pdsService.createDid({

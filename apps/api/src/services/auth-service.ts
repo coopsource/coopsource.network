@@ -11,8 +11,7 @@ import {
 import type { IPdsService } from '@coopsource/federation';
 import type { IClock } from '@coopsource/federation';
 import type { Actor } from '../auth/middleware.js';
-
-const BCRYPT_ROUNDS = 12;
+import { BCRYPT_ROUNDS } from '../lib/crypto-config.js';
 
 export class AuthService {
   constructor(
