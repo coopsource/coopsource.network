@@ -139,6 +139,11 @@ export function createFederationRoutes(
           'cooperative_profile.cooperative_type',
           'cooperative_profile.membership_policy',
           'cooperative_profile.website',
+          'cooperative_profile.public_description',
+          'cooperative_profile.public_members',
+          'cooperative_profile.public_activity',
+          'cooperative_profile.public_agreements',
+          'cooperative_profile.public_campaigns',
         ])
         .executeTakeFirst();
 
@@ -163,6 +168,13 @@ export function createFederationRoutes(
         membershipPolicy: row.membership_policy,
         memberCount: Number(countResult?.count ?? 0),
         website: row.website,
+        visibility: {
+          publicDescription: row.public_description,
+          publicMembers: row.public_members,
+          publicActivity: row.public_activity,
+          publicAgreements: row.public_agreements,
+          publicCampaigns: row.public_campaigns,
+        },
       });
     }),
   );

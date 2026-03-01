@@ -98,8 +98,8 @@ export function createTestApp(): TestApp {
   const agreementService = new AgreementService(db, pdsService, federationClient, clock);
   const agreementTemplateService = new AgreementTemplateService(db, clock);
   const networkService = new NetworkService(db, pdsService, federationClient, clock);
-  const fundingService = new FundingService(db, pdsService, clock);
-  const alignmentService = new AlignmentService(db, pdsService, clock);
+  const fundingService = new FundingService(db, pdsService, federationClient, clock);
+  const alignmentService = new AlignmentService(db, pdsService, federationClient, clock);
 
   const testConfig = {
     PUBLIC_API_URL: 'http://localhost:3001',

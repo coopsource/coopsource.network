@@ -10,12 +10,13 @@ Copy this prompt into Claude Code when working in the coopsource.network reposit
 Read the file ARCHITECTURE-V3.md in the project root. This is the comprehensive architecture document for Co-op Source Network's federated-from-day-one approach, produced by analyzing this codebase in detail plus ATProto ecosystem research as of February 2026.
 
 CURRENT STATE (February 2026):
-- Phases 0-9 of Stage 2 are COMPLETE and merged to main.
-- 207 API integration tests + 46 federation package tests + 13 Playwright E2E spec files, all passing.
-- 23 database migrations implemented (001-023).
+- Phases 0-10 of Stage 2 are COMPLETE and merged to main.
+- 210+ API integration tests + 46 federation package tests + 13 Playwright E2E spec files, all passing.
+- 24 database migrations implemented (001-024).
 - Workspace routing: /coop/[handle]/ and /net/[handle]/ with scoped sidebars.
-- Federation: All 8 endpoints fully implemented + 3 new agreement signing endpoints + GET /me/signature-requests.
+- Federation: All 8 endpoints fully implemented + 5 agreement signing endpoints + GET /me/signature-requests.
 - Phase 9 added: federation_peer registry, signature_request lifecycle, SagaCoordinator, federation_outbox.
+- Phase 10 added: public profile visibility flags (migration 024), all services wired to federationClient, OutboxProcessor startup for federated mode.
 
 CRITICAL CONTEXT:
 - This is a pnpm monorepo with Turborepo. Express API, SvelteKit frontend, Kysely/PostgreSQL.
@@ -39,13 +40,7 @@ KEY ABSTRACTIONS:
    - AppShell, Sidebar, Navbar parameterized with workspace prop
    - Dashboard is workspace picker (no sidebar), workspace pages have scoped sidebar
 
-REMAINING STAGE 2 GAPS (next work):
-- Federation stubs: agreement/sign-request, agreement/signature, hub/register, hub/notify
-- Missing migrations: 021 (did_web_support), 022 (federation_peer), 023 (cross_coop_outbox), 024 (public_profile_fields)
-- SagaCoordinator (packages/federation/src/saga.ts) — designed in §3.8 but not implemented
-- Federation peer registry, outbox pattern, public visibility flags
-
-STAGE 3 (future):
+WHAT'S NEXT — STAGE 3:
 - Automation, AI agents, MCP integration
 - CLI auth, OIDC
 - Stripe payment processing for funding campaigns
@@ -54,14 +49,14 @@ STAGE 3 (future):
 SERVICES LAYER (apps/api/src/services/):
 - authService — register, login, getSessionActor
 - entityService — entity CRUD, getCooperativeByHandle
-- membershipService — membership lifecycle, invitation acceptance
-- networkService — network CRUD, join/leave
+- membershipService — membership lifecycle, invitation acceptance (federationClient wired)
+- networkService — network CRUD, join/leave (federationClient wired, notifyHub on departure)
 - postService — threads and posts
 - proposalService — governance proposals, voting
-- agreementService — agreement lifecycle, signing (federationClient injected but unused)
+- agreementService — agreement lifecycle, signing (federationClient wired: submitSignature, retractSignature)
 - agreementTemplateService — reusable agreement templates
-- fundingService — campaigns, pledges
-- alignmentService — interests, outcomes, maps (local-only, no federation)
+- fundingService — campaigns, pledges (federationClient wired: notifyHub on campaign activate, pledge create)
+- alignmentService — interests, outcomes, maps (federationClient wired: notifyHub on submit/create/support/generate)
 - connectionService — external OAuth connections
 
 CRITICAL CONSTRAINTS (from CLAUDE.md and ARCHITECTURE-V3.md):
@@ -87,7 +82,7 @@ TESTING:
 - Integration tests use LocalFederationClient (standalone mode)
 - Federation tests use Docker Compose + HttpFederationClient
 
-Start by reading ARCHITECTURE-V3.md sections 9-10 to understand remaining gaps, then ask what to work on.
+Start by reading ARCHITECTURE-V3.md to understand the full architecture, then ask what to work on.
 ```
 
 ---
@@ -96,20 +91,20 @@ Start by reading ARCHITECTURE-V3.md sections 9-10 to understand remaining gaps, 
 
 | Priority | Work Item | Scope |
 |----------|-----------|-------|
-| **1** | Federation endpoint stubs → real implementations | `apps/api/src/routes/federation.ts` |
-| **2** | Migrations 021-024 | `packages/db/src/migrations/` |
-| **3** | SagaCoordinator implementation | `packages/federation/src/saga.ts` |
-| **4** | Federate AgreementService signing flow | `apps/api/src/services/agreement-service.ts` |
-| **5** | Stage 3 features (AI, Stripe, OIDC) | New services + routes |
+| **1** | Stage 3: Stripe integration for funding | `apps/api/src/routes/funding/`, new Stripe service |
+| **2** | Stage 3: OIDC provider | New service + routes |
+| **3** | Stage 3: AI agent framework | New service + MCP integration |
+| **4** | Stage 3: Automation workflows | Workflow engine + trigger system |
+| **5** | Frontend polish: settings UI for visibility flags | `apps/web/src/routes/(authed)/coop/[handle]/settings/` |
 
 ## Key Files to Read First
 
 Before implementing, have Claude Code read:
-1. `ARCHITECTURE-V3.md` — full architecture (especially §3.6 API routes, §9 remaining gaps, §10 undocumented features)
+1. `ARCHITECTURE-V3.md` — full architecture
 2. `CLAUDE.md` — project conventions and constraints
 3. `packages/federation/src/interfaces/pds-service.ts` — the interface pattern to follow
-4. `packages/federation/src/http/http-federation-client.ts` — current HttpFederationClient
+4. `packages/federation/src/interfaces/federation-client.ts` — IFederationClient interface
 5. `apps/api/src/container.ts` — how DI works
-6. `apps/api/src/routes/federation.ts` — existing endpoints (4 real + 4 stubs)
+6. `apps/api/src/routes/federation.ts` — federation endpoints
 7. `apps/web/tests/e2e/helpers.ts` — E2E test infrastructure
 8. `apps/web/src/lib/utils/workspace.ts` — workspace context utilities

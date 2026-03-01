@@ -534,6 +534,15 @@ export class AgreementService {
       .where('status', '=', 'pending')
       .execute();
 
+    await this.federationClient.submitSignature({
+      agreementUri: uri,
+      signerDid,
+      signatureUri: ref.uri,
+      signatureCid: ref.cid,
+      cooperativeDid: agreement.project_uri,
+      statement,
+    });
+
     await this.insertRevision(uri, signerDid, 'signed', {
       fieldChanges: { signerDid, signatureUri: ref.uri },
     });
@@ -585,6 +594,20 @@ export class AgreementService {
       .where('signer_did', '=', signerDid)
       .where('status', '=', 'signed')
       .execute();
+
+    const agreement = await this.db
+      .selectFrom('agreement')
+      .where('uri', '=', uri)
+      .select('project_uri')
+      .executeTakeFirst();
+    if (agreement) {
+      await this.federationClient.retractSignature({
+        agreementUri: uri,
+        signerDid,
+        cooperativeDid: agreement.project_uri,
+        reason,
+      });
+    }
 
     await this.insertRevision(uri, signerDid, 'signature_retracted', {
       fieldChanges: { signerDid, reason: reason ?? null },

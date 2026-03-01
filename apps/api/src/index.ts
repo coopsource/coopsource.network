@@ -163,6 +163,12 @@ async function start(): Promise<void> {
     logger.error(err, 'AppView loop failed to start');
   });
 
+  // Start outbox processor for federated mode
+  if (container.outboxProcessor) {
+    container.outboxProcessor.start();
+    logger.info('Outbox processor started');
+  }
+
   // Background: resolve expired proposals every 60s
   setInterval(() => {
     container.proposalService.resolveExpiredProposals().catch((err) => {
