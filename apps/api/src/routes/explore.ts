@@ -33,6 +33,8 @@ export function createExploreRoutes(container: Container): Router {
           'entity.created_at',
           'cooperative_profile.cooperative_type',
           'cooperative_profile.website',
+          'cooperative_profile.public_description',
+          'cooperative_profile.public_members',
         ])
         .select([
           'entity.did',
@@ -42,6 +44,8 @@ export function createExploreRoutes(container: Container): Router {
           'entity.created_at as createdAt',
           'cooperative_profile.cooperative_type as cooperativeType',
           'cooperative_profile.website',
+          'cooperative_profile.public_description as publicDescription',
+          'cooperative_profile.public_members as publicMembers',
           sql<number>`count(membership.id)::int`.as('memberCount'),
         ])
         .orderBy('entity.created_at', 'desc')
@@ -75,9 +79,9 @@ export function createExploreRoutes(container: Container): Router {
           did: row.did,
           handle: row.handle,
           displayName: row.displayName,
-          description: row.description,
+          description: row.publicDescription ? row.description : null,
           cooperativeType: row.cooperativeType,
-          memberCount: row.memberCount,
+          memberCount: row.publicMembers ? row.memberCount : null,
           website: row.website,
         })),
         cursor: nextCursor,
@@ -110,6 +114,9 @@ export function createExploreRoutes(container: Container): Router {
           'entity.description',
           'cooperative_profile.cooperative_type',
           'cooperative_profile.website',
+          'cooperative_profile.public_description',
+          'cooperative_profile.public_members',
+          'cooperative_profile.public_activity',
         ])
         .select([
           'entity.did',
@@ -118,6 +125,9 @@ export function createExploreRoutes(container: Container): Router {
           'entity.description',
           'cooperative_profile.cooperative_type as cooperativeType',
           'cooperative_profile.website',
+          'cooperative_profile.public_description as publicDescription',
+          'cooperative_profile.public_members as publicMembers',
+          'cooperative_profile.public_activity as publicActivity',
           sql<number>`count(membership.id)::int`.as('memberCount'),
         ])
         .executeTakeFirst();
@@ -129,27 +139,32 @@ export function createExploreRoutes(container: Container): Router {
         return;
       }
 
-      // Fetch networks this cooperative belongs to
-      const networks = await db
-        .selectFrom('membership')
-        .innerJoin('entity', 'entity.did', 'membership.cooperative_did')
-        .innerJoin('cooperative_profile', 'cooperative_profile.entity_did', 'entity.did')
-        .where('membership.member_did', '=', row.did)
-        .where('membership.status', '=', 'active')
-        .where('cooperative_profile.is_network', '=', true)
-        .where('entity.status', '=', 'active')
-        .select(['entity.did', 'entity.display_name as displayName'])
-        .execute();
+      // Fetch networks this cooperative belongs to (gated by public_activity)
+      let networks: Array<{ did: string; displayName: string }> = [];
+      if (row.publicActivity) {
+        const networkRows = await db
+          .selectFrom('membership')
+          .innerJoin('entity', 'entity.did', 'membership.cooperative_did')
+          .innerJoin('cooperative_profile', 'cooperative_profile.entity_did', 'entity.did')
+          .where('membership.member_did', '=', row.did)
+          .where('membership.status', '=', 'active')
+          .where('cooperative_profile.is_network', '=', true)
+          .where('entity.status', '=', 'active')
+          .select(['entity.did', 'entity.display_name as displayName'])
+          .execute();
+
+        networks = networkRows.map((n) => ({ did: n.did, displayName: n.displayName }));
+      }
 
       res.json({
         did: row.did,
         handle: row.handle,
         displayName: row.displayName,
-        description: row.description,
+        description: row.publicDescription ? row.description : null,
         cooperativeType: row.cooperativeType,
-        memberCount: row.memberCount,
+        memberCount: row.publicMembers ? row.memberCount : null,
         website: row.website,
-        networks: networks.map((n) => ({ did: n.did, displayName: n.displayName })),
+        networks,
       });
     }),
   );
@@ -180,6 +195,8 @@ export function createExploreRoutes(container: Container): Router {
           'cooperative_profile.cooperative_type',
           'cooperative_profile.membership_policy',
           'cooperative_profile.website',
+          'cooperative_profile.public_description',
+          'cooperative_profile.public_members',
         ])
         .select([
           'entity.did',
@@ -190,6 +207,8 @@ export function createExploreRoutes(container: Container): Router {
           'cooperative_profile.cooperative_type as cooperativeType',
           'cooperative_profile.membership_policy as membershipPolicy',
           'cooperative_profile.website',
+          'cooperative_profile.public_description as publicDescription',
+          'cooperative_profile.public_members as publicMembers',
           sql<number>`count(membership.id)::int`.as('memberCount'),
         ])
         .orderBy('entity.created_at', 'desc')
@@ -223,10 +242,10 @@ export function createExploreRoutes(container: Container): Router {
           did: row.did,
           handle: row.handle,
           displayName: row.displayName,
-          description: row.description,
+          description: row.publicDescription ? row.description : null,
           cooperativeType: row.cooperativeType,
           membershipPolicy: row.membershipPolicy,
-          memberCount: row.memberCount,
+          memberCount: row.publicMembers ? row.memberCount : null,
           website: row.website,
           createdAt: row.createdAt.toISOString(),
         })),

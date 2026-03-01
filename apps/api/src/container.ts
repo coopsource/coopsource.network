@@ -1,8 +1,8 @@
 import { createDb } from '@coopsource/db';
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
-import { SystemClock } from '@coopsource/federation';
-import type { IPdsService, IFederationClient } from '@coopsource/federation';
+import { SystemClock, OutboxProcessor } from '@coopsource/federation';
+import type { IPdsService, IFederationClient, OutboxLogger } from '@coopsource/federation';
 import { LocalPdsService, LocalBlobStore, LocalFederationClient } from '@coopsource/federation/local';
 import type { FederationDatabase } from '@coopsource/federation/local';
 import { HttpFederationClient, DidWebResolver, SigningKeyResolver } from '@coopsource/federation/http';
@@ -41,6 +41,7 @@ export interface Container {
   fundingService: FundingService;
   alignmentService: AlignmentService;
   connectionService: ConnectionService;
+  outboxProcessor?: OutboxProcessor;
 }
 
 export function createContainer(config: AppConfig): Container {
@@ -69,22 +70,41 @@ export function createContainer(config: AppConfig): Container {
   const didResolver = new DidWebResolver();
 
   // Federation client — standalone uses local dispatch, hub/coop use signed HTTP.
+  const fedDb = db as unknown as import('kysely').Kysely<FederationDatabase>;
+  const instanceDid = config.INSTANCE_DID ?? urlToDidWeb(config.INSTANCE_URL);
+
+  let signingKeyResolver: SigningKeyResolver | undefined;
+  let outboxProcessor: OutboxProcessor | undefined;
+
   const federationClient: IFederationClient =
     config.INSTANCE_ROLE === 'standalone'
-      ? new LocalFederationClient(
-          db as unknown as import('kysely').Kysely<FederationDatabase>,
-          pdsService,
-          clock,
-        )
-      : new HttpFederationClient(
-          new SigningKeyResolver(
-            db as unknown as import('kysely').Kysely<FederationDatabase>,
-            config.KEY_ENC_KEY,
-          ),
-          didResolver,
-          config.INSTANCE_DID ?? urlToDidWeb(config.INSTANCE_URL),
-          config.HUB_URL,
-        );
+      ? new LocalFederationClient(fedDb, pdsService, clock)
+      : (() => {
+          signingKeyResolver = new SigningKeyResolver(fedDb, config.KEY_ENC_KEY);
+
+          const outboxLogger: OutboxLogger = {
+            info(msg: string, data?: Record<string, unknown>) {
+              // pino logger imported lazily to avoid circular deps
+              console.log(`[outbox] ${msg}`, data ?? '');
+            },
+            error(msg: string, data?: Record<string, unknown>) {
+              console.error(`[outbox] ${msg}`, data ?? '');
+            },
+          };
+          outboxProcessor = new OutboxProcessor(
+            db,
+            signingKeyResolver,
+            instanceDid,
+            outboxLogger,
+          );
+
+          return new HttpFederationClient(
+            signingKeyResolver,
+            didResolver,
+            instanceDid,
+            config.HUB_URL,
+          );
+        })();
 
   const blobStore = new LocalBlobStore({ blobDir: config.BLOB_DIR });
 
@@ -107,8 +127,8 @@ export function createContainer(config: AppConfig): Container {
   const agreementService = new AgreementService(db, pdsService, federationClient, clock);
   const agreementTemplateService = new AgreementTemplateService(db, clock);
   const networkService = new NetworkService(db, pdsService, federationClient, clock);
-  const fundingService = new FundingService(db, pdsService, clock);
-  const alignmentService = new AlignmentService(db, pdsService, clock);
+  const fundingService = new FundingService(db, pdsService, federationClient, clock);
+  const alignmentService = new AlignmentService(db, pdsService, federationClient, clock);
   const connectionService = new ConnectionService(db, pdsService, clock, config);
 
   return {
@@ -130,5 +150,6 @@ export function createContainer(config: AppConfig): Container {
     fundingService,
     alignmentService,
     connectionService,
+    outboxProcessor,
   };
 }

@@ -1350,6 +1350,10 @@ Upgrade together:
 018_unify_agreements.ts        — Agreement model unification
 019_agreement_templates.ts     — Reusable agreement templates
 020_role_definitions.ts        — Role definitions + built-in role seeding
+021_federation_peer.ts         — Federation peer registry (known remote instances)
+022_signature_request.ts       — Cross-instance signature request lifecycle tracking
+023_federation_outbox.ts       — Reliable outbox for outbound federation messages
+024_public_profile_fields.ts   — Public visibility flags for cooperative profiles
 ```
 
 ### Phase 9: Remaining Federation Gaps (completed February 2026)
@@ -1401,33 +1405,54 @@ Signature request state diagram:
         └──────────┘
 ```
 
-### Database Migrations (implemented continued)
+### Phase 10: Stage 2 Cleanup (completed February 2026)
 
 ```
-021_federation_peer.ts        — Federation peer registry (known remote instances)
-022_signature_request.ts      — Cross-instance signature request lifecycle tracking
-023_federation_outbox.ts      — Reliable outbox for outbound federation messages
-```
+10A Migration 024: Public Profile Fields
+  ├── cooperative_profile: +public_description, +public_members, +public_activity,
+  │   +public_agreements, +public_campaigns (all boolean, defaults: description=true, rest=false)
+  ├── Explore endpoints: visibility gating on description, memberCount, networks
+  ├── Federation profile endpoint: includes visibility flags in response
+  └── 3 new explore tests for visibility controls
 
-### Database Migrations (planned, not yet implemented)
+10B AgreementService Federation Wiring
+  ├── signAgreement(): calls federationClient.submitSignature() after local DB insert
+  └── retractSignature(): calls federationClient.retractSignature() after local DB update
 
-```
-024_public_profile_fields.ts  — Add public visibility flags
+10C NetworkService.leaveNetwork() Hub Notification
+  └── leaveNetwork(): calls federationClient.notifyHub() with membership.departed event
+
+10D AlignmentService + FundingService Federation Wiring
+  ├── AlignmentService: constructor accepts federationClient
+  │   ├── submitInterests() → notifyHub(alignment.interest.submitted)
+  │   ├── createOutcome() → notifyHub(alignment.outcome.created)
+  │   ├── supportOutcome() → notifyHub(alignment.outcome.supported)
+  │   └── generateMap() → notifyHub(alignment.map.generated)
+  ├── FundingService: constructor accepts federationClient
+  │   ├── updateCampaignStatus(active) → notifyHub(funding.campaign.activated)
+  │   └── createPledge() → notifyHub(funding.pledge.created)
+  └── Container + test-app: updated constructor calls
+
+10E OutboxProcessor Startup
+  ├── Container: creates OutboxProcessor with shared SigningKeyResolver for non-standalone mode
+  └── index.ts: starts outbox processor after container creation
 ```
 
 ---
 
-## 9. Remaining Stage 2 Gaps
+## 9. Remaining Gaps (Stage 3)
 
-Phase 9 addressed the major federation infrastructure gaps. The following items remain:
+Phases 0-10 complete Stage 2: the full federation infrastructure is built and all services are wired. The remaining work is Stage 3:
 
-**Infrastructure not built:**
-- **Public visibility flags** — no control over which alignment/profile data is publicly visible (migration 024, deferred until settings UI is built)
-
-**Services not fully federated:**
-- `NetworkService` — `joinNetwork()` should use `federationClient` for cross-instance network joining (separate concern from Phase 9 infrastructure)
-- `AlignmentService` — no `federationClient` support (local-only)
-- `FundingService` — no cross-instance campaign sharing
+**Stage 3 features (future):**
+- **Stripe integration** — payment processing for funding campaigns (webhook handler exists as stub)
+- **OIDC provider** — cooperative-as-identity-provider for member SSO
+- **AI agent framework** — MCP integration, agent config, sessions, tool use
+- **Automation workflows** — event-driven workflow engine with triggers and actions
+- **CLI auth** — command-line authentication flow
+- **Cross-instance alignment sharing** — federated interest/outcome discovery
+- **Settings UI** — frontend for managing public visibility flags (migration 024)
+- **Frontend polish** — remaining workspace pages, real-time updates via SSE
 
 ---
 

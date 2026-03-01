@@ -15,7 +15,7 @@ import type {
   UpdateInterestInput,
   CreateOutcomeInput,
 } from '@coopsource/common';
-import type { IPdsService, IClock } from '@coopsource/federation';
+import type { IPdsService, IFederationClient, IClock } from '@coopsource/federation';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
 import { emitAppEvent } from '../appview/sse.js';
@@ -28,6 +28,7 @@ export class AlignmentService {
   constructor(
     private db: Kysely<Database>,
     private pdsService: IPdsService,
+    private federationClient: IFederationClient,
     private clock: IClock,
   ) {}
 
@@ -90,6 +91,13 @@ export class AlignmentService {
       type: 'alignment.interest.submitted',
       data: { did, uri: row!.uri },
       cooperativeDid,
+    });
+
+    await this.federationClient.notifyHub({
+      type: 'alignment.interest.submitted',
+      sourceDid: cooperativeDid,
+      data: { uri: row!.uri },
+      timestamp: now.toISOString(),
     });
 
     return row!;
@@ -229,6 +237,13 @@ export class AlignmentService {
       cooperativeDid,
     });
 
+    await this.federationClient.notifyHub({
+      type: 'alignment.outcome.created',
+      sourceDid: cooperativeDid,
+      data: { uri: row!.uri },
+      timestamp: now.toISOString(),
+    });
+
     return row!;
   }
 
@@ -326,6 +341,13 @@ export class AlignmentService {
       cooperativeDid: outcome.project_uri,
     });
 
+    await this.federationClient.notifyHub({
+      type: 'alignment.outcome.supported',
+      sourceDid: outcome.project_uri,
+      data: { uri: outcomeUri },
+      timestamp: now.toISOString(),
+    });
+
     return row!;
   }
 
@@ -416,6 +438,13 @@ export class AlignmentService {
         .execute();
 
       return inserted!;
+    });
+
+    await this.federationClient.notifyHub({
+      type: 'alignment.map.generated',
+      sourceDid: cooperativeDid,
+      data: { uri: row.uri },
+      timestamp: now.toISOString(),
     });
 
     return row;

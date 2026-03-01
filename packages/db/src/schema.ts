@@ -65,6 +65,11 @@ export interface CooperativeProfileTable {
   location: string | null;
   website: string | null;
   founded_date: ColumnType<string | null, string | null, string | null>;
+  public_description: ColumnType<boolean, boolean | undefined, boolean>;
+  public_members: ColumnType<boolean, boolean | undefined, boolean>;
+  public_activity: ColumnType<boolean, boolean | undefined, boolean>;
+  public_agreements: ColumnType<boolean, boolean | undefined, boolean>;
+  public_campaigns: ColumnType<boolean, boolean | undefined, boolean>;
   created_at: ColumnType<Date, Date | string | undefined, Date | string>;
   indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }

@@ -401,5 +401,12 @@ export class NetworkService {
       })
       .where('id', '=', membership.id)
       .execute();
+
+    await this.federationClient.notifyHub({
+      type: 'membership.departed',
+      sourceDid: cooperativeDid,
+      data: { networkDid, cooperativeDid, departedAt: now.toISOString() },
+      timestamp: now.toISOString(),
+    });
   }
 }

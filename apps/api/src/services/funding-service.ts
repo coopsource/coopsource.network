@@ -11,7 +11,7 @@ import {
   ValidationError,
 } from '@coopsource/common';
 import type { CreateCampaignInput, UpdateCampaignInput, CreatePledgeInput } from '@coopsource/common';
-import type { IPdsService, IClock } from '@coopsource/federation';
+import type { IPdsService, IFederationClient, IClock } from '@coopsource/federation';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
 
@@ -22,6 +22,7 @@ export class FundingService {
   constructor(
     private db: Kysely<Database>,
     private pdsService: IPdsService,
+    private federationClient: IFederationClient,
     private clock: IClock,
   ) {}
 
@@ -201,6 +202,15 @@ export class FundingService {
       .returningAll()
       .execute();
 
+    if (newStatus === 'active') {
+      await this.federationClient.notifyHub({
+        type: 'funding.campaign.activated',
+        sourceDid: cooperativeDid,
+        data: { uri },
+        timestamp: now.toISOString(),
+      });
+    }
+
     return row!;
   }
 
@@ -249,6 +259,13 @@ export class FundingService {
       })
       .returningAll()
       .execute();
+
+    await this.federationClient.notifyHub({
+      type: 'funding.pledge.created',
+      sourceDid: campaign.did,
+      data: { uri: row!.uri },
+      timestamp: now.toISOString(),
+    });
 
     return row!;
   }

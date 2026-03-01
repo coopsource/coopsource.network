@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { truncateAllTables } from './helpers/test-db.js';
+import { truncateAllTables, getTestDb } from './helpers/test-db.js';
 import { createTestApp, setupAndLogin } from './helpers/test-app.js';
 import { resetSetupCache } from '../src/auth/middleware.js';
 
@@ -50,7 +50,10 @@ describe('Explore', () => {
     expect(res.body.cooperatives[0].displayName).toBe('Test Cooperative');
     expect(res.body.cooperatives[0].did).toBeDefined();
     expect(res.body.cooperatives[0].cooperativeType).toBeDefined();
-    expect(typeof res.body.cooperatives[0].memberCount).toBe('number');
+    // public_description defaults to true, so description is visible
+    expect(res.body.cooperatives[0].description).toBeDefined();
+    // public_members defaults to false, so memberCount is null
+    expect(res.body.cooperatives[0].memberCount).toBeNull();
     expect(res.body.cursor).toBeNull();
   });
 
@@ -74,7 +77,8 @@ describe('Explore', () => {
 
     expect(res.body.displayName).toBe('Test Cooperative');
     expect(res.body.handle).toBe('test-coop');
-    expect(typeof res.body.memberCount).toBe('number');
+    // public_members defaults to false
+    expect(res.body.memberCount).toBeNull();
     expect(res.body.networks).toBeDefined();
     expect(Array.isArray(res.body.networks)).toBe(true);
   });
@@ -107,6 +111,63 @@ describe('Explore', () => {
     expect(names).not.toContain('Test Network');
   });
 
+  // ─── Visibility gating ─────────────────────────────────────────────
+
+  it('hides description when public_description is false', async () => {
+    const testApp = createTestApp();
+    const { coopDid } = await setupWithHandle(testApp, 'vis-coop');
+
+    // Set public_description to false via direct DB update
+    const db = getTestDb();
+    await db
+      .updateTable('cooperative_profile')
+      .set({ public_description: false })
+      .where('entity_did', '=', coopDid)
+      .execute();
+
+    const res = await testApp.agent.get('/api/v1/explore/cooperatives/vis-coop').expect(200);
+
+    expect(res.body.description).toBeNull();
+    expect(res.body.displayName).toBe('Test Cooperative');
+  });
+
+  it('shows memberCount when public_members is true', async () => {
+    const testApp = createTestApp();
+    const { coopDid } = await setupWithHandle(testApp, 'mem-coop');
+
+    // Set public_members to true
+    const db = getTestDb();
+    await db
+      .updateTable('cooperative_profile')
+      .set({ public_members: true })
+      .where('entity_did', '=', coopDid)
+      .execute();
+
+    const res = await testApp.agent.get('/api/v1/explore/cooperatives/mem-coop').expect(200);
+
+    expect(typeof res.body.memberCount).toBe('number');
+  });
+
+  it('hides networks when public_activity is false (default)', async () => {
+    const testApp = createTestApp();
+    await setupWithHandle(testApp, 'act-coop');
+
+    // Create a network and join it
+    const networkRes = await testApp.agent
+      .post('/api/v1/networks')
+      .send({ name: 'Activity Net' })
+      .expect(201);
+
+    await testApp.agent
+      .post(`/api/v1/networks/${networkRes.body.did}/join`)
+      .expect(201);
+
+    // public_activity defaults to false — networks should be empty
+    const res = await testApp.agent.get('/api/v1/explore/cooperatives/act-coop').expect(200);
+
+    expect(res.body.networks).toEqual([]);
+  });
+
   // ─── Networks ───────────────────────────────────────────────────────
 
   it('GET /api/v1/explore/networks returns empty list when no networks exist', async () => {
@@ -131,8 +192,10 @@ describe('Explore', () => {
 
     expect(res.body.networks).toHaveLength(1);
     expect(res.body.networks[0].displayName).toBe('Public Network');
+    // public_description defaults to true, so description is visible
     expect(res.body.networks[0].description).toBe('A public network');
-    expect(typeof res.body.networks[0].memberCount).toBe('number');
+    // public_members defaults to false, so memberCount is null
+    expect(res.body.networks[0].memberCount).toBeNull();
     expect(res.body.networks[0].createdAt).toBeDefined();
   });
 
@@ -153,9 +216,17 @@ describe('Explore', () => {
 
   // ─── Cooperative profile with network memberships ───────────────────
 
-  it('GET /api/v1/explore/cooperatives/:handle includes network memberships', async () => {
+  it('GET /api/v1/explore/cooperatives/:handle includes network memberships when public_activity is true', async () => {
     const testApp = createTestApp();
-    await setupWithHandle(testApp, 'net-coop');
+    const { coopDid } = await setupWithHandle(testApp, 'net-coop');
+
+    // Enable public_activity
+    const db = getTestDb();
+    await db
+      .updateTable('cooperative_profile')
+      .set({ public_activity: true })
+      .where('entity_did', '=', coopDid)
+      .execute();
 
     // Create a network and join it
     const networkRes = await testApp.agent
