@@ -15,6 +15,11 @@ export interface CoopEntity {
   isNetwork?: boolean;
   status: string;
   createdAt: string;
+  publicDescription?: boolean;
+  publicMembers?: boolean;
+  publicActivity?: boolean;
+  publicAgreements?: boolean;
+  publicCampaigns?: boolean;
 }
 
 export interface WorkspaceContext {

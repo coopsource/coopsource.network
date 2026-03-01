@@ -214,6 +214,57 @@ describe('Explore', () => {
     expect(res.body.networks).toHaveLength(1);
   });
 
+  // ─── Visibility via API ─────────────────────────────────────────────
+
+  it('PUT /api/v1/cooperative with publicMembers:true makes explore show memberCount', async () => {
+    const testApp = createTestApp();
+    await setupWithHandle(testApp, 'api-vis');
+
+    // Update visibility via PUT /api/v1/cooperative
+    await testApp.agent
+      .put('/api/v1/cooperative')
+      .send({ publicMembers: true })
+      .expect(200);
+
+    // Verify explore now shows memberCount
+    const res = await testApp.agent
+      .get('/api/v1/explore/cooperatives/api-vis')
+      .expect(200);
+
+    expect(typeof res.body.memberCount).toBe('number');
+  });
+
+  it('PUT /api/v1/cooperative returns visibility fields', async () => {
+    const testApp = createTestApp();
+    await setupWithHandle(testApp, 'vis-resp');
+
+    const res = await testApp.agent
+      .put('/api/v1/cooperative')
+      .send({ publicMembers: true, publicActivity: true })
+      .expect(200);
+
+    expect(res.body.publicDescription).toBe(true); // default
+    expect(res.body.publicMembers).toBe(true);
+    expect(res.body.publicActivity).toBe(true);
+    expect(res.body.publicAgreements).toBe(false); // default
+    expect(res.body.publicCampaigns).toBe(false); // default
+  });
+
+  it('GET /api/v1/cooperative includes visibility fields', async () => {
+    const testApp = createTestApp();
+    await setupWithHandle(testApp, 'vis-get');
+
+    const res = await testApp.agent
+      .get('/api/v1/cooperative')
+      .expect(200);
+
+    expect(res.body.publicDescription).toBe(true);
+    expect(res.body.publicMembers).toBe(false);
+    expect(res.body.publicActivity).toBe(false);
+    expect(res.body.publicAgreements).toBe(false);
+    expect(res.body.publicCampaigns).toBe(false);
+  });
+
   // ─── Cooperative profile with network memberships ───────────────────
 
   it('GET /api/v1/explore/cooperatives/:handle includes network memberships when public_activity is true', async () => {

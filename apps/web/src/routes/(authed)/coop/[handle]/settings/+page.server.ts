@@ -36,4 +36,25 @@ export const actions: Actions = {
       return fail(500, { error: 'Update failed. Please try again.' });
     }
   },
+
+  updateVisibility: async ({ request, fetch }) => {
+    const data = await request.formData();
+    const cookie = request.headers.get('cookie') ?? undefined;
+    const api = createApiClient(fetch, cookie);
+    try {
+      const cooperative = await api.updateCooperative({
+        publicDescription: data.get('publicDescription') === 'on',
+        publicMembers: data.get('publicMembers') === 'on',
+        publicActivity: data.get('publicActivity') === 'on',
+        publicAgreements: data.get('publicAgreements') === 'on',
+        publicCampaigns: data.get('publicCampaigns') === 'on',
+      });
+      return { visibilitySuccess: true, cooperative };
+    } catch (err) {
+      if (err instanceof ApiError) {
+        return fail(err.status, { error: err.message });
+      }
+      return fail(500, { error: 'Update failed. Please try again.' });
+    }
+  },
 };

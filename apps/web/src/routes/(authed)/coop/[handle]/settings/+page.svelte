@@ -6,6 +6,7 @@
 
   let editing = $state(false);
   let submitting = $state(false);
+  let savingVisibility = $state(false);
 
   const coop = $derived(form?.cooperative ?? data.cooperative);
 
@@ -36,6 +37,9 @@
   {/if}
   {#if form?.success && !editing}
     <div class="rounded-md bg-green-50 p-3 text-sm text-green-700">Settings saved.</div>
+  {/if}
+  {#if form?.visibilitySuccess}
+    <div class="rounded-md bg-green-50 p-3 text-sm text-green-700">Visibility settings saved.</div>
   {/if}
 
   {#if editing}
@@ -101,4 +105,57 @@
       </dl>
     </div>
   {/if}
+
+  <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-5">
+    <h2 class="text-base font-semibold text-[var(--cs-text)]">Public Profile Visibility</h2>
+    <p class="mt-1 text-sm text-[var(--cs-text-muted)]">Control what's visible on your public profile at /explore.</p>
+
+    <form method="POST" action="?/updateVisibility" use:enhance={() => { savingVisibility = true; return async ({ update }) => { savingVisibility = false; await update(); }; }} class="mt-4 space-y-3">
+      <label class="flex items-center justify-between gap-3 py-1">
+        <div>
+          <span class="text-sm font-medium text-[var(--cs-text)]">Description</span>
+          <span class="block text-xs text-[var(--cs-text-muted)]">Show your cooperative's description publicly</span>
+        </div>
+        <input type="checkbox" name="publicDescription" checked={coop.publicDescription} class="h-4 w-4 rounded border-[var(--cs-input-border)] text-[var(--cs-primary)] focus:ring-[var(--cs-ring)]" />
+      </label>
+
+      <label class="flex items-center justify-between gap-3 py-1">
+        <div>
+          <span class="text-sm font-medium text-[var(--cs-text)]">Member count</span>
+          <span class="block text-xs text-[var(--cs-text-muted)]">Show how many members your cooperative has</span>
+        </div>
+        <input type="checkbox" name="publicMembers" checked={coop.publicMembers} class="h-4 w-4 rounded border-[var(--cs-input-border)] text-[var(--cs-primary)] focus:ring-[var(--cs-ring)]" />
+      </label>
+
+      <label class="flex items-center justify-between gap-3 py-1">
+        <div>
+          <span class="text-sm font-medium text-[var(--cs-text)]">Activity</span>
+          <span class="block text-xs text-[var(--cs-text-muted)]">Show which networks you belong to</span>
+        </div>
+        <input type="checkbox" name="publicActivity" checked={coop.publicActivity} class="h-4 w-4 rounded border-[var(--cs-input-border)] text-[var(--cs-primary)] focus:ring-[var(--cs-ring)]" />
+      </label>
+
+      <label class="flex items-center justify-between gap-3 py-1">
+        <div>
+          <span class="text-sm font-medium text-[var(--cs-text)]">Agreements</span>
+          <span class="block text-xs text-[var(--cs-text-muted)]">Show your cooperative's agreements publicly</span>
+        </div>
+        <input type="checkbox" name="publicAgreements" checked={coop.publicAgreements} class="h-4 w-4 rounded border-[var(--cs-input-border)] text-[var(--cs-primary)] focus:ring-[var(--cs-ring)]" />
+      </label>
+
+      <label class="flex items-center justify-between gap-3 py-1">
+        <div>
+          <span class="text-sm font-medium text-[var(--cs-text)]">Campaigns</span>
+          <span class="block text-xs text-[var(--cs-text-muted)]">Show your cooperative's funding campaigns publicly</span>
+        </div>
+        <input type="checkbox" name="publicCampaigns" checked={coop.publicCampaigns} class="h-4 w-4 rounded border-[var(--cs-input-border)] text-[var(--cs-primary)] focus:ring-[var(--cs-ring)]" />
+      </label>
+
+      <div class="pt-2">
+        <button type="submit" disabled={savingVisibility} class="rounded-md bg-[var(--cs-primary)] px-4 py-2 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)] disabled:opacity-50">
+          {savingVisibility ? 'Saving...' : 'Save visibility settings'}
+        </button>
+      </div>
+    </form>
+  </div>
 </div>

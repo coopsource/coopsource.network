@@ -191,6 +191,11 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string) {
       displayName?: string;
       description?: string;
       website?: string;
+      publicDescription?: boolean;
+      publicMembers?: boolean;
+      publicActivity?: boolean;
+      publicAgreements?: boolean;
+      publicCampaigns?: boolean;
     }) =>
       request<CoopEntity>('/cooperative', {
         method: 'PUT',

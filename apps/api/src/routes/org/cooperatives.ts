@@ -20,6 +20,11 @@ export function createCooperativeRoutes(container: Container): Router {
       website: result.profile.website,
       status: result.entity.status,
       createdAt: null,
+      publicDescription: result.profile.public_description,
+      publicMembers: result.profile.public_members,
+      publicActivity: result.profile.public_activity,
+      publicAgreements: result.profile.public_agreements,
+      publicCampaigns: result.profile.public_campaigns,
     };
   }
 
@@ -62,6 +67,11 @@ export function createCooperativeRoutes(container: Container): Router {
         isNetwork: result.profile.is_network,
         status: result.entity.status,
         createdAt: null,
+        publicDescription: result.profile.public_description,
+        publicMembers: result.profile.public_members,
+        publicActivity: result.profile.public_activity,
+        publicAgreements: result.profile.public_agreements,
+        publicCampaigns: result.profile.public_campaigns,
       });
     }),
   );
@@ -72,11 +82,11 @@ export function createCooperativeRoutes(container: Container): Router {
     requireAuth,
     requirePermission('coop.settings.edit'),
     asyncHandler(async (req, res) => {
-      const { displayName, description, website } = UpdateCoopSchema.parse(req.body);
+      const { displayName, description, website, publicDescription, publicMembers, publicActivity, publicAgreements, publicCampaigns } = UpdateCoopSchema.parse(req.body);
 
       await container.entityService.updateCooperative(
         req.actor!.cooperativeDid,
-        { displayName, description, website },
+        { displayName, description, website, publicDescription, publicMembers, publicActivity, publicAgreements, publicCampaigns },
       );
 
       const updated = await container.entityService.getCooperative();

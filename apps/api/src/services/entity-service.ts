@@ -25,6 +25,11 @@ export class EntityService {
       location: string | null;
       website: string | null;
       founded_date: string | null;
+      public_description: boolean;
+      public_members: boolean;
+      public_activity: boolean;
+      public_agreements: boolean;
+      public_campaigns: boolean;
     };
   } | null> {
     const row = await this.db
@@ -49,6 +54,11 @@ export class EntityService {
         'cooperative_profile.location',
         'cooperative_profile.website',
         'cooperative_profile.founded_date',
+        'cooperative_profile.public_description',
+        'cooperative_profile.public_members',
+        'cooperative_profile.public_activity',
+        'cooperative_profile.public_agreements',
+        'cooperative_profile.public_campaigns',
       ])
       .executeTakeFirst();
 
@@ -70,6 +80,11 @@ export class EntityService {
         location: row.location,
         website: row.website,
         founded_date: row.founded_date,
+        public_description: row.public_description,
+        public_members: row.public_members,
+        public_activity: row.public_activity,
+        public_agreements: row.public_agreements,
+        public_campaigns: row.public_campaigns,
       },
     };
   }
@@ -92,6 +107,11 @@ export class EntityService {
       website: string | null;
       founded_date: string | null;
       is_network: boolean;
+      public_description: boolean;
+      public_members: boolean;
+      public_activity: boolean;
+      public_agreements: boolean;
+      public_campaigns: boolean;
     };
   } | null> {
     const row = await this.db
@@ -119,6 +139,11 @@ export class EntityService {
         'cooperative_profile.website',
         'cooperative_profile.founded_date',
         'cooperative_profile.is_network',
+        'cooperative_profile.public_description',
+        'cooperative_profile.public_members',
+        'cooperative_profile.public_activity',
+        'cooperative_profile.public_agreements',
+        'cooperative_profile.public_campaigns',
       ])
       .executeTakeFirst();
 
@@ -142,6 +167,11 @@ export class EntityService {
         website: row.website,
         founded_date: row.founded_date,
         is_network: row.is_network,
+        public_description: row.public_description,
+        public_members: row.public_members,
+        public_activity: row.public_activity,
+        public_agreements: row.public_agreements,
+        public_campaigns: row.public_campaigns,
       },
     };
   }
@@ -152,6 +182,11 @@ export class EntityService {
       displayName?: string;
       description?: string;
       website?: string;
+      publicDescription?: boolean;
+      publicMembers?: boolean;
+      publicActivity?: boolean;
+      publicAgreements?: boolean;
+      publicCampaigns?: boolean;
     },
   ): Promise<void> {
     const entity = await this.db
@@ -179,10 +214,19 @@ export class EntityService {
         .execute();
     }
 
-    if (updates.website) {
+    const profileUpdates: Record<string, unknown> = {};
+    if (updates.website) profileUpdates.website = updates.website;
+    if (updates.publicDescription !== undefined) profileUpdates.public_description = updates.publicDescription;
+    if (updates.publicMembers !== undefined) profileUpdates.public_members = updates.publicMembers;
+    if (updates.publicActivity !== undefined) profileUpdates.public_activity = updates.publicActivity;
+    if (updates.publicAgreements !== undefined) profileUpdates.public_agreements = updates.publicAgreements;
+    if (updates.publicCampaigns !== undefined) profileUpdates.public_campaigns = updates.publicCampaigns;
+
+    if (Object.keys(profileUpdates).length > 0) {
+      profileUpdates.indexed_at = new Date();
       await this.db
         .updateTable('cooperative_profile')
-        .set({ website: updates.website, indexed_at: new Date() })
+        .set(profileUpdates)
         .where('entity_did', '=', did)
         .execute();
     }
