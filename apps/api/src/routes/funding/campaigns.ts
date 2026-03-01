@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import type { Container } from '../../container.js';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { requireAuth } from '../../auth/middleware.js';
@@ -9,6 +10,13 @@ import {
   UpdateCampaignStatusSchema,
   CreatePledgeSchema,
 } from '@coopsource/common';
+
+const CheckoutSchema = z.object({
+  pledgeUri: z.string(),
+  providerId: z.string(),
+  successUrl: z.string().url(),
+  cancelUrl: z.string().url(),
+});
 
 export function createCampaignRoutes(container: Container): Router {
   const router = Router();
@@ -100,6 +108,41 @@ export function createCampaignRoutes(container: Container): Router {
     }),
   );
 
+  // GET /api/v1/campaigns/:uri/providers — List enabled payment providers
+  router.get(
+    '/api/v1/campaigns/:uri/providers',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const uri = decodeURIComponent(String(req.params.uri));
+      const providers =
+        await container.fundingService.getAvailableProviders(uri);
+      res.json({ providers });
+    }),
+  );
+
+  // POST /api/v1/campaigns/:uri/checkout — Create checkout session
+  router.post(
+    '/api/v1/campaigns/:uri/checkout',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const campaignUri = decodeURIComponent(String(req.params.uri));
+      const { pledgeUri, providerId, successUrl, cancelUrl } =
+        CheckoutSchema.parse(req.body);
+
+      // Verify the campaign exists (throws NotFoundError if not)
+      await container.fundingService.getCampaign(campaignUri);
+
+      const result = await container.fundingService.createCheckoutSession(
+        pledgeUri,
+        providerId,
+        successUrl,
+        cancelUrl,
+      );
+
+      res.json({ checkoutUrl: result.checkoutUrl, mode: 'redirect' as const });
+    }),
+  );
+
   // POST /api/v1/campaigns/:uri/pledge — Create pledge
   router.post(
     '/api/v1/campaigns/:uri/pledge',
@@ -176,6 +219,8 @@ function formatPledge(row: Record<string, unknown>) {
     amount: row.amount,
     currency: row.currency,
     paymentStatus: row.payment_status,
+    paymentProvider: row.payment_provider ?? null,
+    paymentSessionId: row.payment_session_id ?? null,
     metadata: row.metadata,
     createdAt: (row.created_at as Date).toISOString(),
   };

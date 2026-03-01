@@ -18,6 +18,7 @@ import { ProposalService } from './services/proposal-service.js';
 import { AgreementService } from './services/agreement-service.js';
 import { NetworkService } from './services/network-service.js';
 import { FundingService } from './services/funding-service.js';
+import { PaymentProviderRegistry } from './payment/registry.js';
 import { AlignmentService } from './services/alignment-service.js';
 import { ConnectionService } from './services/connection-service.js';
 import { AgreementTemplateService } from './services/agreement-template-service.js';
@@ -39,6 +40,7 @@ export interface Container {
   agreementTemplateService: AgreementTemplateService;
   networkService: NetworkService;
   fundingService: FundingService;
+  paymentRegistry: PaymentProviderRegistry;
   alignmentService: AlignmentService;
   connectionService: ConnectionService;
   outboxProcessor?: OutboxProcessor;
@@ -127,7 +129,8 @@ export function createContainer(config: AppConfig): Container {
   const agreementService = new AgreementService(db, pdsService, federationClient, clock);
   const agreementTemplateService = new AgreementTemplateService(db, clock);
   const networkService = new NetworkService(db, pdsService, federationClient, clock);
-  const fundingService = new FundingService(db, pdsService, federationClient, clock);
+  const paymentRegistry = new PaymentProviderRegistry(db, config.KEY_ENC_KEY);
+  const fundingService = new FundingService(db, pdsService, federationClient, clock, paymentRegistry);
   const alignmentService = new AlignmentService(db, pdsService, federationClient, clock);
   const connectionService = new ConnectionService(db, pdsService, clock, config);
 
@@ -148,6 +151,7 @@ export function createContainer(config: AppConfig): Container {
     agreementTemplateService,
     networkService,
     fundingService,
+    paymentRegistry,
     alignmentService,
     connectionService,
     outboxProcessor,

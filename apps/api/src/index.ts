@@ -33,7 +33,8 @@ import { createBlobRoutes } from './routes/blobs.js';
 import { createEventRoutes } from './routes/events.js';
 import { createAdminRoutes } from './routes/admin.js';
 import { createCampaignRoutes } from './routes/funding/campaigns.js';
-import { createStripeWebhookRoutes } from './routes/funding/stripe-webhook.js';
+import { createPaymentWebhookRoutes } from './routes/funding/payment-webhook.js';
+import { createPaymentConfigRoutes } from './routes/funding/payment-config.js';
 import { createInterestRoutes } from './routes/alignment/interests.js';
 import { createOutcomeRoutes } from './routes/alignment/outcomes.js';
 import { createMapRoutes } from './routes/alignment/map.js';
@@ -78,16 +79,16 @@ async function start(): Promise<void> {
   // DID document (public, no auth required)
   app.use(createWellKnownRoutes(container.db, config));
 
-  // Stripe webhook (must be before JSON body parsing — needs raw body)
+  // Payment webhook (must be before JSON body parsing — needs raw body)
   app.use(
-    '/api/v1/webhooks/stripe',
+    '/api/v1/webhooks/payment',
     express.raw({ type: 'application/json' }),
     (req, _res, next) => {
       (req as typeof req & { rawBody?: Buffer }).rawBody = req.body as Buffer;
       next();
     },
   );
-  app.use(createStripeWebhookRoutes(container, config));
+  app.use(createPaymentWebhookRoutes(container));
 
   // JSON body parsing
   app.use(express.json());
@@ -141,6 +142,7 @@ async function start(): Promise<void> {
 
   // Funding routes (Stage 3)
   app.use(createCampaignRoutes(container));
+  app.use(createPaymentConfigRoutes(container));
 
   // Alignment routes (Stage 3)
   app.use(createInterestRoutes(container));

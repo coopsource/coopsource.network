@@ -11,6 +11,7 @@
   import Banknote from '@lucide/svelte/icons/banknote';
   import Globe from '@lucide/svelte/icons/globe';
   import Link2 from '@lucide/svelte/icons/link-2';
+  import CreditCard from '@lucide/svelte/icons/credit-card';
   import Settings from '@lucide/svelte/icons/settings';
   import PanelLeftClose from '@lucide/svelte/icons/panel-left-close';
   import PanelLeftOpen from '@lucide/svelte/icons/panel-left-open';
@@ -82,6 +83,7 @@
     const prefix = workspace?.prefix ?? '';
     if (prefix) {
       return [
+        { href: `${prefix}/settings/payments`, label: 'Payments', icon: CreditCard },
         { href: `${prefix}/settings/connections`, label: 'Connections', icon: Link2 },
         { href: `${prefix}/settings`, label: 'Settings', icon: Settings },
       ];

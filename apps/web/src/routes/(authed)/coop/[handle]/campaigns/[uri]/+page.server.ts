@@ -7,15 +7,17 @@ export const load: PageServerLoad = async ({ params, fetch, request }) => {
   const api = createApiClient(fetch, cookie);
   const uri = decodeURIComponent(params.uri);
 
-  const [campaign, pledgesResult] = await Promise.all([
+  const [campaign, pledgesResult, providersResult] = await Promise.all([
     api.getCampaign(uri),
     api.getPledges(uri, { limit: 20 }),
+    api.getPaymentProviders(uri).catch(() => ({ providers: [] })),
   ]);
 
   return {
     campaign,
     pledges: pledgesResult.pledges,
     pledgesCursor: pledgesResult.cursor,
+    paymentProviders: providersResult.providers,
   };
 };
 
@@ -35,23 +37,43 @@ export const actions: Actions = {
     }
   },
 
-  pledge: async ({ params, request, fetch }) => {
+  pledge: async ({ params, request, fetch, url }) => {
     const cookie = request.headers.get('cookie') ?? undefined;
     const api = createApiClient(fetch, cookie);
     const uri = decodeURIComponent(params.uri);
     const data = await request.formData();
     const amountDollars = parseFloat(String(data.get('amount') ?? '0'));
+    const providerId = String(data.get('providerId') ?? '');
 
     if (amountDollars <= 0) {
       return fail(400, { pledgeError: 'Amount must be positive' });
     }
 
     try {
-      await api.createPledge(uri, {
+      const pledge = await api.createPledge(uri, {
         amount: Math.round(amountDollars * 100),
         currency: 'USD',
       });
-      return { pledgeSuccess: true };
+
+      // If a payment provider was selected, create checkout session
+      if (providerId) {
+        const campaignPageUrl = `${url.origin}/coop/${params.handle}/campaigns/${encodeURIComponent(uri)}`;
+        const successUrl = `${campaignPageUrl}?payment=success`;
+        const cancelUrl = `${campaignPageUrl}?payment=cancelled`;
+
+        const checkout = await api.createCheckout(
+          uri,
+          pledge.uri,
+          providerId,
+          successUrl,
+          cancelUrl,
+        );
+
+        return { checkoutUrl: checkout.checkoutUrl };
+      }
+
+      // No provider selected — offline/manual pledge
+      return { pledgeSuccess: true, offlineMode: true };
     } catch (err) {
       return fail(400, { pledgeError: err instanceof Error ? err.message : 'Failed' });
     }

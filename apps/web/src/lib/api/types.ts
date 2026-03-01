@@ -229,8 +229,38 @@ export interface Pledge {
   amount: number;
   currency: string;
   paymentStatus: string;
+  paymentProvider: string | null;
+  paymentSessionId: string | null;
   metadata: Record<string, unknown> | null;
   createdAt: string;
+}
+
+export interface PaymentProviderInfo {
+  id: string;
+  displayName: string;
+}
+
+export interface PaymentProviderConfig {
+  id: string;
+  providerId: string;
+  displayName: string;
+  enabled: boolean;
+  config: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentProvidersResponse {
+  providers: PaymentProviderInfo[];
+}
+
+export interface PaymentConfigsResponse {
+  providers: PaymentProviderConfig[];
+}
+
+export interface CheckoutResponse {
+  checkoutUrl: string;
+  mode: 'redirect';
 }
 
 export interface CampaignsResponse extends PaginatedResponse<Campaign> {

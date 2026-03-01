@@ -25,6 +25,11 @@ import type {
   Pledge,
   CampaignsResponse,
   PledgesResponse,
+  PaymentProvidersResponse,
+  PaymentConfigsResponse,
+  PaymentProviderConfig,
+  PaymentProviderInfo,
+  CheckoutResponse,
   StakeholderInterest,
   DesiredOutcome,
   InterestMap,
@@ -558,6 +563,50 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string) {
       if (params?.cursor) qs.set('cursor', params.cursor);
       return request<PledgesResponse>(`/campaigns/${encodeURIComponent(campaignUri)}/pledges${qs.size ? `?${qs}` : ''}`);
     },
+
+    // Payment providers
+    getPaymentProviders: (campaignUri: string) =>
+      request<PaymentProvidersResponse>(`/campaigns/${encodeURIComponent(campaignUri)}/providers`),
+
+    createCheckout: (campaignUri: string, pledgeUri: string, providerId: string, successUrl: string, cancelUrl: string) =>
+      request<CheckoutResponse>(`/campaigns/${encodeURIComponent(campaignUri)}/checkout`, {
+        method: 'POST',
+        body: JSON.stringify({ pledgeUri, providerId, successUrl, cancelUrl }),
+      }),
+
+    // Payment provider admin config
+    getPaymentConfigs: () =>
+      request<PaymentConfigsResponse>('/payment-providers'),
+
+    getSupportedProviders: () =>
+      request<{ providers: PaymentProviderInfo[] }>('/payment-providers/supported'),
+
+    addPaymentConfig: (body: {
+      providerId: string;
+      displayName: string;
+      credentials: Record<string, string>;
+      webhookSecret?: string;
+      config?: Record<string, unknown>;
+    }) =>
+      request<PaymentProviderConfig>('/payment-providers', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+
+    updatePaymentConfig: (providerId: string, body: {
+      displayName?: string;
+      enabled?: boolean;
+      credentials?: Record<string, string>;
+      webhookSecret?: string;
+      config?: Record<string, unknown>;
+    }) =>
+      request<PaymentProviderConfig>(`/payment-providers/${encodeURIComponent(providerId)}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
+
+    deletePaymentConfig: (providerId: string) =>
+      request<void>(`/payment-providers/${encodeURIComponent(providerId)}`, { method: 'DELETE' }),
 
     // Alignment — Interests
     submitInterests: (body: {

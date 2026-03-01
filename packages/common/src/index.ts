@@ -120,3 +120,10 @@ export { encodeAtUri, decodeAtUri, extractRkey, buildAtUri } from './uri.js';
 export { didWebToUrl, urlToDidWeb, buildMemberDidWeb, isDidWeb } from './did-web.js';
 export { PERMISSIONS, BUILT_IN_ROLES } from './permissions.js';
 export type { Permission } from './permissions.js';
+export type {
+  PaymentProviderInfo,
+  CheckoutSessionRequest,
+  CheckoutSessionResult,
+  WebhookEvent,
+  IPaymentProvider,
+} from './payment.js';

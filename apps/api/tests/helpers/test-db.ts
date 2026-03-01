@@ -75,6 +75,7 @@ export async function truncateAllTables(): Promise<void> {
       federation_peer, signature_request, federation_outbox,
       stakeholder_terms, agreement_revision, agreement_signature, agreement,
       interest_map, desired_outcome, stakeholder_interest,
+      payment_provider_config,
       funding_pledge, funding_campaign,
       vote, proposal,
       post, thread_member, thread,

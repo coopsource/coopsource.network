@@ -4,7 +4,7 @@ import type {
   FundingCampaignTable,
   FundingPledgeTable,
 } from '@coopsource/db';
-import type { DID } from '@coopsource/common';
+import type { DID, PaymentProviderInfo } from '@coopsource/common';
 import {
   NotFoundError,
   UnauthorizedError,
@@ -14,6 +14,7 @@ import type { CreateCampaignInput, UpdateCampaignInput, CreatePledgeInput } from
 import type { IPdsService, IFederationClient, IClock } from '@coopsource/federation';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
+import type { PaymentProviderRegistry } from '../payment/registry.js';
 
 type CampaignRow = Selectable<FundingCampaignTable>;
 type PledgeRow = Selectable<FundingPledgeTable>;
@@ -24,6 +25,7 @@ export class FundingService {
     private pdsService: IPdsService,
     private federationClient: IFederationClient,
     private clock: IClock,
+    private paymentRegistry: PaymentProviderRegistry,
   ) {}
 
   // ─── Campaigns ─────────────────────────────────────────────────────────
@@ -252,7 +254,8 @@ export class FundingService {
         amount: data.amount,
         currency: data.currency,
         payment_status: 'pending',
-        stripe_checkout_session_id: null,
+        payment_session_id: null,
+        payment_provider: null,
         metadata: data.metadata ?? null,
         created_at: now,
         indexed_at: now,
@@ -312,7 +315,7 @@ export class FundingService {
   async updatePledgeStatus(
     pledgeUri: string,
     status: string,
-    stripeSessionId?: string,
+    paymentSessionId?: string,
   ): Promise<PledgeRow> {
     const pledge = await this.db
       .selectFrom('funding_pledge')
@@ -327,8 +330,8 @@ export class FundingService {
       payment_status: status,
       indexed_at: now,
     };
-    if (stripeSessionId) {
-      updates.stripe_checkout_session_id = stripeSessionId;
+    if (paymentSessionId) {
+      updates.payment_session_id = paymentSessionId;
     }
 
     const [row] = await this.db
@@ -354,14 +357,66 @@ export class FundingService {
     return row!;
   }
 
-  /** Find pledge by Stripe checkout session ID */
-  async findPledgeByStripeSession(sessionId: string): Promise<PledgeRow | null> {
+  /** Find pledge by payment session ID (provider-agnostic) */
+  async findPledgeByPaymentSession(sessionId: string): Promise<PledgeRow | null> {
     const row = await this.db
       .selectFrom('funding_pledge')
-      .where('stripe_checkout_session_id', '=', sessionId)
+      .where('payment_session_id', '=', sessionId)
       .selectAll()
       .executeTakeFirst();
 
     return row ?? null;
+  }
+
+  // ─── Payment Provider ─────────────────────────────────────────────────
+
+  /** Get available payment providers for a campaign's cooperative */
+  async getAvailableProviders(campaignUri: string): Promise<PaymentProviderInfo[]> {
+    const campaign = await this.getCampaign(campaignUri);
+    return this.paymentRegistry.getEnabledProviders(campaign.did);
+  }
+
+  /** Create a checkout session with a specific provider */
+  async createCheckoutSession(
+    pledgeUri: string,
+    providerId: string,
+    successUrl: string,
+    cancelUrl: string,
+  ): Promise<{ checkoutUrl: string }> {
+    const pledge = await this.db
+      .selectFrom('funding_pledge')
+      .where('uri', '=', pledgeUri)
+      .selectAll()
+      .executeTakeFirst();
+
+    if (!pledge) throw new NotFoundError('Pledge not found');
+
+    const campaign = await this.getCampaign(pledge.campaign_uri);
+    const provider = await this.paymentRegistry.getProvider(
+      campaign.did,
+      providerId,
+    );
+
+    const result = await provider.createCheckoutSession({
+      pledgeUri: pledge.uri,
+      amount: pledge.amount,
+      currency: pledge.currency,
+      campaignTitle: campaign.title,
+      successUrl,
+      cancelUrl,
+    });
+
+    // Store the session ID and provider on the pledge
+    await this.db
+      .updateTable('funding_pledge')
+      .set({
+        payment_session_id: result.sessionId,
+        payment_provider: provider.info.id,
+        indexed_at: this.clock.now(),
+      })
+      .where('uri', '=', pledgeUri)
+      .execute();
+
+    return { checkoutUrl: result.checkoutUrl };
   }
 }

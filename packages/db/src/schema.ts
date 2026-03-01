@@ -543,10 +543,24 @@ export interface FundingPledgeTable {
   amount: number;
   currency: string;
   payment_status: string;
-  stripe_checkout_session_id: string | null;
+  payment_session_id: string | null;
+  payment_provider: string | null;
   metadata: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
   created_at: ColumnType<Date, Date | string, Date | string>;
   indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface PaymentProviderConfigTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  provider_id: string;
+  display_name: string;
+  enabled: ColumnType<boolean, boolean | undefined, boolean>;
+  credentials_enc: string;
+  webhook_secret_enc: string | null;
+  config: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }
 
 export interface OidcClientTable {
@@ -741,6 +755,7 @@ export interface Database {
   automation_trigger: AutomationTriggerTable;
   funding_campaign: FundingCampaignTable;
   funding_pledge: FundingPledgeTable;
+  payment_provider_config: PaymentProviderConfigTable;
   oidc_client: OidcClientTable;
   oidc_payload: OidcPayloadTable;
   oidc_consent: OidcConsentTable;

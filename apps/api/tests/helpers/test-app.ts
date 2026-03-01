@@ -18,6 +18,7 @@ import { ProposalService } from '../../src/services/proposal-service.js';
 import { AgreementService } from '../../src/services/agreement-service.js';
 import { NetworkService } from '../../src/services/network-service.js';
 import { FundingService } from '../../src/services/funding-service.js';
+import { PaymentProviderRegistry } from '../../src/payment/registry.js';
 import { AlignmentService } from '../../src/services/alignment-service.js';
 import { ConnectionService } from '../../src/services/connection-service.js';
 import { AgreementTemplateService } from '../../src/services/agreement-template-service.js';
@@ -36,6 +37,7 @@ import { createAgreementRoutes } from '../../src/routes/agreement/agreements.js'
 import { createAgreementTemplateRoutes } from '../../src/routes/agreement/templates.js';
 import { createNetworkRoutes } from '../../src/routes/org/networks.js';
 import { createCampaignRoutes } from '../../src/routes/funding/campaigns.js';
+import { createPaymentConfigRoutes } from '../../src/routes/funding/payment-config.js';
 import { createInterestRoutes } from '../../src/routes/alignment/interests.js';
 import { createOutcomeRoutes } from '../../src/routes/alignment/outcomes.js';
 import { createMapRoutes } from '../../src/routes/alignment/map.js';
@@ -98,7 +100,8 @@ export function createTestApp(): TestApp {
   const agreementService = new AgreementService(db, pdsService, federationClient, clock);
   const agreementTemplateService = new AgreementTemplateService(db, clock);
   const networkService = new NetworkService(db, pdsService, federationClient, clock);
-  const fundingService = new FundingService(db, pdsService, federationClient, clock);
+  const paymentRegistry = new PaymentProviderRegistry(db, 'yIknTzhyTfVpR7cc/ZrwSpewmhyiOJA97leVbKqccsY=');
+  const fundingService = new FundingService(db, pdsService, federationClient, clock, paymentRegistry);
   const alignmentService = new AlignmentService(db, pdsService, federationClient, clock);
 
   const testConfig = {
@@ -126,6 +129,7 @@ export function createTestApp(): TestApp {
     agreementTemplateService,
     networkService,
     fundingService,
+    paymentRegistry,
     alignmentService,
     connectionService,
   };
@@ -169,6 +173,7 @@ export function createTestApp(): TestApp {
   app.use(createAgreementTemplateRoutes(container));
   app.use(createNetworkRoutes(container));
   app.use(createCampaignRoutes(container));
+  app.use(createPaymentConfigRoutes(container));
   app.use(createInterestRoutes(container));
   app.use(createOutcomeRoutes(container));
   app.use(createMapRoutes(container));
