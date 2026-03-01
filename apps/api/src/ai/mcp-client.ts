@@ -1,7 +1,9 @@
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import type { AgentTool, AgentToolContext } from './tools/index.js';
-import { registerTool } from './tools/index.js';
+import { createMCPClient, type MCPClient } from '@ai-sdk/mcp';
+import type { Tool } from 'ai';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyTool = Tool<any, any>;
+type ToolSet = Record<string, AnyTool>;
 
 interface McpServerConfig {
   url: string;
@@ -10,70 +12,43 @@ interface McpServerConfig {
 }
 
 /**
- * MCP Client — connects to external MCP servers and wraps their tools
- * as AgentTools that agents can invoke.
+ * MCP Client — connects to external MCP servers via @ai-sdk/mcp.
+ * Returns AI SDK ToolSet directly for use with generateText/streamText.
  */
 export class McpClient {
-  private clients = new Map<string, Client>();
+  private clients = new Map<string, MCPClient>();
 
-  /** Connect to an external MCP server and register its tools */
+  /** Connect to an external MCP server and discover its tools */
   async connectServer(config: McpServerConfig): Promise<string[]> {
-    const transport = new StreamableHTTPClientTransport(
-      new URL(config.url),
-    );
-
-    const client = new Client({
-      name: 'coopsource-agent',
-      version: '1.0.0',
+    const client = await createMCPClient({
+      transport: {
+        type: 'http',
+        url: config.url,
+        headers: config.apiKey
+          ? { Authorization: `Bearer ${config.apiKey}` }
+          : undefined,
+      },
     });
-
-    await client.connect(transport);
     this.clients.set(config.name, client);
 
-    // Discover tools from the server
-    const toolsResult = await client.listTools();
-    const registeredNames: string[] = [];
-
-    for (const tool of toolsResult.tools) {
-      const toolName = `mcp:${config.name}:${tool.name}`;
-
-      const agentTool: AgentTool = {
-        readonly: false, // External tools are treated as potentially mutating
-        definition: {
-          name: toolName,
-          description: `[${config.name}] ${tool.description ?? tool.name}`,
-          inputSchema: (tool.inputSchema ?? {}) as Record<string, unknown>,
-        },
-        execute: async (
-          input: Record<string, unknown>,
-          _ctx: AgentToolContext,
-        ) => {
-          const result = await client.callTool({
-            name: tool.name,
-            arguments: input,
-          });
-
-          // Extract text content from result
-          if (result.content && Array.isArray(result.content)) {
-            return result.content
-              .filter(
-                (c): c is { type: 'text'; text: string } => c.type === 'text',
-              )
-              .map((c) => c.text)
-              .join('\n');
-          }
-          return JSON.stringify(result);
-        },
-      };
-
-      registerTool(agentTool);
-      registeredNames.push(toolName);
-    }
-
-    return registeredNames;
+    // Get tools — returns ToolSet compatible with generateText/streamText
+    const tools = await client.tools();
+    return Object.keys(tools).map((name) => `mcp:${config.name}:${name}`);
   }
 
-  /** Disconnect from an external MCP server */
+  /** Get merged tool set from all connected servers, prefixed with mcp:{name}: */
+  async getAllTools(): Promise<ToolSet> {
+    const allTools: ToolSet = {};
+    for (const [name, client] of this.clients) {
+      const tools = await client.tools();
+      for (const [toolName, toolDef] of Object.entries(tools)) {
+        allTools[`mcp:${name}:${toolName}`] = toolDef as AnyTool;
+      }
+    }
+    return allTools;
+  }
+
+  /** Disconnect from a specific MCP server */
   async disconnectServer(name: string): Promise<void> {
     const client = this.clients.get(name);
     if (client) {
@@ -82,7 +57,7 @@ export class McpClient {
     }
   }
 
-  /** Disconnect all */
+  /** Disconnect all connected MCP servers */
   async disconnectAll(): Promise<void> {
     for (const [name] of this.clients) {
       await this.disconnectServer(name);

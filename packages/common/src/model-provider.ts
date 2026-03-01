@@ -63,36 +63,10 @@ export interface ChatMessage {
   toolCallId?: string;
 }
 
-export interface ToolDefinition {
-  name: string;
-  description: string;
-  inputSchema: Record<string, unknown>;
-}
-
 export interface ToolCall {
   id: string;
   name: string;
   input: Record<string, unknown>;
-}
-
-// ─── Chat Request & Response ────────────────────────────────────────────
-
-export interface ChatRequest {
-  model: string;
-  messages: ChatMessage[];
-  tools?: ToolDefinition[];
-  temperature?: number;
-  maxTokens?: number;
-  systemPrompt?: string;
-}
-
-export interface ChatResponse {
-  content: string;
-  toolCalls?: ToolCall[];
-  inputTokens: number;
-  outputTokens: number;
-  model: string;
-  stopReason: 'end_turn' | 'tool_use' | 'max_tokens';
 }
 
 // ─── Streaming ──────────────────────────────────────────────────────────
@@ -102,17 +76,4 @@ export interface ChatStreamEvent {
   content?: string;
   toolCall?: Partial<ToolCall>;
   usage?: { inputTokens: number; outputTokens: number };
-}
-
-// ─── Provider Interface ─────────────────────────────────────────────────
-
-export interface IModelProvider {
-  /** Provider identity and supported models */
-  readonly info: ModelProviderInfo;
-
-  /** Send a chat request and get a complete response */
-  chat(request: ChatRequest): Promise<ChatResponse>;
-
-  /** Send a chat request and stream the response */
-  chatStream(request: ChatRequest): AsyncIterable<ChatStreamEvent>;
 }

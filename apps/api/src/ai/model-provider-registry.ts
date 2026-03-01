@@ -1,7 +1,6 @@
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
 import type {
-  IModelProvider,
   ModelProviderInfo,
   ModelInfo,
   ModelRoutingConfig,
@@ -10,18 +9,12 @@ import type {
 import type { LanguageModel } from 'ai';
 import { NotFoundError, ConflictError } from '@coopsource/common';
 import { encryptKey, decryptKey } from '@coopsource/federation/local';
-// Legacy imports — kept for backward compatibility with old resolveModel() path
-// TODO: Remove when MCP client migrates to @ai-sdk/mcp
-import { AnthropicProvider } from './providers/anthropic-provider.js';
-import { OllamaProvider } from './providers/ollama-provider.js';
 import { createAnthropicModel } from './providers/ai-sdk-anthropic.js';
 import { createOllamaModel } from './providers/ai-sdk-ollama.js';
 import { createOpenAIModel } from './providers/ai-sdk-openai.js';
 import { PROVIDER_CATALOG } from './providers/model-catalog.js';
 
 type ProviderCredentials = Record<string, string>;
-
-type ProviderFactory = (credentials: ProviderCredentials) => IModelProvider;
 
 /** Validate Ollama base URL to prevent SSRF to internal services */
 function validateOllamaUrl(url: string): string {
@@ -56,11 +49,6 @@ function validateOllamaUrl(url: string): string {
   return url;
 }
 
-const PROVIDER_FACTORIES: Record<string, ProviderFactory> = {
-  anthropic: (creds) => new AnthropicProvider(creds.apiKey),
-  ollama: (creds) => new OllamaProvider(validateOllamaUrl(creds.baseUrl || 'http://localhost:11434')),
-};
-
 /** AI SDK v6 language model factories — keyed by provider_id */
 type AiSdkFactory = (creds: ProviderCredentials, modelId: string) => LanguageModel;
 const AI_SDK_FACTORIES: Record<string, AiSdkFactory> = {
@@ -70,17 +58,7 @@ const AI_SDK_FACTORIES: Record<string, AiSdkFactory> = {
   openai: (creds, modelId) => createOpenAIModel(creds.apiKey, modelId),
 };
 
-/** All supported provider IDs (union of old + new) */
-const SUPPORTED_PROVIDER_IDS = new Set([
-  ...Object.keys(PROVIDER_FACTORIES),
-  ...Object.keys(AI_SDK_FACTORIES),
-]);
-
-/** Resolved model — ready to call */
-export interface ResolvedModel {
-  provider: IModelProvider;
-  modelId: string;
-}
+const SUPPORTED_PROVIDER_IDS = new Set(Object.keys(AI_SDK_FACTORIES));
 
 /** Resolved AI SDK language model — ready to pass to generateText/streamText */
 export interface ResolvedLanguageModel {
@@ -127,110 +105,6 @@ export class ModelProviderRegistry {
       });
     }
     return results;
-  }
-
-  /** Get a specific provider instance for a cooperative */
-  async getProvider(
-    cooperativeDid: string,
-    providerId: string,
-  ): Promise<IModelProvider> {
-    const row = await this.db
-      .selectFrom('model_provider_config')
-      .where('cooperative_did', '=', cooperativeDid)
-      .where('provider_id', '=', providerId)
-      .where('enabled', '=', true)
-      .selectAll()
-      .executeTakeFirst();
-
-    if (!row) {
-      throw new NotFoundError(
-        `Model provider '${providerId}' not configured for this cooperative`,
-      );
-    }
-
-    return this.createProviderFromRow(row);
-  }
-
-  /**
-   * Resolve a 'provider:model' string against a co-op's configuration.
-   * Verifies the co-op has the provider enabled and the model allowed.
-   */
-  async resolveModel(
-    cooperativeDid: string,
-    modelString: string,
-  ): Promise<ResolvedModel> {
-    const colonIdx = modelString.indexOf(':');
-    if (colonIdx === -1) {
-      throw new NotFoundError(
-        `Invalid model format '${modelString}' — expected 'provider:model'`,
-      );
-    }
-
-    const providerId = modelString.slice(0, colonIdx);
-    const modelId = modelString.slice(colonIdx + 1);
-
-    const row = await this.db
-      .selectFrom('model_provider_config')
-      .where('cooperative_did', '=', cooperativeDid)
-      .where('provider_id', '=', providerId)
-      .where('enabled', '=', true)
-      .selectAll()
-      .executeTakeFirst();
-
-    if (!row) {
-      throw new NotFoundError(
-        `Model provider '${providerId}' not configured for this cooperative`,
-      );
-    }
-
-    // Check allowed models (empty array = all models allowed)
-    const allowed = row.allowed_models as string[];
-    if (allowed.length > 0 && !allowed.includes(modelId)) {
-      throw new NotFoundError(
-        `Model '${modelId}' is not in the allowed list for provider '${providerId}'`,
-      );
-    }
-
-    const provider = await this.createProviderFromRow(row);
-    return { provider, modelId };
-  }
-
-  /**
-   * Given a ModelRoutingConfig and task type, resolve the appropriate model
-   * with fallback chain: task-specific → chat → fallback → error
-   */
-  async resolveFromRouting(
-    cooperativeDid: string,
-    routingConfig: ModelRoutingConfig,
-    taskType: TaskType,
-  ): Promise<ResolvedModel> {
-    const candidates: string[] = [];
-
-    // Task-specific model
-    const taskModel = routingConfig[taskType];
-    if (taskModel) candidates.push(taskModel);
-
-    // Fall back to chat if not the same
-    if (taskType !== 'chat' && routingConfig.chat) {
-      candidates.push(routingConfig.chat);
-    }
-
-    // Fall back to fallback
-    if (routingConfig.fallback) {
-      candidates.push(routingConfig.fallback);
-    }
-
-    for (const modelString of candidates) {
-      try {
-        return await this.resolveModel(cooperativeDid, modelString);
-      } catch {
-        // Try next candidate
-      }
-    }
-
-    throw new NotFoundError(
-      `No available model found for task '${taskType}' in routing config`,
-    );
   }
 
   /** Get all models available to a co-op across all enabled providers */
@@ -412,8 +286,7 @@ export class ModelProviderRegistry {
 
   /**
    * Resolve a 'provider:model' string to an AI SDK LanguageModel.
-   * Same parsing/validation as resolveModel() but returns LanguageModel
-   * instead of IModelProvider.
+   * Verifies the co-op has the provider enabled and the model allowed.
    */
   async resolveLanguageModel(
     cooperativeDid: string,
@@ -463,7 +336,7 @@ export class ModelProviderRegistry {
 
   /**
    * Resolve model from routing config with fallback chain.
-   * AI SDK v6 version of resolveFromRouting().
+   * task-specific → chat → fallback → error
    */
   async resolveLanguageModelFromRouting(
     cooperativeDid: string,
@@ -499,27 +372,5 @@ export class ModelProviderRegistry {
   /** Get list of supported provider types with their static model info */
   static getSupportedProviders(): ModelProviderInfo[] {
     return PROVIDER_CATALOG;
-  }
-
-  // ─── Private ──────────────────────────────────────────────────────────
-
-  private async createProviderFromRow(row: {
-    provider_id: string;
-    credentials_enc: string;
-  }): Promise<IModelProvider> {
-    const factory = PROVIDER_FACTORIES[row.provider_id];
-    if (!factory) {
-      throw new NotFoundError(
-        `Unsupported provider type: '${row.provider_id}'`,
-      );
-    }
-
-    const credentialsJson = await decryptKey(
-      row.credentials_enc,
-      this.keyEncKey,
-    );
-    const credentials = JSON.parse(credentialsJson) as ProviderCredentials;
-
-    return factory(credentials);
   }
 }

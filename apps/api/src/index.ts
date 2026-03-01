@@ -196,9 +196,20 @@ async function start(): Promise<void> {
     });
   }, 60_000);
 
-  app.listen(config.PORT, () => {
+  const server = app.listen(config.PORT, () => {
     logger.info(`API server listening on port ${config.PORT}`);
   });
+
+  // Graceful shutdown
+  const shutdown = async () => {
+    logger.info('Shutting down...');
+    server.close();
+    await container.mcpClient.disconnectAll();
+    container.outboxProcessor?.stop();
+    process.exit(0);
+  };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
 }
 
 start().catch((err) => {

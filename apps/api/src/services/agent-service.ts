@@ -347,7 +347,7 @@ export class AgentService {
 
     // Check if template's chat model is available
     try {
-      await this.modelProviderRegistry.resolveModel(
+      await this.modelProviderRegistry.resolveLanguageModel(
         cooperativeDid,
         templateConfig.chat,
       );
@@ -366,7 +366,7 @@ export class AgentService {
       const val = templateConfig[key];
       if (val) {
         try {
-          await this.modelProviderRegistry.resolveModel(cooperativeDid, val);
+          await this.modelProviderRegistry.resolveLanguageModel(cooperativeDid, val);
           config[key] = val;
         } catch {
           // Skip unavailable optional models

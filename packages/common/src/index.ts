@@ -139,10 +139,6 @@ export type {
   ModelRoutingConfig,
   TaskType,
   ChatMessage,
-  ToolDefinition,
   ToolCall,
-  ChatRequest,
-  ChatResponse,
   ChatStreamEvent,
-  IModelProvider,
 } from './model-provider.js';

@@ -25,6 +25,7 @@ import { AgreementTemplateService } from './services/agreement-template-service.
 import { ModelProviderRegistry } from './ai/model-provider-registry.js';
 import { AgentService } from './services/agent-service.js';
 import { ChatEngine } from './ai/chat-engine.js';
+import { McpClient } from './ai/mcp-client.js';
 import { EventDispatcher } from './ai/triggers/event-dispatcher.js';
 
 export interface Container {
@@ -49,6 +50,7 @@ export interface Container {
   connectionService: ConnectionService;
   modelProviderRegistry: ModelProviderRegistry;
   agentService: AgentService;
+  mcpClient: McpClient;
   chatEngine: ChatEngine;
   eventDispatcher: EventDispatcher;
   outboxProcessor?: OutboxProcessor;
@@ -143,7 +145,8 @@ export function createContainer(config: AppConfig): Container {
   const connectionService = new ConnectionService(db, pdsService, clock, config);
   const modelProviderRegistry = new ModelProviderRegistry(db, config.KEY_ENC_KEY);
   const agentService = new AgentService(db, clock, modelProviderRegistry);
-  const chatEngine = new ChatEngine(db, clock, modelProviderRegistry);
+  const mcpClient = new McpClient();
+  const chatEngine = new ChatEngine(db, clock, modelProviderRegistry, mcpClient);
   const eventDispatcher = new EventDispatcher(db, chatEngine);
 
   return {
@@ -168,6 +171,7 @@ export function createContainer(config: AppConfig): Container {
     connectionService,
     modelProviderRegistry,
     agentService,
+    mcpClient,
     chatEngine,
     eventDispatcher,
     outboxProcessor,

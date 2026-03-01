@@ -19,7 +19,8 @@ import { ModelProviderRegistry } from './model-provider-registry.js';
 import {
   buildAiSdkTools,
   type AgentToolContext,
-} from './tools/ai-sdk-tools.js';
+} from './tools/index.js';
+import type { McpClient } from './mcp-client.js';
 
 const MAX_TOOL_LOOPS = 10;
 const DOOM_LOOP_THRESHOLD = 3;
@@ -98,6 +99,7 @@ export class ChatEngine {
     private db: Kysely<Database>,
     private clock: IClock,
     private modelProviderRegistry: ModelProviderRegistry,
+    private mcpClient?: McpClient,
   ) {}
 
   /** Send a message and get a complete response */
@@ -140,7 +142,9 @@ export class ChatEngine {
       cooperativeDid: options.cooperativeDid,
       actorDid: options.userDid,
     };
-    const tools = buildAiSdkTools(agent.allowedTools, toolContext);
+    const builtInTools = buildAiSdkTools(agent.allowedTools, toolContext);
+    const mcpTools = await this.mcpClient?.getAllTools() ?? {};
+    const tools = { ...builtInTools, ...mcpTools };
     const hasTools = Object.keys(tools).length > 0;
 
     // Convert history to AI SDK CoreMessage format
@@ -250,7 +254,9 @@ export class ChatEngine {
       cooperativeDid: options.cooperativeDid,
       actorDid: options.userDid,
     };
-    const tools = buildAiSdkTools(agent.allowedTools, toolContext);
+    const builtInTools = buildAiSdkTools(agent.allowedTools, toolContext);
+    const mcpTools = await this.mcpClient?.getAllTools() ?? {};
+    const tools = { ...builtInTools, ...mcpTools };
     const hasTools = Object.keys(tools).length > 0;
 
     const messages: ModelMessage[] = [
