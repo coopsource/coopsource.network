@@ -3,20 +3,62 @@ import type { Database } from '@coopsource/db';
 import type { IClock } from '@coopsource/federation';
 import type {
   ChatMessage,
-  ChatResponse,
   ChatStreamEvent,
   ModelRoutingConfig,
   TaskType,
 } from '@coopsource/common';
 import { NotFoundError, AppError } from '@coopsource/common';
+import {
+  generateText,
+  streamText,
+  stepCountIs,
+  type ModelMessage,
+  type StopCondition,
+} from 'ai';
 import { ModelProviderRegistry } from './model-provider-registry.js';
 import {
-  getTool,
-  getToolDefinitions,
+  buildAiSdkTools,
   type AgentToolContext,
-} from './tools/index.js';
+} from './tools/ai-sdk-tools.js';
 
 const MAX_TOOL_LOOPS = 10;
+const DOOM_LOOP_THRESHOLD = 3;
+
+// ── Doom loop detection (inspired by opencode's processor.ts) ──────────
+// Checks if the last 3 tool calls are identical (same tool, same params).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const detectDoomLoop: StopCondition<any> = ({ steps }) => {
+  if (steps.length < DOOM_LOOP_THRESHOLD) return false;
+  const recentCalls = steps
+    .slice(-DOOM_LOOP_THRESHOLD)
+    .flatMap((s) => s.toolCalls ?? [])
+    .slice(-DOOM_LOOP_THRESHOLD);
+  if (recentCalls.length < DOOM_LOOP_THRESHOLD) return false;
+  const [a, b, c] = recentCalls;
+  return (
+    a.toolName === b.toolName &&
+    b.toolName === c.toolName &&
+    JSON.stringify(a.input) === JSON.stringify(b.input) &&
+    JSON.stringify(b.input) === JSON.stringify(c.input)
+  );
+};
+
+// ── Tool repair (adopted from opencode's llm.ts) ──────────────────────
+// Handles model mistakes: try lowercase, then return null to let AI SDK
+// surface the error to the model.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function createRepairToolCall(tools: Record<string, any>) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return async (options: { toolCall: any; error: any }) => {
+    const { toolCall, error } = options;
+    const lower = toolCall.toolName.toLowerCase();
+    if (lower !== toolCall.toolName && tools[lower]) {
+      return { ...toolCall, toolName: lower };
+    }
+    // Return null — AI SDK will surface the error to the model
+    return null;
+  };
+}
 
 interface AgentConfig {
   id: string;
@@ -49,6 +91,8 @@ interface ChatResult {
   model: string;
 }
 
+export { detectDoomLoop, createRepairToolCall };
+
 export class ChatEngine {
   constructor(
     private db: Kysely<Database>,
@@ -73,97 +117,57 @@ export class ChatEngine {
 
     // Build message history
     const history = await this.loadHistory(sessionId);
-    history.push({ role: 'user', content: options.message });
 
     // Save user message
     await this.saveMessage(sessionId, 'user', options.message);
 
-    // Resolve model
+    // Resolve AI SDK model
     const taskType = options.taskType ?? 'chat';
-    const { provider, modelId } = options.modelOverride
-      ? await this.modelProviderRegistry.resolveModel(
+    const { model, modelId } = options.modelOverride
+      ? await this.modelProviderRegistry.resolveLanguageModel(
           options.cooperativeDid,
           options.modelOverride,
         )
-      : await this.modelProviderRegistry.resolveFromRouting(
+      : await this.modelProviderRegistry.resolveLanguageModelFromRouting(
           options.cooperativeDid,
           agent.modelConfig,
           taskType,
         );
 
-    // Build tools
-    const toolDefs = getToolDefinitions(agent.allowedTools);
+    // Build AI SDK tools
+    const toolContext: AgentToolContext = {
+      db: this.db,
+      cooperativeDid: options.cooperativeDid,
+      actorDid: options.userDid,
+    };
+    const tools = buildAiSdkTools(agent.allowedTools, toolContext);
+    const hasTools = Object.keys(tools).length > 0;
 
-    // Execute with tool loop
-    let totalInputTokens = 0;
-    let totalOutputTokens = 0;
-    let finalContent = '';
-    let loopCount = 0;
+    // Convert history to AI SDK CoreMessage format
+    const messages: ModelMessage[] = [
+      ...this.toCoreMessages(history),
+      { role: 'user' as const, content: options.message },
+    ];
 
-    const messages = [...history];
+    // AI SDK handles the tool loop internally via stopWhen
+    const result = await generateText({
+      model,
+      system: agent.systemPrompt,
+      messages,
+      tools: hasTools ? tools : undefined,
+      temperature: agent.temperature,
+      maxOutputTokens: agent.maxTokensPerRequest,
+      stopWhen: hasTools
+        ? [stepCountIs(MAX_TOOL_LOOPS), detectDoomLoop]
+        : undefined,
+      experimental_repairToolCall: hasTools
+        ? createRepairToolCall(tools)
+        : undefined,
+    });
 
-    while (loopCount < MAX_TOOL_LOOPS) {
-      loopCount++;
-
-      const response: ChatResponse = await provider.chat({
-        model: modelId,
-        messages,
-        tools: toolDefs.length > 0 ? toolDefs : undefined,
-        temperature: agent.temperature,
-        maxTokens: agent.maxTokensPerRequest,
-        systemPrompt: agent.systemPrompt,
-      });
-
-      totalInputTokens += response.inputTokens;
-      totalOutputTokens += response.outputTokens;
-
-      if (
-        response.stopReason === 'tool_use' &&
-        response.toolCalls &&
-        response.toolCalls.length > 0
-      ) {
-        // Add assistant message with tool calls
-        messages.push({
-          role: 'assistant',
-          content: response.content,
-          toolCalls: response.toolCalls,
-        });
-
-        // Execute each tool call
-        const toolContext: AgentToolContext = {
-          db: this.db,
-          cooperativeDid: options.cooperativeDid,
-          actorDid: options.userDid,
-        };
-
-        for (const tc of response.toolCalls) {
-          const tool = getTool(tc.name);
-          let result: string;
-          if (tool && agent.allowedTools.includes(tc.name)) {
-            try {
-              result = await tool.execute(tc.input, toolContext);
-            } catch (err) {
-              result = JSON.stringify({
-                error: err instanceof Error ? err.message : 'Tool execution failed',
-              });
-            }
-          } else {
-            result = JSON.stringify({ error: `Tool '${tc.name}' not available` });
-          }
-
-          messages.push({
-            role: 'tool',
-            content: result,
-            toolCallId: tc.id,
-          });
-        }
-        // Continue loop for next model call
-      } else {
-        // Done — end_turn or max_tokens
-        finalContent = response.content;
-        break;
-      }
-    }
+    const totalInputTokens = result.totalUsage.inputTokens ?? 0;
+    const totalOutputTokens = result.totalUsage.outputTokens ?? 0;
+    const finalContent = result.text;
 
     // Calculate cost
     const costMicrodollars = this.calculateCost(
@@ -210,7 +214,7 @@ export class ChatEngine {
     };
   }
 
-  /** Send a message and stream the response */
+  /** Send a message and stream the response — now supports tools via AI SDK v6 */
   async *sendStream(options: SendOptions): AsyncIterable<ChatStreamEvent> {
     const agent = await this.loadAgent(options.agentId, options.cooperativeDid);
     this.ensureEnabled(agent);
@@ -225,45 +229,97 @@ export class ChatEngine {
     await this.checkMonthlyBudget(agent);
 
     const history = await this.loadHistory(sessionId);
-    history.push({ role: 'user', content: options.message });
 
     await this.saveMessage(sessionId, 'user', options.message);
 
     const taskType = options.taskType ?? 'chat';
-    const { provider, modelId } = options.modelOverride
-      ? await this.modelProviderRegistry.resolveModel(
+    const { model, modelId } = options.modelOverride
+      ? await this.modelProviderRegistry.resolveLanguageModel(
           options.cooperativeDid,
           options.modelOverride,
         )
-      : await this.modelProviderRegistry.resolveFromRouting(
+      : await this.modelProviderRegistry.resolveLanguageModelFromRouting(
           options.cooperativeDid,
           agent.modelConfig,
           taskType,
         );
 
-    // Streaming does not support tool-use loops — tools are disabled
-    // to avoid partial tool-call events with no execution.
-    // Use the non-streaming send() method for tool-enabled agents.
+    // Build AI SDK tools — streaming now supports tools natively
+    const toolContext: AgentToolContext = {
+      db: this.db,
+      cooperativeDid: options.cooperativeDid,
+      actorDid: options.userDid,
+    };
+    const tools = buildAiSdkTools(agent.allowedTools, toolContext);
+    const hasTools = Object.keys(tools).length > 0;
 
+    const messages: ModelMessage[] = [
+      ...this.toCoreMessages(history),
+      { role: 'user' as const, content: options.message },
+    ];
+
+    const result = streamText({
+      model,
+      system: agent.systemPrompt,
+      messages,
+      tools: hasTools ? tools : undefined,
+      temperature: agent.temperature,
+      maxOutputTokens: agent.maxTokensPerRequest,
+      stopWhen: hasTools
+        ? [stepCountIs(MAX_TOOL_LOOPS), detectDoomLoop]
+        : undefined,
+      experimental_repairToolCall: hasTools
+        ? createRepairToolCall(tools)
+        : undefined,
+    });
+
+    let fullContent = '';
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
-    let fullContent = '';
-    for await (const event of provider.chatStream({
-      model: modelId,
-      messages: history,
-      temperature: agent.temperature,
-      maxTokens: agent.maxTokensPerRequest,
-      systemPrompt: agent.systemPrompt,
-    })) {
-      if (event.type === 'content_delta' && event.content) {
-        fullContent += event.content;
+
+    try {
+      for await (const part of result.fullStream) {
+        if (part.type === 'text-delta') {
+          fullContent += part.text;
+          yield { type: 'content_delta', content: part.text };
+        } else if (part.type === 'tool-call') {
+          yield {
+            type: 'tool_call_start',
+            toolCall: { id: part.toolCallId, name: part.toolName },
+          };
+        }
+        // tool-result parts are handled automatically by AI SDK
       }
-      if (event.type === 'done' && event.usage) {
-        totalInputTokens = event.usage.inputTokens;
-        totalOutputTokens = event.usage.outputTokens;
+
+      // totalUsage on streamText result is a Promise — must await
+      const usage = await result.totalUsage;
+      totalInputTokens = usage.inputTokens ?? 0;
+      totalOutputTokens = usage.outputTokens ?? 0;
+    } catch (streamError) {
+      // On stream error, try to capture partial usage for billing accuracy
+      try {
+        const usage = await result.totalUsage;
+        totalInputTokens = usage.inputTokens ?? 0;
+        totalOutputTokens = usage.outputTokens ?? 0;
+      } catch {
+        // Usage unavailable — use whatever was accumulated
       }
-      yield event;
+      // Save partial content before re-throwing
+      if (fullContent || totalInputTokens > 0) {
+        const costMicrodollars = this.calculateCost(totalInputTokens, totalOutputTokens, modelId);
+        await this.saveMessage(sessionId, 'assistant', fullContent, null,
+          totalInputTokens, totalOutputTokens, costMicrodollars, modelId);
+        await this.updateSessionUsage(sessionId, totalInputTokens, totalOutputTokens, costMicrodollars);
+        await this.updateMonthlyUsage(options.cooperativeDid, agent.id,
+          totalInputTokens, totalOutputTokens, costMicrodollars);
+      }
+      throw streamError;
     }
+
+    yield {
+      type: 'done',
+      usage: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens },
+    };
 
     const costMicrodollars = this.calculateCost(
       totalInputTokens,
@@ -299,6 +355,32 @@ export class ChatEngine {
   }
 
   // ─── Private ──────────────────────────────────────────────────────────
+
+  /** Convert DB ChatMessage history to AI SDK CoreMessage format */
+  private toCoreMessages(history: ChatMessage[]): ModelMessage[] {
+    return history
+      .filter((msg) => msg.role !== 'system') // system handled via system param
+      .map((msg): ModelMessage => {
+        if (msg.role === 'user') {
+          return { role: 'user' as const, content: msg.content };
+        }
+        if (msg.role === 'assistant') {
+          return { role: 'assistant' as const, content: msg.content };
+        }
+        // tool result messages
+        return {
+          role: 'tool' as const,
+          content: [
+            {
+              type: 'tool-result' as const,
+              toolCallId: msg.toolCallId ?? '',
+              toolName: '',
+              output: { type: 'text' as const, value: msg.content },
+            },
+          ],
+        };
+      });
+  }
 
   private async loadAgent(
     agentId: string,

@@ -1,3 +1,9 @@
+/**
+ * @deprecated Legacy tool registry — used only by MCP client (mcp-client.ts).
+ * ChatEngine now uses ai-sdk-tools.ts. When adding/modifying tools,
+ * update BOTH files to keep them in sync.
+ * TODO: Remove when MCP client migrates to @ai-sdk/mcp.
+ */
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
 import type { ToolDefinition } from '@coopsource/common';

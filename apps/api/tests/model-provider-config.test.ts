@@ -19,11 +19,12 @@ describe('Model Provider Config API', () => {
       .get('/api/v1/model-providers/supported')
       .expect(200);
 
-    expect(res.body.providers).toHaveLength(2);
+    expect(res.body.providers).toHaveLength(3);
     const ids = res.body.providers.map(
       (p: { id: string }) => p.id,
     );
     expect(ids).toContain('anthropic');
+    expect(ids).toContain('openai');
     expect(ids).toContain('ollama');
   });
 
