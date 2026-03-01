@@ -1,0 +1,66 @@
+Option A:
+
+❯ 1. Run opencode as sidecar      ┌──────────────────────────────────────────────────────────┐
+ 2. Extract opencode's AI core    │ ```                                                      │
+    as a library                  │ [SvelteKit Frontend]                                     │
+ 3. Use AI SDK directly (learn    │        |                                                 │
+    patterns, don't fork)         │ [Express API :3001]  ──proxy──>  [opencode :4096]        │
+                                  │   (auth, co-op ctx,                (AI SDK, tools,       │
+ 4. Use the opencode SDK          │    permissions, DB)                 sessions, MCP)       │
+   client                         │ ```                                                      │
+                                  │ Pros: Reuse opencode as-is, get all updates              │
+                                  │ Cons: Two processes, Bun dependency, no multi-tenant     │
+                                  └──────────────────────────────────────────────────────────┘
+
+
+Option B:
+
+What's the right integration strategy for opencode with our cooperative platform?
+
+  1. Run opencode as sidecar      ┌──────────────────────────────────────────────────────────┐
+ 2. Extract opencode's AI core    │ ```                                                      │
+    as a library                  │ packages/                                                │
+ 3. Use AI SDK directly (learn    │   ai-core/          <- extracted from opencode           │
+    patterns, don't fork)         │     provider/        <- AI SDK wrapper + models.dev      │
+                                  │     session/         <- processor + prompt loop          │
+ 4. Use the opencode SDK          │     tool/            <- tool registry + execution        │
+   client                         │     mcp/             <- MCP client                       │
+                                  │ apps/                                                    │
+                                  │   api/               <- Express routes call ai-core      │
+                                  │ ```                                                      │
+                                  │ Pros: Full control, no Bun dependency                    │
+                                  │ Cons: Must maintain the fork, merge updates manually     │
+                                  └──────────────────────────────────────────────────────────┘
+
+
+
+Option C:
+
+What's the right integration strategy for opencode with our cooperative platform?
+
+  1. Run opencode as sidecar      ┌──────────────────────────────────────────────────────────┐
+ 2. Extract opencode's AI core    │ ```                                                      │
+    as a library                  │ apps/api/src/ai/                                         │
+ 3. Use AI SDK directly (learn    │   chat-engine.ts     <- streamText/generateText directly │
+    patterns, don't fork)         │   model-registry.ts  <- models.dev fetch/cache           │
+                                  │   tools/             <- Zod-schema tools                 │
+ 4. Use the opencode SDK          │   doom-loop.ts       <- from opencode pattern            │
+   client                         │ ```                                                      │
+                                  │ Pros: Minimal code, follows AI SDK best practices        │
+                                  │ Cons: Doesn't reuse opencode's battle-tested processor   │
+                                  └──────────────────────────────────────────────────────────┘
+
+
+Option D:
+
+What's the right integration strategy for opencode with our cooperative platform?
+
+  1. Run opencode as sidecar      ┌──────────────────────────────────────────────────────────┐
+ 2. Extract opencode's AI core    │ No preview available                                     │
+    as a library                  └──────────────────────────────────────────────────────────┘
+ 3. Use AI SDK directly (learn
+    patterns, don't fork)         Notes: press n to add notes
+
+ 4. Use the opencode SDK
+   client
+
