@@ -34,8 +34,7 @@ const envSchema = z
     ZOOM_CLIENT_ID: z.string().optional(),
     ZOOM_CLIENT_SECRET: z.string().optional(),
     CONNECTION_TOKEN_ENCRYPTION_KEY: z.string().min(32).optional(),
-    STRIPE_SECRET_KEY: z.string().optional(),
-    STRIPE_WEBHOOK_SECRET: z.string().optional(),
+    // Stripe env vars removed — credentials are now per-cooperative in payment_provider_config table
     OIDC_JWKS: z.string().optional(),
     ANTHROPIC_API_KEY: z.string().optional(),
     // Federation

@@ -133,7 +133,7 @@ describe('Payment Provider Config API', () => {
       .expect(404);
   });
 
-  it('rejects duplicate provider config (500)', async () => {
+  it('rejects duplicate provider config (409)', async () => {
     const testApp = createTestApp();
     await setupAndLogin(testApp);
 
@@ -154,7 +154,7 @@ describe('Payment Provider Config API', () => {
         displayName: 'Stripe Again',
         credentials: { secretKey: 'sk_test_456' },
       })
-      .expect(500); // unique constraint violation
+      .expect(409);
   });
 
   // ─── Auth ─────────────────────────────────────────────────────────────

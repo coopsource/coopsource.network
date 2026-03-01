@@ -379,6 +379,7 @@ export class FundingService {
   /** Create a checkout session with a specific provider */
   async createCheckoutSession(
     pledgeUri: string,
+    callerDid: string,
     providerId: string,
     successUrl: string,
     cancelUrl: string,
@@ -390,6 +391,9 @@ export class FundingService {
       .executeTakeFirst();
 
     if (!pledge) throw new NotFoundError('Pledge not found');
+    if (pledge.backer_did !== callerDid) {
+      throw new UnauthorizedError('Not authorized to create checkout for this pledge');
+    }
 
     const campaign = await this.getCampaign(pledge.campaign_uri);
     const provider = await this.paymentRegistry.getProvider(

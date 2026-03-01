@@ -5,13 +5,19 @@ import { logger } from '../../middleware/logger.js';
 export function createPaymentWebhookRoutes(container: Container): Router {
   const router = Router();
 
-  // POST /api/v1/webhooks/payment/:providerId — Payment provider webhook
+  // POST /api/v1/webhooks/payment/:providerId/:cooperativeDid
+  //
+  // Each cooperative gets a unique webhook URL containing their DID.
+  // This avoids brute-forcing all co-op secrets — we look up the exact
+  // cooperative's provider config and verify with their specific secret.
+  //
   // NOTE: This route must receive the raw body for signature verification.
   // The raw body middleware is mounted in index.ts before JSON parsing.
   router.post(
-    '/api/v1/webhooks/payment/:providerId',
+    '/api/v1/webhooks/payment/:providerId/:cooperativeDid',
     async (req: Request, res: Response) => {
       const providerId = String(req.params.providerId);
+      const cooperativeDid = decodeURIComponent(String(req.params.cooperativeDid));
 
       const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
       if (!rawBody) {
@@ -20,43 +26,14 @@ export function createPaymentWebhookRoutes(container: Container): Router {
       }
 
       try {
-        // We need to find the pledge to determine which cooperative's
-        // provider credentials to use. For Stripe, the client_reference_id
-        // contains the pledgeUri. We first try to verify the webhook with
-        // all configured providers for this provider type.
-        //
-        // Strategy: look up all payment_provider_config rows for this providerId,
-        // try each one's webhook secret until verification succeeds.
-        const configs = await container.db
-          .selectFrom('payment_provider_config')
-          .where('provider_id', '=', providerId)
-          .where('enabled', '=', true)
-          .select(['cooperative_did'])
-          .execute();
+        const provider = await container.paymentRegistry.getProvider(
+          cooperativeDid,
+          providerId,
+        );
 
-        if (configs.length === 0) {
-          res.status(503).json({ error: `No ${providerId} providers configured` });
-          return;
-        }
-
-        // Try each cooperative's provider until one verifies successfully
-        let webhookEvent = null;
-        for (const config of configs) {
-          try {
-            const provider = await container.paymentRegistry.getWebhookProvider(
-              config.cooperative_did,
-              providerId,
-            );
-            webhookEvent = await provider.verifyWebhook(rawBody, req.headers);
-            if (webhookEvent) break;
-          } catch {
-            // Verification failed for this cooperative — try next
-            continue;
-          }
-        }
-
+        const webhookEvent = await provider.verifyWebhook(rawBody, req.headers);
         if (!webhookEvent) {
-          // Either unhandled event type or no cooperative's secret matched
+          // Unhandled event type — acknowledge receipt
           res.json({ received: true });
           return;
         }
@@ -67,7 +44,7 @@ export function createPaymentWebhookRoutes(container: Container): Router {
 
         if (!pledge) {
           logger.warn(
-            { sessionId: webhookEvent.sessionId, providerId },
+            { sessionId: webhookEvent.sessionId, providerId, cooperativeDid },
             'Payment webhook: no pledge found for session',
           );
           res.json({ received: true });
@@ -91,6 +68,7 @@ export function createPaymentWebhookRoutes(container: Container): Router {
             pledgeUri: pledge.uri,
             sessionId: webhookEvent.sessionId,
             providerId,
+            cooperativeDid,
             eventType: webhookEvent.type,
           },
           'Payment webhook processed',
@@ -98,7 +76,14 @@ export function createPaymentWebhookRoutes(container: Container): Router {
 
         res.json({ received: true });
       } catch (err) {
-        logger.error({ err, providerId }, 'Payment webhook processing error');
+        // Log the error with context for debugging
+        if (err instanceof Error && err.message.includes('not configured')) {
+          logger.warn({ providerId, cooperativeDid }, 'Webhook for unconfigured provider');
+          res.status(404).json({ error: 'Provider not configured' });
+          return;
+        }
+
+        logger.error({ err, providerId, cooperativeDid }, 'Payment webhook processing error');
         res.status(500).json({ error: 'Webhook processing failed' });
       }
     },

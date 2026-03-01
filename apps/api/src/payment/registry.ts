@@ -1,7 +1,7 @@
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
 import type { IPaymentProvider, PaymentProviderInfo } from '@coopsource/common';
-import { NotFoundError } from '@coopsource/common';
+import { NotFoundError, ConflictError } from '@coopsource/common';
 import { encryptKey, decryptKey } from '@coopsource/federation/local';
 import { StripePaymentProvider } from './stripe-provider.js';
 
@@ -72,17 +72,6 @@ export class PaymentProviderRegistry {
     return this.createProviderFromRow(row);
   }
 
-  /**
-   * Find a provider for webhook handling.
-   * Looks up the pledge's cooperative and provider to get the right credentials.
-   */
-  async getWebhookProvider(
-    cooperativeDid: string,
-    providerId: string,
-  ): Promise<IPaymentProvider> {
-    return this.getProvider(cooperativeDid, providerId);
-  }
-
   /** List all provider configs for a cooperative (admin view, no credentials) */
   async listConfigs(cooperativeDid: string) {
     return this.db
@@ -112,6 +101,20 @@ export class PaymentProviderRegistry {
   ) {
     if (!PROVIDER_FACTORIES[providerId]) {
       throw new NotFoundError(`Unsupported provider type: '${providerId}'`);
+    }
+
+    // Check for existing config
+    const existing = await this.db
+      .selectFrom('payment_provider_config')
+      .where('cooperative_did', '=', cooperativeDid)
+      .where('provider_id', '=', providerId)
+      .select('id')
+      .executeTakeFirst();
+
+    if (existing) {
+      throw new ConflictError(
+        `Provider '${providerId}' is already configured for this cooperative`,
+      );
     }
 
     const credentialsEnc = await encryptKey(

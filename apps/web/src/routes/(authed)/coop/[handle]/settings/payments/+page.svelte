@@ -24,10 +24,10 @@
   </div>
 
   {#if form?.error}
-    <div class="rounded-md bg-red-50 p-3 text-sm text-red-700">{form.error}</div>
+    <div class="rounded-md border border-[var(--color-danger-light)] bg-[var(--color-danger-light)] p-3 text-sm text-[var(--color-danger-dark)]">{form.error}</div>
   {/if}
   {#if form?.success}
-    <div class="rounded-md bg-green-50 p-3 text-sm text-green-700">Provider updated successfully.</div>
+    <div class="rounded-md border border-green-200 bg-[var(--cs-bg-inset)] p-3 text-sm text-[var(--cs-text)]">Provider updated successfully.</div>
   {/if}
 
   {#if showAddForm}

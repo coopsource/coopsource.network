@@ -56,14 +56,16 @@ export class StripePaymentProvider implements IPaymentProvider {
   }
 
   async verifyWebhook(
-    rawBody: Buffer,
+    rawBody: Uint8Array,
     headers: Record<string, string | string[] | undefined>,
   ): Promise<WebhookEvent | null> {
+    if (!this.webhookSecret) return null;
+
     const sig = headers['stripe-signature'];
     if (!sig || Array.isArray(sig)) return null;
 
     const event = this.stripe.webhooks.constructEvent(
-      rawBody,
+      rawBody as Buffer,
       sig,
       this.webhookSecret,
     );

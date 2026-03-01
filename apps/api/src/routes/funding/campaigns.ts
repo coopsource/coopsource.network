@@ -134,6 +134,7 @@ export function createCampaignRoutes(container: Container): Router {
 
       const result = await container.fundingService.createCheckoutSession(
         pledgeUri,
+        req.actor!.did,
         providerId,
         successUrl,
         cancelUrl,
