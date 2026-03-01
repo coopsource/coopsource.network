@@ -473,6 +473,123 @@ export interface ExploreNetworksResponse {
   cursor: string | null;
 }
 
+// ─── Agents ──────────────────────────────────────────────────────────────────
+
+export interface ModelRoutingConfig {
+  chat: string;
+  automation?: string;
+  summarization?: string;
+  analysis?: string;
+  fallback?: string;
+}
+
+export interface AgentConfig {
+  id: string;
+  cooperativeDid: string;
+  name: string;
+  description: string | null;
+  agentType: string;
+  modelConfig: ModelRoutingConfig;
+  systemPrompt: string;
+  allowedTools: string[];
+  contextSources: string[];
+  temperature: number;
+  maxTokensPerRequest: number;
+  maxTokensPerSession: number;
+  monthlyBudgetCents: number | null;
+  enabled: boolean;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgentsResponse {
+  agents: AgentConfig[];
+}
+
+export interface AgentSession {
+  id: string;
+  agentConfigId: string;
+  title: string | null;
+  status: string;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalCostMicrodollars: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgentSessionsResponse {
+  sessions: AgentSession[];
+}
+
+export interface AgentMessage {
+  id: string;
+  role: string;
+  content: string;
+  toolCalls: unknown[] | null;
+  inputTokens: number;
+  outputTokens: number;
+  costMicrodollars: number;
+  model: string | null;
+  createdAt: string;
+}
+
+export interface AgentMessagesResponse {
+  messages: AgentMessage[];
+}
+
+export interface ChatResult {
+  sessionId: string;
+  content: string;
+  inputTokens: number;
+  outputTokens: number;
+  model: string;
+}
+
+export interface ModelProviderConfig {
+  id: string;
+  providerId: string;
+  displayName: string;
+  enabled: boolean;
+  allowedModels: string[];
+  config: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ModelProvidersResponse {
+  providers: ModelProviderConfig[];
+}
+
+export interface ModelInfo {
+  id: string;
+  displayName: string;
+  contextWindow: number;
+  maxOutputTokens: number;
+  inputPricePer1M: number;
+  outputPricePer1M: number;
+  capabilities: string[];
+}
+
+export interface AvailableModelsResponse {
+  providers: Array<{ providerId: string; models: ModelInfo[] }>;
+}
+
+export interface ApiToken {
+  id: string;
+  name: string;
+  token?: string;
+  scopes: string[];
+  lastUsedAt: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+export interface ApiTokensResponse {
+  tokens: ApiToken[];
+}
+
 export interface ApiError {
   error: string;
   message?: string;

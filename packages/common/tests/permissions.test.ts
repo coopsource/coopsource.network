@@ -18,8 +18,8 @@ describe('PERMISSIONS', () => {
     }
   });
 
-  it('contains 24 permissions', () => {
-    expect(Object.keys(PERMISSIONS)).toHaveLength(24);
+  it('contains 27 permissions', () => {
+    expect(Object.keys(PERMISSIONS)).toHaveLength(27);
   });
 });
 
@@ -38,6 +38,7 @@ describe('BUILT_IN_ROLES', () => {
     expect(member.permissions).toContain('agreement.sign');
     expect(member.permissions).toContain('post.create');
     expect(member.permissions).toContain('project.create');
+    expect(member.permissions).toContain('agent.use');
     expect(member.inherits).toBeUndefined();
   });
 

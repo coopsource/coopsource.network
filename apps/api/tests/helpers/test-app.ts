@@ -22,6 +22,10 @@ import { PaymentProviderRegistry } from '../../src/payment/registry.js';
 import { AlignmentService } from '../../src/services/alignment-service.js';
 import { ConnectionService } from '../../src/services/connection-service.js';
 import { AgreementTemplateService } from '../../src/services/agreement-template-service.js';
+import { ModelProviderRegistry } from '../../src/ai/model-provider-registry.js';
+import { AgentService } from '../../src/services/agent-service.js';
+import { ChatEngine } from '../../src/ai/chat-engine.js';
+import { EventDispatcher } from '../../src/ai/triggers/event-dispatcher.js';
 import type { AppConfig } from '../../src/config.js';
 import { setDb, resetSetupCache } from '../../src/auth/middleware.js';
 import { setPermissionsDb } from '../../src/middleware/permissions.js';
@@ -46,6 +50,11 @@ import { createAdminRoutes } from '../../src/routes/admin.js';
 import { createExploreRoutes } from '../../src/routes/explore.js';
 import { createBlobRoutes } from '../../src/routes/blobs.js';
 import { createFederationRoutes } from '../../src/routes/federation.js';
+import { createAgentConfigRoutes } from '../../src/routes/agents/config.js';
+import { createAgentChatRoutes } from '../../src/routes/agents/chat.js';
+import { createAgentTriggerRoutes } from '../../src/routes/agents/triggers.js';
+import { createApiTokenRoutes } from '../../src/routes/agents/tokens.js';
+import { createModelConfigRoutes } from '../../src/routes/agents/model-config.js';
 import { errorHandler } from '../../src/middleware/error-handler.js';
 import { getTestDb, getTestConnectionString } from './test-db.js';
 
@@ -111,6 +120,10 @@ export function createTestApp(): TestApp {
     FRONTEND_URL: 'http://localhost:5173',
   } as AppConfig;
   const connectionService = new ConnectionService(db, pdsService, clock, testConfig);
+  const modelProviderRegistry = new ModelProviderRegistry(db, 'yIknTzhyTfVpR7cc/ZrwSpewmhyiOJA97leVbKqccsY=');
+  const agentService = new AgentService(db, clock, modelProviderRegistry);
+  const chatEngine = new ChatEngine(db, clock, modelProviderRegistry);
+  const eventDispatcher = new EventDispatcher(db, chatEngine);
 
   const container: Container = {
     db,
@@ -132,6 +145,10 @@ export function createTestApp(): TestApp {
     paymentRegistry,
     alignmentService,
     connectionService,
+    modelProviderRegistry,
+    agentService,
+    chatEngine,
+    eventDispatcher,
   };
 
   // Set the DB reference for auth middleware + permissions middleware
@@ -180,6 +197,11 @@ export function createTestApp(): TestApp {
   app.use(createConnectionRoutes(container, testConfig));
   app.use(createAdminRoutes(container));
   app.use(createFederationRoutes(container, didResolver, testConfig));
+  app.use(createAgentConfigRoutes(container));
+  app.use(createAgentChatRoutes(container));
+  app.use(createAgentTriggerRoutes(container));
+  app.use(createApiTokenRoutes(container));
+  app.use(createModelConfigRoutes(container));
 
   // Error handler (must be last)
   app.use(errorHandler);

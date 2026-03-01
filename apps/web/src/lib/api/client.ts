@@ -46,6 +46,16 @@ import type {
   ExploreCooperativeDetail,
   ExploreNetworksResponse,
   MyMembershipsResponse,
+  AgentConfig,
+  AgentsResponse,
+  AgentSessionsResponse,
+  AgentMessagesResponse,
+  ChatResult,
+  ModelProvidersResponse,
+  ModelProviderConfig,
+  AvailableModelsResponse,
+  ApiToken,
+  ApiTokensResponse,
 } from './types.js';
 
 export class ApiError extends Error {
@@ -725,6 +735,73 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string) {
     getExploreCooperative: (handle: string) =>
       request<ExploreCooperativeDetail>(`/explore/cooperatives/${encodeURIComponent(handle)}`),
 
+    // ── Agents ──────────────────────────────────────────────────────────────
+    getAgents: (cursor?: string) => {
+      const qs = cursor ? `?cursor=${cursor}` : '';
+      return request<AgentsResponse>(`/agents${qs}`);
+    },
+
+    getAgent: (id: string) => request<AgentConfig>(`/agents/${id}`),
+
+    createAgent: (body: Record<string, unknown>) =>
+      request<AgentConfig>('/agents', { method: 'POST', body: JSON.stringify(body) }),
+
+    createAgentFromTemplate: (body: { agentType: string; name?: string; monthlyBudgetCents?: number }) =>
+      request<AgentConfig>('/agents/from-template', { method: 'POST', body: JSON.stringify(body) }),
+
+    updateAgent: (id: string, body: Record<string, unknown>) =>
+      request<AgentConfig>(`/agents/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+
+    deleteAgent: (id: string) =>
+      request<void>(`/agents/${id}`, { method: 'DELETE' }),
+
+    getAvailableModels: () => request<AvailableModelsResponse>('/agents/models'),
+
+    sendAgentMessage: (agentId: string, body: { message: string; sessionId?: string; model?: string }) =>
+      request<ChatResult>(`/agents/${agentId}/chat`, { method: 'POST', body: JSON.stringify(body) }),
+
+    getAgentSessions: (agentId: string, cursor?: string) => {
+      const qs = cursor ? `?cursor=${cursor}` : '';
+      return request<AgentSessionsResponse>(`/agents/${agentId}/sessions${qs}`);
+    },
+
+    getSessionMessages: (sessionId: string, cursor?: string) => {
+      const qs = cursor ? `?cursor=${cursor}` : '';
+      return request<AgentMessagesResponse>(`/agents/sessions/${sessionId}/messages${qs}`);
+    },
+
+    closeSession: (sessionId: string) =>
+      request<void>(`/agents/sessions/${sessionId}`, { method: 'DELETE' }),
+
+    getAgentUsage: (agentId: string, period?: string) => {
+      const qs = period ? `?period=${period}` : '';
+      return request<{ usage: unknown }>(`/agents/${agentId}/usage${qs}`);
+    },
+
+    // ── Model Providers ─────────────────────────────────────────────────
+    getSupportedModelProviders: () => request<{ providers: unknown[] }>('/model-providers/supported'),
+
+    getModelProviders: () => request<ModelProvidersResponse>('/model-providers'),
+
+    addModelProvider: (body: Record<string, unknown>) =>
+      request<ModelProviderConfig>('/model-providers', { method: 'POST', body: JSON.stringify(body) }),
+
+    updateModelProvider: (providerId: string, body: Record<string, unknown>) =>
+      request<ModelProviderConfig>(`/model-providers/${providerId}`, { method: 'PUT', body: JSON.stringify(body) }),
+
+    removeModelProvider: (providerId: string) =>
+      request<void>(`/model-providers/${providerId}`, { method: 'DELETE' }),
+
+    // ── API Tokens ──────────────────────────────────────────────────────
+    getApiTokens: () => request<ApiTokensResponse>('/api-tokens'),
+
+    createApiToken: (body: { name: string; scopes?: string[]; expiresInDays?: number }) =>
+      request<ApiToken>('/api-tokens', { method: 'POST', body: JSON.stringify(body) }),
+
+    revokeApiToken: (id: string) =>
+      request<void>(`/api-tokens/${id}`, { method: 'DELETE' }),
+
+    // Explore (public, no auth needed)
     getExploreNetworks: (params?: { limit?: number; cursor?: string }) => {
       const qs = new URLSearchParams();
       if (params?.limit) qs.set('limit', String(params.limit));

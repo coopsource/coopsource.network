@@ -36,7 +36,7 @@ const envSchema = z
     CONNECTION_TOKEN_ENCRYPTION_KEY: z.string().min(32).optional(),
     // Stripe env vars removed — credentials are now per-cooperative in payment_provider_config table
     OIDC_JWKS: z.string().optional(),
-    ANTHROPIC_API_KEY: z.string().optional(),
+    // Anthropic API key removed — credentials are now per-cooperative in model_provider_config table
     // Federation
     INSTANCE_ROLE: z.enum(['standalone', 'hub', 'coop']).default('standalone'),
     INSTANCE_DID: z.string().optional(),   // Override auto-derived DID

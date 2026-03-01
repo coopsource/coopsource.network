@@ -553,11 +553,20 @@ export type UpdateWorkflowDefinitionInput = z.infer<typeof UpdateWorkflowDefinit
 
 export const AgentTypeEnum = z.enum(['custom', 'facilitator', 'governance', 'coordinator', 'analyst']);
 
+/** Model routing config — maps task types to provider:model strings */
+export const ModelRoutingConfigSchema = z.object({
+  chat: z.string().min(1).max(100),
+  automation: z.string().min(1).max(100).optional(),
+  summarization: z.string().min(1).max(100).optional(),
+  analysis: z.string().min(1).max(100).optional(),
+  fallback: z.string().min(1).max(100).optional(),
+});
+
 export const CreateAgentConfigSchema = z.object({
   name: z.string().min(1).max(255),
   description: z.string().max(2000).optional(),
   agentType: AgentTypeEnum.default('custom'),
-  model: z.string().min(1).max(100).default('claude-sonnet-4-20250514'),
+  modelConfig: ModelRoutingConfigSchema,
   systemPrompt: z.string().min(1).max(10000),
   allowedTools: z.array(z.string().min(1).max(100)).max(50).default([]),
   contextSources: z.array(z.string().min(1).max(200)).max(50).default([]),
@@ -572,7 +581,7 @@ export const UpdateAgentConfigSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   description: z.string().max(2000).optional(),
   agentType: AgentTypeEnum.optional(),
-  model: z.string().min(1).max(100).optional(),
+  modelConfig: ModelRoutingConfigSchema.optional(),
   systemPrompt: z.string().min(1).max(10000).optional(),
   allowedTools: z.array(z.string().min(1).max(100)).optional(),
   contextSources: z.array(z.string().min(1).max(200)).optional(),
@@ -586,6 +595,7 @@ export const UpdateAgentConfigSchema = z.object({
 export const SendAgentMessageSchema = z.object({
   message: z.string().min(1).max(10000),
   sessionId: z.string().optional(),
+  model: z.string().min(1).max(100).optional(),
 });
 
 export const CreateAgentFromTemplateSchema = z.object({
@@ -594,10 +604,29 @@ export const CreateAgentFromTemplateSchema = z.object({
   monthlyBudgetCents: z.number().int().min(0).optional(),
 });
 
+export const AddModelProviderSchema = z.object({
+  providerId: z.string().min(1).max(50),
+  displayName: z.string().min(1).max(100),
+  credentials: z.record(z.string(), z.string()),
+  allowedModels: z.array(z.string().min(1).max(100)).default([]),
+  config: z.record(z.string(), z.unknown()).optional(),
+});
+
+export const UpdateModelProviderSchema = z.object({
+  displayName: z.string().min(1).max(100).optional(),
+  enabled: z.boolean().optional(),
+  credentials: z.record(z.string(), z.string()).optional(),
+  allowedModels: z.array(z.string().min(1).max(100)).optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
+});
+
+export type ModelRoutingConfigInput = z.infer<typeof ModelRoutingConfigSchema>;
 export type CreateAgentConfigInput = z.infer<typeof CreateAgentConfigSchema>;
 export type UpdateAgentConfigInput = z.infer<typeof UpdateAgentConfigSchema>;
 export type SendAgentMessageInput = z.infer<typeof SendAgentMessageSchema>;
 export type CreateAgentFromTemplateInput = z.infer<typeof CreateAgentFromTemplateSchema>;
+export type AddModelProviderInput = z.infer<typeof AddModelProviderSchema>;
+export type UpdateModelProviderInput = z.infer<typeof UpdateModelProviderSchema>;
 
 // --- Route-Level Request Body Schemas ---
 // Used by API route handlers for runtime validation

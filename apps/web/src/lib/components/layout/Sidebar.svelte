@@ -10,6 +10,7 @@
   import Compass from '@lucide/svelte/icons/compass';
   import Banknote from '@lucide/svelte/icons/banknote';
   import Globe from '@lucide/svelte/icons/globe';
+  import Bot from '@lucide/svelte/icons/bot';
   import Link2 from '@lucide/svelte/icons/link-2';
   import CreditCard from '@lucide/svelte/icons/credit-card';
   import Settings from '@lucide/svelte/icons/settings';
@@ -62,6 +63,7 @@
         { href: `${prefix}/campaigns`, label: 'Campaigns', icon: Banknote },
         { href: `${prefix}/posts`, label: 'Posts', icon: MessageSquare },
         { href: `${prefix}/networks`, label: 'Networks', icon: Globe },
+        { href: `${prefix}/agents`, label: 'Agents', icon: Bot },
       ];
     }
 

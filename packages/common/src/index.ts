@@ -55,10 +55,13 @@ export {
   WorkflowDefinitionSchema,
   UpdateWorkflowDefinitionSchema,
   AgentTypeEnum,
+  ModelRoutingConfigSchema,
   CreateAgentConfigSchema,
   UpdateAgentConfigSchema,
   SendAgentMessageSchema,
   CreateAgentFromTemplateSchema,
+  AddModelProviderSchema,
+  UpdateModelProviderSchema,
   SetupInitializeSchema,
   RegisterSchema,
   LoginSchema,
@@ -111,10 +114,13 @@ export type {
   WorkflowConnection,
   WorkflowDefinition,
   UpdateWorkflowDefinitionInput,
+  ModelRoutingConfigInput,
   CreateAgentConfigInput,
   UpdateAgentConfigInput,
   SendAgentMessageInput,
   CreateAgentFromTemplateInput,
+  AddModelProviderInput,
+  UpdateModelProviderInput,
 } from './validation.js';
 export { encodeAtUri, decodeAtUri, extractRkey, buildAtUri } from './uri.js';
 export { didWebToUrl, urlToDidWeb, buildMemberDidWeb, isDidWeb } from './did-web.js';
@@ -127,3 +133,16 @@ export type {
   WebhookEvent,
   IPaymentProvider,
 } from './payment.js';
+export type {
+  ModelProviderInfo,
+  ModelInfo,
+  ModelRoutingConfig,
+  TaskType,
+  ChatMessage,
+  ToolDefinition,
+  ToolCall,
+  ChatRequest,
+  ChatResponse,
+  ChatStreamEvent,
+  IModelProvider,
+} from './model-provider.js';

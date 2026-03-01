@@ -622,13 +622,26 @@ export interface WorkflowExecutionTable {
   completed_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
 }
 
+export interface ModelProviderConfigTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  provider_id: string;
+  display_name: string;
+  enabled: ColumnType<boolean, boolean | undefined, boolean>;
+  credentials_enc: string;
+  allowed_models: ColumnType<string[], string | string[], string | string[]>;
+  config: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
 export interface AgentConfigTable {
-  id: string;
-  project_uri: string;
+  id: Generated<string>;
+  cooperative_did: string;
   name: string;
   description: string | null;
   agent_type: string;
-  model: string;
+  model_config: ColumnType<Record<string, unknown>, string | Record<string, unknown>, string | Record<string, unknown>>;
   system_prompt: string;
   allowed_tools: ColumnType<string[], string | string[], string | string[]>;
   context_sources: ColumnType<string[], string | string[], string | string[]>;
@@ -636,14 +649,14 @@ export interface AgentConfigTable {
   max_tokens_per_request: number;
   max_tokens_per_session: number;
   monthly_budget_cents: number | null;
-  enabled: boolean;
+  enabled: ColumnType<boolean, boolean | undefined, boolean>;
   created_by: string;
   created_at: ColumnType<Date, Date | string | undefined, Date | string>;
   updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }
 
 export interface AgentSessionTable {
-  id: string;
+  id: Generated<string>;
   agent_config_id: string;
   user_did: string;
   title: string | null;
@@ -658,7 +671,7 @@ export interface AgentSessionTable {
 }
 
 export interface AgentMessageTable {
-  id: string;
+  id: Generated<string>;
   session_id: string;
   role: string;
   content: string;
@@ -671,14 +684,40 @@ export interface AgentMessageTable {
 }
 
 export interface AgentUsageTable {
-  id: string;
-  project_uri: string;
+  id: Generated<string>;
+  cooperative_did: string;
   agent_config_id: string | null;
   period: string;
   total_requests: number;
   total_input_tokens: number;
   total_output_tokens: number;
   total_cost_microdollars: number;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface ApiTokenTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  user_did: string;
+  name: string;
+  token_hash: string;
+  scopes: ColumnType<string[], string | string[], string | string[]>;
+  last_used_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  expires_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface AgentTriggerTable {
+  id: Generated<string>;
+  agent_config_id: string;
+  cooperative_did: string;
+  event_type: string;
+  conditions: ColumnType<Record<string, unknown>, string | Record<string, unknown>, string | Record<string, unknown>>;
+  prompt_template: string;
+  cooldown_seconds: number;
+  enabled: ColumnType<boolean, boolean | undefined, boolean>;
+  last_triggered_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
   updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }
 
@@ -756,6 +795,7 @@ export interface Database {
   funding_campaign: FundingCampaignTable;
   funding_pledge: FundingPledgeTable;
   payment_provider_config: PaymentProviderConfigTable;
+  model_provider_config: ModelProviderConfigTable;
   oidc_client: OidcClientTable;
   oidc_payload: OidcPayloadTable;
   oidc_consent: OidcConsentTable;
@@ -765,6 +805,8 @@ export interface Database {
   agent_session: AgentSessionTable;
   agent_message: AgentMessageTable;
   agent_usage: AgentUsageTable;
+  agent_trigger: AgentTriggerTable;
+  api_token: ApiTokenTable;
   delegation: DelegationTable;
 
   // OAuth tables (013)

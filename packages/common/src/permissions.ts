@@ -30,6 +30,9 @@ export const PERMISSIONS = {
   'network.manage': 'Manage network membership',
   'network.coop.approve': 'Approve cooperatives joining network',
   'network.coop.remove': 'Remove cooperatives from network',
+  'agent.configure': 'Configure AI agents and model providers',
+  'agent.use': 'Interact with AI agents',
+  'agent.admin': 'Manage all agent settings and budgets',
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -45,6 +48,7 @@ export const BUILT_IN_ROLES: Record<
       'agreement.sign',
       'post.create',
       'project.create',
+      'agent.use',
     ],
   },
   coordinator: {
@@ -64,6 +68,7 @@ export const BUILT_IN_ROLES: Record<
       'funding.manage',
       'network.create',
       'network.manage',
+      'agent.configure',
     ],
     inherits: ['member'],
   },

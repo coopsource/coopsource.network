@@ -22,6 +22,10 @@ import { PaymentProviderRegistry } from './payment/registry.js';
 import { AlignmentService } from './services/alignment-service.js';
 import { ConnectionService } from './services/connection-service.js';
 import { AgreementTemplateService } from './services/agreement-template-service.js';
+import { ModelProviderRegistry } from './ai/model-provider-registry.js';
+import { AgentService } from './services/agent-service.js';
+import { ChatEngine } from './ai/chat-engine.js';
+import { EventDispatcher } from './ai/triggers/event-dispatcher.js';
 
 export interface Container {
   db: Kysely<Database>;
@@ -43,6 +47,10 @@ export interface Container {
   paymentRegistry: PaymentProviderRegistry;
   alignmentService: AlignmentService;
   connectionService: ConnectionService;
+  modelProviderRegistry: ModelProviderRegistry;
+  agentService: AgentService;
+  chatEngine: ChatEngine;
+  eventDispatcher: EventDispatcher;
   outboxProcessor?: OutboxProcessor;
 }
 
@@ -133,6 +141,10 @@ export function createContainer(config: AppConfig): Container {
   const fundingService = new FundingService(db, pdsService, federationClient, clock, paymentRegistry);
   const alignmentService = new AlignmentService(db, pdsService, federationClient, clock);
   const connectionService = new ConnectionService(db, pdsService, clock, config);
+  const modelProviderRegistry = new ModelProviderRegistry(db, config.KEY_ENC_KEY);
+  const agentService = new AgentService(db, clock, modelProviderRegistry);
+  const chatEngine = new ChatEngine(db, clock, modelProviderRegistry);
+  const eventDispatcher = new EventDispatcher(db, chatEngine);
 
   return {
     db,
@@ -154,6 +166,10 @@ export function createContainer(config: AppConfig): Container {
     paymentRegistry,
     alignmentService,
     connectionService,
+    modelProviderRegistry,
+    agentService,
+    chatEngine,
+    eventDispatcher,
     outboxProcessor,
   };
 }

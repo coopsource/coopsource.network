@@ -14,10 +14,12 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
     "@atproto/oauth-client-node": "^0.3.17",
     "@coopsource/common": "workspace:*",
     "@coopsource/db": "workspace:*",
     "@coopsource/federation": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.27.1",
     "bcrypt": "^6.0.0",
     "compression": "^1.8.1",
     "connect-pg-simple": "^10.0.0",

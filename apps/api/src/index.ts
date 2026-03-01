@@ -42,6 +42,12 @@ import { createConnectionRoutes } from './routes/connections/connections.js';
 import { createExploreRoutes } from './routes/explore.js';
 import { createWellKnownRoutes } from './routes/well-known.js';
 import { createFederationRoutes } from './routes/federation.js';
+import { createAgentConfigRoutes } from './routes/agents/config.js';
+import { createAgentChatRoutes } from './routes/agents/chat.js';
+import { createAgentTriggerRoutes } from './routes/agents/triggers.js';
+import { createApiTokenRoutes } from './routes/agents/tokens.js';
+import { createModelConfigRoutes } from './routes/agents/model-config.js';
+import { createMcpRoutes } from './mcp/server.js';
 import { startAppViewLoop } from './appview/loop.js';
 import { createOAuthClient } from './auth/oauth-client.js';
 
@@ -155,7 +161,15 @@ async function start(): Promise<void> {
   // Federation routes (server-to-server, signed HTTP)
   app.use(createFederationRoutes(container, container.didResolver, config));
 
-  // TODO: Stage 3 — Automation, AI Agents, MCP, CLI Auth, OIDC
+  // AI Agent routes (Stage 3)
+  app.use(createAgentConfigRoutes(container));
+  app.use(createAgentChatRoutes(container));
+  app.use(createAgentTriggerRoutes(container));
+  app.use(createApiTokenRoutes(container));
+  app.use(createModelConfigRoutes(container));
+
+  // MCP server (bearer token auth)
+  app.use(createMcpRoutes(container.db));
 
   // Error handling (must be last)
   app.use(errorHandler);
@@ -164,6 +178,10 @@ async function start(): Promise<void> {
   startAppViewLoop(container.pdsService, container.db).catch((err) => {
     logger.error(err, 'AppView loop failed to start');
   });
+
+  // Start event dispatcher for agent triggers
+  container.eventDispatcher.start();
+  logger.info('Event dispatcher started');
 
   // Start outbox processor for federated mode
   if (container.outboxProcessor) {
