@@ -3,10 +3,27 @@
   import Bot from '@lucide/svelte/icons/bot';
   import User from '@lucide/svelte/icons/user';
   import { createApiClient } from '$lib/api/client.js';
-  import type { AgentConfig, AgentMessage } from '$lib/api/types.js';
+  import type { AgentConfig, AgentMessage, AgentTrigger } from '$lib/api/types.js';
+  import Tabs from '$lib/components/ui/Tabs.svelte';
+  import TriggerPanel from '$lib/components/agents/TriggerPanel.svelte';
 
   let { data } = $props();
   let agent: AgentConfig = $derived(data.agent);
+  let triggers = $state<AgentTrigger[]>(data.triggers);
+
+  // Sync when SvelteKit re-runs the load function (e.g., navigating between agents)
+  $effect(() => {
+    triggers = data.triggers;
+    messages = [];
+    sessionId = undefined;
+    error = null;
+  });
+
+  let activeTab = $state('chat');
+  const tabs = $derived([
+    { id: 'chat', label: 'Chat' },
+    { id: 'triggers', label: 'Triggers', count: triggers.length },
+  ]);
 
   let messageInput = $state('');
   let messages = $state<AgentMessage[]>([]);
@@ -89,6 +106,9 @@
     </div>
   </div>
 
+  <Tabs {tabs} bind:active={activeTab} class="mt-3" />
+
+  {#if activeTab === 'chat'}
   <!-- Messages -->
   <div class="flex-1 overflow-y-auto py-4 space-y-4">
     {#if messages.length === 0}
@@ -136,7 +156,7 @@
   </div>
 
   {#if error}
-    <div class="px-4 py-2 text-sm text-[var(--color-danger-600)] bg-[var(--color-danger-50)] rounded-md mb-2">
+    <div class="px-4 py-2 text-sm text-[var(--color-danger)] bg-[var(--color-danger-light)] rounded-[var(--radius-sm)] mb-2">
       {error}
     </div>
   {/if}
@@ -162,4 +182,9 @@
       </button>
     </div>
   </div>
+  {:else if activeTab === 'triggers'}
+  <div class="flex-1 overflow-y-auto py-4">
+    <TriggerPanel agentId={agent.id} bind:triggers />
+  </div>
+  {/if}
 </div>

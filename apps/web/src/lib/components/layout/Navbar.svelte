@@ -4,6 +4,7 @@
   import ChevronRight from '@lucide/svelte/icons/chevron-right';
   import LogOut from '@lucide/svelte/icons/log-out';
   import User from '@lucide/svelte/icons/user';
+  import NotificationBell from './NotificationBell.svelte';
 
   interface Props {
     user?: AuthUser | null;
@@ -81,8 +82,10 @@
     {/each}
   </nav>
 
-  <!-- User dropdown -->
+  <!-- User actions -->
   {#if user}
+    <div class="flex items-center gap-2">
+    <NotificationBell workspacePrefix={workspace?.prefix ?? ''} />
     <div class="relative" data-user-menu>
       <button
         type="button"
@@ -124,6 +127,7 @@
           </div>
         </div>
       {/if}
+    </div>
     </div>
   {/if}
 </header>
