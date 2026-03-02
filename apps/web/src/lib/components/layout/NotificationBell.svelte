@@ -4,6 +4,7 @@
   import { createApiClient } from '$lib/api/client.js';
   import type { Notification } from '$lib/api/types.js';
   import { timeAgo } from '$lib/utils/time.js';
+  import { env } from '$env/dynamic/public';
 
   interface Props {
     workspacePrefix: string;
@@ -20,7 +21,7 @@
     if (open) {
       loading = true;
       try {
-        const api = createApiClient(fetch);
+        const api = createApiClient(fetch, undefined, env.PUBLIC_API_URL);
         const result = await api.getNotifications({ limit: 5 });
         notifications = result.notifications;
       } catch {
@@ -33,7 +34,7 @@
 
   async function markRead(id: string) {
     try {
-      const api = createApiClient(fetch);
+      const api = createApiClient(fetch, undefined, env.PUBLIC_API_URL);
       await api.markNotificationRead(id);
       notifications = notifications.map((n) =>
         n.id === id ? { ...n, read: true } : n,
@@ -46,7 +47,7 @@
 
   async function markAllRead() {
     try {
-      const api = createApiClient(fetch);
+      const api = createApiClient(fetch, undefined, env.PUBLIC_API_URL);
       await api.markAllNotificationsRead();
       notifications = notifications.map((n) => ({ ...n, read: true }));
       setUnreadCount(0);

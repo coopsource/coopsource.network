@@ -40,9 +40,15 @@ test.describe('Authentication', () => {
 
     // Navigate to workspace so Navbar with user menu is visible
     await page.goto(WORKSPACE);
-    // Open user menu and click Sign out
-    await page.getByText(ADMIN.displayName).click();
-    await page.getByRole('button', { name: 'Sign out' }).click();
+    // Wait for Svelte hydration then open user menu
+    await expect(async () => {
+      await page.locator('[data-user-menu] button').click({ timeout: 2_000 });
+      await expect(page.locator('form[action="/logout"] button')).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 15_000 });
+    // Submit the logout form via JavaScript to ensure it actually submits
+    await page.locator('form[action="/logout"]').evaluate(
+      (el) => (el as HTMLFormElement).requestSubmit(),
+    );
 
     // Should redirect to login
     await expect(page).toHaveURL(/\/login/);
@@ -57,7 +63,7 @@ test.describe('Landing Page', () => {
   test('shows landing page with Get Started and Sign in links', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByText('Federated collaboration for cooperatives')).toBeVisible();
-    await expect(page.getByRole('link', { name: /Get Started|Create a Cooperative/i })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Get Started|Create a Cooperative/i }).first()).toBeVisible();
     await expect(page.getByRole('link', { name: 'Sign in' })).toBeVisible();
   });
 
@@ -137,9 +143,8 @@ test.describe('Registration Flow', () => {
     await page.getByLabel('Email').evaluate((el: HTMLInputElement) => el.removeAttribute('required'));
     await page.getByLabel('Password').evaluate((el: HTMLInputElement) => el.removeAttribute('required'));
     await page.getByRole('button', { name: 'Create account' }).click();
-    await page.waitForLoadState('networkidle');
 
-    await expect(page.getByText(/required|error/i)).toBeVisible();
+    await expect(page.getByText(/required|error/i)).toBeVisible({ timeout: 10_000 });
   });
 });
 

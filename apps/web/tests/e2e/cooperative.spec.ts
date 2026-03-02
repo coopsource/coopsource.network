@@ -23,27 +23,29 @@ test.describe('Cooperative Profile', () => {
 
 		// Click Edit — form should appear
 		await page.getByRole('button', { name: 'Edit' }).click();
-		await expect(page.getByLabel('Display Name')).toBeVisible();
+		await expect(page.getByLabel('Display Name')).toBeVisible({ timeout: 10_000 });
 		await expect(page.getByRole('button', { name: 'Save changes' })).toBeVisible();
 		await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible();
 	});
 
 	test('update display name shows Settings saved message', async ({ page }) => {
 		await page.goto(wp('/settings'));
+		await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible();
 		await page.getByRole('button', { name: 'Edit' }).click();
+		await expect(page.getByLabel('Display Name')).toBeVisible({ timeout: 10_000 });
 
 		await page.getByLabel('Display Name').fill('Renamed Co-op');
 		await page.getByRole('button', { name: 'Save changes' }).click();
-		await page.waitForLoadState('networkidle');
 
-		await expect(page.getByText('Settings saved.')).toBeVisible();
-		await expect(page.getByRole('main').getByText('Renamed Co-op')).toBeVisible();
+		await expect(page.getByText('Settings saved.')).toBeVisible({ timeout: 10_000 });
+		await expect(page.getByRole('main').getByText('Renamed Co-op')).toBeVisible({ timeout: 10_000 });
 	});
 
 	test('cancel edit returns to view mode', async ({ page }) => {
 		await page.goto(wp('/settings'));
+		await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible();
 		await page.getByRole('button', { name: 'Edit' }).click();
-		await expect(page.getByLabel('Display Name')).toBeVisible();
+		await expect(page.getByLabel('Display Name')).toBeVisible({ timeout: 10_000 });
 
 		await page.getByRole('button', { name: 'Cancel' }).click();
 

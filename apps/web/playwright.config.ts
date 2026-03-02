@@ -44,6 +44,7 @@ export default defineConfig({
       timeout: 30_000,
       env: {
         API_URL: 'http://localhost:3002',
+        PUBLIC_API_URL: 'http://localhost:3002',
       },
     },
   ],

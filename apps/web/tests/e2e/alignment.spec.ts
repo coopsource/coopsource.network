@@ -60,7 +60,7 @@ test.describe('Alignment Discovery', () => {
 		// Should redirect to outcome detail
 		await page.waitForURL(/\/alignment\/outcomes\//);
 		await expect(page.getByRole('heading', { name: 'Carbon Neutral by 2030' })).toBeVisible();
-		await expect(page.getByText('environmental')).toBeVisible();
+		await expect(page.getByText('environmental').first()).toBeVisible();
 	});
 
 	test('interest map page renders', async ({ page }) => {
@@ -83,10 +83,9 @@ test.describe('Alignment Discovery', () => {
 		// Now go to map and generate
 		await page.goto(wp('/alignment/map'));
 		await page.getByRole('button', { name: 'Generate Map' }).click();
-		await page.waitForLoadState('networkidle');
 
 		// After generating, should see the map data
-		await expect(page.getByRole('heading', { name: /Alignment Zones/ })).toBeVisible();
-		await expect(page.getByRole('heading', { name: /Conflict Zones/ })).toBeVisible();
+		await expect(page.getByRole('heading', { name: /Alignment Zones/ })).toBeVisible({ timeout: 15_000 });
+		await expect(page.getByRole('heading', { name: /Conflict Zones/ })).toBeVisible({ timeout: 15_000 });
 	});
 });

@@ -35,17 +35,15 @@ test.describe('Proposals', () => {
 
     // Open for voting
     await page.getByRole('button', { name: 'Open for voting' }).click();
-    await page.waitForLoadState('networkidle');
 
     // Should show voting section
-    await expect(page.getByText('Cast Your Vote')).toBeVisible();
+    await expect(page.getByText('Cast Your Vote')).toBeVisible({ timeout: 10_000 });
 
     // Cast a vote
     await page.getByRole('button', { name: 'Yes' }).click();
-    await page.waitForLoadState('networkidle');
 
     // Should show the vote was cast
-    await expect(page.getByText(/You voted.*yes/i)).toBeVisible();
+    await expect(page.getByText(/You voted.*yes/i)).toBeVisible({ timeout: 10_000 });
   });
 
   test('vote is reflected in tally', async ({ page }) => {
@@ -56,13 +54,12 @@ test.describe('Proposals', () => {
     await page.getByRole('button', { name: 'Create proposal' }).click();
     await page.waitForURL(/\/coop\/[^/]+\/governance\/[a-f0-9-]+$/);
     await page.getByRole('button', { name: 'Open for voting' }).click();
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByText('Cast Your Vote')).toBeVisible({ timeout: 10_000 });
 
     // Cast vote
     await page.getByRole('button', { name: 'Yes' }).click();
-    await page.waitForLoadState('networkidle');
 
     // Check tally shows 1 vote
-    await expect(page.getByText(/1 total vote/)).toBeVisible();
+    await expect(page.getByText(/1 total vote/)).toBeVisible({ timeout: 10_000 });
   });
 });

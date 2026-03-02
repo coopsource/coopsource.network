@@ -38,9 +38,8 @@ test.describe('Agreement Templates', () => {
 		// Edit the name
 		await page.getByLabel('Template Name').fill('Updated Template Name');
 		await page.getByRole('button', { name: 'Save changes' }).click();
-		await page.waitForLoadState('networkidle');
 
-		await expect(page.getByText('Template updated.')).toBeVisible();
+		await expect(page.getByText('Template updated.')).toBeVisible({ timeout: 10_000 });
 	});
 
 	test('use template creates a draft agreement', async ({ page }) => {

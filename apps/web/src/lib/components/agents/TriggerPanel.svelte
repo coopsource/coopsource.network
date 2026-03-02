@@ -8,6 +8,7 @@
   import { createApiClient } from '$lib/api/client.js';
   import type { AgentTrigger, TriggerExecution } from '$lib/api/types.js';
   import { timeAgo } from '$lib/utils/time.js';
+  import { env } from '$env/dynamic/public';
 
   interface Props {
     agentId: string;
@@ -89,7 +90,7 @@
     saving = true;
     formError = null;
     try {
-      const api = createApiClient(fetch);
+      const api = createApiClient(fetch, undefined, env.PUBLIC_API_URL);
       const body: Record<string, unknown> = {
         eventType: formEventType,
         cooldownSeconds: formCooldown,
@@ -128,7 +129,7 @@
 
   async function toggleEnabled(trigger: AgentTrigger) {
     try {
-      const api = createApiClient(fetch);
+      const api = createApiClient(fetch, undefined, env.PUBLIC_API_URL);
       const updated = await api.updateAgentTrigger(trigger.id, { enabled: !trigger.enabled });
       triggers = triggers.map((t) => (t.id === trigger.id ? updated : t));
     } catch {
@@ -138,7 +139,7 @@
 
   async function deleteTrigger(id: string) {
     try {
-      const api = createApiClient(fetch);
+      const api = createApiClient(fetch, undefined, env.PUBLIC_API_URL);
       await api.deleteAgentTrigger(id);
       triggers = triggers.filter((t) => t.id !== id);
     } catch {
@@ -155,7 +156,7 @@
     if (!executions[id]) {
       loadingExecs = { ...loadingExecs, [id]: true };
       try {
-        const api = createApiClient(fetch);
+        const api = createApiClient(fetch, undefined, env.PUBLIC_API_URL);
         const result = await api.getTriggerExecutions(id, { limit: 10 });
         executions = { ...executions, [id]: result.executions };
       } catch {

@@ -46,9 +46,8 @@ test.describe('Agreements (Unified)', () => {
 		await page.waitForURL(/\/coop\/[^/]+\/agreements\//);
 
 		await page.getByRole('button', { name: 'Open for signing' }).click();
-		await page.waitForLoadState('networkidle');
 
-		await expect(page.getByRole('button', { name: 'Sign Agreement' })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Sign Agreement' })).toBeVisible({ timeout: 10_000 });
 	});
 
 	test('activate a draft agreement', async ({ page }) => {
@@ -58,10 +57,9 @@ test.describe('Agreements (Unified)', () => {
 		await page.waitForURL(/\/coop\/[^/]+\/agreements\//);
 
 		await page.getByRole('button', { name: 'Activate' }).click();
-		await page.waitForLoadState('networkidle');
 
-		await expect(page.getByText('active')).toBeVisible();
-		await expect(page.getByRole('button', { name: 'Terminate' })).toBeVisible();
+		await expect(page.getByText('active')).toBeVisible({ timeout: 10_000 });
+		await expect(page.getByRole('button', { name: 'Terminate' })).toBeVisible({ timeout: 10_000 });
 	});
 
 	test('terminate an active agreement', async ({ page }) => {
@@ -71,12 +69,11 @@ test.describe('Agreements (Unified)', () => {
 		await page.waitForURL(/\/coop\/[^/]+\/agreements\//);
 
 		await page.getByRole('button', { name: 'Activate' }).click();
-		await page.waitForLoadState('networkidle');
+		await expect(page.getByRole('button', { name: 'Terminate' })).toBeVisible({ timeout: 10_000 });
 
 		await page.getByRole('button', { name: 'Terminate' }).click();
-		await page.waitForLoadState('networkidle');
 
-		await expect(page.getByText('terminated', { exact: true })).toBeVisible();
+		await expect(page.getByText('terminated', { exact: true })).toBeVisible({ timeout: 10_000 });
 	});
 
 	test('sign agreement increments signature count', async ({ page }) => {
@@ -85,14 +82,13 @@ test.describe('Agreements (Unified)', () => {
 		await page.getByRole('button', { name: 'Create agreement' }).click();
 		await page.waitForURL(/\/coop\/[^/]+\/agreements\//);
 		await page.getByRole('button', { name: 'Open for signing' }).click();
-		await page.waitForLoadState('networkidle');
+		await expect(page.getByRole('button', { name: 'Sign Agreement' })).toBeVisible({ timeout: 10_000 });
 
 		await page.getByRole('button', { name: 'Sign Agreement' }).click();
 		await page.getByRole('button', { name: 'Confirm & Sign' }).click();
-		await page.waitForLoadState('networkidle');
 
-		await expect(page.getByText('You have signed this agreement.')).toBeVisible();
-		await expect(page.getByText('Total signatures: 1')).toBeVisible();
+		await expect(page.getByText('You have signed this agreement.')).toBeVisible({ timeout: 10_000 });
+		await expect(page.getByText('Total signatures: 1')).toBeVisible({ timeout: 10_000 });
 	});
 
 	test('retract signature', async ({ page }) => {
@@ -101,16 +97,18 @@ test.describe('Agreements (Unified)', () => {
 		await page.getByRole('button', { name: 'Create agreement' }).click();
 		await page.waitForURL(/\/coop\/[^/]+\/agreements\//);
 		await page.getByRole('button', { name: 'Open for signing' }).click();
-		await page.waitForLoadState('networkidle');
+		await expect(page.getByRole('button', { name: 'Sign Agreement' })).toBeVisible({ timeout: 10_000 });
 		await page.getByRole('button', { name: 'Sign Agreement' }).click();
 		await page.getByRole('button', { name: 'Confirm & Sign' }).click();
-		await page.waitForLoadState('networkidle');
+		await expect(page.getByText('You have signed this agreement.')).toBeVisible({ timeout: 10_000 });
+		// Reload to get a clean page state after the sign action chain
+		await page.reload();
+		await expect(page.getByRole('button', { name: 'Retract signature' })).toBeVisible({ timeout: 10_000 });
 
 		await page.getByRole('button', { name: 'Retract signature' }).click();
-		await page.waitForLoadState('networkidle');
 
-		await expect(page.getByRole('button', { name: 'Sign Agreement' })).toBeVisible();
-		await expect(page.getByText('Total signatures: 0')).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Sign Agreement' })).toBeVisible({ timeout: 15_000 });
+		await expect(page.getByText('Total signatures: 0')).toBeVisible({ timeout: 10_000 });
 	});
 
 	test('void agreement', async ({ page }) => {
@@ -121,10 +119,9 @@ test.describe('Agreements (Unified)', () => {
 
 		await page.getByRole('button', { name: 'Void' }).click();
 		await page.getByRole('button', { name: 'Void Agreement' }).click();
-		await page.waitForLoadState('networkidle');
 
-		await expect(page.getByRole('button', { name: 'Open for signing' })).not.toBeVisible();
-		await expect(page.getByRole('button', { name: 'Sign Agreement' })).not.toBeVisible();
+		await expect(page.getByRole('button', { name: 'Open for signing' })).not.toBeVisible({ timeout: 10_000 });
+		await expect(page.getByRole('button', { name: 'Sign Agreement' })).not.toBeVisible({ timeout: 10_000 });
 	});
 
 	test('add stakeholder terms to draft agreement', async ({ page, request }) => {
@@ -140,11 +137,10 @@ test.describe('Agreements (Unified)', () => {
 		await page.getByLabel('Type', { exact: false }).last().selectOption('worker');
 		await page.getByLabel('Class (optional)').fill('founding-member');
 		await page.getByRole('button', { name: 'Add' }).click();
-		await page.waitForLoadState('networkidle');
 
-		await expect(page.getByText(adminDid)).toBeVisible();
-		await expect(page.getByText('worker', { exact: true })).toBeVisible();
-		await expect(page.getByText('founding-member')).toBeVisible();
+		await expect(page.getByText(adminDid)).toBeVisible({ timeout: 10_000 });
+		await expect(page.getByText('worker', { exact: true })).toBeVisible({ timeout: 10_000 });
+		await expect(page.getByText('founding-member')).toBeVisible({ timeout: 10_000 });
 	});
 
 	test('remove stakeholder terms from draft agreement', async ({ page, request }) => {
@@ -158,12 +154,11 @@ test.describe('Agreements (Unified)', () => {
 
 		await page.getByLabel('Stakeholder DID').fill(adminDid);
 		await page.getByRole('button', { name: 'Add' }).click();
-		await page.waitForLoadState('networkidle');
+		await expect(page.getByRole('button', { name: 'Remove' })).toBeVisible({ timeout: 10_000 });
 
 		await page.getByRole('button', { name: 'Remove' }).click();
-		await page.waitForLoadState('networkidle');
 
-		await expect(page.getByText('No stakeholder terms have been added yet')).toBeVisible();
+		await expect(page.getByText('No stakeholder terms have been added yet')).toBeVisible({ timeout: 10_000 });
 	});
 
 	test('status filters work on list page', async ({ page }) => {

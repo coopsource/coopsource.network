@@ -82,7 +82,11 @@ export function createAdminRoutes(container: Container): Router {
             auth_credential, entity_key, session,
             cooperative_profile, entity,
             fact_log_redaction, fact_log,
-            data_deletion_request, system_config
+            data_deletion_request, system_config,
+            role_definition, federation_peer, signature_request, federation_outbox,
+            payment_provider_config, model_provider_config,
+            agent_config, agent_session, agent_message, agent_usage, agent_trigger,
+            api_token, trigger_execution_log, notification
           CASCADE
         `.execute(container.db);
         resetSetupCache();

@@ -48,11 +48,10 @@ test.describe('Funding Campaigns', () => {
 
 		// Activate
 		await page.getByRole('button', { name: 'Activate Campaign' }).click();
-		await page.waitForLoadState('networkidle');
 
 		// Pledge form should be visible
-		await expect(page.getByRole('heading', { name: 'Make a Pledge' })).toBeVisible();
-		await expect(page.getByRole('button', { name: 'Pledge' })).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Make a Pledge' })).toBeVisible({ timeout: 10_000 });
+		await expect(page.getByRole('button', { name: 'Pledge' })).toBeVisible({ timeout: 10_000 });
 	});
 
 	test('status filters work on campaign list', async ({ page }) => {

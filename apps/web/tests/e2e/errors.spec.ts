@@ -13,9 +13,8 @@ test.describe('Error Scenarios', () => {
 		// Remove the required attribute so the form submits with empty title
 		await page.getByLabel('Title').evaluate((el: HTMLInputElement) => el.removeAttribute('required'));
 		await page.getByRole('button', { name: 'Create agreement' }).click();
-		await page.waitForLoadState('networkidle');
 
-		await expect(page.getByText('Title is required')).toBeVisible();
+		await expect(page.getByText('Title is required')).toBeVisible({ timeout: 10_000 });
 	});
 
 	test('creating proposal without title shows validation error', async ({ page }) => {
@@ -25,9 +24,8 @@ test.describe('Error Scenarios', () => {
 		await page.getByLabel('Title').evaluate((el: HTMLInputElement) => el.removeAttribute('required'));
 		await page.getByLabel('Description').evaluate((el: HTMLTextAreaElement) => el.removeAttribute('required'));
 		await page.getByRole('button', { name: 'Create proposal' }).click();
-		await page.waitForLoadState('networkidle');
 
-		await expect(page.getByText('Title and body are required')).toBeVisible();
+		await expect(page.getByText('Title and body are required')).toBeVisible({ timeout: 10_000 });
 	});
 
 	test('navigating to non-existent agreement shows error', async ({ page }) => {

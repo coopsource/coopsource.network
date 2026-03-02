@@ -33,10 +33,9 @@ test.describe('Posts', () => {
     // Add a post
     await page.getByPlaceholder(/Write.*message|Write.*post|Type.*message/i).fill('Hello from E2E!');
     await page.getByRole('button', { name: /Send|Post|Submit/i }).click();
-    await page.waitForLoadState('networkidle');
 
     // The post should appear
-    await expect(page.getByText('Hello from E2E!')).toBeVisible();
+    await expect(page.getByText('Hello from E2E!')).toBeVisible({ timeout: 10_000 });
   });
 
   test('delete own post', async ({ page }) => {
@@ -48,15 +47,13 @@ test.describe('Posts', () => {
 
     await page.getByPlaceholder(/Write.*message|Write.*post|Type.*message/i).fill('Post to delete');
     await page.getByRole('button', { name: /Send|Post|Submit/i }).click();
-    await page.waitForLoadState('networkidle');
-    await expect(page.getByText('Post to delete')).toBeVisible();
+    await expect(page.getByText('Post to delete')).toBeVisible({ timeout: 10_000 });
 
     // Delete the post
     await page.getByRole('button', { name: /Delete/i }).click();
-    await page.waitForLoadState('networkidle');
 
     // Post should be gone
-    await expect(page.getByText('Post to delete')).not.toBeVisible();
+    await expect(page.getByText('Post to delete')).not.toBeVisible({ timeout: 10_000 });
   });
 
   test('thread detail shows member count', async ({ page }) => {

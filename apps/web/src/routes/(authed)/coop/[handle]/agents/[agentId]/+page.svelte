@@ -4,6 +4,7 @@
   import User from '@lucide/svelte/icons/user';
   import { createApiClient } from '$lib/api/client.js';
   import type { AgentConfig, AgentMessage, AgentTrigger } from '$lib/api/types.js';
+  import { env } from '$env/dynamic/public';
   import Tabs from '$lib/components/ui/Tabs.svelte';
   import TriggerPanel from '$lib/components/agents/TriggerPanel.svelte';
 
@@ -56,7 +57,7 @@
     ];
 
     try {
-      const api = createApiClient(fetch);
+      const api = createApiClient(fetch, undefined, env.PUBLIC_API_URL);
       const result = await api.sendAgentMessage(agent.id, {
         message: text,
         sessionId,

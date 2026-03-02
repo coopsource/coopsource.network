@@ -18,13 +18,13 @@ test.describe('Invitations', () => {
     await page.getByRole('button', { name: 'Invite member' }).click();
 
     // Fill the invitation form in the modal
+    await expect(page.getByLabel('Email')).toBeVisible({ timeout: 10_000 });
     await page.getByLabel('Email').fill('newmember@e2e-test.com');
     await page.getByRole('button', { name: 'Send invitation' }).click();
-    await page.waitForLoadState('networkidle');
 
     // Navigate to invitations page to verify
     await page.goto(wp('/invitations'));
-    await expect(page.getByText('newmember@e2e-test.com')).toBeVisible();
+    await expect(page.getByText('newmember@e2e-test.com')).toBeVisible({ timeout: 10_000 });
   });
 
   test('invitations page lists pending invitations', async ({ page, request }) => {
@@ -58,10 +58,9 @@ test.describe('Invitations', () => {
 
     // Click revoke button
     await page.getByRole('button', { name: 'Revoke' }).click();
-    await page.waitForLoadState('networkidle');
 
     // Revoke button should disappear (status changed, button hidden)
-    await expect(page.getByRole('button', { name: 'Revoke' })).not.toBeVisible();
+    await expect(page.getByRole('button', { name: 'Revoke' })).not.toBeVisible({ timeout: 10_000 });
   });
 
   test('accept invitation creates new member account', async ({ page, request }) => {

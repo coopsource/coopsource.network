@@ -4,6 +4,7 @@
   import { createApiClient } from '$lib/api/client.js';
   import type { Notification } from '$lib/api/types.js';
   import { getUnreadCount, setUnreadCount, decrementUnreadCount } from '$lib/stores/events.svelte.js';
+  import { env } from '$env/dynamic/public';
   import { timeAgo } from '$lib/utils/time.js';
 
   let { data } = $props();
@@ -25,7 +26,7 @@
 
   async function markRead(id: string) {
     try {
-      const api = createApiClient(fetch);
+      const api = createApiClient(fetch, undefined, env.PUBLIC_API_URL);
       await api.markNotificationRead(id);
       notifications = notifications.map((n) =>
         n.id === id ? { ...n, read: true } : n,
@@ -38,7 +39,7 @@
 
   async function markAllRead() {
     try {
-      const api = createApiClient(fetch);
+      const api = createApiClient(fetch, undefined, env.PUBLIC_API_URL);
       await api.markAllNotificationsRead();
       notifications = notifications.map((n) => ({ ...n, read: true }));
       setUnreadCount(0);
@@ -51,7 +52,7 @@
     if (!cursor || loadingMore) return;
     loadingMore = true;
     try {
-      const api = createApiClient(fetch);
+      const api = createApiClient(fetch, undefined, env.PUBLIC_API_URL);
       const result = await api.getNotifications({ limit: 25, cursor });
       notifications = [...notifications, ...result.notifications];
       cursor = result.cursor;

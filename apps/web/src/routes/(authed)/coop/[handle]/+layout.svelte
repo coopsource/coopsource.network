@@ -3,6 +3,7 @@
   import { connect, disconnect, setUnreadCount } from '$lib/stores/events.svelte.js';
   import { createApiClient } from '$lib/api/client.js';
   import { browser } from '$app/environment';
+  import { env } from '$env/dynamic/public';
 
   let { data, children } = $props();
 
@@ -14,7 +15,7 @@
     if (browser) {
       disconnect();
       connect();
-      createApiClient(fetch).getUnreadCount().then((r) => setUnreadCount(r.count)).catch(() => {});
+      createApiClient(fetch, undefined, env.PUBLIC_API_URL).getUnreadCount().then((r) => setUnreadCount(r.count)).catch(() => {});
       return () => disconnect();
     }
   });

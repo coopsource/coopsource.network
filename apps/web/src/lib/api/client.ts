@@ -73,8 +73,10 @@ export class ApiError extends Error {
   }
 }
 
-export function createApiClient(fetchFn: typeof fetch, cookie?: string) {
-  const apiBase = process.env.API_URL ?? 'http://localhost:3001';
+export function createApiClient(fetchFn: typeof fetch, cookie?: string, apiBase?: string) {
+  const base = apiBase
+    ?? (typeof process !== 'undefined' ? process.env?.API_URL : undefined)
+    ?? 'http://localhost:3001';
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -87,7 +89,7 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string) {
     path: string,
     options: RequestInit = {},
   ): Promise<Response> {
-    return fetchFn(`${apiBase}/api/v1${path}`, {
+    return fetchFn(`${base}/api/v1${path}`, {
       ...options,
       credentials: 'include',
       headers: {
@@ -401,7 +403,7 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string) {
       }),
 
     retractSignature: (uri: string) =>
-      request<void>(`/agreements/${encodeURIComponent(uri)}/sign`, { method: 'DELETE' }),
+      request<void>(`/agreements/${encodeURIComponent(uri)}/sign`, { method: 'DELETE', body: JSON.stringify({}) }),
 
     voidAgreement: (uri: string) =>
       request<Agreement>(`/agreements/${encodeURIComponent(uri)}/void`, { method: 'POST' }),

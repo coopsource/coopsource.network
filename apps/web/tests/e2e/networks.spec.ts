@@ -46,10 +46,9 @@ test.describe('Networks', () => {
 
     // Join the network
     await page.getByRole('button', { name: 'Join network' }).click();
-    await page.waitForLoadState('networkidle');
 
     // Should now show Leave button and the co-op in members
-    await expect(page.getByRole('button', { name: 'Leave network' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: COOP.name })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Leave network' })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('heading', { name: COOP.name })).toBeVisible({ timeout: 10_000 });
   });
 });
