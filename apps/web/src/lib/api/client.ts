@@ -56,6 +56,11 @@ import type {
   AvailableModelsResponse,
   ApiToken,
   ApiTokensResponse,
+  NotificationsResponse,
+  UnreadCountResponse,
+  AgentTriggersResponse,
+  AgentTrigger,
+  TriggerExecutionsResponse,
 } from './types.js';
 
 export class ApiError extends Error {
@@ -807,6 +812,55 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string) {
       if (params?.limit) qs.set('limit', String(params.limit));
       if (params?.cursor) qs.set('cursor', params.cursor);
       return request<ExploreNetworksResponse>(`/explore/networks${qs.size ? `?${qs}` : ''}`);
+    },
+
+    // ── Notifications ─────────────────────────────────────────────────
+    getNotifications: (params?: { limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<NotificationsResponse>(`/notifications${qs.size ? `?${qs}` : ''}`);
+    },
+
+    getUnreadCount: () => request<UnreadCountResponse>('/notifications/unread-count'),
+
+    markNotificationRead: (id: string) =>
+      request<void>(`/notifications/${id}/read`, { method: 'PUT' }),
+
+    markAllNotificationsRead: () =>
+      request<void>('/notifications/read-all', { method: 'PUT' }),
+
+    // ── Agent Triggers ──────────────────────────────────────────────
+    getAgentTriggers: (agentId: string) =>
+      request<AgentTriggersResponse>(`/agents/${agentId}/triggers`),
+
+    createAgentTrigger: (agentId: string, body: {
+      eventType: string;
+      conditions?: Array<{ field: string; operator: string; value: unknown }>;
+      actions?: Array<{ type: string; config: Record<string, unknown> }>;
+      promptTemplate?: string;
+      cooldownSeconds?: number;
+      enabled?: boolean;
+    }) =>
+      request<AgentTrigger>(`/agents/${agentId}/triggers`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+
+    updateAgentTrigger: (triggerId: string, body: Record<string, unknown>) =>
+      request<AgentTrigger>(`/agents/triggers/${triggerId}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
+
+    deleteAgentTrigger: (triggerId: string) =>
+      request<void>(`/agents/triggers/${triggerId}`, { method: 'DELETE' }),
+
+    getTriggerExecutions: (triggerId: string, params?: { limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<TriggerExecutionsResponse>(`/agents/triggers/${triggerId}/executions${qs.size ? `?${qs}` : ''}`);
     },
   };
 }

@@ -10,6 +10,7 @@
   import Compass from '@lucide/svelte/icons/compass';
   import Banknote from '@lucide/svelte/icons/banknote';
   import Globe from '@lucide/svelte/icons/globe';
+  import Bell from '@lucide/svelte/icons/bell';
   import Bot from '@lucide/svelte/icons/bot';
   import Link2 from '@lucide/svelte/icons/link-2';
   import CreditCard from '@lucide/svelte/icons/credit-card';
@@ -55,6 +56,7 @@
     if (prefix) {
       return [
         { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { href: `${prefix}/notifications`, label: 'Notifications', icon: Bell },
         { href: `${prefix}/members`, label: 'Members', icon: Users },
         { href: `${prefix}/invitations`, label: 'Invitations', icon: Mail },
         { href: `${prefix}/governance`, label: 'Governance', icon: Vote },

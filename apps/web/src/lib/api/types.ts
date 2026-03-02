@@ -594,3 +594,76 @@ export interface ApiError {
   error: string;
   message?: string;
 }
+
+// ─── Notifications ──────────────────────────────────────────────────────────
+
+export interface Notification {
+  id: string;
+  cooperativeDid: string;
+  title: string;
+  body: string | null;
+  category: string;
+  sourceType: string | null;
+  sourceId: string | null;
+  read: boolean;
+  createdAt: string;
+}
+
+export interface NotificationsResponse {
+  notifications: Notification[];
+  cursor?: string;
+}
+
+export interface UnreadCountResponse {
+  count: number;
+}
+
+// ─── Agent Triggers ─────────────────────────────────────────────────────────
+
+export interface TriggerCondition {
+  field: string;
+  operator: string;
+  value: unknown;
+}
+
+export interface TriggerAction {
+  type: string;
+  config: Record<string, unknown>;
+}
+
+export interface AgentTrigger {
+  id: string;
+  agentConfigId: string;
+  eventType: string;
+  conditions: TriggerCondition[];
+  actions: TriggerAction[];
+  promptTemplate: string | null;
+  cooldownSeconds: number;
+  enabled: boolean;
+  lastTriggeredAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgentTriggersResponse {
+  triggers: AgentTrigger[];
+}
+
+export interface TriggerExecution {
+  id: string;
+  triggerId: string;
+  eventType: string;
+  eventData: Record<string, unknown>;
+  conditionsMatched: boolean;
+  actionsExecuted: unknown[];
+  status: string;
+  error: string | null;
+  startedAt: string;
+  completedAt: string | null;
+  durationMs: number | null;
+}
+
+export interface TriggerExecutionsResponse {
+  executions: TriggerExecution[];
+  cursor?: string;
+}
