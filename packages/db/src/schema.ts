@@ -491,27 +491,6 @@ export interface ConnectionBindingTable {
   indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }
 
-export interface AutomationWorkflowTable {
-  id: string;
-  project_uri: string;
-  name: string;
-  definition: ColumnType<Record<string, unknown>, string | Record<string, unknown>, string | Record<string, unknown>>;
-  enabled: boolean;
-  last_execution: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
-  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
-  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
-}
-
-export interface AutomationTriggerTable {
-  id: string;
-  workflow_id: string;
-  event_type: string;
-  conditions: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
-  actions: ColumnType<Record<string, unknown>, string | Record<string, unknown>, string | Record<string, unknown>>;
-  enabled: boolean;
-  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
-}
-
 export interface FundingCampaignTable {
   uri: string;
   did: string;
@@ -600,26 +579,6 @@ export interface OidcConsentTable {
   granted_claims: ColumnType<string[], string | string[], string | string[]>;
   created_at: ColumnType<Date, Date | string | undefined, Date | string>;
   updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
-}
-
-export interface EventLogTable {
-  id: string;
-  event_type: string;
-  project_uri: string | null;
-  actor_did: string | null;
-  payload: ColumnType<Record<string, unknown>, string | Record<string, unknown>, string | Record<string, unknown>>;
-  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
-}
-
-export interface WorkflowExecutionTable {
-  id: string;
-  workflow_id: string;
-  trigger_event: string;
-  status: string;
-  current_node_id: string | null;
-  execution_log: ColumnType<unknown[], string | unknown[], string | unknown[]>;
-  started_at: ColumnType<Date, Date | string | undefined, Date | string>;
-  completed_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
 }
 
 export interface ModelProviderConfigTable {
@@ -712,13 +671,42 @@ export interface AgentTriggerTable {
   agent_config_id: string;
   cooperative_did: string;
   event_type: string;
-  conditions: ColumnType<Record<string, unknown>, string | Record<string, unknown>, string | Record<string, unknown>>;
-  prompt_template: string;
+  conditions: ColumnType<unknown[], string | unknown[], string | unknown[]>;
+  prompt_template: string | null;
+  actions: ColumnType<unknown[], string | unknown[], string | unknown[]>;
   cooldown_seconds: number;
   enabled: ColumnType<boolean, boolean | undefined, boolean>;
   last_triggered_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
   created_at: ColumnType<Date, Date | string | undefined, Date | string>;
   updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface TriggerExecutionLogTable {
+  id: Generated<string>;
+  trigger_id: string;
+  cooperative_did: string;
+  event_type: string;
+  event_data: ColumnType<Record<string, unknown>, string | Record<string, unknown>, string | Record<string, unknown>>;
+  conditions_matched: boolean;
+  actions_executed: ColumnType<unknown[], string | unknown[], string | unknown[]>;
+  status: string;
+  error: string | null;
+  started_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  completed_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  duration_ms: number | null;
+}
+
+export interface NotificationTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  recipient_did: string;
+  title: string;
+  body: string | null;
+  category: string;
+  source_type: string | null;
+  source_id: string | null;
+  read: ColumnType<boolean, boolean | undefined, boolean>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }
 
 export interface DelegationTable {
@@ -790,8 +778,8 @@ export interface Database {
   stakeholder_terms: StakeholderTermsTable;
   external_connection: ExternalConnectionTable;
   connection_binding: ConnectionBindingTable;
-  automation_workflow: AutomationWorkflowTable;
-  automation_trigger: AutomationTriggerTable;
+  trigger_execution_log: TriggerExecutionLogTable;
+  notification: NotificationTable;
   funding_campaign: FundingCampaignTable;
   funding_pledge: FundingPledgeTable;
   payment_provider_config: PaymentProviderConfigTable;
@@ -799,8 +787,6 @@ export interface Database {
   oidc_client: OidcClientTable;
   oidc_payload: OidcPayloadTable;
   oidc_consent: OidcConsentTable;
-  event_log: EventLogTable;
-  workflow_execution: WorkflowExecutionTable;
   agent_config: AgentConfigTable;
   agent_session: AgentSessionTable;
   agent_message: AgentMessageTable;

@@ -470,7 +470,7 @@ export const EventTypeEnum = z.enum([
   'agent.budget.exceeded',
 ]);
 
-export const TriggerActionTypeEnum = z.enum(['notify', 'call_webhook', 'create_task']);
+export const TriggerActionTypeEnum = z.enum(['agent_message', 'notify', 'call_webhook']);
 
 export const CreateWorkflowSchema = z.object({
   name: z.string().min(1).max(255),
@@ -495,16 +495,26 @@ export const TriggerConditionSchema = z.object({
   value: z.unknown(),
 });
 
+/**
+ * Trigger schemas for validation. The authoritative route-level schemas in
+ * apps/api/src/routes/agents/triggers.ts add additional fields (promptTemplate,
+ * cooldownSeconds) and a refinement for promptTemplate requirement logic.
+ */
 export const CreateTriggerSchema = z.object({
-  eventType: EventTypeEnum,
-  conditions: z.array(TriggerConditionSchema).max(20).optional(),
-  actions: z.array(TriggerActionSchema).min(1).max(20),
+  eventType: z.string().min(1).max(100),
+  conditions: z.array(TriggerConditionSchema).max(20).default([]),
+  actions: z.array(TriggerActionSchema).max(20).default([]),
+  promptTemplate: z.string().min(1).max(10000).optional(),
+  cooldownSeconds: z.number().int().min(0).default(0),
   enabled: z.boolean().default(true),
 });
 
 export const UpdateTriggerSchema = z.object({
+  eventType: z.string().min(1).max(100).optional(),
   conditions: z.array(TriggerConditionSchema).max(20).optional(),
-  actions: z.array(TriggerActionSchema).min(1).max(20).optional(),
+  actions: z.array(TriggerActionSchema).max(20).optional(),
+  promptTemplate: z.string().min(1).max(10000).optional().nullable(),
+  cooldownSeconds: z.number().int().min(0).optional(),
   enabled: z.boolean().optional(),
 });
 

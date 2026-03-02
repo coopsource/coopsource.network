@@ -20,7 +20,8 @@ export type AppEventType =
   | 'alignment.outcome.supported'
   | 'connection.connected'
   | 'connection.disconnected'
-  | 'connection.resource.bound';
+  | 'connection.resource.bound'
+  | 'notification.created';
 
 export interface AppEvent {
   type: AppEventType;

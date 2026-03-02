@@ -1440,19 +1440,26 @@ Signature request state diagram:
 
 ---
 
-## 9. Remaining Gaps (Stage 3)
+## 9. Stage 3 Status + Remaining Gaps
 
-Phases 0-10 complete Stage 2: the full federation infrastructure is built and all services are wired. The remaining work is Stage 3:
+Phases 0-10 completed Stage 2. Stage 3 work completed so far:
 
-**Stage 3 features (future):**
-- **Stripe integration** — payment processing for funding campaigns (webhook handler exists as stub)
-- **OIDC provider** — cooperative-as-identity-provider for member SSO
-- **AI agent framework** — MCP integration, agent config, sessions, tool use
-- **Automation workflows** — event-driven workflow engine with triggers and actions
+**Stage 3 completed:**
+- **Payment Provider Abstraction** — IPaymentProvider interface, StripePaymentProvider, per-co-op provider config with encrypted credentials, checkout flow, frontend payment settings
+- **AI Agent Framework** — ModelRoutingConfig, AgentService, ChatEngine (AI SDK v6), 10 internal tools, MCP server + client, EventDispatcher for trigger-based automation, API token auth, 3 new permissions (agent.configure/use/admin)
+- **Automation Workflows Foundation** — condition evaluator (5 operators, dotted paths, AND logic), action executor (agent_message/call_webhook/notify), execution audit trail (trigger_execution_log), notification system (CRUD + SSE), EventDispatcher rewritten with conditions/actions/logging
+
+**Stage 3 remaining:**
+- **Frontend polish** — remaining workspace pages, real-time SSE subscriptions
+- **Cross-instance alignment sharing** — hub endpoints for federated alignment discovery
+
+**Future enhancements (beyond Stage 3):**
+- **Human-in-the-loop approval gates** — `require_approval` action type that pauses execution, creates pending approval notification, waits for human approve/reject before remaining actions continue. Requires: approval queue table, approval UI, timeout/escalation logic
+- **Multi-step DAG workflows** — full workflow engine with trigger→condition→action→delay nodes, visual editor. Zod schemas exist in `packages/common/src/validation.ts` (WorkflowNodeSchema, WorkflowConnectionSchema, WorkflowDefinitionSchema)
+- **Trigger decoupling from agents** — standalone `/api/v1/triggers` routes for webhook/notify-only automations that don't need an AI agent
+- **Frontend SSE live updates** — subscribe to SSE in frontend for real-time UI (vote counts, new posts, notifications)
+- **OIDC provider** — cooperative-as-identity-provider for member SSO (deferred to Stage 4+)
 - **CLI auth** — command-line authentication flow
-- **Cross-instance alignment sharing** — federated interest/outcome discovery
-- **Settings UI** — frontend for managing public visibility flags (migration 024)
-- **Frontend polish** — remaining workspace pages, real-time updates via SSE
 
 ---
 

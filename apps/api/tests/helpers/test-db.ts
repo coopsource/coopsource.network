@@ -70,6 +70,7 @@ export async function truncateAllTables(): Promise<void> {
   const db = getTestDb();
   await sql`
     TRUNCATE TABLE
+      trigger_execution_log, notification,
       api_token, agent_trigger, agent_usage, agent_message, agent_session, agent_config,
       model_provider_config,
       connection_binding, external_connection,

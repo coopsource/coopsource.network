@@ -55,6 +55,7 @@ import { createAgentChatRoutes } from '../../src/routes/agents/chat.js';
 import { createAgentTriggerRoutes } from '../../src/routes/agents/triggers.js';
 import { createApiTokenRoutes } from '../../src/routes/agents/tokens.js';
 import { createModelConfigRoutes } from '../../src/routes/agents/model-config.js';
+import { createNotificationRoutes } from '../../src/routes/notifications.js';
 import { errorHandler } from '../../src/middleware/error-handler.js';
 import { getTestDb, getTestConnectionString } from './test-db.js';
 
@@ -202,6 +203,7 @@ export function createTestApp(): TestApp {
   app.use(createAgentTriggerRoutes(container));
   app.use(createApiTokenRoutes(container));
   app.use(createModelConfigRoutes(container));
+  app.use(createNotificationRoutes(container));
 
   // Error handler (must be last)
   app.use(errorHandler);

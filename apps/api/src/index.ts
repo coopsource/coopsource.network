@@ -47,6 +47,7 @@ import { createAgentChatRoutes } from './routes/agents/chat.js';
 import { createAgentTriggerRoutes } from './routes/agents/triggers.js';
 import { createApiTokenRoutes } from './routes/agents/tokens.js';
 import { createModelConfigRoutes } from './routes/agents/model-config.js';
+import { createNotificationRoutes } from './routes/notifications.js';
 import { createMcpRoutes } from './mcp/server.js';
 import { startAppViewLoop } from './appview/loop.js';
 import { createOAuthClient } from './auth/oauth-client.js';
@@ -168,6 +169,9 @@ async function start(): Promise<void> {
   app.use(createApiTokenRoutes(container));
   app.use(createModelConfigRoutes(container));
 
+  // Notification routes
+  app.use(createNotificationRoutes(container));
+
   // MCP server (bearer token auth)
   app.use(createMcpRoutes(container.db));
 
@@ -204,6 +208,7 @@ async function start(): Promise<void> {
   const shutdown = async () => {
     logger.info('Shutting down...');
     server.close();
+    container.eventDispatcher.stop();
     await container.mcpClient.disconnectAll();
     container.outboxProcessor?.stop();
     process.exit(0);
