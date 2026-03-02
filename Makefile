@@ -6,15 +6,16 @@ SHELL := /bin/bash
 
 SCRIPTS := ./scripts/dev-services.sh
 
-.PHONY: help setup dev start stop status install db-migrate db-reset clean test\:e2e test\:e2e\:real test\:e2e\:mocked pds-up pds-status pds-logs pds-down dev-federation stop-federation migrate-all test-federation
+.PHONY: help setup dev dev-clean start stop status ports install db-migrate db-reset clean test\:e2e test\:e2e-clean test\:e2e\:real test\:e2e\:mocked pds-up pds-status pds-logs pds-down dev-federation stop-federation migrate-all test-federation
 
 help: ## Show all targets
 	@echo ""
 	@echo "Co-op Source Network — Development Commands"
 	@echo "============================================"
 	@echo ""
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
-		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_\\:-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
+		sed 's/\\:/@C@/g' | \
+		awk 'BEGIN {FS = ":.*## "}; {gsub(/@C@/, ":", $$1); printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
 	@echo ""
 
 setup: ## First-time setup: install services, create DB, .env, migrate
@@ -22,6 +23,10 @@ setup: ## First-time setup: install services, create DB, .env, migrate
 
 dev: start ## Start services + pnpm dev (API :3001, Web :5173)
 	pnpm turbo dev --filter=@coopsource/api --filter=@coopsource/web
+
+dev-clean: ## Kill stale servers, then start clean (API :3001, Web :5173)
+	@$(SCRIPTS) kill-ports 3001 5173
+	@$(MAKE) dev
 
 start: ## Start PostgreSQL + Redis
 	@$(SCRIPTS) start
@@ -31,6 +36,9 @@ stop: ## Stop PostgreSQL + Redis
 
 status: ## Check infrastructure health
 	@$(SCRIPTS) status
+
+ports: ## Show what's running on dev/test ports
+	@$(SCRIPTS) ports
 
 install: ## Install pnpm dependencies
 	pnpm install
@@ -43,6 +51,10 @@ db-reset: ## Drop DB, recreate, and re-migrate
 
 test\:e2e: start ## Run ALL Playwright E2E tests
 	pnpm --filter @coopsource/web exec playwright test
+
+test\:e2e-clean: ## Kill stale servers, then run E2E tests clean
+	@$(SCRIPTS) kill-ports 3001 3002 5173
+	@$(MAKE) test:e2e
 
 test\:e2e\:real: start ## Run real (non-mocked) E2E tests only
 	pnpm --filter @coopsource/web exec playwright test --project=real

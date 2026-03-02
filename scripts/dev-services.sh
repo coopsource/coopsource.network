@@ -231,6 +231,58 @@ cmd_db_reset() {
   ok "Database reset complete"
 }
 
+# --- Port management ---
+
+# Well-known ports used by this project
+DEV_PORTS=(3001 5173)
+TEST_PORTS=(3001 3002 5173)
+ALL_PORTS=(3001 3002 3003 5173)
+
+cmd_kill_ports() {
+  local ports=("$@")
+  if [[ ${#ports[@]} -eq 0 ]]; then
+    err "Usage: $0 kill-ports <port1> [port2] ..."
+    exit 1
+  fi
+
+  for port in "${ports[@]}"; do
+    local pids
+    pids=$(lsof -ti:"$port" 2>/dev/null || true)
+    if [[ -n "$pids" ]]; then
+      local proc_info
+      proc_info=$(lsof -ti:"$port" -sTCP:LISTEN 2>/dev/null | head -1 | xargs -I{} ps -p {} -o comm= 2>/dev/null || echo "unknown")
+      echo "$pids" | xargs kill -9 2>/dev/null || true
+      ok "Killed port $port ($proc_info)"
+    fi
+  done
+}
+
+cmd_ports() {
+  echo ""
+  info "Port usage (dev/test ports):"
+  echo ""
+  printf "  ${BLUE}%-6s %-8s %-20s %s${NC}\n" "PORT" "PID" "PROCESS" "COMMAND"
+  printf "  %-6s %-8s %-20s %s\n" "------" "--------" "--------------------" "-------"
+
+  local found=0
+  for port in "${ALL_PORTS[@]}"; do
+    local pid
+    pid=$(lsof -ti:"$port" -sTCP:LISTEN 2>/dev/null | head -1 || true)
+    if [[ -n "$pid" ]]; then
+      local proc cmd
+      proc=$(ps -p "$pid" -o comm= 2>/dev/null || echo "?")
+      cmd=$(ps -p "$pid" -o args= 2>/dev/null | cut -c1-60 || echo "?")
+      printf "  %-6s %-8s %-20s %s\n" "$port" "$pid" "$proc" "$cmd"
+      found=1
+    fi
+  done
+
+  if [[ $found -eq 0 ]]; then
+    echo "  (no processes on dev/test ports)"
+  fi
+  echo ""
+}
+
 # --- Main ---
 case "${1:-help}" in
   setup)      cmd_setup ;;
@@ -240,6 +292,8 @@ case "${1:-help}" in
   db:create)  cmd_db_create ;;
   db:migrate) cmd_db_migrate ;;
   db:reset)   cmd_db_reset ;;
+  kill-ports) shift; cmd_kill_ports "$@" ;;
+  ports)      cmd_ports ;;
   help|--help|-h)
     echo "Usage: $0 <command>"
     echo ""
@@ -251,6 +305,8 @@ case "${1:-help}" in
     echo "  db:create   Create database role and database (idempotent)"
     echo "  db:migrate  Run pending Kysely migrations"
     echo "  db:reset    Drop and recreate database, re-run migrations"
+    echo "  kill-ports  Kill processes on specified ports (e.g. kill-ports 3001 5173)"
+    echo "  ports       Show what's running on dev/test ports"
     echo ""
     ;;
   *)
