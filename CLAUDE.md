@@ -6,7 +6,9 @@ Co-op Source Network is a federated collaboration platform built on ATProtocol. 
 
 This monorepo is deployed to `coopsource.network`.
 
-**For the full architecture, federation design, dependency upgrade plan, and implementation phases, see [ARCHITECTURE-V3.md](./ARCHITECTURE-V3.md).**
+**For the full architecture, federation design, security model, cooperative lifecycle, and implementation phases, see [ARCHITECTURE-V5.md](./ARCHITECTURE-V5.md).**
+
+**For the phased implementation guide with code patterns and file references, see [CLAUDE-CODE-PROMPT-V5.md](./CLAUDE-CODE-PROMPT-V5.md).**
 
 ## Git Workflow Rules
 
@@ -18,9 +20,9 @@ This monorepo is deployed to `coopsource.network`.
 
 Non-negotiable technology choices:
 
-- **TypeScript strict mode** for all application code
+- **TypeScript strict mode** for all application code — no `any`, no unsafe casts
 - **Express 5** for backend (standard Express routes; `@atproto/xrpc-server` is NOT used in our codebase)
-- **Kysely 0.28+** for database (PostgreSQL 16+). NOT Prisma, NOT Drizzle
+- **Kysely 0.28+** for database (PostgreSQL 16+). NOT Prisma, NOT Drizzle, NOT TypeORM
 - **SvelteKit 2** with **Svelte 5** runes (`$state`, `$derived`, `$effect`, `$props`)
 - **Vite 7** with **@sveltejs/vite-plugin-svelte 6**
 - **Tailwind CSS 4** via `@tailwindcss/vite` — MUST come BEFORE `sveltekit()` in vite.config.ts
@@ -29,7 +31,13 @@ Non-negotiable technology choices:
 - **Zod 4** for validation
 - **ATProtocol only** for federation. No cross-protocol bridges
 - **Node.js 24 LTS** runtime
-- **Federated from day one** — cross-co-op operations always go through `IFederationClient`, never direct DB access across co-op boundaries (see ARCHITECTURE-V3.md §3)
+- **Bilateral membership is non-negotiable** — status = `active` ONLY when BOTH `membership` record (member's repo) AND `memberApproval` record (cooperative's repo) exist
+- **Role authority is ONLY in memberApproval** — never in the membership record, never self-declared
+- **DIDs are authoritative identifiers** — never use handles for security decisions
+- **Records of authority live in PDS repos** — PostgreSQL is a materialized index for queries
+- **Tier 2 private data NEVER touches the firehose** — stored in `private_record` table only
+- **Cross-cooperative public data flows through ATProto** — the network IS the federation bus
+- **Retain RFC 9421 HTTP signing ONLY for Tier 2 private data exchange** between closed cooperatives
 
 ## Build Commands
 
@@ -70,6 +78,30 @@ make db-reset   # Drop DB, recreate, and re-migrate
 
 ## Architecture Overview
 
+### The V3→V5 Transition
+
+The project is transitioning from V3 (pattern-aligned ATProto with custom federation) to V5 (full ATProto ecosystem citizen with comprehensive cooperative lifecycle). The current codebase is V3 — ~26,500 lines across ~280 files, 11 services, 50+ database tables, 22 lexicons, and a complete SvelteKit frontend.
+
+V5 retires the parallel federation stack that V3 built:
+
+- **`LocalPdsService`** → retired, replaced by real `@atproto/pds` via `AtprotoPdsService`
+- **`LocalPlcClient`** → retired, replaced by real `PlcClient` for plc.directory
+- **`LocalFederationClient`** → retired (direct PDS writes + Tap consumption)
+- **`HttpFederationClient`** → retained ONLY for Tier 2 private data exchange
+- **Federation outbox** → retired (PDS handles write reliability, Tap handles sync)
+- **Saga coordinator** → retired (ATProto's eventually-consistent model)
+- **`pg_notify('pds_firehose')`** → retired (Tap's WebSocket from real relay)
+
+See ARCHITECTURE-V5.md §14 for the full gap analysis of what stays, changes, gets retired, and what's new.
+
+### Three-Tier Data Model
+
+**Tier 1 (Public ATProto)**: Cooperative profiles, public proposals, vote tallies, ratified agreements, membership directories. In PDS repos, on the firehose.
+
+**Tier 2 (Private PostgreSQL)**: Closed deliberations, draft proposals, private membership details, financial records. In `private_record` table. Modeled as typed records by collection matching ATProto semantics for future Bucket migration.
+
+**Tier 3 (E2EE)**: Board confidential discussions, salary records, personnel matters. Via Germ DM / MLS protocol. Platform facilitates but never handles content.
+
 ### Monorepo Layout
 
 ```
@@ -89,7 +121,8 @@ coopsource.network/
 │   └── docker-compose.federation.yml   # Multi-instance federation dev environment
 ├── scripts/
 │   └── dev-services.sh     # Homebrew-based local dev setup
-├── ARCHITECTURE-V3.md      # Full architecture document
+├── ARCHITECTURE-V5.md      # Full architecture document (replaces V3/V4)
+├── CLAUDE-CODE-PROMPT-V5.md # Implementation guide with phased tasks
 ├── turbo.json
 └── pnpm-workspace.yaml
 ```
@@ -104,7 +137,7 @@ Layer 3 — Frontend:    web (SvelteKit, design system)
 
 ### Key Library Versions (Target)
 
-See ARCHITECTURE-V3.md §7 for the full upgrade matrix and phased migration plan.
+See ARCHITECTURE-V5.md §15 and CLAUDE-CODE-PROMPT-V5.md for the full version matrix.
 
 | Package | Target Version |
 |---------|---------------|
@@ -122,6 +155,11 @@ See ARCHITECTURE-V3.md §7 for the full upgrade matrix and phased migration plan
 | `pino-http` | ^11.0 |
 | `nodemailer` | ^8.0 |
 | `typescript` | ^5.9 |
+| `@atproto/api` | latest |
+| `@atproto/oauth-client-node` | latest |
+| `@atproto/pds` | 0.4.212+ |
+| `@atproto/sync` | latest |
+| `stripe` | latest |
 | `pnpm` | 10.30+ |
 | `Node.js` | 24 LTS |
 
@@ -140,19 +178,28 @@ Same machinery at every level:
 - **Agreement**: Entities co-sign a record; each signature in the signer's PDS
 - **Project**: A cooperative entity with its own membership (projects are mini-co-ops)
 
+V5 extends this by adding legal entity types (cooperative corporation, cooperative LLC, LCA) and compliance workflows that also follow the recursive pattern.
+
 ## Federation Architecture
 
-The platform is federated from day one. See ARCHITECTURE-V3.md for complete details.
+The platform is a full ATProto ecosystem citizen. Cooperatives are genuine ATProto accounts. Members bring their own Bluesky identities. Governance records flow through the real relay network alongside Bluesky posts, Tangled commits, Smoke Signal RSVPs, and WhiteWind blog entries.
 
-### Core Abstractions
+See ARCHITECTURE-V5.md for complete details.
 
-- **`IFederationClient`** — interface for all cross-co-op operations, with two implementations:
-  - `LocalFederationClient`: dispatches locally (standalone mode)
-  - `HttpFederationClient`: makes signed HTTP calls (federated mode)
-- **`IPdsService`** — interface for PDS operations, with two implementations:
-  - `LocalPdsService`: PostgreSQL-backed PDS (our primary implementation)
-  - `AtprotoPdsService`: real ATProto XRPC (future, via rsky-pds)
-- **`DidWebResolver`** — resolves `did:web` identifiers via HTTP GET to `/.well-known/did.json`
+### Identity
+
+| Environment | DID Method | Notes |
+|-------------|-----------|-------|
+| Production | `did:plc` | Portable, recoverable (72-hour rotation window), ecosystem standard |
+| Local dev | `did:web` | Resolved via `/.well-known/did.json`, works with `localhost:PORT` |
+
+Cooperatives use domain-as-handle (e.g., `@mycoop.coop`) for branding. Members use their existing ATProto identities (e.g., their Bluesky handle).
+
+### Record Ownership
+
+Members write to their own PDS: `membership`, `vote`, `delegation`, `signature`, `pledge`
+
+Cooperatives write to their own PDS: `memberApproval`, `proposal`, `master agreement`, `legal.document`, `admin.officer`, `campaign`
 
 ### Instance Roles
 
@@ -164,9 +211,23 @@ Controlled by `INSTANCE_ROLE` env var:
 | `hub` | Network directory, cross-co-op AppView | coopsource.network in production |
 | `coop` | Single co-op's API, PDS, local AppView | Individual co-op server |
 
-### Identity: did:web
+### Current Federation Abstractions (V3, being retired)
 
-Entities use `did:web` identifiers resolved via `/.well-known/did.json`. This works with `localhost:PORT` in dev and custom domains in production. No external PLC directory dependency.
+These exist in the codebase but are being replaced as part of V5 migration:
+
+- **`IFederationClient`** — interface for cross-co-op operations (being retired for public data; retained for Tier 2 only)
+- **`IPdsService`** — interface for PDS operations
+  - `LocalPdsService`: PostgreSQL-backed PDS (being retired → `AtprotoPdsService`)
+  - `AtprotoPdsService`: real ATProto XRPC (V5 target, already exists gated behind `PDS_URL` env var)
+- **`DidWebResolver`** — resolves `did:web` identifiers (remains for local dev)
+
+### V5 Target Federation
+
+- **Tap** (Go binary): Production firehose sync tool replacing pg_notify, filters by collection
+- **Real `@atproto/pds`**: Self-hosted PDS for cooperative accounts
+- **`PlcClient`**: HTTP client for real plc.directory (already exists in codebase)
+- **DPoP-bound OAuth**: Member writes proxied to member's PDS via OAuth tokens
+- **Ozone labeler**: Governance status labels published via ATProto label system
 
 ## ATProtocol Patterns
 
@@ -179,14 +240,22 @@ Both sides must exist for ACTIVE status:
 
 **Role authority is ONLY in memberApproval**, never in the membership record.
 
+AppView state machine handles out-of-order arrival:
+- On membership create: index → check for matching approval → `active` or `pending_member`
+- On memberApproval create: index → check for matching membership → `active` or `pending_approval`
+- On either delete: transition to `revoked` state
+
 ### Lexicon Namespace
 
-Active lexicons under `network.coopsource.*`:
+Active and planned lexicons under `network.coopsource.*`:
 
 ```
 network.coopsource.org.*         — cooperatives, memberships, memberApprovals, teams
 network.coopsource.governance.*  — proposals, votes, delegations
 network.coopsource.agreement.*   — agreements, signatures, amendments
+network.coopsource.legal.*       — foundational documents, meeting records
+network.coopsource.admin.*       — officers, compliance items, member notices, fiscal periods
+network.coopsource.funding.*     — campaigns, pledges
 network.coopsource.alignment.*   — interests, outcomes, maps (future)
 ```
 
@@ -194,10 +263,35 @@ network.coopsource.alignment.*   — interests, outcomes, maps (future)
 
 Records of authority live in user PDS instances. PostgreSQL is a **materialized index**.
 
-```typescript
-// LocalPdsService creates records and emits firehose events via pg NOTIFY
-// AppView loop subscribes and indexes into PostgreSQL for fast queries
-```
+V3 (current): `LocalPdsService` creates records and emits firehose events via `pg NOTIFY`. AppView loop subscribes and indexes into PostgreSQL for fast queries.
+
+V5 (target): Records written to real `@atproto/pds`. Tap binary consumes firehose from `bsky.network` relay, filtering for `network.coopsource.*` collections. Tap consumer service dispatches events to indexers.
+
+## Security Requirements
+
+Implement these throughout all phases (see ARCHITECTURE-V5.md §8 for full security model):
+
+### AppView Validation (Every Record)
+1. Verify commit signature against DID document signing key
+2. Independently resolve DIDs (don't trust cached data for security)
+3. Validate record against lexicon schema
+4. Verify record authored by expected DID
+5. Bilateral match check before activating membership
+6. Per-DID rate limiting (max 100 operations/hour in cooperative namespaces)
+7. Reject implausible timestamps
+8. Audit log every state transition with commit CID, rev, signature
+
+### Identity Security
+- Cooperatives MUST self-manage rotation keys with higher priority than PDS key
+- Monitor PLC directory for unexpected key rotations on all indexed cooperative DIDs
+- Display verified handle + DID together in UI
+- Never expose pending/unmatched memberships in member lists
+
+### Data Security
+- Tier 2 data NEVER stored in ATProto repo (would be broadcast on firehose)
+- Tier 3 data: only ciphertext on any server
+- Batch public record updates to reduce timing correlation
+- Randomized delays for non-time-sensitive public record creation
 
 ## Database
 
@@ -229,6 +323,8 @@ All under `/api/v1/`:
 | Admin | `routes/admin.ts` |
 | Federation | `routes/federation.ts` *(server-to-server, signed HTTP)* |
 
+V5 will add: legal documents, compliance calendar, officer records, meeting records, fiscal periods, patronage, capital accounts, onboarding workflows.
+
 ## Frontend Patterns
 
 ### SvelteKit + Svelte 5
@@ -258,7 +354,7 @@ export default defineConfig({
 
 ## DI Container
 
-`apps/api/src/container.ts` instantiates:
+`apps/api/src/container.ts` currently instantiates:
 - `db` (Kysely), `pdsService` (LocalPdsService), `blobStore` (LocalBlobStore)
 - `federationClient` (LocalFederationClient or HttpFederationClient, based on INSTANCE_ROLE)
 - `didResolver` (DidWebResolver)
@@ -267,18 +363,43 @@ export default defineConfig({
 - `postService`, `proposalService`, `agreementService`
 - `networkService`, `fundingService`, `alignmentService`, `connectionService`
 
+V5 will add: `PlcClient`, `AtprotoPdsService` (gated behind `PDS_URL`), `oauthClient`, `memberWriteProxy`, `tapConsumer`, `governanceLabeler`, `legalDocumentService`, `complianceCalendarService`, `officerRecordService`, `patronageService`, `capitalAccountService`, `onboardingService`.
+
+## Implementation Phases
+
+V5 is implemented in seven sequential phases. See CLAUDE-CODE-PROMPT-V5.md for detailed tasks and file references.
+
+| Phase | Branch | Scope |
+|-------|--------|-------|
+| 0 | `feature/phase-0-pds-identity` | Foundation: self-hosted PDS, did:plc, cooperative provisioning |
+| 1 | `feature/phase-1-member-oauth` | Member identity: OAuth proxy, DPoP, write routing, private_record table |
+| 2 | `feature/phase-2-tap-appview` | Tap-based AppView: firehose consumption, bilateral state machine |
+| 3 | `feature/phase-3-ecosystem` | Ecosystem composability: Ozone labeler, Smoke Signal, retire V3 federation |
+| 4 | `feature/phase-4-legal-admin` | Legal lifecycle: documents, compliance, officers, meeting records |
+| 5 | `feature/phase-5-private-data` | Private data: Tier 2 CRUD, visibility routing, closed cooperative UI |
+| 6 | `feature/phase-6-financial` | Financial tools: patronage calculation, capital accounts, 1099-PATR |
+| 7 | `feature/phase-7-onboarding-advanced` | Onboarding workflows, delegation voting, feed generators |
+
 ## Pitfalls
 
-1. **Never generate fake DIDs.** Use real `did:web` format derived from instance URL
+1. **Never generate fake DIDs.** Use real `did:plc` via PlcClient for production, `did:web` for local dev
 2. **Bilateral membership is non-negotiable.** Both member PDS record AND co-op approval record must exist
 3. **Role authority is ONLY in memberApproval**, never in the membership record
-4. **Cross-co-op operations always go through IFederationClient**, never direct DB access across boundaries
-5. **Build federation package after changes:** `pnpm --filter @coopsource/federation build`
-6. **PostgreSQL bigint returns string.** Use `Number()` conversion
-7. **Tailwind CSS 4 plugin order:** `tailwindcss()` MUST come before `sveltekit()` in vite.config.ts
-8. **AT URI as PK for PDS tables; UUID for app tables.** Don't mix these
-9. **Cursor-based pagination everywhere.** Not offset-based
-10. **Don't add `role` to membership lexicon.** Self-declared role is semantically wrong
+4. **Never store Tier 2 data in ATProto repos** — it would be broadcast on the firehose
+5. **Never trust handles for security** — handles are mutable; DIDs are persistent
+6. **Never skip commit signature verification** on membership-relevant records
+7. **Never count votes without verifying active bilateral membership**
+8. **Never use Jetstream for security-critical data** — it strips cryptographic proofs
+9. **Never expose pending/unmatched memberships** in UI member lists
+10. **Build federation package after changes:** `pnpm --filter @coopsource/federation build`
+11. **PostgreSQL bigint returns string.** Use `Number()` conversion
+12. **Tailwind CSS 4 plugin order:** `tailwindcss()` MUST come before `sveltekit()` in vite.config.ts
+13. **AT URI as PK for PDS tables; UUID for app tables.** Don't mix these
+14. **Cursor-based pagination everywhere.** Not offset-based
+15. **Don't add `role` to membership lexicon.** Roles are ONLY in memberApproval
+16. **Don't rely on Auth Scopes being available** — they're partially rolled out; use `transition:generic` for now
+17. **Don't rely on Buckets** — still in design; use Tier 2 PostgreSQL for private data
+18. **Don't run your own relay** — use `bsky.network`; running a relay costs $150+/mo
 
 ## Troubleshooting
 
