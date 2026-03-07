@@ -12,6 +12,7 @@ import type { IPdsService } from '@coopsource/federation';
 import type { IClock } from '@coopsource/federation';
 import type { Actor } from '../auth/middleware.js';
 import { BCRYPT_ROUNDS } from '../lib/crypto-config.js';
+import type { IMemberRecordWriter } from './member-write-proxy.js';
 
 export class AuthService {
   constructor(
@@ -19,6 +20,7 @@ export class AuthService {
     private pdsService: IPdsService,
     private clock: IClock,
     private instanceUrl: string = 'http://localhost:3001',
+    private memberWriteProxy?: IMemberRecordWriter,
   ) {}
 
   async register(params: {
@@ -110,15 +112,22 @@ export class AuthService {
     // Create bilateral membership PDS records
     const cooperativeDid = params.cooperativeDid;
 
-    // Member's assertion: org.membership record
-    const memberRef = await this.pdsService.createRecord({
-      did: did as DID,
-      collection: 'network.coopsource.org.membership',
-      record: {
-        cooperative: cooperativeDid,
-        createdAt: now.toISOString(),
-      },
-    });
+    // Member's assertion: org.membership record (member-owned → MemberWriteProxy)
+    const membershipRecord = {
+      cooperative: cooperativeDid,
+      createdAt: now.toISOString(),
+    };
+    const memberRef = this.memberWriteProxy
+      ? await this.memberWriteProxy.writeRecord({
+          memberDid: did as DID,
+          collection: 'network.coopsource.org.membership',
+          record: membershipRecord,
+        })
+      : await this.pdsService.createRecord({
+          did: did as DID,
+          collection: 'network.coopsource.org.membership',
+          record: membershipRecord,
+        });
 
     // Cooperative's approval: org.memberApproval record
     const approvalRef = await this.pdsService.createRecord({

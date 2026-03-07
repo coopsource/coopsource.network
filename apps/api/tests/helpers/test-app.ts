@@ -26,6 +26,8 @@ import { ModelProviderRegistry } from '../../src/ai/model-provider-registry.js';
 import { AgentService } from '../../src/services/agent-service.js';
 import { ChatEngine } from '../../src/ai/chat-engine.js';
 import { EventDispatcher } from '../../src/ai/triggers/event-dispatcher.js';
+import { MemberWriteProxy } from '../../src/services/member-write-proxy.js';
+import { OperatorWriteProxy } from '../../src/services/operator-write-proxy.js';
 import type { AppConfig } from '../../src/config.js';
 import { setDb, resetSetupCache } from '../../src/auth/middleware.js';
 import { setPermissionsDb } from '../../src/middleware/permissions.js';
@@ -96,7 +98,19 @@ export function createTestApp(): TestApp {
     port: 1025,
   });
 
-  const authService = new AuthService(db, pdsService, clock, 'http://localhost:3001');
+  // V5: MemberWriteProxy in test mode (warns + falls back to pdsService)
+  const memberWriteProxy = new MemberWriteProxy(undefined, pdsService, 'test');
+
+  const testConfig = {
+    PUBLIC_API_URL: 'http://localhost:3001',
+    INSTANCE_URL: 'http://localhost:3001',
+    INSTANCE_ROLE: 'standalone',
+    FRONTEND_URL: 'http://localhost:5173',
+  } as AppConfig;
+
+  const operatorWriteProxy = new OperatorWriteProxy(pdsService, db, testConfig);
+
+  const authService = new AuthService(db, pdsService, clock, 'http://localhost:3001', memberWriteProxy);
   const entityService = new EntityService(db, blobStore);
   const membershipService = new MembershipService(
     db,
@@ -106,20 +120,13 @@ export function createTestApp(): TestApp {
     clock,
   );
   const postService = new PostService(db, clock);
-  const proposalService = new ProposalService(db, pdsService, clock);
-  const agreementService = new AgreementService(db, pdsService, federationClient, clock);
+  const proposalService = new ProposalService(db, pdsService, clock, memberWriteProxy);
+  const agreementService = new AgreementService(db, pdsService, federationClient, clock, memberWriteProxy);
   const agreementTemplateService = new AgreementTemplateService(db, clock);
   const networkService = new NetworkService(db, pdsService, federationClient, clock);
   const paymentRegistry = new PaymentProviderRegistry(db, 'yIknTzhyTfVpR7cc/ZrwSpewmhyiOJA97leVbKqccsY=');
-  const fundingService = new FundingService(db, pdsService, federationClient, clock, paymentRegistry);
+  const fundingService = new FundingService(db, pdsService, federationClient, clock, paymentRegistry, memberWriteProxy);
   const alignmentService = new AlignmentService(db, pdsService, federationClient, clock);
-
-  const testConfig = {
-    PUBLIC_API_URL: 'http://localhost:3001',
-    INSTANCE_URL: 'http://localhost:3001',
-    INSTANCE_ROLE: 'standalone',
-    FRONTEND_URL: 'http://localhost:5173',
-  } as AppConfig;
   const connectionService = new ConnectionService(db, pdsService, clock, testConfig);
   const modelProviderRegistry = new ModelProviderRegistry(db, 'yIknTzhyTfVpR7cc/ZrwSpewmhyiOJA97leVbKqccsY=');
   const agentService = new AgentService(db, clock, modelProviderRegistry);
@@ -150,6 +157,8 @@ export function createTestApp(): TestApp {
     agentService,
     chatEngine,
     eventDispatcher,
+    memberWriteProxy,
+    operatorWriteProxy,
   };
 
   // Set the DB reference for auth middleware + permissions middleware

@@ -736,6 +736,32 @@ export interface PlcOperationTable {
 }
 
 // ──────────────────────────────────────────────
+// 030 — Private record + operator audit log
+// ──────────────────────────────────────────────
+
+export interface PrivateRecordTable {
+  did: string;
+  collection: string;
+  rkey: string;
+  record: ColumnType<Record<string, unknown>, Record<string, unknown> | string, Record<string, unknown> | string>;
+  created_by: string | null;
+  created_at: ColumnType<Date, Date | string, Date | string>;
+  updated_at: ColumnType<Date, Date | string, Date | string>;
+}
+
+export interface OperatorAuditLogTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  operator_did: string;
+  operation: string;
+  collection: string;
+  rkey: string | null;
+  record_uri: string | null;
+  record_cid: string | null;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+// ──────────────────────────────────────────────
 // Database interface
 // ──────────────────────────────────────────────
 
@@ -798,6 +824,10 @@ export interface Database {
   // OAuth tables (013)
   oauth_state: OAuthStateTable;
   oauth_session: OAuthSessionTable;
+
+  // V5 tables (030)
+  private_record: PrivateRecordTable;
+  operator_audit_log: OperatorAuditLogTable;
 }
 
 // ──────────────────────────────────────────────

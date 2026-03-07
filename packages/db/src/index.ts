@@ -48,4 +48,7 @@ export type {
   TriggerExecutionLogTable,
   NotificationTable,
   DelegationTable,
+  // V5 tables (030)
+  PrivateRecordTable,
+  OperatorAuditLogTable,
 } from './schema.js';

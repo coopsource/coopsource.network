@@ -21,6 +21,7 @@ import type { IPdsService, IFederationClient, IClock } from '@coopsource/federat
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
 import { emitAppEvent } from '../appview/sse.js';
+import type { IMemberRecordWriter } from './member-write-proxy.js';
 
 type AgreementRow = Selectable<AgreementTable>;
 type SignatureRow = Selectable<AgreementSignatureTable>;
@@ -49,6 +50,7 @@ export class AgreementService {
     private pdsService: IPdsService,
     private federationClient: IFederationClient,
     private clock: IClock,
+    private memberWriteProxy?: IMemberRecordWriter,
   ) {}
 
   // ─── Helpers ──────────────────────────────────────────────────────────
@@ -492,16 +494,24 @@ export class AgreementService {
 
     const now = this.clock.now();
 
-    const ref = await this.pdsService.createRecord({
-      did: signerDid as DID,
-      collection: 'network.coopsource.agreement.signature',
-      record: {
-        agreement: agreement.uri,
-        agreementCid: '',
-        statement,
-        signedAt: now.toISOString(),
-      },
-    });
+    // Signature is member-owned → MemberWriteProxy
+    const signatureRecord = {
+      agreement: agreement.uri,
+      agreementCid: '',
+      statement,
+      signedAt: now.toISOString(),
+    };
+    const ref = this.memberWriteProxy
+      ? await this.memberWriteProxy.writeRecord({
+          memberDid: signerDid as DID,
+          collection: 'network.coopsource.agreement.signature',
+          record: signatureRecord,
+        })
+      : await this.pdsService.createRecord({
+          did: signerDid as DID,
+          collection: 'network.coopsource.agreement.signature',
+          record: signatureRecord,
+        });
 
     const [sig] = await this.db
       .insertInto('agreement_signature')

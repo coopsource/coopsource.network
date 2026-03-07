@@ -15,6 +15,7 @@ import type { IPdsService, IFederationClient, IClock } from '@coopsource/federat
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
 import type { PaymentProviderRegistry } from '../payment/registry.js';
+import type { IMemberRecordWriter } from './member-write-proxy.js';
 
 type CampaignRow = Selectable<FundingCampaignTable>;
 type PledgeRow = Selectable<FundingPledgeTable>;
@@ -26,6 +27,7 @@ export class FundingService {
     private federationClient: IFederationClient,
     private clock: IClock,
     private paymentRegistry: PaymentProviderRegistry,
+    private memberWriteProxy?: IMemberRecordWriter,
   ) {}
 
   // ─── Campaigns ─────────────────────────────────────────────────────────
@@ -229,18 +231,26 @@ export class FundingService {
 
     const now = this.clock.now();
 
-    const ref = await this.pdsService.createRecord({
-      did: backerDid as DID,
-      collection: 'network.coopsource.funding.pledge',
-      record: {
-        campaignUri: data.campaignUri,
-        backerDid,
-        amount: data.amount,
-        currency: data.currency,
-        paymentStatus: 'pending',
-        createdAt: now.toISOString(),
-      },
-    });
+    // Pledge is member-owned → MemberWriteProxy
+    const pledgeRecord = {
+      campaignUri: data.campaignUri,
+      backerDid,
+      amount: data.amount,
+      currency: data.currency,
+      paymentStatus: 'pending',
+      createdAt: now.toISOString(),
+    };
+    const ref = this.memberWriteProxy
+      ? await this.memberWriteProxy.writeRecord({
+          memberDid: backerDid as DID,
+          collection: 'network.coopsource.funding.pledge',
+          record: pledgeRecord,
+        })
+      : await this.pdsService.createRecord({
+          did: backerDid as DID,
+          collection: 'network.coopsource.funding.pledge',
+          record: pledgeRecord,
+        });
 
     const rkey = ref.uri.split('/').pop()!;
     const [row] = await this.db

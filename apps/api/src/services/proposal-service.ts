@@ -34,11 +34,14 @@ export interface CreateProposalInput {
   tags?: string[];
 }
 
+import type { IMemberRecordWriter } from './member-write-proxy.js';
+
 export class ProposalService {
   constructor(
     private db: Kysely<Database>,
     private pdsService: IPdsService,
     private clock: IClock,
+    private memberWriteProxy?: IMemberRecordWriter,
   ) {}
 
   async listProposals(
@@ -221,18 +224,25 @@ export class ProposalService {
 
     const now = this.clock.now();
 
-    // Write PDS record
-    const ref = await this.pdsService.createRecord({
-      did: params.voterDid as DID,
-      collection: 'network.coopsource.governance.vote',
-      record: {
-        proposal: proposal.uri,
-        proposalCid: proposal.cid,
-        choice: params.choice,
-        rationale: params.rationale,
-        createdAt: now.toISOString(),
-      },
-    });
+    // Write PDS record (member-owned → MemberWriteProxy)
+    const voteRecord = {
+      proposal: proposal.uri,
+      proposalCid: proposal.cid,
+      choice: params.choice,
+      rationale: params.rationale,
+      createdAt: now.toISOString(),
+    };
+    const ref = this.memberWriteProxy
+      ? await this.memberWriteProxy.writeRecord({
+          memberDid: params.voterDid as DID,
+          collection: 'network.coopsource.governance.vote',
+          record: voteRecord,
+        })
+      : await this.pdsService.createRecord({
+          did: params.voterDid as DID,
+          collection: 'network.coopsource.governance.vote',
+          record: voteRecord,
+        });
 
     // Retract any previous vote
     await this.db
