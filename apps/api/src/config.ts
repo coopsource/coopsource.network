@@ -46,6 +46,9 @@ const envSchema = z
     INSTANCE_ROLE: z.enum(['standalone', 'hub', 'coop']).default('standalone'),
     INSTANCE_DID: z.string().optional(),   // Override auto-derived DID
     HUB_URL: z.string().optional(),        // Hub URL for co-op instances to register with
+    // Phase 2: Relay-based AppView (Tap)
+    RELAY_URL: z.string().url().optional(),  // ATProto relay WebSocket (e.g. wss://bsky.network). When set, uses relay firehose; when unset, uses local pg_notify
+    VERIFY_COMMIT_SIGNATURES: z.enum(['true', 'false']).default('false'), // Verify commit signatures on membership-critical records
   })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV === 'production') {

@@ -102,8 +102,11 @@ export async function decodeFirehoseMessageWithRecords(
 
   const body = cborDecode(remainder) as CommitBody;
 
-  // Decode CAR blocks to get actual record content
-  const records = await readCarRecords(body.blocks);
+  // Decode CAR blocks to get actual record content + commit signature
+  const { records, commitSig, commitSignedBytes } = await readCarRecordsAndCommit(
+    body.blocks,
+    body.commit,
+  );
   const events: FirehoseEvent[] = [];
 
   for (const op of body.ops) {
@@ -133,24 +136,44 @@ export async function decodeFirehoseMessageWithRecords(
       cid: cidStr as CID,
       record,
       time: body.time,
+      commitSig,
+      commitSignedBytes,
     });
   }
 
   return events;
 }
 
-async function readCarRecords(
+interface CarDecodeResult {
+  records: Map<string, Record<string, unknown>>;
+  commitSig?: Uint8Array;
+  commitSignedBytes?: Uint8Array;
+}
+
+async function readCarRecordsAndCommit(
   carBytes: Uint8Array,
-): Promise<Map<string, Record<string, unknown>>> {
+  commitCid: unknown,
+): Promise<CarDecodeResult> {
   const records = new Map<string, Record<string, unknown>>();
-  if (!carBytes || carBytes.length === 0) return records;
+  const result: CarDecodeResult = { records };
+  if (!carBytes || carBytes.length === 0) return result;
+
+  const commitCidStr = cidLinkToString(commitCid);
 
   try {
     const reader = await CarReader.fromBytes(carBytes);
     for await (const block of reader.blocks()) {
       try {
-        const record = dagCbor.decode<Record<string, unknown>>(block.bytes);
-        records.set(block.cid.toString(), record);
+        const decoded = dagCbor.decode<Record<string, unknown>>(block.bytes);
+        records.set(block.cid.toString(), decoded);
+
+        // Extract commit signature if this is the commit node
+        if (block.cid.toString() === commitCidStr && decoded.sig instanceof Uint8Array) {
+          result.commitSig = decoded.sig;
+          // Re-encode without sig to get signedBytes
+          const { sig: _sig, ...commitWithoutSig } = decoded;
+          result.commitSignedBytes = dagCbor.encode(commitWithoutSig);
+        }
       } catch {
         // Not all blocks are CBOR records (e.g. MST nodes)
       }
@@ -158,7 +181,7 @@ async function readCarRecords(
   } catch {
     // CAR parsing can fail for various reasons
   }
-  return records;
+  return result;
 }
 
 function cidLinkToString(link: { '/': string } | unknown): string {

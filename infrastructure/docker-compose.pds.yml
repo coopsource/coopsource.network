@@ -48,5 +48,17 @@ services:
       retries: 3
       start_period: 10s
 
+  # Optional: Tap firehose filter sidecar
+  # Filters the relay firehose for network.coopsource.* collections.
+  # When enabled, set RELAY_URL=ws://tap:6008 in the API service.
+  # tap:
+  #   image: ghcr.io/mary-ext/tap:latest
+  #   environment:
+  #     RELAY_URL: wss://bsky.network
+  #     FILTER_COLLECTIONS: network.coopsource.
+  #   ports:
+  #     - "${TAP_PORT:-6008}:6008"
+  #   restart: unless-stopped
+
 volumes:
   pds-data:

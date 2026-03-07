@@ -54,6 +54,8 @@ export interface FirehoseEvent {
   record?: Record<string, unknown>;
   prevCid?: CID;
   time: string; // ISO datetime
+  commitSig?: Uint8Array;         // ECDSA signature from signed commit node
+  commitSignedBytes?: Uint8Array; // DAG-CBOR encoding of commit without sig field
 }
 
 export interface ListRecordsOptions {
