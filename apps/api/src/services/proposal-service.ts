@@ -32,9 +32,13 @@ export interface CreateProposalInput {
   quorumThreshold?: number;
   closesAt?: string;
   tags?: string[];
+  meetingEvent?: string;      // AT-URI: Smoke Signal calendar event
+  fullDocument?: string;      // AT-URI: WhiteWind blog entry
+  discussionThread?: string;  // AT-URI: Frontpage link submission
 }
 
 import type { IMemberRecordWriter } from './member-write-proxy.js';
+import type { GovernanceLabeler } from './governance-labeler.js';
 
 export class ProposalService {
   constructor(
@@ -42,6 +46,7 @@ export class ProposalService {
     private pdsService: IPdsService,
     private clock: IClock,
     private memberWriteProxy?: IMemberRecordWriter,
+    private labeler?: GovernanceLabeler,
   ) {}
 
   async listProposals(
@@ -131,6 +136,9 @@ export class ProposalService {
         quorumType: data.quorumType,
         quorumBasis: data.quorumBasis,
         cooperative: data.cooperativeDid,
+        ...(data.meetingEvent && { meetingEvent: data.meetingEvent }),
+        ...(data.fullDocument && { fullDocument: data.fullDocument }),
+        ...(data.discussionThread && { discussionThread: data.discussionThread }),
         createdAt: now.toISOString(),
       },
     });
@@ -368,6 +376,21 @@ export class ProposalService {
       .where('id', '=', id)
       .returningAll()
       .execute();
+
+    // Emit governance label (best-effort)
+    if (this.labeler && updated?.uri) {
+      const labelValue = outcome === 'passed'
+        ? 'proposal-approved'
+        : outcome === 'failed'
+          ? 'proposal-rejected'
+          : 'proposal-archived';
+      await this.labeler.emitLabel(
+        updated.cooperative_did,
+        updated.uri,
+        labelValue as 'proposal-approved' | 'proposal-rejected' | 'proposal-archived',
+        updated.cid ?? undefined,
+      );
+    }
 
     return updated!;
   }

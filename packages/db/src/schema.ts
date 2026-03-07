@@ -828,6 +828,9 @@ export interface Database {
   // V5 tables (030)
   private_record: PrivateRecordTable;
   operator_audit_log: OperatorAuditLogTable;
+
+  // Governance labels (031)
+  governance_label: GovernanceLabelTable;
 }
 
 // ──────────────────────────────────────────────
@@ -846,4 +849,18 @@ export interface OAuthSessionTable {
   token_set: ColumnType<Record<string, unknown>, string | Record<string, unknown>, string | Record<string, unknown>>;
   created_at: ColumnType<Date, Date | string | undefined, Date | string>;
   updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+// ──────────────────────────────────────────────
+// 031 — Governance labels
+// ──────────────────────────────────────────────
+
+export interface GovernanceLabelTable {
+  id: Generated<string>;
+  src_did: string;
+  subject_uri: string;
+  subject_cid: string | null;
+  label_value: string;
+  neg: ColumnType<boolean, boolean | undefined, boolean>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }

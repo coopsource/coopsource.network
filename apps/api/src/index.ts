@@ -49,6 +49,7 @@ import { createApiTokenRoutes } from './routes/agents/tokens.js';
 import { createModelConfigRoutes } from './routes/agents/model-config.js';
 import { createNotificationRoutes } from './routes/notifications.js';
 import { createMcpRoutes } from './mcp/server.js';
+import { createLabelRoutes } from './routes/labels.js';
 import { startAppViewLoop } from './appview/loop.js';
 import { createOAuthClient } from './auth/oauth-client.js';
 
@@ -171,6 +172,9 @@ async function start(): Promise<void> {
 
   // Notification routes
   app.use(createNotificationRoutes(container));
+
+  // Governance label routes
+  app.use(createLabelRoutes(container.governanceLabeler));
 
   // MCP server (bearer token auth)
   app.use(createMcpRoutes(container.db));

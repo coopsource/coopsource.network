@@ -90,6 +90,9 @@ export function createProposalRoutes(container: Container): Router {
         quorumThreshold,
         closesAt,
         tags,
+        meetingEvent,
+        fullDocument,
+        discussionThread,
       } = CreateProposalBodySchema.parse(req.body);
 
       const proposal = await container.proposalService.createProposal(
@@ -106,6 +109,9 @@ export function createProposalRoutes(container: Container): Router {
           quorumThreshold,
           closesAt,
           tags,
+          meetingEvent,
+          fullDocument,
+          discussionThread,
         },
       );
 

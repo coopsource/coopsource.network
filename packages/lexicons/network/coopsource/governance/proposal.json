@@ -63,6 +63,21 @@
             "format": "datetime",
             "description": "When the voting period closes."
           },
+          "meetingEvent": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "Smoke Signal calendar event for governance meeting."
+          },
+          "fullDocument": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "WhiteWind blog entry with detailed rationale."
+          },
+          "discussionThread": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "Frontpage link submission for community discussion."
+          },
           "status": {
             "type": "string",
             "knownValues": ["draft", "discussion", "voting", "passed", "failed", "withdrawn"]

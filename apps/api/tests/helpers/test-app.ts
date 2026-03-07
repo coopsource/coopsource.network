@@ -28,6 +28,7 @@ import { ChatEngine } from '../../src/ai/chat-engine.js';
 import { EventDispatcher } from '../../src/ai/triggers/event-dispatcher.js';
 import { MemberWriteProxy } from '../../src/services/member-write-proxy.js';
 import { OperatorWriteProxy } from '../../src/services/operator-write-proxy.js';
+import { GovernanceLabeler } from '../../src/services/governance-labeler.js';
 import type { AppConfig } from '../../src/config.js';
 import { setDb, resetSetupCache } from '../../src/auth/middleware.js';
 import { setPermissionsDb } from '../../src/middleware/permissions.js';
@@ -58,6 +59,7 @@ import { createAgentTriggerRoutes } from '../../src/routes/agents/triggers.js';
 import { createApiTokenRoutes } from '../../src/routes/agents/tokens.js';
 import { createModelConfigRoutes } from '../../src/routes/agents/model-config.js';
 import { createNotificationRoutes } from '../../src/routes/notifications.js';
+import { createLabelRoutes } from '../../src/routes/labels.js';
 import { errorHandler } from '../../src/middleware/error-handler.js';
 import { getTestDb, getTestConnectionString } from './test-db.js';
 
@@ -119,8 +121,9 @@ export function createTestApp(): TestApp {
     emailService,
     clock,
   );
+  const governanceLabeler = new GovernanceLabeler(db);
   const postService = new PostService(db, clock);
-  const proposalService = new ProposalService(db, pdsService, clock, memberWriteProxy);
+  const proposalService = new ProposalService(db, pdsService, clock, memberWriteProxy, governanceLabeler);
   const agreementService = new AgreementService(db, pdsService, federationClient, clock, memberWriteProxy);
   const agreementTemplateService = new AgreementTemplateService(db, clock);
   const networkService = new NetworkService(db, pdsService, federationClient, clock);
@@ -159,6 +162,7 @@ export function createTestApp(): TestApp {
     eventDispatcher,
     memberWriteProxy,
     operatorWriteProxy,
+    governanceLabeler,
   };
 
   // Set the DB reference for auth middleware + permissions middleware
@@ -213,6 +217,7 @@ export function createTestApp(): TestApp {
   app.use(createApiTokenRoutes(container));
   app.use(createModelConfigRoutes(container));
   app.use(createNotificationRoutes(container));
+  app.use(createLabelRoutes(governanceLabeler));
 
   // Error handler (must be last)
   app.use(errorHandler);

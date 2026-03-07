@@ -701,6 +701,9 @@ export const CreateProposalBodySchema = z.object({
   quorumThreshold: z.number().min(0).max(1).optional(),
   closesAt: z.string().optional(),
   tags: z.array(z.string()).max(20).optional(),
+  meetingEvent: z.string().max(512).optional(),
+  fullDocument: z.string().max(512).optional(),
+  discussionThread: z.string().max(512).optional(),
 });
 
 export const UpdateProposalBodySchema = z.object({

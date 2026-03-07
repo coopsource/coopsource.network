@@ -30,6 +30,7 @@ import { EventDispatcher } from './ai/triggers/event-dispatcher.js';
 import { MemberWriteProxy } from './services/member-write-proxy.js';
 import type { IMemberRecordWriter } from './services/member-write-proxy.js';
 import { OperatorWriteProxy } from './services/operator-write-proxy.js';
+import { GovernanceLabeler } from './services/governance-labeler.js';
 
 export interface Container {
   db: Kysely<Database>;
@@ -58,6 +59,7 @@ export interface Container {
   eventDispatcher: EventDispatcher;
   memberWriteProxy: MemberWriteProxy;
   operatorWriteProxy: OperatorWriteProxy;
+  governanceLabeler: GovernanceLabeler;
   outboxProcessor?: OutboxProcessor;
 }
 
@@ -148,8 +150,9 @@ export function createContainer(config: AppConfig): Container {
     emailService,
     clock,
   );
+  const governanceLabeler = new GovernanceLabeler(db);
   const postService = new PostService(db, clock);
-  const proposalService = new ProposalService(db, pdsService, clock, memberWriteProxy);
+  const proposalService = new ProposalService(db, pdsService, clock, memberWriteProxy, governanceLabeler);
   const agreementService = new AgreementService(db, pdsService, federationClient, clock, memberWriteProxy);
   const agreementTemplateService = new AgreementTemplateService(db, clock);
   const networkService = new NetworkService(db, pdsService, federationClient, clock);
@@ -190,6 +193,7 @@ export function createContainer(config: AppConfig): Container {
     eventDispatcher,
     memberWriteProxy,
     operatorWriteProxy,
+    governanceLabeler,
     outboxProcessor,
   };
 }
