@@ -51,4 +51,11 @@ export type {
   // V5 tables (030)
   PrivateRecordTable,
   OperatorAuditLogTable,
+  // Legal & Administrative (033)
+  LegalDocumentTable,
+  MeetingRecordTable,
+  AdminOfficerTable,
+  ComplianceItemTable,
+  MemberNoticeTable,
+  FiscalPeriodTable,
 } from './schema.js';

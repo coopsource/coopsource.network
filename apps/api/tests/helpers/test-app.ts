@@ -28,6 +28,12 @@ import { EventDispatcher } from '../../src/ai/triggers/event-dispatcher.js';
 import { MemberWriteProxy } from '../../src/services/member-write-proxy.js';
 import { OperatorWriteProxy } from '../../src/services/operator-write-proxy.js';
 import { GovernanceLabeler } from '../../src/services/governance-labeler.js';
+import { LegalDocumentService } from '../../src/services/legal-document-service.js';
+import { ComplianceCalendarService } from '../../src/services/compliance-calendar-service.js';
+import { OfficerRecordService } from '../../src/services/officer-record-service.js';
+import { MeetingRecordService } from '../../src/services/meeting-record-service.js';
+import { MemberNoticeService } from '../../src/services/member-notice-service.js';
+import { FiscalPeriodService } from '../../src/services/fiscal-period-service.js';
 import type { AppConfig } from '../../src/config.js';
 import { setDb, resetSetupCache } from '../../src/auth/middleware.js';
 import { setPermissionsDb } from '../../src/middleware/permissions.js';
@@ -59,6 +65,12 @@ import { createApiTokenRoutes } from '../../src/routes/agents/tokens.js';
 import { createModelConfigRoutes } from '../../src/routes/agents/model-config.js';
 import { createNotificationRoutes } from '../../src/routes/notifications.js';
 import { createLabelRoutes } from '../../src/routes/labels.js';
+import { createLegalDocumentRoutes } from '../../src/routes/legal/documents.js';
+import { createMeetingRoutes } from '../../src/routes/legal/meetings.js';
+import { createOfficerRoutes } from '../../src/routes/admin-legal/officers.js';
+import { createComplianceRoutes } from '../../src/routes/admin-legal/compliance.js';
+import { createNoticeRoutes } from '../../src/routes/admin-legal/notices.js';
+import { createFiscalPeriodRoutes } from '../../src/routes/admin-legal/fiscal-periods.js';
 import { errorHandler } from '../../src/middleware/error-handler.js';
 import { getTestDb, getTestConnectionString } from './test-db.js';
 
@@ -127,6 +139,12 @@ export function createTestApp(): TestApp {
   const agentService = new AgentService(db, clock, modelProviderRegistry);
   const chatEngine = new ChatEngine(db, clock, modelProviderRegistry);
   const eventDispatcher = new EventDispatcher(db, chatEngine);
+  const legalDocumentService = new LegalDocumentService(db, clock);
+  const complianceCalendarService = new ComplianceCalendarService(db, clock);
+  const officerRecordService = new OfficerRecordService(db, clock);
+  const meetingRecordService = new MeetingRecordService(db, clock);
+  const memberNoticeService = new MemberNoticeService(db, clock);
+  const fiscalPeriodService = new FiscalPeriodService(db, clock);
 
   const container: Container = {
     db,
@@ -154,6 +172,12 @@ export function createTestApp(): TestApp {
     memberWriteProxy,
     operatorWriteProxy,
     governanceLabeler,
+    legalDocumentService,
+    complianceCalendarService,
+    officerRecordService,
+    meetingRecordService,
+    memberNoticeService,
+    fiscalPeriodService,
   };
 
   // Set the DB reference for auth middleware + permissions middleware
@@ -209,6 +233,12 @@ export function createTestApp(): TestApp {
   app.use(createModelConfigRoutes(container));
   app.use(createNotificationRoutes(container));
   app.use(createLabelRoutes(governanceLabeler));
+  app.use(createLegalDocumentRoutes(container));
+  app.use(createMeetingRoutes(container));
+  app.use(createOfficerRoutes(container));
+  app.use(createComplianceRoutes(container));
+  app.use(createNoticeRoutes(container));
+  app.use(createFiscalPeriodRoutes(container));
 
   // Error handler (must be last)
   app.use(errorHandler);

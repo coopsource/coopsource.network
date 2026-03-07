@@ -50,6 +50,12 @@ import { createModelConfigRoutes } from './routes/agents/model-config.js';
 import { createNotificationRoutes } from './routes/notifications.js';
 import { createMcpRoutes } from './mcp/server.js';
 import { createLabelRoutes } from './routes/labels.js';
+import { createLegalDocumentRoutes } from './routes/legal/documents.js';
+import { createMeetingRoutes } from './routes/legal/meetings.js';
+import { createOfficerRoutes } from './routes/admin-legal/officers.js';
+import { createComplianceRoutes } from './routes/admin-legal/compliance.js';
+import { createNoticeRoutes } from './routes/admin-legal/notices.js';
+import { createFiscalPeriodRoutes } from './routes/admin-legal/fiscal-periods.js';
 import { startAppViewLoop } from './appview/loop.js';
 import { createOAuthClient } from './auth/oauth-client.js';
 
@@ -172,6 +178,14 @@ async function start(): Promise<void> {
 
   // Notification routes
   app.use(createNotificationRoutes(container));
+
+  // Legal & Administrative routes (Phase 4)
+  app.use(createLegalDocumentRoutes(container));
+  app.use(createMeetingRoutes(container));
+  app.use(createOfficerRoutes(container));
+  app.use(createComplianceRoutes(container));
+  app.use(createNoticeRoutes(container));
+  app.use(createFiscalPeriodRoutes(container));
 
   // Governance label routes
   app.use(createLabelRoutes(container.governanceLabeler));

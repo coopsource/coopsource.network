@@ -78,6 +78,13 @@ export {
   UpdatePostSchema,
   SignAgreementSchema,
   RetractSignatureSchema,
+  CreateLegalDocumentSchema,
+  UpdateLegalDocumentSchema,
+  CreateMeetingRecordSchema,
+  CreateOfficerSchema,
+  CreateComplianceItemSchema,
+  CreateMemberNoticeSchema,
+  CreateFiscalPeriodSchema,
 } from './validation.js';
 export type {
   CreateCooperativeInput,
@@ -121,6 +128,13 @@ export type {
   CreateAgentFromTemplateInput,
   AddModelProviderInput,
   UpdateModelProviderInput,
+  CreateLegalDocumentInput,
+  UpdateLegalDocumentInput,
+  CreateMeetingRecordInput,
+  CreateOfficerInput,
+  CreateComplianceItemInput,
+  CreateMemberNoticeInput,
+  CreateFiscalPeriodInput,
 } from './validation.js';
 export { encodeAtUri, decodeAtUri, extractRkey, buildAtUri } from './uri.js';
 export { didWebToUrl, urlToDidWeb, buildMemberDidWeb, isDidWeb } from './did-web.js';

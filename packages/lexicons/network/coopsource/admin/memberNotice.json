@@ -1,0 +1,48 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.admin.memberNotice",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A notice sent to members of a cooperative.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["cooperativeDid", "title", "body", "noticeType", "targetAudience", "createdAt"],
+        "properties": {
+          "cooperativeDid": {
+            "type": "string",
+            "format": "did",
+            "description": "The cooperative sending the notice."
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 10000,
+            "description": "The full text of the notice."
+          },
+          "noticeType": {
+            "type": "string",
+            "knownValues": ["general", "election", "meeting", "policy_change", "other"]
+          },
+          "targetAudience": {
+            "type": "string",
+            "knownValues": ["all", "board", "officers"]
+          },
+          "sentAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When the notice was sent."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

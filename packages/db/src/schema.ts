@@ -835,6 +835,14 @@ export interface Database {
   // Ecosystem references (032)
   calendar_event_ref: CalendarEventRefTable;
   frontpage_post_ref: FrontpagePostRefTable;
+
+  // Legal & Administrative (033)
+  legal_document: LegalDocumentTable;
+  meeting_record: MeetingRecordTable;
+  admin_officer: AdminOfficerTable;
+  compliance_item: ComplianceItemTable;
+  member_notice: MemberNoticeTable;
+  fiscal_period: FiscalPeriodTable;
 }
 
 // ──────────────────────────────────────────────
@@ -892,4 +900,109 @@ export interface FrontpagePostRefTable {
   title: string | null;
   comment_count: ColumnType<number, number | undefined, number>;
   indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+// ──────────────────────────────────────────────
+// 033 — Legal & Administrative lifecycle
+// ──────────────────────────────────────────────
+
+export interface LegalDocumentTable {
+  id: Generated<string>;
+  uri: string | null;
+  cid: string | null;
+  cooperative_did: string;
+  author_did: string;
+  title: string;
+  body: string | null;
+  body_format: string;
+  document_type: string;
+  version: number;
+  previous_version_uri: string | null;
+  status: string;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  invalidated_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+}
+
+export interface MeetingRecordTable {
+  id: Generated<string>;
+  uri: string | null;
+  cid: string | null;
+  cooperative_did: string;
+  author_did: string;
+  title: string;
+  meeting_date: ColumnType<Date, Date | string, Date | string>;
+  meeting_type: string;
+  attendee_dids: ColumnType<string[], string | string[], string | string[]>;
+  quorum_met: boolean | null;
+  resolutions: ColumnType<string[], string | string[], string | string[]>;
+  minutes: string | null;
+  certified_by: string | null;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  invalidated_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+}
+
+export interface AdminOfficerTable {
+  id: Generated<string>;
+  uri: string | null;
+  cid: string | null;
+  cooperative_did: string;
+  officer_did: string;
+  title: string;
+  appointed_at: ColumnType<Date, Date | string, Date | string>;
+  term_ends_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  appointment_type: string;
+  responsibilities: string | null;
+  status: string;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  invalidated_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+}
+
+export interface ComplianceItemTable {
+  id: Generated<string>;
+  uri: string | null;
+  cid: string | null;
+  cooperative_did: string;
+  title: string;
+  description: string | null;
+  due_date: ColumnType<Date, Date | string, Date | string>;
+  filing_type: string;
+  status: string;
+  completed_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  completed_by: string | null;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  invalidated_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+}
+
+export interface MemberNoticeTable {
+  id: Generated<string>;
+  uri: string | null;
+  cid: string | null;
+  cooperative_did: string;
+  author_did: string;
+  title: string;
+  body: string;
+  notice_type: string;
+  target_audience: string;
+  sent_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  invalidated_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+}
+
+export interface FiscalPeriodTable {
+  id: Generated<string>;
+  uri: string | null;
+  cid: string | null;
+  cooperative_did: string;
+  label: string;
+  starts_at: ColumnType<Date, Date | string, Date | string>;
+  ends_at: ColumnType<Date, Date | string, Date | string>;
+  status: string;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  invalidated_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
 }

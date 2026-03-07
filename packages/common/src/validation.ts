@@ -748,3 +748,67 @@ export const SignAgreementSchema = z.object({
 export const RetractSignatureSchema = z.object({
   reason: z.string().max(2000).optional(),
 });
+
+// --- Legal & Administrative Schemas ---
+
+export const CreateLegalDocumentSchema = z.object({
+  title: z.string().min(1).max(255),
+  body: z.string().max(50000).optional(),
+  bodyFormat: z.string().max(50).optional(),
+  documentType: z.enum(['bylaws', 'articles', 'policy', 'resolution', 'other']),
+  status: z.enum(['draft', 'active']).optional(),
+});
+
+export const UpdateLegalDocumentSchema = z.object({
+  title: z.string().min(1).max(255).optional(),
+  body: z.string().max(50000).optional(),
+  bodyFormat: z.string().max(50).optional(),
+  status: z.enum(['draft', 'active', 'archived']).optional(),
+});
+
+export const CreateMeetingRecordSchema = z.object({
+  title: z.string().min(1).max(255),
+  meetingDate: z.string().min(1),
+  meetingType: z.enum(['board', 'general', 'special', 'committee']),
+  attendees: z.array(z.string().min(1)).max(500).optional(),
+  quorumMet: z.boolean().optional(),
+  resolutions: z.array(z.string().min(1).max(2000)).max(50).optional(),
+  minutes: z.string().max(50000).optional(),
+});
+
+export const CreateOfficerSchema = z.object({
+  officerDid: z.string().min(1),
+  title: z.enum(['president', 'secretary', 'treasurer', 'director', 'other']),
+  appointedAt: z.string().min(1),
+  termEndsAt: z.string().optional(),
+  appointmentType: z.enum(['elected', 'appointed']),
+  responsibilities: z.string().max(3000).optional(),
+});
+
+export const CreateComplianceItemSchema = z.object({
+  title: z.string().min(1).max(255),
+  description: z.string().max(3000).optional(),
+  dueDate: z.string().min(1),
+  filingType: z.enum(['annual_report', 'tax_filing', 'state_report', 'other']),
+});
+
+export const CreateMemberNoticeSchema = z.object({
+  title: z.string().min(1).max(255),
+  body: z.string().min(1).max(10000),
+  noticeType: z.enum(['general', 'election', 'meeting', 'policy_change', 'other']),
+  targetAudience: z.enum(['all', 'board', 'officers']),
+});
+
+export const CreateFiscalPeriodSchema = z.object({
+  label: z.string().min(1).max(100),
+  startsAt: z.string().min(1),
+  endsAt: z.string().min(1),
+});
+
+export type CreateLegalDocumentInput = z.infer<typeof CreateLegalDocumentSchema>;
+export type UpdateLegalDocumentInput = z.infer<typeof UpdateLegalDocumentSchema>;
+export type CreateMeetingRecordInput = z.infer<typeof CreateMeetingRecordSchema>;
+export type CreateOfficerInput = z.infer<typeof CreateOfficerSchema>;
+export type CreateComplianceItemInput = z.infer<typeof CreateComplianceItemSchema>;
+export type CreateMemberNoticeInput = z.infer<typeof CreateMemberNoticeSchema>;
+export type CreateFiscalPeriodInput = z.infer<typeof CreateFiscalPeriodSchema>;

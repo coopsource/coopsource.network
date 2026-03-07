@@ -18,8 +18,8 @@ describe('PERMISSIONS', () => {
     }
   });
 
-  it('contains 27 permissions', () => {
-    expect(Object.keys(PERMISSIONS)).toHaveLength(27);
+  it('contains 30 permissions', () => {
+    expect(Object.keys(PERMISSIONS)).toHaveLength(30);
   });
 });
 

@@ -1,0 +1,58 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.admin.officer",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "An officer appointment record for a cooperative.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["cooperativeDid", "officerDid", "title", "appointedAt", "appointmentType", "status", "createdAt"],
+        "properties": {
+          "cooperativeDid": {
+            "type": "string",
+            "format": "did",
+            "description": "The cooperative this officer serves."
+          },
+          "officerDid": {
+            "type": "string",
+            "format": "did",
+            "description": "The DID of the officer."
+          },
+          "title": {
+            "type": "string",
+            "knownValues": ["president", "secretary", "treasurer", "director", "other"]
+          },
+          "appointedAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When the officer was appointed or elected."
+          },
+          "termEndsAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When the officer's term ends."
+          },
+          "appointmentType": {
+            "type": "string",
+            "knownValues": ["elected", "appointed"]
+          },
+          "responsibilities": {
+            "type": "string",
+            "maxLength": 3000,
+            "description": "Description of the officer's responsibilities."
+          },
+          "status": {
+            "type": "string",
+            "knownValues": ["active", "ended"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

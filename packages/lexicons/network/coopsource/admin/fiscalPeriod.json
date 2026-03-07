@@ -1,0 +1,45 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.admin.fiscalPeriod",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A fiscal period (e.g. fiscal year) for a cooperative.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["cooperativeDid", "label", "startsAt", "endsAt", "status", "createdAt"],
+        "properties": {
+          "cooperativeDid": {
+            "type": "string",
+            "format": "did",
+            "description": "The cooperative this fiscal period belongs to."
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "Human-readable label (e.g. FY2026)."
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "Start of the fiscal period."
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "End of the fiscal period."
+          },
+          "status": {
+            "type": "string",
+            "knownValues": ["open", "closed"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.legal.meetingRecord",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A record of a cooperative meeting with minutes, attendance, and resolutions.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["cooperativeDid", "title", "meetingDate", "meetingType", "createdAt"],
+        "properties": {
+          "cooperativeDid": {
+            "type": "string",
+            "format": "did",
+            "description": "The cooperative this meeting belongs to."
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "meetingDate": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When the meeting took place."
+          },
+          "meetingType": {
+            "type": "string",
+            "knownValues": ["board", "general", "special", "committee"]
+          },
+          "attendees": {
+            "type": "array",
+            "description": "DIDs of members who attended.",
+            "items": {
+              "type": "string",
+              "format": "did"
+            }
+          },
+          "quorumMet": {
+            "type": "boolean",
+            "description": "Whether quorum was achieved."
+          },
+          "resolutions": {
+            "type": "array",
+            "description": "Resolutions passed during the meeting.",
+            "items": {
+              "type": "string",
+              "maxLength": 2000
+            }
+          },
+          "minutes": {
+            "type": "string",
+            "maxLength": 50000,
+            "description": "Full text of the meeting minutes."
+          },
+          "certifiedBy": {
+            "type": "string",
+            "format": "did",
+            "description": "DID of the person who certified the minutes."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

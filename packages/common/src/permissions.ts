@@ -33,6 +33,9 @@ export const PERMISSIONS = {
   'agent.configure': 'Configure AI agents and model providers',
   'agent.use': 'Interact with AI agents',
   'agent.admin': 'Manage all agent settings and budgets',
+  'legal.manage': 'Manage legal documents and meeting records',
+  'compliance.manage': 'Manage compliance calendar and fiscal periods',
+  'officer.manage': 'Manage officer appointments',
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -69,6 +72,9 @@ export const BUILT_IN_ROLES: Record<
       'network.create',
       'network.manage',
       'agent.configure',
+      'legal.manage',
+      'compliance.manage',
+      'officer.manage',
     ],
     inherits: ['member'],
   },

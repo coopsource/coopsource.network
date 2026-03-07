@@ -1,0 +1,53 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.legal.document",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A foundational legal document for a cooperative (bylaws, articles, policies, resolutions).",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["cooperativeDid", "title", "documentType", "version", "status", "createdAt"],
+        "properties": {
+          "cooperativeDid": {
+            "type": "string",
+            "format": "did",
+            "description": "The cooperative this document belongs to."
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 50000,
+            "description": "The full text of the document."
+          },
+          "documentType": {
+            "type": "string",
+            "knownValues": ["bylaws", "articles", "policy", "resolution", "other"]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Monotonically increasing version number."
+          },
+          "previousVersion": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "AT-URI of the previous version in the chain."
+          },
+          "status": {
+            "type": "string",
+            "knownValues": ["draft", "active", "superseded", "archived"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

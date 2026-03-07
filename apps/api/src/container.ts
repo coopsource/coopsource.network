@@ -30,6 +30,12 @@ import { MemberWriteProxy } from './services/member-write-proxy.js';
 import type { IMemberRecordWriter } from './services/member-write-proxy.js';
 import { OperatorWriteProxy } from './services/operator-write-proxy.js';
 import { GovernanceLabeler } from './services/governance-labeler.js';
+import { LegalDocumentService } from './services/legal-document-service.js';
+import { ComplianceCalendarService } from './services/compliance-calendar-service.js';
+import { OfficerRecordService } from './services/officer-record-service.js';
+import { MeetingRecordService } from './services/meeting-record-service.js';
+import { MemberNoticeService } from './services/member-notice-service.js';
+import { FiscalPeriodService } from './services/fiscal-period-service.js';
 
 export interface Container {
   db: Kysely<Database>;
@@ -58,6 +64,12 @@ export interface Container {
   memberWriteProxy: MemberWriteProxy;
   operatorWriteProxy: OperatorWriteProxy;
   governanceLabeler: GovernanceLabeler;
+  legalDocumentService: LegalDocumentService;
+  complianceCalendarService: ComplianceCalendarService;
+  officerRecordService: OfficerRecordService;
+  meetingRecordService: MeetingRecordService;
+  memberNoticeService: MemberNoticeService;
+  fiscalPeriodService: FiscalPeriodService;
 }
 
 export function createContainer(config: AppConfig): Container {
@@ -124,6 +136,12 @@ export function createContainer(config: AppConfig): Container {
   const mcpClient = new McpClient();
   const chatEngine = new ChatEngine(db, clock, modelProviderRegistry, mcpClient);
   const eventDispatcher = new EventDispatcher(db, chatEngine);
+  const legalDocumentService = new LegalDocumentService(db, clock);
+  const complianceCalendarService = new ComplianceCalendarService(db, clock);
+  const officerRecordService = new OfficerRecordService(db, clock);
+  const meetingRecordService = new MeetingRecordService(db, clock);
+  const memberNoticeService = new MemberNoticeService(db, clock);
+  const fiscalPeriodService = new FiscalPeriodService(db, clock);
 
   return {
     db,
@@ -152,5 +170,11 @@ export function createContainer(config: AppConfig): Container {
     memberWriteProxy,
     operatorWriteProxy,
     governanceLabeler,
+    legalDocumentService,
+    complianceCalendarService,
+    officerRecordService,
+    meetingRecordService,
+    memberNoticeService,
+    fiscalPeriodService,
   };
 }

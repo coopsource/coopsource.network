@@ -1,0 +1,52 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.admin.complianceItem",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A compliance calendar item tracking regulatory deadlines and filings.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["cooperativeDid", "title", "dueDate", "filingType", "status", "createdAt"],
+        "properties": {
+          "cooperativeDid": {
+            "type": "string",
+            "format": "did",
+            "description": "The cooperative this compliance item belongs to."
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 3000
+          },
+          "dueDate": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When this filing or report is due."
+          },
+          "filingType": {
+            "type": "string",
+            "knownValues": ["annual_report", "tax_filing", "state_report", "other"]
+          },
+          "status": {
+            "type": "string",
+            "knownValues": ["pending", "completed", "overdue"]
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When this item was completed."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

@@ -18,6 +18,8 @@ import {
 } from './indexers/alignment-indexer.js';
 import { indexCalendarEvent, indexCalendarRsvp } from './indexers/calendar-indexer.js';
 import { indexFrontpagePost } from './indexers/frontpage-indexer.js';
+import { indexLegalDocument, indexMeetingRecord } from './indexers/legal-indexer.js';
+import { indexOfficer, indexComplianceItem, indexMemberNotice, indexFiscalPeriod } from './indexers/admin-indexer.js';
 import { subscribeRelay } from './relay-consumer.js';
 import { verifyCommitSignature } from './commit-verifier.js';
 import { collectionFromUri } from './utils.js';
@@ -82,6 +84,25 @@ export async function dispatchFirehoseEvent(
       break;
     case 'fyi.unravel.frontpage.post':
       await indexFrontpagePost(db, event);
+      break;
+    // Legal & Administrative collections (Phase 4)
+    case 'network.coopsource.legal.document':
+      await indexLegalDocument(db, event);
+      break;
+    case 'network.coopsource.legal.meetingRecord':
+      await indexMeetingRecord(db, event);
+      break;
+    case 'network.coopsource.admin.officer':
+      await indexOfficer(db, event);
+      break;
+    case 'network.coopsource.admin.complianceItem':
+      await indexComplianceItem(db, event);
+      break;
+    case 'network.coopsource.admin.memberNotice':
+      await indexMemberNotice(db, event);
+      break;
+    case 'network.coopsource.admin.fiscalPeriod':
+      await indexFiscalPeriod(db, event);
       break;
     default:
       // Unknown collection — skip
