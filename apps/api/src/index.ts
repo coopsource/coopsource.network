@@ -194,11 +194,7 @@ async function start(): Promise<void> {
   container.eventDispatcher.start();
   logger.info('Event dispatcher started');
 
-  // Start outbox processor for federated mode
-  if (container.outboxProcessor) {
-    container.outboxProcessor.start();
-    logger.info('Outbox processor started');
-  }
+  // Outbox processor retired — public data flows through ATProto relay firehose
 
   // Background: resolve expired proposals every 60s
   setInterval(() => {
@@ -217,7 +213,7 @@ async function start(): Promise<void> {
     server.close();
     container.eventDispatcher.stop();
     await container.mcpClient.disconnectAll();
-    container.outboxProcessor?.stop();
+    // Outbox processor retired
     process.exit(0);
   };
   process.on('SIGTERM', shutdown);

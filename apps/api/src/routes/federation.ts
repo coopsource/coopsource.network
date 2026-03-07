@@ -67,8 +67,7 @@ const AgreementSignResponseSchema = z.object({
  * Federation API endpoints — the "receiving side" of server-to-server calls.
  *
  * These endpoints process incoming federation requests locally. They call
- * container.pdsService directly (NOT container.federationClient) to avoid
- * infinite recursion — the receiving instance always processes locally.
+ * container.pdsService directly — the receiving instance always processes locally.
  *
  * Public GET endpoints require no authentication.
  * Signed POST endpoints require HTTP Message Signature verification.

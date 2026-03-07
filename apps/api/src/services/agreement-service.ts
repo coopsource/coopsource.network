@@ -17,7 +17,7 @@ import type {
   UpdateMasterAgreementInput,
   CreateStakeholderTermsInput,
 } from '@coopsource/common';
-import type { IPdsService, IFederationClient, IClock } from '@coopsource/federation';
+import type { IPdsService, IClock } from '@coopsource/federation';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
 import { emitAppEvent } from '../appview/sse.js';
@@ -48,7 +48,6 @@ export class AgreementService {
   constructor(
     private db: Kysely<Database>,
     private pdsService: IPdsService,
-    private federationClient: IFederationClient,
     private clock: IClock,
     private memberWriteProxy?: IMemberRecordWriter,
   ) {}
@@ -544,14 +543,7 @@ export class AgreementService {
       .where('status', '=', 'pending')
       .execute();
 
-    await this.federationClient.submitSignature({
-      agreementUri: uri,
-      signerDid,
-      signatureUri: ref.uri,
-      signatureCid: ref.cid,
-      cooperativeDid: agreement.project_uri,
-      statement,
-    });
+    // Signature is recorded in PDS above — firehose + AppView handle propagation
 
     await this.insertRevision(uri, signerDid, 'signed', {
       fieldChanges: { signerDid, signatureUri: ref.uri },
@@ -610,14 +602,7 @@ export class AgreementService {
       .where('uri', '=', uri)
       .select('project_uri')
       .executeTakeFirst();
-    if (agreement) {
-      await this.federationClient.retractSignature({
-        agreementUri: uri,
-        signerDid,
-        cooperativeDid: agreement.project_uri,
-        reason,
-      });
-    }
+    // Signature retraction handled by PDS record deletion — firehose propagates
 
     await this.insertRevision(uri, signerDid, 'signature_retracted', {
       fieldChanges: { signerDid, reason: reason ?? null },

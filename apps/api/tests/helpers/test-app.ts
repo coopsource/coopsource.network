@@ -4,8 +4,7 @@ import supertest from 'supertest';
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
 import { MockClock } from '@coopsource/federation';
-import type { IFederationClient } from '@coopsource/federation';
-import { LocalPdsService, LocalBlobStore, LocalFederationClient } from '@coopsource/federation/local';
+import { LocalPdsService, LocalBlobStore } from '@coopsource/federation/local';
 import type { FederationDatabase } from '@coopsource/federation/local';
 import { DidWebResolver } from '@coopsource/federation/http';
 import { DevEmailService } from '@coopsource/federation/email';
@@ -89,12 +88,6 @@ export function createTestApp(): TestApp {
 
   const didResolver = new DidWebResolver();
 
-  const federationClient: IFederationClient = new LocalFederationClient(
-    db as unknown as Kysely<FederationDatabase>,
-    pdsService,
-    clock,
-  );
-
   const emailService = new DevEmailService({
     host: 'localhost',
     port: 1025,
@@ -117,19 +110,18 @@ export function createTestApp(): TestApp {
   const membershipService = new MembershipService(
     db,
     pdsService,
-    federationClient,
     emailService,
     clock,
   );
   const governanceLabeler = new GovernanceLabeler(db);
   const postService = new PostService(db, clock);
   const proposalService = new ProposalService(db, pdsService, clock, memberWriteProxy, governanceLabeler);
-  const agreementService = new AgreementService(db, pdsService, federationClient, clock, memberWriteProxy);
+  const agreementService = new AgreementService(db, pdsService, clock, memberWriteProxy);
   const agreementTemplateService = new AgreementTemplateService(db, clock);
-  const networkService = new NetworkService(db, pdsService, federationClient, clock);
+  const networkService = new NetworkService(db, pdsService, clock);
   const paymentRegistry = new PaymentProviderRegistry(db, 'yIknTzhyTfVpR7cc/ZrwSpewmhyiOJA97leVbKqccsY=');
-  const fundingService = new FundingService(db, pdsService, federationClient, clock, paymentRegistry, memberWriteProxy);
-  const alignmentService = new AlignmentService(db, pdsService, federationClient, clock);
+  const fundingService = new FundingService(db, pdsService, clock, paymentRegistry, memberWriteProxy);
+  const alignmentService = new AlignmentService(db, pdsService, clock);
   const connectionService = new ConnectionService(db, pdsService, clock, testConfig);
   const modelProviderRegistry = new ModelProviderRegistry(db, 'yIknTzhyTfVpR7cc/ZrwSpewmhyiOJA97leVbKqccsY=');
   const agentService = new AgentService(db, clock, modelProviderRegistry);
@@ -139,7 +131,6 @@ export function createTestApp(): TestApp {
   const container: Container = {
     db,
     pdsService,
-    federationClient,
     didResolver,
     blobStore,
     clock,

@@ -5,7 +5,7 @@ import type { Database, InvitationTable } from '@coopsource/db';
 type InvitationRow = Selectable<InvitationTable>;
 import type { DID } from '@coopsource/common';
 import { NotFoundError, ValidationError, ConflictError } from '@coopsource/common';
-import type { IPdsService, IFederationClient, IEmailService, IClock } from '@coopsource/federation';
+import type { IPdsService, IEmailService, IClock } from '@coopsource/federation';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
 
@@ -22,7 +22,6 @@ export class MembershipService {
   constructor(
     private db: Kysely<Database>,
     private pdsService: IPdsService,
-    private federationClient: IFederationClient,
     private emailService: IEmailService,
     private clock: IClock,
   ) {}
@@ -250,14 +249,20 @@ export class MembershipService {
 
     const now = this.clock.now();
 
-    // Cross-boundary: delegate approval to federation client
-    // In standalone mode: LocalFederationClient dispatches locally
-    // In federated mode:  HttpFederationClient POSTs to the cooperative's API
-    const approvalResult = await this.federationClient.approveMembership({
-      cooperativeDid,
-      memberDid,
-      roles,
+    // Create memberApproval record directly in cooperative's PDS
+    const approvalRef = await this.pdsService.createRecord({
+      did: cooperativeDid as DID,
+      collection: 'network.coopsource.org.memberApproval',
+      record: {
+        member: memberDid,
+        roles,
+        createdAt: now.toISOString(),
+      },
     });
+    const approvalResult = {
+      approvalRecordUri: approvalRef.uri,
+      approvalRecordCid: approvalRef.cid,
+    };
 
     // Update membership with approval info
     await this.db

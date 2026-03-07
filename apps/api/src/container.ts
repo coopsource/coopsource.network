@@ -1,14 +1,13 @@
 import { createDb } from '@coopsource/db';
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
-import { SystemClock, OutboxProcessor } from '@coopsource/federation';
-import type { IPdsService, IFederationClient, OutboxLogger } from '@coopsource/federation';
-import { LocalPdsService, LocalBlobStore, LocalFederationClient } from '@coopsource/federation/local';
+import { SystemClock } from '@coopsource/federation';
+import type { IPdsService } from '@coopsource/federation';
+import { LocalPdsService, LocalBlobStore } from '@coopsource/federation/local';
 import type { FederationDatabase } from '@coopsource/federation/local';
-import { HttpFederationClient, DidWebResolver, SigningKeyResolver } from '@coopsource/federation/http';
+import { DidWebResolver } from '@coopsource/federation/http';
 import { AtprotoPdsService } from '@coopsource/federation/atproto';
 import { DevEmailService } from '@coopsource/federation/email';
-import { urlToDidWeb } from '@coopsource/common';
 import type { AppConfig } from './config.js';
 import { AuthService } from './services/auth-service.js';
 import { EntityService } from './services/entity-service.js';
@@ -35,7 +34,6 @@ import { GovernanceLabeler } from './services/governance-labeler.js';
 export interface Container {
   db: Kysely<Database>;
   pdsService: IPdsService;
-  federationClient: IFederationClient;
   didResolver: DidWebResolver;
   blobStore: LocalBlobStore;
   clock: SystemClock;
@@ -60,7 +58,6 @@ export interface Container {
   memberWriteProxy: MemberWriteProxy;
   operatorWriteProxy: OperatorWriteProxy;
   governanceLabeler: GovernanceLabeler;
-  outboxProcessor?: OutboxProcessor;
 }
 
 export function createContainer(config: AppConfig): Container {
@@ -91,43 +88,6 @@ export function createContainer(config: AppConfig): Container {
 
   const didResolver = new DidWebResolver();
 
-  // Federation client — standalone uses local dispatch, hub/coop use signed HTTP.
-  const fedDb = db as unknown as import('kysely').Kysely<FederationDatabase>;
-  const instanceDid = config.INSTANCE_DID ?? urlToDidWeb(config.INSTANCE_URL);
-
-  let signingKeyResolver: SigningKeyResolver | undefined;
-  let outboxProcessor: OutboxProcessor | undefined;
-
-  const federationClient: IFederationClient =
-    config.INSTANCE_ROLE === 'standalone'
-      ? new LocalFederationClient(fedDb, pdsService, clock)
-      : (() => {
-          signingKeyResolver = new SigningKeyResolver(fedDb, config.KEY_ENC_KEY);
-
-          const outboxLogger: OutboxLogger = {
-            info(msg: string, data?: Record<string, unknown>) {
-              // pino logger imported lazily to avoid circular deps
-              console.log(`[outbox] ${msg}`, data ?? '');
-            },
-            error(msg: string, data?: Record<string, unknown>) {
-              console.error(`[outbox] ${msg}`, data ?? '');
-            },
-          };
-          outboxProcessor = new OutboxProcessor(
-            db,
-            signingKeyResolver,
-            instanceDid,
-            outboxLogger,
-          );
-
-          return new HttpFederationClient(
-            signingKeyResolver,
-            didResolver,
-            instanceDid,
-            config.HUB_URL,
-          );
-        })();
-
   const blobStore = new LocalBlobStore({ blobDir: config.BLOB_DIR });
 
   const emailService = new DevEmailService({
@@ -146,19 +106,18 @@ export function createContainer(config: AppConfig): Container {
   const membershipService = new MembershipService(
     db,
     pdsService,
-    federationClient,
     emailService,
     clock,
   );
   const governanceLabeler = new GovernanceLabeler(db);
   const postService = new PostService(db, clock);
   const proposalService = new ProposalService(db, pdsService, clock, memberWriteProxy, governanceLabeler);
-  const agreementService = new AgreementService(db, pdsService, federationClient, clock, memberWriteProxy);
+  const agreementService = new AgreementService(db, pdsService, clock, memberWriteProxy);
   const agreementTemplateService = new AgreementTemplateService(db, clock);
-  const networkService = new NetworkService(db, pdsService, federationClient, clock);
+  const networkService = new NetworkService(db, pdsService, clock);
   const paymentRegistry = new PaymentProviderRegistry(db, config.KEY_ENC_KEY);
-  const fundingService = new FundingService(db, pdsService, federationClient, clock, paymentRegistry, memberWriteProxy);
-  const alignmentService = new AlignmentService(db, pdsService, federationClient, clock);
+  const fundingService = new FundingService(db, pdsService, clock, paymentRegistry, memberWriteProxy);
+  const alignmentService = new AlignmentService(db, pdsService, clock);
   const connectionService = new ConnectionService(db, pdsService, clock, config);
   const modelProviderRegistry = new ModelProviderRegistry(db, config.KEY_ENC_KEY);
   const agentService = new AgentService(db, clock, modelProviderRegistry);
@@ -169,7 +128,6 @@ export function createContainer(config: AppConfig): Container {
   return {
     db,
     pdsService,
-    federationClient,
     didResolver,
     blobStore,
     clock,
@@ -194,6 +152,5 @@ export function createContainer(config: AppConfig): Container {
     memberWriteProxy,
     operatorWriteProxy,
     governanceLabeler,
-    outboxProcessor,
   };
 }

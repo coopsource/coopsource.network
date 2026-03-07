@@ -2,7 +2,7 @@ import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
 import type { DID } from '@coopsource/common';
 import { NotFoundError, ConflictError } from '@coopsource/common';
-import type { IPdsService, IFederationClient, IClock } from '@coopsource/federation';
+import type { IPdsService, IClock } from '@coopsource/federation';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
 
@@ -35,7 +35,6 @@ export class NetworkService {
   constructor(
     private db: Kysely<Database>,
     private pdsService: IPdsService,
-    private federationClient: IFederationClient,
     private clock: IClock,
   ) {}
 
@@ -329,14 +328,20 @@ export class NetworkService {
       },
     });
 
-    // 2. Cross-boundary: request approval from the network
-    // In standalone mode: LocalFederationClient dispatches locally
-    // In federated mode:  HttpFederationClient POSTs to the network's API
-    const approvalResult = await this.federationClient.approveMembership({
-      cooperativeDid: params.networkDid,
-      memberDid: params.cooperativeDid,
-      roles: ['member'],
+    // 2. Create memberApproval record directly in network's PDS
+    const approvalRef = await this.pdsService.createRecord({
+      did: params.networkDid as DID,
+      collection: 'network.coopsource.org.memberApproval',
+      record: {
+        member: params.cooperativeDid,
+        roles: ['member'],
+        createdAt: now.toISOString(),
+      },
     });
+    const approvalResult = {
+      approvalRecordUri: approvalRef.uri,
+      approvalRecordCid: approvalRef.cid,
+    };
 
     // 3+4. DB writes in transaction
     await this.db.transaction().execute(async (trx) => {
@@ -402,11 +407,6 @@ export class NetworkService {
       .where('id', '=', membership.id)
       .execute();
 
-    await this.federationClient.notifyHub({
-      type: 'membership.departed',
-      sourceDid: cooperativeDid,
-      data: { networkDid, cooperativeDid, departedAt: now.toISOString() },
-      timestamp: now.toISOString(),
-    });
+    // Hub discovers membership changes via firehose — no explicit notification needed
   }
 }

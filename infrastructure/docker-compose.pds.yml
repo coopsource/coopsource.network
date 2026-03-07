@@ -48,6 +48,19 @@ services:
       retries: 3
       start_period: 10s
 
+  # Optional: Ozone labeling/moderation service
+  # Manages governance labels (proposal-approved, member-suspended, etc.)
+  # ozone:
+  #   image: ghcr.io/bluesky-social/ozone:latest
+  #   ports:
+  #     - "${OZONE_PORT:-3100}:3000"
+  #   environment:
+  #     OZONE_SERVER_DID: ${OZONE_DID:-}
+  #     OZONE_DB_POSTGRES_URL: ${OZONE_DB_URL:-postgresql://coopsource:dev_password@postgres:5432/ozone}
+  #     OZONE_APPVIEW_URL: http://api:3001
+  #     OZONE_PDS_URL: http://pds:3000
+  #   restart: unless-stopped
+
   # Optional: Tap firehose filter sidecar
   # Filters the relay firehose for network.coopsource.* collections.
   # When enabled, set RELAY_URL=ws://tap:6008 in the API service.
