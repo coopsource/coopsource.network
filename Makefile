@@ -6,7 +6,7 @@ SHELL := /bin/bash
 
 SCRIPTS := ./scripts/dev-services.sh
 
-.PHONY: help setup dev dev-clean start stop status ports install db-migrate db-reset clean test\:e2e test\:e2e-clean test\:e2e\:real test\:e2e\:mocked pds-up pds-status pds-logs pds-down dev-federation stop-federation migrate-all test-federation
+.PHONY: help setup dev dev-clean start stop status ports install db-migrate db-reset clean test\:e2e test\:e2e-clean test\:e2e\:real test\:e2e\:mocked pds-up pds-status pds-logs pds-down pds-dev provision-coop dev-federation stop-federation migrate-all test-federation
 
 help: ## Show all targets
 	@echo ""
@@ -73,6 +73,12 @@ pds-logs: ## Tail PDS + PLC logs
 
 pds-down: ## Stop PDS + PLC containers
 	docker compose -f infrastructure/docker-compose.yml stop plc pds
+
+pds-dev: start pds-up ## Start all services + PDS for V5 development
+	pnpm turbo dev --filter=@coopsource/api --filter=@coopsource/web
+
+provision-coop: ## Provision a cooperative identity on the PDS
+	pnpm --filter @coopsource/api exec tsx ../../scripts/provision-cooperative.ts $(ARGS)
 
 clean: stop ## Stop services + clean build artifacts
 	pnpm clean

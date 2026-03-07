@@ -16,6 +16,11 @@ const envSchema = z
     // Stage 2: Real ATProto PDS (when set, AtprotoPdsService is used instead of LocalPdsService)
     PDS_URL: z.string().url().optional(),
     PDS_ADMIN_PASSWORD: z.string().default('admin'),
+    // V5: Cooperative's own PDS and identity
+    COOP_PDS_URL: z.string().url().optional(),       // PDS URL for the cooperative's account
+    COOP_PDS_ADMIN_PASSWORD: z.string().optional(),  // Admin password for the cooperative's PDS
+    COOP_DID: z.string().optional(),                 // Cooperative's did:plc identifier
+    COOP_OPERATORS: z.string().optional(),            // Comma-separated DIDs of authorized operators
     // Frontend URL for OAuth redirects (API → frontend after OAuth callback)
     FRONTEND_URL: z.string().url().default('http://localhost:5173'),
     SMTP_HOST: z.string().default('localhost'),
