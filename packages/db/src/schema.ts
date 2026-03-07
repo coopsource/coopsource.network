@@ -831,6 +831,10 @@ export interface Database {
 
   // Governance labels (031)
   governance_label: GovernanceLabelTable;
+
+  // Ecosystem references (032)
+  calendar_event_ref: CalendarEventRefTable;
+  frontpage_post_ref: FrontpagePostRefTable;
 }
 
 // ──────────────────────────────────────────────
@@ -863,4 +867,29 @@ export interface GovernanceLabelTable {
   label_value: string;
   neg: ColumnType<boolean, boolean | undefined, boolean>;
   created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+// ──────────────────────────────────────────────
+// 032 — Ecosystem references
+// ──────────────────────────────────────────────
+
+export interface CalendarEventRefTable {
+  id: Generated<string>;
+  event_uri: string;
+  proposal_uri: string | null;
+  cooperative_did: string;
+  title: string | null;
+  starts_at: ColumnType<Date | null, Date | string | null | undefined, Date | string | null>;
+  rsvp_count: ColumnType<number, number | undefined, number>;
+  indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface FrontpagePostRefTable {
+  id: Generated<string>;
+  post_uri: string;
+  proposal_uri: string | null;
+  cooperative_did: string;
+  title: string | null;
+  comment_count: ColumnType<number, number | undefined, number>;
+  indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }

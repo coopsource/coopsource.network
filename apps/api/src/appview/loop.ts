@@ -16,11 +16,17 @@ import {
   indexOutcome,
   indexInterestMap,
 } from './indexers/alignment-indexer.js';
+import { indexCalendarEvent, indexCalendarRsvp } from './indexers/calendar-indexer.js';
+import { indexFrontpagePost } from './indexers/frontpage-indexer.js';
 import { subscribeRelay } from './relay-consumer.js';
 import { verifyCommitSignature } from './commit-verifier.js';
 import { collectionFromUri } from './utils.js';
 
-const COLLECTION_PREFIXES = ['network.coopsource.'];
+const COLLECTION_PREFIXES = [
+  'network.coopsource.',
+  'community.lexicon.calendar.',
+  'fyi.unravel.frontpage.',
+];
 
 const MAX_BACKOFF_MS = 30_000;
 
@@ -66,6 +72,16 @@ export async function dispatchFirehoseEvent(
       break;
     case 'network.coopsource.alignment.interestMap':
       await indexInterestMap(db, event);
+      break;
+    // Ecosystem collections (Phase 3)
+    case 'community.lexicon.calendar.event':
+      await indexCalendarEvent(db, event);
+      break;
+    case 'community.lexicon.calendar.rsvp':
+      await indexCalendarRsvp(db, event);
+      break;
+    case 'fyi.unravel.frontpage.post':
+      await indexFrontpagePost(db, event);
       break;
     default:
       // Unknown collection — skip

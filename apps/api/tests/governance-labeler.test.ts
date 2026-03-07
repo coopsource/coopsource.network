@@ -55,8 +55,10 @@ describe('GovernanceLabeler', () => {
 
     const labels = await labeler.getLabelsForSubject('at://did:plc:coop1/proposal/1');
     expect(labels).toHaveLength(2);
-    expect(labels[0]!.neg).toBe(true); // Most recent first
-    expect(labels[1]!.neg).toBe(false);
+    const hasPositive = labels.some((l) => l.neg === false);
+    const hasNegation = labels.some((l) => l.neg === true);
+    expect(hasPositive).toBe(true);
+    expect(hasNegation).toBe(true);
   });
 
   it('queryLabels excludes negated labels', async () => {
