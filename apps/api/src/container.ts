@@ -60,12 +60,15 @@ export function createContainer(config: AppConfig): Container {
   const db = createDb({ connectionString: config.DATABASE_URL! });
   const clock = new SystemClock();
 
-  // When PDS_URL is set, use AtprotoPdsService (real ATProto PDS);
+  // When PDS_URL (or COOP_PDS_URL) is set, use AtprotoPdsService (real ATProto PDS);
   // otherwise fall back to LocalPdsService (DB-backed, Stage 0-1).
-  const pdsService: IPdsService = config.PDS_URL
+  // COOP_PDS_URL/COOP_PDS_ADMIN_PASSWORD take precedence (V5 cooperative identity).
+  const effectivePdsUrl = config.COOP_PDS_URL ?? config.PDS_URL;
+  const effectivePdsPassword = config.COOP_PDS_ADMIN_PASSWORD ?? config.PDS_ADMIN_PASSWORD;
+  const pdsService: IPdsService = effectivePdsUrl
     ? new AtprotoPdsService(
-        config.PDS_URL,
-        config.PDS_ADMIN_PASSWORD,
+        effectivePdsUrl,
+        effectivePdsPassword,
         config.PLC_URL === 'local' ? undefined : config.PLC_URL,
       )
     : new LocalPdsService(
