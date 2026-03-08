@@ -34,6 +34,8 @@ import { OfficerRecordService } from '../../src/services/officer-record-service.
 import { MeetingRecordService } from '../../src/services/meeting-record-service.js';
 import { MemberNoticeService } from '../../src/services/member-notice-service.js';
 import { FiscalPeriodService } from '../../src/services/fiscal-period-service.js';
+import { PrivateRecordService } from '../../src/services/private-record-service.js';
+import { VisibilityRouter } from '../../src/services/visibility-router.js';
 import type { AppConfig } from '../../src/config.js';
 import { setDb, resetSetupCache } from '../../src/auth/middleware.js';
 import { setPermissionsDb } from '../../src/middleware/permissions.js';
@@ -71,6 +73,7 @@ import { createOfficerRoutes } from '../../src/routes/admin-legal/officers.js';
 import { createComplianceRoutes } from '../../src/routes/admin-legal/compliance.js';
 import { createNoticeRoutes } from '../../src/routes/admin-legal/notices.js';
 import { createFiscalPeriodRoutes } from '../../src/routes/admin-legal/fiscal-periods.js';
+import { createPrivateRecordRoutes } from '../../src/routes/private/records.js';
 import { errorHandler } from '../../src/middleware/error-handler.js';
 import { getTestDb, getTestConnectionString } from './test-db.js';
 
@@ -145,6 +148,8 @@ export function createTestApp(): TestApp {
   const meetingRecordService = new MeetingRecordService(db, clock);
   const memberNoticeService = new MemberNoticeService(db, clock);
   const fiscalPeriodService = new FiscalPeriodService(db, clock);
+  const privateRecordService = new PrivateRecordService(db, clock);
+  const visibilityRouter = new VisibilityRouter(db, privateRecordService);
 
   const container: Container = {
     db,
@@ -178,6 +183,8 @@ export function createTestApp(): TestApp {
     meetingRecordService,
     memberNoticeService,
     fiscalPeriodService,
+    privateRecordService,
+    visibilityRouter,
   };
 
   // Set the DB reference for auth middleware + permissions middleware
@@ -239,6 +246,7 @@ export function createTestApp(): TestApp {
   app.use(createComplianceRoutes(container));
   app.use(createNoticeRoutes(container));
   app.use(createFiscalPeriodRoutes(container));
+  app.use(createPrivateRecordRoutes(container));
 
   // Error handler (must be last)
   app.use(errorHandler);

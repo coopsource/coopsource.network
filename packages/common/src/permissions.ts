@@ -36,6 +36,7 @@ export const PERMISSIONS = {
   'legal.manage': 'Manage legal documents and meeting records',
   'compliance.manage': 'Manage compliance calendar and fiscal periods',
   'officer.manage': 'Manage officer appointments',
+  'private.manage': 'Manage private records and visibility settings',
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -75,6 +76,7 @@ export const BUILT_IN_ROLES: Record<
       'legal.manage',
       'compliance.manage',
       'officer.manage',
+      'private.manage',
     ],
     inherits: ['member'],
   },

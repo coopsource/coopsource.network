@@ -56,6 +56,7 @@ import { createOfficerRoutes } from './routes/admin-legal/officers.js';
 import { createComplianceRoutes } from './routes/admin-legal/compliance.js';
 import { createNoticeRoutes } from './routes/admin-legal/notices.js';
 import { createFiscalPeriodRoutes } from './routes/admin-legal/fiscal-periods.js';
+import { createPrivateRecordRoutes } from './routes/private/records.js';
 import { startAppViewLoop } from './appview/loop.js';
 import { createOAuthClient } from './auth/oauth-client.js';
 
@@ -186,6 +187,9 @@ async function start(): Promise<void> {
   app.use(createComplianceRoutes(container));
   app.use(createNoticeRoutes(container));
   app.use(createFiscalPeriodRoutes(container));
+
+  // Private record routes (Phase 5)
+  app.use(createPrivateRecordRoutes(container));
 
   // Governance label routes
   app.use(createLabelRoutes(container.governanceLabeler));

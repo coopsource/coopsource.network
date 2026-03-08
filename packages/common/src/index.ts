@@ -85,6 +85,9 @@ export {
   CreateComplianceItemSchema,
   CreateMemberNoticeSchema,
   CreateFiscalPeriodSchema,
+  GovernanceVisibilityEnum,
+  CreatePrivateRecordSchema,
+  UpdatePrivateRecordSchema,
 } from './validation.js';
 export type {
   CreateCooperativeInput,
@@ -135,6 +138,9 @@ export type {
   CreateComplianceItemInput,
   CreateMemberNoticeInput,
   CreateFiscalPeriodInput,
+  CreatePrivateRecordInput,
+  UpdatePrivateRecordInput,
+  GovernanceVisibility,
 } from './validation.js';
 export { encodeAtUri, decodeAtUri, extractRkey, buildAtUri } from './uri.js';
 export { didWebToUrl, urlToDidWeb, buildMemberDidWeb, isDidWeb } from './did-web.js';

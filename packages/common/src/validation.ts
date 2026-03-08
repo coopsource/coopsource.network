@@ -662,6 +662,8 @@ export const LoginSchema = z.object({
   password: z.string().min(1),
 });
 
+export const GovernanceVisibilityEnum = z.enum(['open', 'closed', 'mixed']);
+
 export const UpdateCoopSchema = z.object({
   displayName: z.string().min(1).max(255).optional(),
   description: z.string().max(2000).optional(),
@@ -671,6 +673,7 @@ export const UpdateCoopSchema = z.object({
   publicActivity: z.boolean().optional(),
   publicAgreements: z.boolean().optional(),
   publicCampaigns: z.boolean().optional(),
+  governanceVisibility: GovernanceVisibilityEnum.optional(),
 });
 
 export const CreateInvitationSchema = z.object({
@@ -812,3 +815,19 @@ export type CreateOfficerInput = z.infer<typeof CreateOfficerSchema>;
 export type CreateComplianceItemInput = z.infer<typeof CreateComplianceItemSchema>;
 export type CreateMemberNoticeInput = z.infer<typeof CreateMemberNoticeSchema>;
 export type CreateFiscalPeriodInput = z.infer<typeof CreateFiscalPeriodSchema>;
+
+// --- Private Record Schemas ---
+
+export const CreatePrivateRecordSchema = z.object({
+  collection: z.string().min(1).max(500),
+  rkey: z.string().min(1).max(500).optional(),
+  record: z.record(z.string(), z.unknown()),
+});
+
+export const UpdatePrivateRecordSchema = z.object({
+  record: z.record(z.string(), z.unknown()),
+});
+
+export type CreatePrivateRecordInput = z.infer<typeof CreatePrivateRecordSchema>;
+export type UpdatePrivateRecordInput = z.infer<typeof UpdatePrivateRecordSchema>;
+export type GovernanceVisibility = z.infer<typeof GovernanceVisibilityEnum>;

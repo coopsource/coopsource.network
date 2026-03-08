@@ -70,6 +70,7 @@ export interface CooperativeProfileTable {
   public_activity: ColumnType<boolean, boolean | undefined, boolean>;
   public_agreements: ColumnType<boolean, boolean | undefined, boolean>;
   public_campaigns: ColumnType<boolean, boolean | undefined, boolean>;
+  governance_visibility: ColumnType<string, string | undefined, string>;
   created_at: ColumnType<Date, Date | string | undefined, Date | string>;
   indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }

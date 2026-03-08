@@ -30,6 +30,7 @@ export class EntityService {
       public_activity: boolean;
       public_agreements: boolean;
       public_campaigns: boolean;
+      governance_visibility: string;
     };
   } | null> {
     const row = await this.db
@@ -59,6 +60,7 @@ export class EntityService {
         'cooperative_profile.public_activity',
         'cooperative_profile.public_agreements',
         'cooperative_profile.public_campaigns',
+        'cooperative_profile.governance_visibility',
       ])
       .executeTakeFirst();
 
@@ -85,6 +87,7 @@ export class EntityService {
         public_activity: row.public_activity,
         public_agreements: row.public_agreements,
         public_campaigns: row.public_campaigns,
+        governance_visibility: row.governance_visibility,
       },
     };
   }
@@ -112,6 +115,7 @@ export class EntityService {
       public_activity: boolean;
       public_agreements: boolean;
       public_campaigns: boolean;
+      governance_visibility: string;
     };
   } | null> {
     const row = await this.db
@@ -144,6 +148,7 @@ export class EntityService {
         'cooperative_profile.public_activity',
         'cooperative_profile.public_agreements',
         'cooperative_profile.public_campaigns',
+        'cooperative_profile.governance_visibility',
       ])
       .executeTakeFirst();
 
@@ -172,6 +177,7 @@ export class EntityService {
         public_activity: row.public_activity,
         public_agreements: row.public_agreements,
         public_campaigns: row.public_campaigns,
+        governance_visibility: row.governance_visibility,
       },
     };
   }
@@ -187,6 +193,7 @@ export class EntityService {
       publicActivity?: boolean;
       publicAgreements?: boolean;
       publicCampaigns?: boolean;
+      governanceVisibility?: string;
     },
   ): Promise<void> {
     const entity = await this.db
@@ -221,6 +228,7 @@ export class EntityService {
     if (updates.publicActivity !== undefined) profileUpdates.public_activity = updates.publicActivity;
     if (updates.publicAgreements !== undefined) profileUpdates.public_agreements = updates.publicAgreements;
     if (updates.publicCampaigns !== undefined) profileUpdates.public_campaigns = updates.publicCampaigns;
+    if (updates.governanceVisibility !== undefined) profileUpdates.governance_visibility = updates.governanceVisibility;
 
     if (Object.keys(profileUpdates).length > 0) {
       profileUpdates.indexed_at = new Date();

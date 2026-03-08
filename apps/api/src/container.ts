@@ -36,6 +36,8 @@ import { OfficerRecordService } from './services/officer-record-service.js';
 import { MeetingRecordService } from './services/meeting-record-service.js';
 import { MemberNoticeService } from './services/member-notice-service.js';
 import { FiscalPeriodService } from './services/fiscal-period-service.js';
+import { PrivateRecordService } from './services/private-record-service.js';
+import { VisibilityRouter } from './services/visibility-router.js';
 
 export interface Container {
   db: Kysely<Database>;
@@ -70,6 +72,8 @@ export interface Container {
   meetingRecordService: MeetingRecordService;
   memberNoticeService: MemberNoticeService;
   fiscalPeriodService: FiscalPeriodService;
+  privateRecordService: PrivateRecordService;
+  visibilityRouter: VisibilityRouter;
 }
 
 export function createContainer(config: AppConfig): Container {
@@ -142,6 +146,8 @@ export function createContainer(config: AppConfig): Container {
   const meetingRecordService = new MeetingRecordService(db, clock);
   const memberNoticeService = new MemberNoticeService(db, clock);
   const fiscalPeriodService = new FiscalPeriodService(db, clock);
+  const privateRecordService = new PrivateRecordService(db, clock);
+  const visibilityRouter = new VisibilityRouter(db, privateRecordService);
 
   return {
     db,
@@ -176,5 +182,7 @@ export function createContainer(config: AppConfig): Container {
     meetingRecordService,
     memberNoticeService,
     fiscalPeriodService,
+    privateRecordService,
+    visibilityRouter,
   };
 }
