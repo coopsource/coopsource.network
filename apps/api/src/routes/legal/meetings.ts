@@ -75,6 +75,7 @@ export function createMeetingRoutes(container: Container): Router {
     asyncHandler(async (req, res) => {
       const meeting = await container.meetingRecordService.certify(
         String(req.params.id),
+        req.actor!.cooperativeDid,
         req.actor!.did,
       );
 

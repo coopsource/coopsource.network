@@ -49,10 +49,11 @@ export class MeetingRecordService {
     return row!;
   }
 
-  async getById(id: string): Promise<MeetingRow> {
+  async getById(id: string, cooperativeDid: string): Promise<MeetingRow> {
     const row = await this.db
       .selectFrom('meeting_record')
       .where('id', '=', id)
+      .where('cooperative_did', '=', cooperativeDid)
       .where('invalidated_at', 'is', null)
       .selectAll()
       .executeTakeFirst();
@@ -106,8 +107,8 @@ export class MeetingRecordService {
     return { items: slice, cursor };
   }
 
-  async certify(id: string, certifierDid: string): Promise<MeetingRow> {
-    const existing = await this.getById(id);
+  async certify(id: string, cooperativeDid: string, certifierDid: string): Promise<MeetingRow> {
+    const existing = await this.getById(id, cooperativeDid);
 
     if (existing.certified_by) {
       throw new ConflictError('Meeting record is already certified');

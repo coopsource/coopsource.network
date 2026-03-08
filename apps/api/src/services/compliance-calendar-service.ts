@@ -89,11 +89,13 @@ export class ComplianceCalendarService {
 
   async markCompleted(
     id: string,
+    cooperativeDid: string,
     completedBy: string,
   ): Promise<ComplianceRow> {
     const existing = await this.db
       .selectFrom('compliance_item')
       .where('id', '=', id)
+      .where('cooperative_did', '=', cooperativeDid)
       .where('invalidated_at', 'is', null)
       .selectAll()
       .executeTakeFirst();

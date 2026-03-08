@@ -72,6 +72,7 @@ export async function truncateAllTables(): Promise<void> {
     TRUNCATE TABLE
       fiscal_period, member_notice, compliance_item, admin_officer,
       meeting_record, legal_document,
+      frontpage_post_ref, calendar_event_ref, governance_label,
       operator_audit_log, private_record,
       trigger_execution_log, notification,
       api_token, agent_trigger, agent_usage, agent_message, agent_session, agent_config,

@@ -46,10 +46,11 @@ export class LegalDocumentService {
     return row!;
   }
 
-  async getById(id: string): Promise<DocumentRow> {
+  async getById(id: string, cooperativeDid: string): Promise<DocumentRow> {
     const row = await this.db
       .selectFrom('legal_document')
       .where('id', '=', id)
+      .where('cooperative_did', '=', cooperativeDid)
       .where('invalidated_at', 'is', null)
       .selectAll()
       .executeTakeFirst();
@@ -117,7 +118,7 @@ export class LegalDocumentService {
       status?: string;
     },
   ): Promise<DocumentRow> {
-    const existing = await this.getById(id);
+    const existing = await this.getById(id, cooperativeDid);
 
     // Creating a new version: supersede the old, create new
     if (data.title !== undefined || data.body !== undefined) {

@@ -46,10 +46,11 @@ export class OfficerRecordService {
     return row!;
   }
 
-  async endTerm(id: string): Promise<OfficerRow> {
+  async endTerm(id: string, cooperativeDid: string): Promise<OfficerRow> {
     const existing = await this.db
       .selectFrom('admin_officer')
       .where('id', '=', id)
+      .where('cooperative_did', '=', cooperativeDid)
       .where('invalidated_at', 'is', null)
       .selectAll()
       .executeTakeFirst();

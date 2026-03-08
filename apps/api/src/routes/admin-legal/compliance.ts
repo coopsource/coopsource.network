@@ -72,6 +72,7 @@ export function createComplianceRoutes(container: Container): Router {
     asyncHandler(async (req, res) => {
       const item = await container.complianceCalendarService.markCompleted(
         String(req.params.id),
+        req.actor!.cooperativeDid,
         req.actor!.did,
       );
 

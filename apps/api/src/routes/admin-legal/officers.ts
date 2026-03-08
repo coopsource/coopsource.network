@@ -72,6 +72,7 @@ export function createOfficerRoutes(container: Container): Router {
     asyncHandler(async (req, res) => {
       const officer = await container.officerRecordService.endTerm(
         String(req.params.id),
+        req.actor!.cooperativeDid,
       );
 
       res.json(formatOfficer(officer));

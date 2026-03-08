@@ -38,6 +38,12 @@
             "format": "at-uri",
             "description": "AT-URI of the previous version in the chain."
           },
+          "bodyFormat": {
+            "type": "string",
+            "maxLength": 50,
+            "description": "Format of the body text.",
+            "knownValues": ["markdown", "plain", "html"]
+          },
           "status": {
             "type": "string",
             "knownValues": ["draft", "active", "superseded", "archived"]

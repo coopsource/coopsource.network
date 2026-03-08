@@ -78,6 +78,7 @@ export function createLegalDocumentRoutes(container: Container): Router {
     asyncHandler(async (req, res) => {
       const doc = await container.legalDocumentService.getById(
         String(req.params.id),
+        req.actor!.cooperativeDid,
       );
 
       res.json(formatDocument(doc));

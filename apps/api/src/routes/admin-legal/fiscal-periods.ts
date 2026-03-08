@@ -68,6 +68,7 @@ export function createFiscalPeriodRoutes(container: Container): Router {
     asyncHandler(async (req, res) => {
       const period = await container.fiscalPeriodService.close(
         String(req.params.id),
+        req.actor!.cooperativeDid,
       );
 
       res.json(formatFiscalPeriod(period));

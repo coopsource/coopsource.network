@@ -81,10 +81,11 @@ export class FiscalPeriodService {
     return { items: slice, cursor };
   }
 
-  async close(id: string): Promise<FiscalRow> {
+  async close(id: string, cooperativeDid: string): Promise<FiscalRow> {
     const existing = await this.db
       .selectFrom('fiscal_period')
       .where('id', '=', id)
+      .where('cooperative_did', '=', cooperativeDid)
       .where('invalidated_at', 'is', null)
       .selectAll()
       .executeTakeFirst();
