@@ -831,3 +831,53 @@ export const UpdatePrivateRecordSchema = z.object({
 export type CreatePrivateRecordInput = z.infer<typeof CreatePrivateRecordSchema>;
 export type UpdatePrivateRecordInput = z.infer<typeof UpdatePrivateRecordSchema>;
 export type GovernanceVisibility = z.infer<typeof GovernanceVisibilityEnum>;
+
+// --- Financial Tool Schemas ---
+
+export const PatronageMetricTypeEnum = z.enum([
+  'hours_worked', 'salary', 'combined', 'purchase_volume', 'supply_volume', 'custom',
+]);
+
+export const CreatePatronageConfigSchema = z.object({
+  stakeholderClass: z.string().max(100).nullable().optional(),
+  metricType: PatronageMetricTypeEnum,
+  metricWeights: z.record(z.string(), z.number()).optional(),
+  cashPayoutPct: z.number().int().min(20).max(100).default(20),
+});
+
+export const UpdatePatronageConfigSchema = z.object({
+  metricType: PatronageMetricTypeEnum.optional(),
+  metricWeights: z.record(z.string(), z.number()).optional(),
+  cashPayoutPct: z.number().int().min(20).max(100).optional(),
+});
+
+export const PatronageMetricInputSchema = z.object({
+  memberDid: z.string().min(1),
+  metricValue: z.number().nonnegative(),
+  stakeholderClass: z.string().max(100).nullable().optional(),
+});
+
+export const RunPatronageCalculationSchema = z.object({
+  fiscalPeriodId: z.string().min(1),
+  totalSurplus: z.number().nonnegative(),
+  metrics: z.array(PatronageMetricInputSchema).min(1),
+});
+
+export const RecordContributionSchema = z.object({
+  memberDid: z.string().min(1),
+  amount: z.number().positive(),
+  description: z.string().max(500).optional(),
+});
+
+export const RedeemAllocationSchema = z.object({
+  memberDid: z.string().min(1),
+  amount: z.number().positive(),
+  description: z.string().max(500).optional(),
+});
+
+export type CreatePatronageConfigInput = z.infer<typeof CreatePatronageConfigSchema>;
+export type UpdatePatronageConfigInput = z.infer<typeof UpdatePatronageConfigSchema>;
+export type RunPatronageCalculationInput = z.infer<typeof RunPatronageCalculationSchema>;
+export type PatronageMetricInput = z.infer<typeof PatronageMetricInputSchema>;
+export type RecordContributionInput = z.infer<typeof RecordContributionSchema>;
+export type RedeemAllocationInput = z.infer<typeof RedeemAllocationSchema>;

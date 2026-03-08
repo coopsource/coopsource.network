@@ -88,6 +88,13 @@ export {
   GovernanceVisibilityEnum,
   CreatePrivateRecordSchema,
   UpdatePrivateRecordSchema,
+  PatronageMetricTypeEnum,
+  CreatePatronageConfigSchema,
+  UpdatePatronageConfigSchema,
+  PatronageMetricInputSchema,
+  RunPatronageCalculationSchema,
+  RecordContributionSchema,
+  RedeemAllocationSchema,
 } from './validation.js';
 export type {
   CreateCooperativeInput,
@@ -141,6 +148,12 @@ export type {
   CreatePrivateRecordInput,
   UpdatePrivateRecordInput,
   GovernanceVisibility,
+  CreatePatronageConfigInput,
+  UpdatePatronageConfigInput,
+  RunPatronageCalculationInput,
+  PatronageMetricInput,
+  RecordContributionInput,
+  RedeemAllocationInput,
 } from './validation.js';
 export { encodeAtUri, decodeAtUri, extractRkey, buildAtUri } from './uri.js';
 export { didWebToUrl, urlToDidWeb, buildMemberDidWeb, isDidWeb } from './did-web.js';

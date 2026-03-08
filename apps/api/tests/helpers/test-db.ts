@@ -70,6 +70,8 @@ export async function truncateAllTables(): Promise<void> {
   const db = getTestDb();
   await sql`
     TRUNCATE TABLE
+      tax_form_1099_patr, capital_account_transaction, capital_account,
+      patronage_record, patronage_config,
       fiscal_period, member_notice, compliance_item, admin_officer,
       meeting_record, legal_document,
       frontpage_post_ref, calendar_event_ref, governance_label,

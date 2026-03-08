@@ -38,6 +38,9 @@ import { MemberNoticeService } from './services/member-notice-service.js';
 import { FiscalPeriodService } from './services/fiscal-period-service.js';
 import { PrivateRecordService } from './services/private-record-service.js';
 import { VisibilityRouter } from './services/visibility-router.js';
+import { PatronageService } from './services/patronage-service.js';
+import { CapitalAccountService } from './services/capital-account-service.js';
+import { Tax1099Service } from './services/tax-1099-service.js';
 
 export interface Container {
   db: Kysely<Database>;
@@ -74,6 +77,9 @@ export interface Container {
   fiscalPeriodService: FiscalPeriodService;
   privateRecordService: PrivateRecordService;
   visibilityRouter: VisibilityRouter;
+  patronageService: PatronageService;
+  capitalAccountService: CapitalAccountService;
+  tax1099Service: Tax1099Service;
 }
 
 export function createContainer(config: AppConfig): Container {
@@ -148,6 +154,9 @@ export function createContainer(config: AppConfig): Container {
   const fiscalPeriodService = new FiscalPeriodService(db, clock);
   const privateRecordService = new PrivateRecordService(db, clock);
   const visibilityRouter = new VisibilityRouter(db, privateRecordService);
+  const patronageService = new PatronageService(db, clock);
+  const capitalAccountService = new CapitalAccountService(db, clock);
+  const tax1099Service = new Tax1099Service(db, clock);
 
   return {
     db,
@@ -184,5 +193,8 @@ export function createContainer(config: AppConfig): Container {
     fiscalPeriodService,
     privateRecordService,
     visibilityRouter,
+    patronageService,
+    capitalAccountService,
+    tax1099Service,
   };
 }

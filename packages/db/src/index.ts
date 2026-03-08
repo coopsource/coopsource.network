@@ -58,4 +58,10 @@ export type {
   ComplianceItemTable,
   MemberNoticeTable,
   FiscalPeriodTable,
+  // Financial tools (035)
+  PatronageConfigTable,
+  PatronageRecordTable,
+  CapitalAccountTable,
+  CapitalAccountTransactionTable,
+  TaxForm1099PatrTable,
 } from './schema.js';

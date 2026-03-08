@@ -844,6 +844,13 @@ export interface Database {
   compliance_item: ComplianceItemTable;
   member_notice: MemberNoticeTable;
   fiscal_period: FiscalPeriodTable;
+
+  // Financial tools (035)
+  patronage_config: PatronageConfigTable;
+  patronage_record: PatronageRecordTable;
+  capital_account: CapitalAccountTable;
+  capital_account_transaction: CapitalAccountTransactionTable;
+  tax_form_1099_patr: TaxForm1099PatrTable;
 }
 
 // ──────────────────────────────────────────────
@@ -1006,4 +1013,82 @@ export interface FiscalPeriodTable {
   created_at: ColumnType<Date, Date | string | undefined, Date | string>;
   indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
   invalidated_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+}
+
+// ──────────────────────────────────────────────
+// 035 — Financial tools (patronage, capital accounts, 1099-PATR)
+// ──────────────────────────────────────────────
+
+export interface PatronageConfigTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  stakeholder_class: string | null;
+  metric_type: string;
+  metric_weights: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
+  cash_payout_pct: ColumnType<number, number | undefined, number>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface PatronageRecordTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  fiscal_period_id: string;
+  member_did: string;
+  stakeholder_class: string | null;
+  metric_value: ColumnType<string, string | number, string | number>;
+  patronage_ratio: ColumnType<string, string | number, string | number>;
+  total_allocation: ColumnType<string, string | number, string | number>;
+  cash_amount: ColumnType<string, string | number, string | number>;
+  retained_amount: ColumnType<string, string | number, string | number>;
+  status: string;
+  approved_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  distributed_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface CapitalAccountTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  member_did: string;
+  initial_contribution: ColumnType<string, string | number | undefined, string | number>;
+  total_patronage_allocated: ColumnType<string, string | number | undefined, string | number>;
+  total_redeemed: ColumnType<string, string | number | undefined, string | number>;
+  balance: ColumnType<string, string | number | undefined, string | number>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface CapitalAccountTransactionTable {
+  id: Generated<string>;
+  capital_account_id: string;
+  cooperative_did: string;
+  member_did: string;
+  transaction_type: string;
+  amount: ColumnType<string, string | number, string | number>;
+  fiscal_period_id: string | null;
+  patronage_record_id: string | null;
+  description: string | null;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  created_by: string;
+}
+
+export interface TaxForm1099PatrTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  fiscal_period_id: string;
+  member_did: string;
+  tax_year: number;
+  patronage_dividends: ColumnType<string, string | number, string | number>;
+  per_unit_retain_allocated: ColumnType<string, string | number | undefined, string | number>;
+  qualified_payments: ColumnType<string, string | number | undefined, string | number>;
+  cash_paid: ColumnType<string, string | number | undefined, string | number>;
+  cash_deadline: ColumnType<Date, Date | string, Date | string>;
+  cash_paid_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  generation_status: string;
+  generated_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  sent_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }

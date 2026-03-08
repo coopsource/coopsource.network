@@ -36,6 +36,9 @@ import { MemberNoticeService } from '../../src/services/member-notice-service.js
 import { FiscalPeriodService } from '../../src/services/fiscal-period-service.js';
 import { PrivateRecordService } from '../../src/services/private-record-service.js';
 import { VisibilityRouter } from '../../src/services/visibility-router.js';
+import { PatronageService } from '../../src/services/patronage-service.js';
+import { CapitalAccountService } from '../../src/services/capital-account-service.js';
+import { Tax1099Service } from '../../src/services/tax-1099-service.js';
 import type { AppConfig } from '../../src/config.js';
 import { setDb, resetSetupCache } from '../../src/auth/middleware.js';
 import { setPermissionsDb } from '../../src/middleware/permissions.js';
@@ -74,6 +77,9 @@ import { createComplianceRoutes } from '../../src/routes/admin-legal/compliance.
 import { createNoticeRoutes } from '../../src/routes/admin-legal/notices.js';
 import { createFiscalPeriodRoutes } from '../../src/routes/admin-legal/fiscal-periods.js';
 import { createPrivateRecordRoutes } from '../../src/routes/private/records.js';
+import { createPatronageRoutes } from '../../src/routes/financial/patronage.js';
+import { createCapitalAccountRoutes } from '../../src/routes/financial/capital-accounts.js';
+import { createTaxFormRoutes } from '../../src/routes/financial/tax-forms.js';
 import { errorHandler } from '../../src/middleware/error-handler.js';
 import { getTestDb, getTestConnectionString } from './test-db.js';
 
@@ -150,6 +156,9 @@ export function createTestApp(): TestApp {
   const fiscalPeriodService = new FiscalPeriodService(db, clock);
   const privateRecordService = new PrivateRecordService(db, clock);
   const visibilityRouter = new VisibilityRouter(db, privateRecordService);
+  const patronageService = new PatronageService(db, clock);
+  const capitalAccountService = new CapitalAccountService(db, clock);
+  const tax1099Service = new Tax1099Service(db, clock);
 
   const container: Container = {
     db,
@@ -185,6 +194,9 @@ export function createTestApp(): TestApp {
     fiscalPeriodService,
     privateRecordService,
     visibilityRouter,
+    patronageService,
+    capitalAccountService,
+    tax1099Service,
   };
 
   // Set the DB reference for auth middleware + permissions middleware
@@ -247,6 +259,9 @@ export function createTestApp(): TestApp {
   app.use(createNoticeRoutes(container));
   app.use(createFiscalPeriodRoutes(container));
   app.use(createPrivateRecordRoutes(container));
+  app.use(createPatronageRoutes(container));
+  app.use(createCapitalAccountRoutes(container));
+  app.use(createTaxFormRoutes(container));
 
   // Error handler (must be last)
   app.use(errorHandler);

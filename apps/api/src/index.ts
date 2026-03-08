@@ -57,6 +57,9 @@ import { createComplianceRoutes } from './routes/admin-legal/compliance.js';
 import { createNoticeRoutes } from './routes/admin-legal/notices.js';
 import { createFiscalPeriodRoutes } from './routes/admin-legal/fiscal-periods.js';
 import { createPrivateRecordRoutes } from './routes/private/records.js';
+import { createPatronageRoutes } from './routes/financial/patronage.js';
+import { createCapitalAccountRoutes } from './routes/financial/capital-accounts.js';
+import { createTaxFormRoutes } from './routes/financial/tax-forms.js';
 import { startAppViewLoop } from './appview/loop.js';
 import { createOAuthClient } from './auth/oauth-client.js';
 
@@ -190,6 +193,11 @@ async function start(): Promise<void> {
 
   // Private record routes (Phase 5)
   app.use(createPrivateRecordRoutes(container));
+
+  // Financial tools (Phase 6)
+  app.use(createPatronageRoutes(container));
+  app.use(createCapitalAccountRoutes(container));
+  app.use(createTaxFormRoutes(container));
 
   // Governance label routes
   app.use(createLabelRoutes(container.governanceLabeler));
