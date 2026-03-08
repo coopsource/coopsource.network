@@ -64,4 +64,11 @@ export type {
   CapitalAccountTable,
   CapitalAccountTransactionTable,
   TaxForm1099PatrTable,
+  // Onboarding tables (031)
+  OnboardingConfigTable,
+  OnboardingProgressTable,
+  OnboardingReviewTable,
+  // Weighted voting + cooperative links (032)
+  MemberClassTable,
+  CooperativeLinkTable,
 } from './schema.js';

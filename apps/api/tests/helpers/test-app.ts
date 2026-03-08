@@ -39,6 +39,11 @@ import { VisibilityRouter } from '../../src/services/visibility-router.js';
 import { PatronageService } from '../../src/services/patronage-service.js';
 import { CapitalAccountService } from '../../src/services/capital-account-service.js';
 import { Tax1099Service } from '../../src/services/tax-1099-service.js';
+import { OnboardingService } from '../../src/services/onboarding-service.js';
+import { DelegationVotingService } from '../../src/services/delegation-voting-service.js';
+import { GovernanceFeedService } from '../../src/services/governance-feed-service.js';
+import { MemberClassService } from '../../src/services/member-class-service.js';
+import { CooperativeLinkService } from '../../src/services/cooperative-link-service.js';
 import type { AppConfig } from '../../src/config.js';
 import { setDb, resetSetupCache } from '../../src/auth/middleware.js';
 import { setPermissionsDb } from '../../src/middleware/permissions.js';
@@ -80,6 +85,11 @@ import { createPrivateRecordRoutes } from '../../src/routes/private/records.js';
 import { createPatronageRoutes } from '../../src/routes/financial/patronage.js';
 import { createCapitalAccountRoutes } from '../../src/routes/financial/capital-accounts.js';
 import { createTaxFormRoutes } from '../../src/routes/financial/tax-forms.js';
+import { createOnboardingRoutes } from '../../src/routes/onboarding/config.js';
+import { createDelegationRoutes } from '../../src/routes/governance/delegations.js';
+import { createGovernanceFeedRoutes } from '../../src/routes/governance/feed.js';
+import { createMemberClassRoutes } from '../../src/routes/governance/member-classes.js';
+import { createCooperativeLinkRoutes } from '../../src/routes/governance/cooperative-links.js';
 import { errorHandler } from '../../src/middleware/error-handler.js';
 import { getTestDb, getTestConnectionString } from './test-db.js';
 
@@ -159,6 +169,11 @@ export function createTestApp(): TestApp {
   const patronageService = new PatronageService(db, clock);
   const capitalAccountService = new CapitalAccountService(db, clock);
   const tax1099Service = new Tax1099Service(db, clock);
+  const onboardingService = new OnboardingService(db, clock);
+  const delegationVotingService = new DelegationVotingService(db, clock);
+  const governanceFeedService = new GovernanceFeedService(db, clock);
+  const memberClassService = new MemberClassService(db, clock);
+  const cooperativeLinkService = new CooperativeLinkService(db, clock);
 
   const container: Container = {
     db,
@@ -197,6 +212,11 @@ export function createTestApp(): TestApp {
     patronageService,
     capitalAccountService,
     tax1099Service,
+    onboardingService,
+    delegationVotingService,
+    governanceFeedService,
+    memberClassService,
+    cooperativeLinkService,
   };
 
   // Set the DB reference for auth middleware + permissions middleware
@@ -262,6 +282,11 @@ export function createTestApp(): TestApp {
   app.use(createPatronageRoutes(container));
   app.use(createCapitalAccountRoutes(container));
   app.use(createTaxFormRoutes(container));
+  app.use(createOnboardingRoutes(container));
+  app.use(createDelegationRoutes(container));
+  app.use(createGovernanceFeedRoutes(container));
+  app.use(createMemberClassRoutes(container));
+  app.use(createCooperativeLinkRoutes(container));
 
   // Error handler (must be last)
   app.use(errorHandler);

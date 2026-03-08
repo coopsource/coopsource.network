@@ -38,6 +38,8 @@ export const PERMISSIONS = {
   'officer.manage': 'Manage officer appointments',
   'private.manage': 'Manage private records and visibility settings',
   'financial.manage': 'Manage patronage calculations, capital accounts, and tax forms',
+  'onboarding.manage': 'Manage onboarding configuration and member progress',
+  'coop.links.manage': 'Manage inter-cooperative connections',
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -79,6 +81,8 @@ export const BUILT_IN_ROLES: Record<
       'officer.manage',
       'private.manage',
       'financial.manage',
+      'onboarding.manage',
+      'coop.links.manage',
     ],
     inherits: ['member'],
   },

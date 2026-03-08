@@ -881,3 +881,125 @@ export type RunPatronageCalculationInput = z.infer<typeof RunPatronageCalculatio
 export type PatronageMetricInput = z.infer<typeof PatronageMetricInputSchema>;
 export type RecordContributionInput = z.infer<typeof RecordContributionSchema>;
 export type RedeemAllocationInput = z.infer<typeof RedeemAllocationSchema>;
+
+// --- Onboarding Schemas ---
+
+const MilestoneSchema = z.object({
+  name: z.string().min(1).max(255),
+  description: z.string().max(2000).optional(),
+  order: z.number().int().min(0).default(0),
+});
+
+export const CreateOnboardingConfigSchema = z.object({
+  probationDurationDays: z.number().int().min(1).max(365).default(90),
+  requireTraining: z.boolean().default(false),
+  requireBuyIn: z.boolean().default(false),
+  buyInAmount: z.number().nonnegative().default(0),
+  buddySystemEnabled: z.boolean().default(false),
+  milestones: z.array(MilestoneSchema).max(50).default([]),
+});
+
+export const UpdateOnboardingConfigSchema = z.object({
+  probationDurationDays: z.number().int().min(1).max(365).optional(),
+  requireTraining: z.boolean().optional(),
+  requireBuyIn: z.boolean().optional(),
+  buyInAmount: z.number().nonnegative().optional(),
+  buddySystemEnabled: z.boolean().optional(),
+  milestones: z.array(MilestoneSchema).max(50).optional(),
+});
+
+export const StartOnboardingSchema = z.object({
+  memberDid: z.string().min(1),
+  buddyDid: z.string().min(1).optional(),
+});
+
+export const CompleteTrainingSchema = z.object({
+  memberDid: z.string().min(1),
+});
+
+export const CompleteBuyInSchema = z.object({
+  memberDid: z.string().min(1),
+});
+
+export const CompleteMilestoneSchema = z.object({
+  memberDid: z.string().min(1),
+  milestoneName: z.string().min(1).max(255),
+});
+
+export const AssignBuddySchema = z.object({
+  memberDid: z.string().min(1),
+  buddyDid: z.string().min(1),
+});
+
+export const CreateOnboardingReviewSchema = z.object({
+  memberDid: z.string().min(1),
+  reviewType: z.enum(['milestone', 'periodic', 'final']),
+  outcome: z.enum(['pass', 'fail', 'needs_improvement']),
+  comments: z.string().max(5000).optional(),
+  milestoneName: z.string().max(255).optional(),
+});
+
+export const CompleteOnboardingSchema = z.object({
+  memberDid: z.string().min(1),
+});
+
+// --- Member Class Schemas ---
+
+export const CreateMemberClassSchema = z.object({
+  name: z.string().min(1).max(255),
+  description: z.string().max(2000).optional(),
+  voteWeight: z.number().int().min(1).max(100).default(1),
+  quorumWeight: z.number().min(0).max(100).default(1),
+  boardSeats: z.number().int().min(0).max(100).default(0),
+});
+
+export const UpdateMemberClassSchema = z.object({
+  name: z.string().min(1).max(255).optional(),
+  description: z.string().max(2000).optional(),
+  voteWeight: z.number().int().min(1).max(100).optional(),
+  quorumWeight: z.number().min(0).max(100).optional(),
+  boardSeats: z.number().int().min(0).max(100).optional(),
+});
+
+export const AssignMemberClassSchema = z.object({
+  memberDid: z.string().min(1),
+  className: z.string().min(1).max(255),
+});
+
+// --- Cooperative Link Schemas ---
+
+export const LinkTypeEnum = z.enum([
+  'partnership',
+  'supply_chain',
+  'shared_infrastructure',
+  'federation',
+  'other',
+]);
+
+export const CreateCooperativeLinkSchema = z.object({
+  targetDid: z.string().min(1),
+  linkType: LinkTypeEnum,
+  description: z.string().max(2000).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+export const RespondToLinkSchema = z.object({
+  accept: z.boolean(),
+  message: z.string().max(2000).optional(),
+});
+
+export type CreateMemberClassInput = z.infer<typeof CreateMemberClassSchema>;
+export type UpdateMemberClassInput = z.infer<typeof UpdateMemberClassSchema>;
+export type AssignMemberClassInput = z.infer<typeof AssignMemberClassSchema>;
+export type CreateCooperativeLinkInput = z.infer<typeof CreateCooperativeLinkSchema>;
+export type RespondToLinkInput = z.infer<typeof RespondToLinkSchema>;
+
+export type CreateOnboardingConfigInput = z.infer<typeof CreateOnboardingConfigSchema>;
+export type UpdateOnboardingConfigInput = z.infer<typeof UpdateOnboardingConfigSchema>;
+export type StartOnboardingInput = z.infer<typeof StartOnboardingSchema>;
+export type CompleteTrainingInput = z.infer<typeof CompleteTrainingSchema>;
+export type CompleteBuyInInput = z.infer<typeof CompleteBuyInSchema>;
+export type CompleteMilestoneInput = z.infer<typeof CompleteMilestoneSchema>;
+export type AssignBuddyInput = z.infer<typeof AssignBuddySchema>;
+export type CreateOnboardingReviewInput = z.infer<typeof CreateOnboardingReviewSchema>;
+export type CompleteOnboardingInput = z.infer<typeof CompleteOnboardingSchema>;

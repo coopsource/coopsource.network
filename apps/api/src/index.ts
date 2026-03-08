@@ -48,6 +48,11 @@ import { createAgentTriggerRoutes } from './routes/agents/triggers.js';
 import { createApiTokenRoutes } from './routes/agents/tokens.js';
 import { createModelConfigRoutes } from './routes/agents/model-config.js';
 import { createNotificationRoutes } from './routes/notifications.js';
+import { createOnboardingRoutes } from './routes/onboarding/config.js';
+import { createDelegationRoutes } from './routes/governance/delegations.js';
+import { createGovernanceFeedRoutes } from './routes/governance/feed.js';
+import { createMemberClassRoutes } from './routes/governance/member-classes.js';
+import { createCooperativeLinkRoutes } from './routes/governance/cooperative-links.js';
 import { createMcpRoutes } from './mcp/server.js';
 import { createLabelRoutes } from './routes/labels.js';
 import { createLegalDocumentRoutes } from './routes/legal/documents.js';
@@ -201,6 +206,17 @@ async function start(): Promise<void> {
 
   // Governance label routes
   app.use(createLabelRoutes(container.governanceLabeler));
+
+  // Onboarding routes (Phase 7)
+  app.use(createOnboardingRoutes(container));
+
+  // Delegation + Governance feed routes (Phase 7)
+  app.use(createDelegationRoutes(container));
+  app.use(createGovernanceFeedRoutes(container));
+
+  // Weighted voting + cooperative links (Phase 7)
+  app.use(createMemberClassRoutes(container));
+  app.use(createCooperativeLinkRoutes(container));
 
   // MCP server (bearer token auth)
   app.use(createMcpRoutes(container.db));

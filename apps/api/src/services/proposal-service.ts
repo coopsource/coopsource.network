@@ -261,6 +261,20 @@ export class ProposalService {
       .where('retracted_at', 'is', null)
       .execute();
 
+    // Look up voter's class weight
+    const membershipRow = await this.db
+      .selectFrom('membership')
+      .leftJoin('member_class', (j) =>
+        j
+          .onRef('member_class.name', '=', 'membership.member_class')
+          .onRef('member_class.cooperative_did', '=', 'membership.cooperative_did'),
+      )
+      .where('membership.member_did', '=', params.voterDid)
+      .where('membership.cooperative_did', '=', proposal.cooperative_did)
+      .select('member_class.vote_weight')
+      .executeTakeFirst();
+    const weight = membershipRow?.vote_weight ?? 1;
+
     const [vote] = await this.db
       .insertInto('vote')
       .values({
@@ -271,6 +285,7 @@ export class ProposalService {
         proposal_cid: proposal.cid ?? '',
         voter_did: params.voterDid,
         choice: params.choice,
+        vote_weight: weight,
         rationale: params.rationale ?? null,
         created_at: now,
         indexed_at: now,
@@ -335,32 +350,106 @@ export class ProposalService {
     const totalMembers = memberCount?.count ?? 0;
     const totalVotes = votes.length;
 
-    // Determine quorum
+    // Determine quorum (fixed: match DB constraint values)
     let quorumMet = true;
     const threshold = proposal.quorum_threshold ?? 0.5;
-    if (proposal.quorum_type === 'majority') {
+    if (proposal.quorum_type === 'simpleMajority') {
       quorumMet = totalVotes > totalMembers * threshold;
-    } else if (proposal.quorum_type === 'supermajority') {
+    } else if (proposal.quorum_type === 'superMajority') {
       quorumMet = totalVotes > totalMembers * (threshold || 0.67);
     }
 
-    // Tally
+    // Weighted tally (sum of vote_weight) and head count tally
     const tally: Record<string, number> = {};
+    const weightedTally: Record<string, number> = {};
     for (const v of votes) {
       tally[v.choice] = (tally[v.choice] ?? 0) + 1;
+      weightedTally[v.choice] = (weightedTally[v.choice] ?? 0) + (v.vote_weight ?? 1);
     }
 
-    // Determine outcome
+    // Per-class quorum check
     let outcome: string;
+    if (proposal.class_quorum_rules && quorumMet) {
+      const rules = proposal.class_quorum_rules as Record<
+        string,
+        { minVotes?: number; minWeight?: number }
+      >;
+
+      // Look up voter classes for all votes
+      const voterClasses = await this.db
+        .selectFrom('membership')
+        .where('cooperative_did', '=', proposal.cooperative_did)
+        .where(
+          'member_did',
+          'in',
+          votes.map((v) => v.voter_did),
+        )
+        .select(['member_did', 'member_class'])
+        .execute();
+      const classMap = new Map(
+        voterClasses.map((m) => [m.member_did, m.member_class]),
+      );
+
+      for (const [className, rule] of Object.entries(rules)) {
+        const classVotes = votes.filter(
+          (v) => classMap.get(v.voter_did) === className,
+        );
+
+        if (rule.minVotes && classVotes.length < rule.minVotes) {
+          quorumMet = false;
+          break;
+        }
+
+        if (rule.minWeight) {
+          const classWeight = classVotes.reduce(
+            (sum, v) => sum + (v.vote_weight ?? 1),
+            0,
+          );
+          // Get total weight for this class (sum of all active members in class)
+          const totalClassResult = await this.db
+            .selectFrom('membership')
+            .leftJoin('member_class', (j) =>
+              j
+                .onRef('member_class.name', '=', 'membership.member_class')
+                .onRef(
+                  'member_class.cooperative_did',
+                  '=',
+                  'membership.cooperative_did',
+                ),
+            )
+            .where('membership.cooperative_did', '=', proposal.cooperative_did)
+            .where('membership.member_class', '=', className)
+            .where('membership.status', '=', 'active')
+            .where('membership.invalidated_at', 'is', null)
+            .select((eb) => [
+              eb.fn
+                .coalesce(
+                  eb.fn.sum<number>('member_class.vote_weight'),
+                  eb.val(0),
+                )
+                .as('total_weight'),
+            ])
+            .executeTakeFirst();
+
+          const totalClassWeight = Number(totalClassResult?.total_weight ?? 0);
+          if (totalClassWeight > 0 && classWeight / totalClassWeight < rule.minWeight) {
+            quorumMet = false;
+            break;
+          }
+        }
+      }
+    }
+
+    // Determine outcome (using weighted tally for yes/no decisions)
     if (!quorumMet) {
-      outcome = 'no_quorum';
-    } else if (proposal.voting_type === 'yes_no') {
-      const yes = tally['yes'] ?? 0;
-      const no = tally['no'] ?? 0;
+      outcome = proposal.class_quorum_rules ? 'class_quorum_not_met' : 'no_quorum';
+    } else if (proposal.voting_type === 'binary') {
+      const yes = weightedTally['yes'] ?? 0;
+      const no = weightedTally['no'] ?? 0;
       outcome = yes > no ? 'passed' : 'failed';
     } else {
-      // For other types, the option with most votes wins
-      const sorted = Object.entries(tally).sort((a, b) => b[1] - a[1]);
+      // For other types, the option with most weighted votes wins
+      const sorted = Object.entries(weightedTally).sort((a, b) => b[1] - a[1]);
       outcome = sorted.length > 0 ? 'passed' : 'no_quorum';
     }
 

@@ -41,6 +41,11 @@ import { VisibilityRouter } from './services/visibility-router.js';
 import { PatronageService } from './services/patronage-service.js';
 import { CapitalAccountService } from './services/capital-account-service.js';
 import { Tax1099Service } from './services/tax-1099-service.js';
+import { OnboardingService } from './services/onboarding-service.js';
+import { DelegationVotingService } from './services/delegation-voting-service.js';
+import { GovernanceFeedService } from './services/governance-feed-service.js';
+import { MemberClassService } from './services/member-class-service.js';
+import { CooperativeLinkService } from './services/cooperative-link-service.js';
 
 export interface Container {
   db: Kysely<Database>;
@@ -80,6 +85,11 @@ export interface Container {
   patronageService: PatronageService;
   capitalAccountService: CapitalAccountService;
   tax1099Service: Tax1099Service;
+  onboardingService: OnboardingService;
+  delegationVotingService: DelegationVotingService;
+  governanceFeedService: GovernanceFeedService;
+  memberClassService: MemberClassService;
+  cooperativeLinkService: CooperativeLinkService;
 }
 
 export function createContainer(config: AppConfig): Container {
@@ -157,6 +167,11 @@ export function createContainer(config: AppConfig): Container {
   const patronageService = new PatronageService(db, clock);
   const capitalAccountService = new CapitalAccountService(db, clock);
   const tax1099Service = new Tax1099Service(db, clock);
+  const onboardingService = new OnboardingService(db, clock);
+  const delegationVotingService = new DelegationVotingService(db, clock);
+  const governanceFeedService = new GovernanceFeedService(db, clock);
+  const memberClassService = new MemberClassService(db, clock);
+  const cooperativeLinkService = new CooperativeLinkService(db, clock);
 
   return {
     db,
@@ -196,5 +211,10 @@ export function createContainer(config: AppConfig): Container {
     patronageService,
     capitalAccountService,
     tax1099Service,
+    onboardingService,
+    delegationVotingService,
+    governanceFeedService,
+    memberClassService,
+    cooperativeLinkService,
   };
 }

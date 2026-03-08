@@ -268,13 +268,15 @@ export function createProposalRoutes(container: Container): Router {
         voteRows.map((row) => enrichVote(container, row)),
       );
 
-      // Build tally
+      // Build tally (head count) and weighted tally
       const tally: Record<string, number> = { yes: 0, no: 0, abstain: 0 };
-      for (const v of votes) {
+      const weightedTally: Record<string, number> = {};
+      for (const v of voteRows) {
         tally[v.choice] = (tally[v.choice] ?? 0) + 1;
+        weightedTally[v.choice] = (weightedTally[v.choice] ?? 0) + (v.vote_weight ?? 1);
       }
 
-      res.json({ votes, tally });
+      res.json({ votes, tally, weightedTally });
     }),
   );
 

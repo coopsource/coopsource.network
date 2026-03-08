@@ -8,6 +8,7 @@ export interface ProposalResponse {
   title: string;
   body: string;
   status: string;
+  outcome: string | null;
   votingType: string;
   quorumType: string;
   quorumBasis: string | null;
@@ -25,6 +26,7 @@ export interface VoteResponse {
   voterDisplayName: string | null;
   voterHandle: string | null;
   choice: string;
+  voteWeight: number;
   rationale: string | null;
   createdAt: string;
 }
@@ -72,6 +74,7 @@ export function formatProposal(
     title: string;
     body: string;
     status: string;
+    outcome?: string | null;
     voting_type: string;
     quorum_type: string;
     quorum_basis: string | null;
@@ -86,6 +89,7 @@ export function formatProposal(
     title: row.title,
     body: row.body,
     status: row.status,
+    outcome: row.outcome ?? null,
     votingType: row.voting_type,
     quorumType: row.quorum_type,
     quorumBasis: row.quorum_basis ?? null,
@@ -103,6 +107,7 @@ export function formatVote(
     proposal_id: string;
     voter_did: string;
     choice: string;
+    vote_weight?: number;
     rationale: string | null;
     created_at: Date;
   },
@@ -115,6 +120,7 @@ export function formatVote(
     voterDisplayName: enrichment.displayName ?? null,
     voterHandle: enrichment.handle ?? null,
     choice: row.choice,
+    voteWeight: row.vote_weight ?? 1,
     rationale: row.rationale ?? null,
     createdAt: row.created_at.toISOString(),
   };

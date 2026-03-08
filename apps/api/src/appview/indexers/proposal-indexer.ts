@@ -82,6 +82,20 @@ export async function indexVote(
     .where('retracted_at', 'is', null)
     .execute();
 
+  // Look up voter's class weight for weighted voting
+  const membershipRow = await db
+    .selectFrom('membership')
+    .leftJoin('member_class', (j) =>
+      j
+        .onRef('member_class.name', '=', 'membership.member_class')
+        .onRef('member_class.cooperative_did', '=', 'membership.cooperative_did'),
+    )
+    .where('membership.member_did', '=', event.did)
+    .where('membership.cooperative_did', '=', proposal.cooperative_did)
+    .select('member_class.vote_weight')
+    .executeTakeFirst();
+  const voteWeight = membershipRow?.vote_weight ?? 1;
+
   await db
     .insertInto('vote')
     .values({
@@ -92,6 +106,7 @@ export async function indexVote(
       proposal_cid: (record.proposalCid as string) ?? '',
       voter_did: event.did,
       choice: (record.choice as string) ?? '',
+      vote_weight: voteWeight,
       rationale: (record.rationale as string) ?? null,
       created_at: new Date(),
       indexed_at: new Date(),

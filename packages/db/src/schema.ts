@@ -155,6 +155,7 @@ export interface MembershipTable {
   member_did: string;
   cooperative_did: string;
   status: string;
+  member_class: string | null;
   member_record_uri: string | null;
   member_record_cid: string | null;
   approval_record_uri: string | null;
@@ -229,6 +230,7 @@ export interface ProposalTable {
   opens_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
   closes_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
   resolved_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  class_quorum_rules: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
   tags: string[];
   created_at: ColumnType<Date, Date | string | undefined, Date | string>;
   created_by: string;
@@ -246,6 +248,7 @@ export interface VoteTable {
   proposal_cid: string;
   voter_did: string;
   choice: string;
+  vote_weight: ColumnType<number, number | undefined, number>;
   rationale: string | null;
   created_at: ColumnType<Date, Date | string | undefined, Date | string>;
   retracted_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
@@ -763,6 +766,85 @@ export interface OperatorAuditLogTable {
 }
 
 // ──────────────────────────────────────────────
+// 031 — Onboarding & advanced features
+// ──────────────────────────────────────────────
+
+export interface OnboardingConfigTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  probation_duration_days: number;
+  require_training: ColumnType<boolean, boolean | undefined, boolean>;
+  require_buy_in: ColumnType<boolean, boolean | undefined, boolean>;
+  buy_in_amount: ColumnType<number, number | string | undefined, number | string>;
+  buddy_system_enabled: ColumnType<boolean, boolean | undefined, boolean>;
+  milestones: ColumnType<unknown[], string | unknown[] | undefined, string | unknown[]>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface OnboardingProgressTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  member_did: string;
+  status: string;
+  probation_starts_at: ColumnType<Date, Date | string, Date | string>;
+  probation_ends_at: ColumnType<Date, Date | string, Date | string>;
+  buddy_did: string | null;
+  training_completed: ColumnType<boolean, boolean | undefined, boolean>;
+  training_completed_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  buy_in_completed: ColumnType<boolean, boolean | undefined, boolean>;
+  buy_in_completed_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  milestones_completed: ColumnType<unknown[], string | unknown[] | undefined, string | unknown[]>;
+  notes: string | null;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  completed_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+}
+
+export interface OnboardingReviewTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  member_did: string;
+  reviewer_did: string;
+  review_type: string;
+  outcome: string;
+  comments: string | null;
+  milestone_name: string | null;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+// ──────────────────────────────────────────────
+// 032 — Weighted voting + cooperative links
+// ──────────────────────────────────────────────
+
+export interface MemberClassTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  name: string;
+  description: string | null;
+  vote_weight: number;
+  quorum_weight: ColumnType<number, number | string | undefined, number | string>;
+  board_seats: number;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface CooperativeLinkTable {
+  id: Generated<string>;
+  initiator_did: string;
+  target_did: string;
+  link_type: string;
+  status: string;
+  description: string | null;
+  metadata: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
+  initiated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  responded_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  dissolved_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+// ──────────────────────────────────────────────
 // Database interface
 // ──────────────────────────────────────────────
 
@@ -851,6 +933,15 @@ export interface Database {
   capital_account: CapitalAccountTable;
   capital_account_transaction: CapitalAccountTransactionTable;
   tax_form_1099_patr: TaxForm1099PatrTable;
+
+  // Onboarding tables (031)
+  onboarding_config: OnboardingConfigTable;
+  onboarding_progress: OnboardingProgressTable;
+  onboarding_review: OnboardingReviewTable;
+
+  // Weighted voting + cooperative links (032)
+  member_class: MemberClassTable;
+  cooperative_link: CooperativeLinkTable;
 }
 
 // ──────────────────────────────────────────────
