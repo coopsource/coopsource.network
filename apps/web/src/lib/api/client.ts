@@ -61,6 +61,10 @@ import type {
   AgentTriggersResponse,
   AgentTrigger,
   TriggerExecutionsResponse,
+  LegalDocument,
+  LegalDocumentsResponse,
+  MeetingRecord,
+  MeetingRecordsResponse,
 } from './types.js';
 
 export class ApiError extends Error {
@@ -864,5 +868,66 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string, apiBase?
       if (params?.cursor) qs.set('cursor', params.cursor);
       return request<TriggerExecutionsResponse>(`/agents/triggers/${triggerId}/executions${qs.size ? `?${qs}` : ''}`);
     },
+
+    // ── Legal Documents ──────────────────────────────────────────────
+    getLegalDocuments: (params?: { status?: string; documentType?: string; limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.status) qs.set('status', params.status);
+      if (params?.documentType) qs.set('documentType', params.documentType);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<LegalDocumentsResponse>(`/legal/documents${qs.size ? `?${qs}` : ''}`);
+    },
+
+    createLegalDocument: (body: {
+      title: string;
+      body?: string;
+      documentType: string;
+      bodyFormat?: string;
+      status?: string;
+    }) =>
+      request<LegalDocument>('/legal/documents', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+
+    getLegalDocument: (id: string) =>
+      request<LegalDocument>(`/legal/documents/${id}`),
+
+    updateLegalDocument: (id: string, body: {
+      title?: string;
+      body?: string;
+      documentType?: string;
+      status?: string;
+    }) =>
+      request<LegalDocument>(`/legal/documents/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
+
+    getMeetings: (params?: { meetingType?: string; limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.meetingType) qs.set('meetingType', params.meetingType);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<MeetingRecordsResponse>(`/legal/meetings${qs.size ? `?${qs}` : ''}`);
+    },
+
+    createMeeting: (body: {
+      title: string;
+      meetingDate: string;
+      meetingType: string;
+      attendees?: string[];
+      quorumMet?: boolean;
+      resolutions?: string;
+      minutes?: string;
+    }) =>
+      request<MeetingRecord>('/legal/meetings', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+
+    certifyMeeting: (id: string) =>
+      request<MeetingRecord>(`/legal/meetings/${id}/certify`, { method: 'POST' }),
   };
 }

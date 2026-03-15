@@ -667,3 +667,47 @@ export interface TriggerExecutionsResponse {
   executions: TriggerExecution[];
   cursor?: string;
 }
+
+// ─── Legal Documents ─────────────────────────────────────────────────────────
+
+export interface LegalDocument {
+  id: string;
+  uri: string;
+  cooperativeDid: string;
+  authorDid: string;
+  title: string;
+  body: string;
+  bodyFormat: string;
+  documentType: string;
+  version: number;
+  previousVersionUri: string | null;
+  status: string;
+  createdAt: string;
+  indexedAt: string;
+}
+
+export interface LegalDocumentsResponse {
+  documents: LegalDocument[];
+  cursor: string | null;
+}
+
+export interface MeetingRecord {
+  id: string;
+  uri: string;
+  cooperativeDid: string;
+  authorDid: string;
+  title: string;
+  meetingDate: string;
+  meetingType: string;
+  attendees: string[];
+  quorumMet: boolean;
+  resolutions: string | null;
+  minutes: string | null;
+  certifiedBy: string | null;
+  createdAt: string;
+}
+
+export interface MeetingRecordsResponse {
+  meetings: MeetingRecord[];
+  cursor: string | null;
+}

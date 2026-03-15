@@ -12,6 +12,7 @@
   import Globe from '@lucide/svelte/icons/globe';
   import Bell from '@lucide/svelte/icons/bell';
   import Bot from '@lucide/svelte/icons/bot';
+  import Scale from '@lucide/svelte/icons/scale';
   import Link2 from '@lucide/svelte/icons/link-2';
   import CreditCard from '@lucide/svelte/icons/credit-card';
   import Settings from '@lucide/svelte/icons/settings';
@@ -61,6 +62,7 @@
         { href: `${prefix}/invitations`, label: 'Invitations', icon: Mail },
         { href: `${prefix}/governance`, label: 'Governance', icon: Vote },
         { href: `${prefix}/agreements`, label: 'Agreements', icon: FileSignature },
+        { href: `${prefix}/legal`, label: 'Legal', icon: Scale },
         { href: `${prefix}/alignment`, label: 'Alignment', icon: Compass },
         { href: `${prefix}/campaigns`, label: 'Campaigns', icon: Banknote },
         { href: `${prefix}/posts`, label: 'Posts', icon: MessageSquare },
