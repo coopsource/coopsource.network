@@ -1,4 +1,4 @@
-import { redirect, fail } from '@sveltejs/kit';
+import { redirect, fail, isRedirect } from '@sveltejs/kit';
 import type { Actions } from './$types.js';
 import { createApiClient, ApiError } from '$lib/api/client.js';
 
@@ -19,6 +19,7 @@ export const actions: Actions = {
       const doc = await api.createLegalDocument({ title, body: body || undefined, documentType, status });
       redirect(303, `/coop/${params.handle}/legal/${doc.id}`);
     } catch (err) {
+      if (isRedirect(err)) throw err;
       if (err instanceof ApiError) return fail(err.status, { error: err.message });
       return fail(500, { error: 'Failed to create document.' });
     }

@@ -9,7 +9,7 @@ test.describe('Proposals', () => {
 
   test('proposals list renders with New proposal button', async ({ page }) => {
     await page.goto(wp('/governance'));
-    await expect(page.getByRole('heading', { name: 'Proposals', exact: true })).toBeVisible();
+    await expect(page.locator('h1', { hasText: 'Governance' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'New proposal' })).toBeVisible();
   });
 
