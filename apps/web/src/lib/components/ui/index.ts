@@ -6,6 +6,7 @@ export { default as ConfirmDialog } from './ConfirmDialog.svelte';
 export { default as DataTable } from './DataTable.svelte';
 export { default as EmptyState } from './EmptyState.svelte';
 export { default as Input } from './Input.svelte';
+export { default as MemberSelect } from './MemberSelect.svelte';
 export { default as Modal } from './Modal.svelte';
 export { default as PageHeader } from './PageHeader.svelte';
 export { default as PillTag } from './PillTag.svelte';

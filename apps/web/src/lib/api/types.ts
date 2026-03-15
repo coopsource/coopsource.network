@@ -80,6 +80,7 @@ export interface Vote {
   voterHandle: string | null;
   voterDisplayName: string;
   choice: 'yes' | 'no' | 'abstain';
+  voteWeight: number;
   rationale: string | null;
   createdAt: string;
 }
@@ -710,4 +711,339 @@ export interface MeetingRecord {
 export interface MeetingRecordsResponse {
   meetings: MeetingRecord[];
   cursor: string | null;
+}
+
+// ─── Officers & Admin ────────────────────────────────────────────────────────
+
+export interface Officer {
+  id: string;
+  uri: string;
+  cooperativeDid: string;
+  officerDid: string;
+  title: string;
+  appointedAt: string;
+  termEndsAt: string | null;
+  appointmentType: string;
+  responsibilities: string | null;
+  status: string;
+  createdAt: string;
+}
+
+export interface OfficersResponse {
+  officers: Officer[];
+  cursor: string | null;
+}
+
+export interface ComplianceItem {
+  id: string;
+  uri: string;
+  cooperativeDid: string;
+  title: string;
+  description: string | null;
+  dueDate: string;
+  filingType: string;
+  status: string;
+  completedAt: string | null;
+  completedBy: string | null;
+  createdAt: string;
+}
+
+export interface ComplianceItemsResponse {
+  items: ComplianceItem[];
+  cursor: string | null;
+}
+
+export interface MemberNotice {
+  id: string;
+  uri: string;
+  cooperativeDid: string;
+  authorDid: string;
+  title: string;
+  body: string;
+  noticeType: string;
+  targetAudience: string;
+  sentAt: string | null;
+  createdAt: string;
+}
+
+export interface MemberNoticesResponse {
+  notices: MemberNotice[];
+  cursor: string | null;
+}
+
+export interface FiscalPeriod {
+  id: string;
+  uri: string;
+  cooperativeDid: string;
+  label: string;
+  startsAt: string;
+  endsAt: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface FiscalPeriodsResponse {
+  fiscalPeriods: FiscalPeriod[];
+  cursor: string | null;
+}
+
+// ─── Onboarding ──────────────────────────────────────────────────────────────
+
+export interface OnboardingMilestone {
+  name: string;
+  description?: string;
+  order: number;
+}
+
+export interface OnboardingConfig {
+  id: string;
+  cooperativeDid: string;
+  probationDurationDays: number;
+  requireTraining: boolean;
+  requireBuyIn: boolean;
+  buyInAmount: number | null;
+  buddySystemEnabled: boolean;
+  milestones: OnboardingMilestone[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OnboardingProgress {
+  id: string;
+  cooperativeDid: string;
+  memberDid: string;
+  status: string;
+  probationStartsAt: string | null;
+  probationEndsAt: string | null;
+  buddyDid: string | null;
+  trainingCompleted: boolean;
+  trainingCompletedAt: string | null;
+  buyInCompleted: boolean;
+  buyInCompletedAt: string | null;
+  milestonesCompleted: string[];
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+}
+
+export interface OnboardingProgressResponse {
+  items: OnboardingProgress[];
+  cursor: string | null;
+}
+
+export interface OnboardingReview {
+  id: string;
+  cooperativeDid: string;
+  memberDid: string;
+  reviewerDid: string;
+  reviewType: string;
+  outcome: string;
+  comments: string | null;
+  milestoneName: string | null;
+  createdAt: string;
+}
+
+export interface OnboardingReviewsResponse {
+  reviews: OnboardingReview[];
+}
+
+// ─── Financial — Patronage ───────────────────────────────────────────────────
+
+export interface PatronageConfig {
+  id: string;
+  cooperativeDid: string;
+  stakeholderClass: string;
+  metricType: string;
+  metricWeights: Record<string, number> | null;
+  cashPayoutPct: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PatronageConfigsResponse {
+  configs: PatronageConfig[];
+}
+
+export interface PatronageRecord {
+  id: string;
+  cooperativeDid: string;
+  fiscalPeriodId: string;
+  memberDid: string;
+  stakeholderClass: string;
+  metricValue: number;
+  patronageRatio: number;
+  totalAllocation: number;
+  cashAmount: number;
+  retainedAmount: number;
+  status: string;
+  approvedAt: string | null;
+  distributedAt: string | null;
+  createdAt: string;
+}
+
+export interface PatronageRecordsResponse {
+  records: PatronageRecord[];
+  cursor: string | null;
+}
+
+// ─── Financial — Capital Accounts ────────────────────────────────────────────
+
+export interface CapitalAccount {
+  id: string;
+  cooperativeDid: string;
+  memberDid: string;
+  initialContribution: number;
+  totalPatronageAllocated: number;
+  totalRedeemed: number;
+  balance: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CapitalAccountsResponse {
+  accounts: CapitalAccount[];
+  cursor: string | null;
+}
+
+export interface CapitalAccountSummary {
+  totalAccounts: number;
+  totalBalance: number;
+  totalContributions: number;
+  totalAllocated: number;
+  totalRedeemed: number;
+}
+
+export interface CapitalTransaction {
+  id: string;
+  capitalAccountId: string;
+  cooperativeDid: string;
+  memberDid: string;
+  transactionType: string;
+  amount: number;
+  fiscalPeriodId: string | null;
+  patronageRecordId: string | null;
+  description: string | null;
+  createdAt: string;
+  createdBy: string | null;
+}
+
+export interface CapitalTransactionsResponse {
+  transactions: CapitalTransaction[];
+  cursor: string | null;
+}
+
+// ─── Financial — Tax Forms ───────────────────────────────────────────────────
+
+export interface TaxForm1099 {
+  id: string;
+  cooperativeDid: string;
+  fiscalPeriodId: string;
+  memberDid: string;
+  taxYear: number;
+  patronageDividends: number;
+  perUnitRetainAllocated: number;
+  qualifiedPayments: number;
+  cashPaid: number;
+  cashDeadline: string | null;
+  cashPaidAt: string | null;
+  generationStatus: string;
+  generatedAt: string | null;
+  sentAt: string | null;
+  createdAt: string;
+}
+
+export interface TaxFormsResponse {
+  forms: TaxForm1099[];
+  cursor: string | null;
+}
+
+// ─── Governance — Delegations & Feed ─────────────────────────────────────────
+
+export interface Delegation {
+  uri: string;
+  delegatorDid: string;
+  delegateeDid: string;
+  scope: string;
+  proposalUri: string | null;
+  status: string;
+  createdAt: string;
+  revokedAt: string | null;
+}
+
+export interface DelegationsResponse {
+  delegations: Delegation[];
+  cursor: string | null;
+}
+
+export interface DelegationChain {
+  chain: unknown[];
+}
+
+export interface VoteWeightResponse {
+  memberDid: string;
+  weight: number;
+}
+
+export interface GovernanceFeedItem {
+  type: string;
+  proposalId: string;
+  title: string;
+  status: string;
+  closesAt?: string;
+  outcome?: string;
+  resolvedAt?: string;
+  createdAt: string;
+}
+
+export interface GovernanceFeedResponse {
+  items: GovernanceFeedItem[];
+  cursor: string | undefined;
+}
+
+// ─── Member Classes ──────────────────────────────────────────────────────────
+
+export interface MemberClass {
+  id: string;
+  cooperativeDid: string;
+  name: string;
+  description: string | null;
+  voteWeight: number;
+  quorumWeight: number;
+  boardSeats: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MemberClassesResponse {
+  classes: MemberClass[];
+}
+
+// ─── Cooperative Links ───────────────────────────────────────────────────────
+
+export interface CooperativeLink {
+  id: string;
+  initiatorDid: string;
+  targetDid: string;
+  linkType: string;
+  status: string;
+  description: string | null;
+  metadata: Record<string, unknown> | null;
+  initiatedAt: string;
+  respondedAt: string | null;
+  dissolvedAt: string | null;
+  createdAt: string;
+}
+
+export interface CooperativeLinksResponse {
+  links: CooperativeLink[];
+  cursor: string | null;
+}
+
+export interface CooperativePartner {
+  did: string;
+  displayName: string;
+  handle: string | null;
+  linkType: string;
+  linkedSince: string;
 }

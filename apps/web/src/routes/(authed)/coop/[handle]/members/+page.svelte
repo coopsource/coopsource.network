@@ -1,6 +1,7 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { Badge, EmptyState, Modal } from '$lib/components/ui';
+  import { workspacePrefix } from '$lib/utils/workspace.js';
 
   let { data, form } = $props();
 
@@ -39,6 +40,12 @@
       Invite member
     </button>
   </div>
+
+  <!-- Onboarding link -->
+  <a href="{$workspacePrefix}/onboarding"
+    class="inline-flex items-center gap-1.5 rounded-md border border-[var(--cs-border)] px-3 py-1.5 text-sm text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)]">
+    View onboarding progress
+  </a>
 
   {#if form?.removeError}
     <div class="rounded-md bg-red-50 p-3 text-sm text-red-700">{form.removeError}</div>

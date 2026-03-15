@@ -22,6 +22,18 @@
     (tally.yes ?? 0) + (tally.no ?? 0) + (tally.abstain ?? 0),
   );
 
+  // Weighted tally from individual vote weights
+  const weightedTally = $derived.by(() => {
+    const wt = { yes: 0, no: 0, abstain: 0 };
+    for (const v of votes) {
+      const w = v.voteWeight ?? 1;
+      wt[v.choice] += w;
+    }
+    return wt;
+  });
+  const totalWeightedVotes = $derived(weightedTally.yes + weightedTally.no + weightedTally.abstain);
+  const hasWeights = $derived(votes.some((v) => (v.voteWeight ?? 1) !== 1));
+
   function pct(count: number): string {
     if (totalVotes === 0) return '0';
     return ((count / totalVotes) * 100).toFixed(0);
@@ -139,6 +151,28 @@
         {/each}
         <p class="text-xs text-[var(--cs-text-muted)]">{totalVotes} total vote{totalVotes !== 1 ? 's' : ''}</p>
       </div>
+
+      {#if hasWeights}
+        <div class="mt-4 border-t border-[var(--cs-border)] pt-4">
+          <h3 class="mb-3 text-xs font-semibold text-[var(--cs-text-muted)] uppercase">Weighted Tally</h3>
+          <div class="space-y-2">
+            {#each [['yes', 'bg-green-500', 'Yes'], ['no', 'bg-red-500', 'No'], ['abstain', 'bg-gray-400', 'Abstain']] as [key, color, label]}
+              {@const wCount = weightedTally[key as 'yes' | 'no' | 'abstain']}
+              {@const wPct = totalWeightedVotes > 0 ? ((wCount / totalWeightedVotes) * 100).toFixed(0) : '0'}
+              <div>
+                <div class="mb-1 flex justify-between text-sm">
+                  <span class="font-medium text-[var(--cs-text-secondary)]">{label}</span>
+                  <span class="text-[var(--cs-text-muted)]">{wCount} ({wPct}%)</span>
+                </div>
+                <div class="h-2 rounded-full bg-[var(--cs-bg-inset)]">
+                  <div class="h-2 rounded-full {color} transition-all" style="width: {wPct}%"></div>
+                </div>
+              </div>
+            {/each}
+            <p class="text-xs text-[var(--cs-text-muted)]">{totalWeightedVotes} total weight</p>
+          </div>
+        </div>
+      {/if}
     </div>
   {/if}
 
@@ -230,6 +264,11 @@
               <span class="text-sm font-medium text-[var(--cs-text)]">{vote.voterDisplayName}</span>
               {#if vote.voterHandle}
                 <span class="ml-1 text-xs text-[var(--cs-text-muted)]">@{vote.voterHandle}</span>
+              {/if}
+              {#if (vote.voteWeight ?? 1) !== 1}
+                <span class="ml-1 rounded bg-[var(--cs-bg-inset)] px-1 py-0.5 text-[10px] text-[var(--cs-text-secondary)]">
+                  ×{vote.voteWeight}
+                </span>
               {/if}
               {#if vote.rationale}
                 <p class="mt-0.5 text-sm text-[var(--cs-text-secondary)]">"{vote.rationale}"</p>

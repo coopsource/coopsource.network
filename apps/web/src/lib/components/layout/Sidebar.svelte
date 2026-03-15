@@ -13,6 +13,10 @@
   import Bell from '@lucide/svelte/icons/bell';
   import Bot from '@lucide/svelte/icons/bot';
   import Scale from '@lucide/svelte/icons/scale';
+  import Shield from '@lucide/svelte/icons/shield';
+  import UserPlus from '@lucide/svelte/icons/user-plus';
+  import DollarSign from '@lucide/svelte/icons/dollar-sign';
+  import Handshake from '@lucide/svelte/icons/handshake';
   import Link2 from '@lucide/svelte/icons/link-2';
   import CreditCard from '@lucide/svelte/icons/credit-card';
   import Settings from '@lucide/svelte/icons/settings';
@@ -60,14 +64,18 @@
         { href: `${prefix}/notifications`, label: 'Notifications', icon: Bell },
         { href: `${prefix}/members`, label: 'Members', icon: Users },
         { href: `${prefix}/invitations`, label: 'Invitations', icon: Mail },
+        { href: `${prefix}/onboarding`, label: 'Onboarding', icon: UserPlus },
         { href: `${prefix}/governance`, label: 'Governance', icon: Vote },
         { href: `${prefix}/agreements`, label: 'Agreements', icon: FileSignature },
         { href: `${prefix}/legal`, label: 'Legal', icon: Scale },
         { href: `${prefix}/alignment`, label: 'Alignment', icon: Compass },
         { href: `${prefix}/campaigns`, label: 'Campaigns', icon: Banknote },
+        { href: `${prefix}/finance`, label: 'Finance', icon: DollarSign },
         { href: `${prefix}/posts`, label: 'Posts', icon: MessageSquare },
         { href: `${prefix}/networks`, label: 'Networks', icon: Globe },
+        { href: `${prefix}/partners`, label: 'Partners', icon: Handshake },
         { href: `${prefix}/agents`, label: 'Agents', icon: Bot },
+        { href: `${prefix}/admin`, label: 'Admin', icon: Shield },
       ];
     }
 

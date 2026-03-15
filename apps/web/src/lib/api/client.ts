@@ -65,6 +65,38 @@ import type {
   LegalDocumentsResponse,
   MeetingRecord,
   MeetingRecordsResponse,
+  Officer,
+  OfficersResponse,
+  ComplianceItem,
+  ComplianceItemsResponse,
+  MemberNotice,
+  MemberNoticesResponse,
+  FiscalPeriod,
+  FiscalPeriodsResponse,
+  OnboardingConfig,
+  OnboardingProgress,
+  OnboardingProgressResponse,
+  OnboardingReview,
+  OnboardingReviewsResponse,
+  PatronageConfig,
+  PatronageConfigsResponse,
+  PatronageRecordsResponse,
+  CapitalAccount,
+  CapitalAccountsResponse,
+  CapitalAccountSummary,
+  CapitalTransactionsResponse,
+  TaxForm1099,
+  TaxFormsResponse,
+  Delegation,
+  DelegationsResponse,
+  DelegationChain,
+  VoteWeightResponse,
+  GovernanceFeedResponse,
+  MemberClass,
+  MemberClassesResponse,
+  CooperativeLink,
+  CooperativeLinksResponse,
+  CooperativePartner,
 } from './types.js';
 
 export class ApiError extends Error {
@@ -929,5 +961,225 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string, apiBase?
 
     certifyMeeting: (id: string) =>
       request<MeetingRecord>(`/legal/meetings/${id}/certify`, { method: 'POST' }),
+
+    // ── Officers ─────────────────────────────────────────────────────
+    getOfficers: (params?: { status?: string; limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.status) qs.set('status', params.status);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<OfficersResponse>(`/admin/officers${qs.size ? `?${qs}` : ''}`);
+    },
+    appointOfficer: (body: { officerDid: string; title: string; appointedAt: string; appointmentType: string; termEndsAt?: string; responsibilities?: string }) =>
+      request<Officer>('/admin/officers', { method: 'POST', body: JSON.stringify(body) }),
+    endOfficerTerm: (id: string) =>
+      request<Officer>(`/admin/officers/${id}/end-term`, { method: 'POST' }),
+
+    // ── Compliance ───────────────────────────────────────────────────
+    getComplianceItems: (params?: { status?: string; limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.status) qs.set('status', params.status);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<ComplianceItemsResponse>(`/admin/compliance${qs.size ? `?${qs}` : ''}`);
+    },
+    createComplianceItem: (body: { title: string; description?: string; dueDate: string; filingType: string }) =>
+      request<ComplianceItem>('/admin/compliance', { method: 'POST', body: JSON.stringify(body) }),
+    completeComplianceItem: (id: string) =>
+      request<ComplianceItem>(`/admin/compliance/${id}/complete`, { method: 'POST' }),
+
+    // ── Notices ──────────────────────────────────────────────────────
+    getNotices: (params?: { limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<MemberNoticesResponse>(`/admin/notices${qs.size ? `?${qs}` : ''}`);
+    },
+    createNotice: (body: { title: string; body: string; noticeType: string; targetAudience: string }) =>
+      request<MemberNotice>('/admin/notices', { method: 'POST', body: JSON.stringify(body) }),
+
+    // ── Fiscal Periods ───────────────────────────────────────────────
+    getFiscalPeriods: (params?: { limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<FiscalPeriodsResponse>(`/admin/fiscal-periods${qs.size ? `?${qs}` : ''}`);
+    },
+    createFiscalPeriod: (body: { label: string; startsAt: string; endsAt: string }) =>
+      request<FiscalPeriod>('/admin/fiscal-periods', { method: 'POST', body: JSON.stringify(body) }),
+    closeFiscalPeriod: (id: string) =>
+      request<FiscalPeriod>(`/admin/fiscal-periods/${id}/close`, { method: 'POST' }),
+
+    // ── Onboarding ───────────────────────────────────────────────────
+    getOnboardingConfig: () => request<OnboardingConfig | null>('/onboarding/config'),
+    createOnboardingConfig: (body: { probationDurationDays?: number; requireTraining?: boolean; requireBuyIn?: boolean; buyInAmount?: number; buddySystemEnabled?: boolean; milestones?: Array<{ name: string; description?: string; order: number }> }) =>
+      request<OnboardingConfig>('/onboarding/config', { method: 'POST', body: JSON.stringify(body) }),
+    updateOnboardingConfig: (body: { probationDurationDays?: number; requireTraining?: boolean; requireBuyIn?: boolean; buyInAmount?: number; buddySystemEnabled?: boolean; milestones?: Array<{ name: string; description?: string; order: number }> }) =>
+      request<OnboardingConfig>('/onboarding/config', { method: 'PUT', body: JSON.stringify(body) }),
+    startOnboarding: (body: { memberDid: string }) =>
+      request<OnboardingProgress>('/onboarding/start', { method: 'POST', body: JSON.stringify(body) }),
+    getOnboardingProgress: (params?: { status?: string; limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.status) qs.set('status', params.status);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<OnboardingProgressResponse>(`/onboarding/progress${qs.size ? `?${qs}` : ''}`);
+    },
+    getMemberOnboarding: (memberDid: string) =>
+      request<OnboardingProgress | null>(`/onboarding/progress/${encodeURIComponent(memberDid)}`),
+    completeTraining: (body: { memberDid: string }) =>
+      request<OnboardingProgress>('/onboarding/training/complete', { method: 'POST', body: JSON.stringify(body) }),
+    completeBuyIn: (body: { memberDid: string }) =>
+      request<OnboardingProgress>('/onboarding/buy-in/complete', { method: 'POST', body: JSON.stringify(body) }),
+    completeMilestone: (body: { memberDid: string; milestoneName: string }) =>
+      request<OnboardingProgress>('/onboarding/milestone/complete', { method: 'POST', body: JSON.stringify(body) }),
+    assignBuddy: (body: { memberDid: string; buddyDid: string }) =>
+      request<OnboardingProgress>('/onboarding/buddy/assign', { method: 'POST', body: JSON.stringify(body) }),
+    createOnboardingReview: (body: { memberDid: string; reviewType: string; outcome: string; comments?: string; milestoneName?: string }) =>
+      request<OnboardingReview>('/onboarding/review', { method: 'POST', body: JSON.stringify(body) }),
+    getOnboardingReviews: (memberDid: string) =>
+      request<OnboardingReviewsResponse>(`/onboarding/reviews/${encodeURIComponent(memberDid)}`),
+    completeOnboarding: (body: { memberDid: string }) =>
+      request<OnboardingProgress>('/onboarding/complete', { method: 'POST', body: JSON.stringify(body) }),
+
+    // ── Patronage ────────────────────────────────────────────────────
+    getPatronageConfigs: () => request<PatronageConfigsResponse>('/financial/patronage/config'),
+    createPatronageConfig: (body: { stakeholderClass?: string; metricType: string; metricWeights?: Record<string, number>; cashPayoutPct?: number }) =>
+      request<PatronageConfig>('/financial/patronage/config', { method: 'POST', body: JSON.stringify(body) }),
+    updatePatronageConfig: (id: string, body: { metricType?: string; metricWeights?: Record<string, number>; cashPayoutPct?: number }) =>
+      request<PatronageConfig>(`/financial/patronage/config/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    deletePatronageConfig: (id: string) =>
+      request<void>(`/financial/patronage/config/${id}`, { method: 'DELETE' }),
+    runPatronageCalculation: (body: { fiscalPeriodId: string; totalSurplus: number; metrics: Array<{ memberDid: string; metricValue: number; stakeholderClass?: string }> }) =>
+      request<{ records: PatronageRecordsResponse['records'] }>('/financial/patronage/calculate', { method: 'POST', body: JSON.stringify(body) }),
+    getPatronageRecords: (params: { fiscalPeriodId: string; limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      qs.set('fiscalPeriodId', params.fiscalPeriodId);
+      if (params.limit) qs.set('limit', String(params.limit));
+      if (params.cursor) qs.set('cursor', params.cursor);
+      return request<PatronageRecordsResponse>(`/financial/patronage/records?${qs}`);
+    },
+    approvePatronageRecords: (body: { fiscalPeriodId: string }) =>
+      request<{ approved: number }>('/financial/patronage/records/approve', { method: 'POST', body: JSON.stringify(body) }),
+    getMemberPatronageRecords: (memberDid: string, params?: { limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<PatronageRecordsResponse>(`/financial/patronage/records/member/${encodeURIComponent(memberDid)}${qs.size ? `?${qs}` : ''}`);
+    },
+
+    // ── Capital Accounts ─────────────────────────────────────────────
+    recordContribution: (body: { memberDid: string; amount: number }) =>
+      request<CapitalAccount>('/financial/capital-accounts/contribute', { method: 'POST', body: JSON.stringify(body) }),
+    allocatePatronage: (body: { fiscalPeriodId: string }) =>
+      request<{ allocated: number }>('/financial/capital-accounts/allocate', { method: 'POST', body: JSON.stringify(body) }),
+    redeemAllocation: (body: { memberDid: string; amount: number }) =>
+      request<CapitalAccount>('/financial/capital-accounts/redeem', { method: 'POST', body: JSON.stringify(body) }),
+    getCapitalAccounts: (params?: { limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<CapitalAccountsResponse>(`/financial/capital-accounts${qs.size ? `?${qs}` : ''}`);
+    },
+    getCapitalAccountSummary: () => request<CapitalAccountSummary>('/financial/capital-accounts/summary'),
+    getMemberCapitalAccount: (memberDid: string) =>
+      request<CapitalAccount>(`/financial/capital-accounts/member/${encodeURIComponent(memberDid)}`),
+    getMemberCapitalTransactions: (memberDid: string, params?: { limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<CapitalTransactionsResponse>(`/financial/capital-accounts/member/${encodeURIComponent(memberDid)}/transactions${qs.size ? `?${qs}` : ''}`);
+    },
+
+    // ── Tax Forms 1099-PATR ──────────────────────────────────────────
+    generateTaxForms: (body: { fiscalPeriodId: string; taxYear: number }) =>
+      request<TaxFormsResponse>('/financial/tax-forms/1099-patr/generate', { method: 'POST', body: JSON.stringify(body) }),
+    getTaxForms: (params?: { taxYear?: number; status?: string; limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.taxYear) qs.set('taxYear', String(params.taxYear));
+      if (params?.status) qs.set('status', params.status);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<TaxFormsResponse>(`/financial/tax-forms/1099-patr${qs.size ? `?${qs}` : ''}`);
+    },
+    getTaxDeadlines: () => request<{ forms: TaxForm1099[] }>('/financial/tax-forms/1099-patr/deadlines'),
+    getTaxForm: (id: string) => request<TaxForm1099>(`/financial/tax-forms/1099-patr/${id}`),
+    markTaxFormGenerated: (id: string) =>
+      request<TaxForm1099>(`/financial/tax-forms/1099-patr/${id}/mark-generated`, { method: 'POST' }),
+    markTaxFormSent: (id: string) =>
+      request<TaxForm1099>(`/financial/tax-forms/1099-patr/${id}/mark-sent`, { method: 'POST' }),
+    recordTaxFormPayment: (id: string) =>
+      request<TaxForm1099>(`/financial/tax-forms/1099-patr/${id}/record-payment`, { method: 'POST' }),
+
+    // ── Delegations ──────────────────────────────────────────────────
+    createDelegation: (body: { delegateeDid: string; scope?: string; proposalUri?: string }) =>
+      request<Delegation>('/governance/delegations', { method: 'POST', body: JSON.stringify(body) }),
+    revokeDelegation: (uri: string) =>
+      request<Delegation>(`/governance/delegations/${encodeURIComponent(uri)}`, { method: 'DELETE' }),
+    getDelegations: (params?: { status?: string; limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.status) qs.set('status', params.status);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<DelegationsResponse>(`/governance/delegations${qs.size ? `?${qs}` : ''}`);
+    },
+    getDelegationChain: (memberDid: string, params?: { scope?: string; proposalUri?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.scope) qs.set('scope', params.scope);
+      if (params?.proposalUri) qs.set('proposalUri', params.proposalUri);
+      return request<DelegationChain>(`/governance/delegations/chain/${encodeURIComponent(memberDid)}${qs.size ? `?${qs}` : ''}`);
+    },
+    getVoteWeight: (memberDid: string, proposalId: string) =>
+      request<VoteWeightResponse>(`/governance/vote-weight/${encodeURIComponent(memberDid)}?proposalId=${proposalId}`),
+
+    // ── Governance Feed ──────────────────────────────────────────────
+    getGovernanceActionItems: (params?: { limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<GovernanceFeedResponse>(`/governance/feed/action-items${qs.size ? `?${qs}` : ''}`);
+    },
+    getGovernanceOutcomes: (params?: { limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<GovernanceFeedResponse>(`/governance/feed/outcomes${qs.size ? `?${qs}` : ''}`);
+    },
+    getGovernanceMeetings: (params?: { limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<GovernanceFeedResponse>(`/governance/feed/meetings${qs.size ? `?${qs}` : ''}`);
+    },
+
+    // ── Member Classes ───────────────────────────────────────────────
+    getMemberClasses: () => request<MemberClassesResponse>('/member-classes'),
+    createMemberClass: (body: { name: string; description?: string; voteWeight?: number; quorumWeight?: number; boardSeats?: number }) =>
+      request<MemberClass>('/member-classes', { method: 'POST', body: JSON.stringify(body) }),
+    getMemberClass: (id: string) => request<MemberClass>(`/member-classes/${id}`),
+    updateMemberClass: (id: string, body: { name?: string; description?: string; voteWeight?: number; quorumWeight?: number; boardSeats?: number }) =>
+      request<MemberClass>(`/member-classes/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    deleteMemberClass: (id: string) => request<void>(`/member-classes/${id}`, { method: 'DELETE' }),
+    assignMemberClass: (body: { memberDid: string; className: string }) =>
+      request<{ memberDid: string; className: string }>('/member-classes/assign', { method: 'POST', body: JSON.stringify(body) }),
+    removeMemberClass: (memberDid: string) =>
+      request<{ memberDid: string; className: null }>(`/member-classes/assign/${encodeURIComponent(memberDid)}`, { method: 'DELETE' }),
+
+    // ── Cooperative Links ────────────────────────────────────────────
+    getCooperativeLinks: (params?: { status?: string; linkType?: string; limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.status) qs.set('status', params.status);
+      if (params?.linkType) qs.set('linkType', params.linkType);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<CooperativeLinksResponse>(`/cooperative-links${qs.size ? `?${qs}` : ''}`);
+    },
+    createCooperativeLink: (body: { targetDid: string; linkType: string; description?: string }) =>
+      request<CooperativeLink>('/cooperative-links', { method: 'POST', body: JSON.stringify(body) }),
+    getCooperativeLink: (id: string) => request<CooperativeLink>(`/cooperative-links/${id}`),
+    respondToLink: (id: string, body: { accept: boolean; message?: string }) =>
+      request<CooperativeLink>(`/cooperative-links/${id}/respond`, { method: 'POST', body: JSON.stringify(body) }),
+    dissolveLink: (id: string) => request<CooperativeLink>(`/cooperative-links/${id}`, { method: 'DELETE' }),
+    getPartners: () => request<{ partners: CooperativePartner[] }>('/cooperative-links/partners'),
   };
 }
