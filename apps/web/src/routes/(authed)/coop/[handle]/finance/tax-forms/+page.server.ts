@@ -12,7 +12,7 @@ export const load: PageServerLoad = async ({ fetch, request, url }) => {
     api.getTaxForms({ taxYear, status, limit: 100 }),
     api.getTaxDeadlines().catch(() => ({ forms: [] })),
     api.getFiscalPeriods({ limit: 50 }),
-    api.getMembers({ limit: 200 }),
+    api.getMembers({ limit: 50 }),
   ]);
 
   return {

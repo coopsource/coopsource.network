@@ -11,7 +11,7 @@ export const load: PageServerLoad = async ({ fetch, request, url }) => {
   const [config, progress, membersData] = await Promise.all([
     api.getOnboardingConfig().catch(() => null),
     api.getOnboardingProgress({ status, limit: 20, cursor }),
-    api.getMembers({ limit: 200 }),
+    api.getMembers({ limit: 50 }),
   ]);
 
   return {

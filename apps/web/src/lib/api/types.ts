@@ -976,8 +976,13 @@ export interface DelegationsResponse {
   cursor: string | null;
 }
 
+export interface DelegationChainLink {
+  delegatorDid: string;
+  delegateeDid: string;
+}
+
 export interface DelegationChain {
-  chain: unknown[];
+  chain: DelegationChainLink[];
 }
 
 export interface VoteWeightResponse {
@@ -998,7 +1003,8 @@ export interface GovernanceFeedItem {
 
 export interface GovernanceFeedResponse {
   items: GovernanceFeedItem[];
-  cursor: string | undefined;
+  /** Feed endpoints return raw Page<T> where cursor is omitted (undefined) when no more pages */
+  cursor?: string;
 }
 
 // ─── Member Classes ──────────────────────────────────────────────────────────

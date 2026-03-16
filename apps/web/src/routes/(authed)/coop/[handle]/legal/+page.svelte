@@ -1,5 +1,6 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import { goto } from '$app/navigation';
   import { Badge, EmptyState, Modal } from '$lib/components/ui';
   import { workspacePrefix } from '$lib/utils/workspace.js';
 
@@ -9,8 +10,9 @@
   let submitting = $state(false);
 
   $effect(() => {
-    if (form?.success) {
+    if (form?.success && form?.documentId) {
       createOpen = false;
+      goto(`${$workspacePrefix}/legal/${form.documentId}`);
     }
   });
 

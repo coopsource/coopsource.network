@@ -130,6 +130,11 @@
           </tbody>
         </table>
       </div>
+      {#if data.officersCursor}
+        <div class="flex justify-center pt-2">
+          <a href="?officersCursor={data.officersCursor}" class="text-sm text-[var(--cs-primary)] hover:underline">Load more</a>
+        </div>
+      {/if}
     {/if}
   {/if}
 
@@ -180,6 +185,11 @@
           </tbody>
         </table>
       </div>
+      {#if data.complianceCursor}
+        <div class="flex justify-center pt-2">
+          <a href="?complianceCursor={data.complianceCursor}" class="text-sm text-[var(--cs-primary)] hover:underline">Load more</a>
+        </div>
+      {/if}
     {/if}
   {/if}
 
@@ -207,6 +217,11 @@
           </div>
         {/each}
       </div>
+      {#if data.noticesCursor}
+        <div class="flex justify-center pt-2">
+          <a href="?noticesCursor={data.noticesCursor}" class="text-sm text-[var(--cs-primary)] hover:underline">Load more</a>
+        </div>
+      {/if}
     {/if}
   {/if}
 
@@ -246,6 +261,11 @@
           </tbody>
         </table>
       </div>
+      {#if data.fiscalCursor}
+        <div class="flex justify-center pt-2">
+          <a href="?fiscalCursor={data.fiscalCursor}" class="text-sm text-[var(--cs-primary)] hover:underline">Load more</a>
+        </div>
+      {/if}
     {/if}
   {/if}
 </div>

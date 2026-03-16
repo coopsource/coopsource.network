@@ -156,6 +156,12 @@
           </tbody>
         </table>
       </div>
+      {#if data.progressCursor}
+        <div class="flex justify-center pt-2">
+          <a href="?cursor={data.progressCursor}{data.filterStatus ? `&status=${data.filterStatus}` : ''}"
+            class="text-sm text-[var(--cs-primary)] hover:underline">Load more</a>
+        </div>
+      {/if}
     {/if}
   {/if}
 

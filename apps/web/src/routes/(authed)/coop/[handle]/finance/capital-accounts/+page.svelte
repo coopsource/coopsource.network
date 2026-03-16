@@ -110,6 +110,11 @@
         </tbody>
       </table>
     </div>
+    {#if data.accountsCursor}
+      <div class="flex justify-center pt-2">
+        <a href="?cursor={data.accountsCursor}" class="text-sm text-[var(--cs-primary)] hover:underline">Load more</a>
+      </div>
+    {/if}
   {/if}
 </div>
 

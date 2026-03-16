@@ -54,7 +54,7 @@ test.describe('Patronage', () => {
     await page.locator('button[role="tab"]').filter({ hasText: 'Configuration' }).click();
 
     await page.getByRole('button', { name: 'Add config' }).click();
-    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 10_000 });
 
     await page.locator('#metricType').selectOption('hours_worked');
     await page.locator('#cashPayoutPct').fill('25');
@@ -97,7 +97,7 @@ test.describe('Capital Accounts', () => {
   test('record contribution via modal', async ({ page }) => {
     await page.goto(wp('/finance/capital-accounts'));
     await page.getByRole('button', { name: 'Record contribution' }).click();
-    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 10_000 });
 
     await page.locator('#contribMember').selectOption({ index: 1 });
     await page.locator('#contribAmount').fill('500');

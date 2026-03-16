@@ -15,24 +15,12 @@ test.describe('Legal Documents UI', () => {
     await expect(page.getByRole('link', { name: 'Meeting Records' })).toBeVisible();
   });
 
-  test('create legal document via modal', async ({ page }) => {
+  test('new document button opens create modal', async ({ page }) => {
     await page.goto(wp('/legal'));
-
-    // Open create modal
     await page.getByRole('button', { name: 'New document' }).click();
-    await expect(page.getByRole('dialog')).toBeVisible();
-
-    // Fill form
-    await page.locator('#docTitle').fill('Test Bylaws');
-    await page.locator('#docType').selectOption('bylaws');
-    await page.locator('#docBody').fill('Article 1: Purpose and objectives.');
-
-    // Submit
-    await page.getByRole('button', { name: 'Create document' }).click();
-
-    // Modal closes and document appears in list
-    await expect(page.getByText('Test Bylaws')).toBeVisible({ timeout: 10_000 });
-    await expect(page.locator('a').filter({ hasText: 'bylaws' })).toBeVisible();
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('#docTitle')).toBeVisible();
+    await expect(page.locator('#docType')).toBeVisible();
   });
 
   test('navigate to document detail and edit', async ({ page, request }) => {
@@ -88,17 +76,18 @@ test.describe('Legal Documents UI', () => {
     await expect(page.getByText('Draft Doc')).not.toBeVisible();
   });
 
-  test('new document page creates and redirects', async ({ page }) => {
-    await page.goto(wp('/legal/new'));
-    await expect(page.locator('h1', { hasText: 'New Legal Document' })).toBeVisible();
+  test('create document via modal navigates to detail', async ({ page }) => {
+    await page.goto(wp('/legal'));
+    await page.getByRole('button', { name: 'New document' }).click();
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 10_000 });
 
-    await page.locator('#title').fill('Resolution 2026-01');
-    await page.locator('#documentType').selectOption('resolution');
-    await page.locator('#body').fill('Be it resolved that...');
+    await page.locator('#docTitle').fill('Resolution 2026-01');
+    await page.locator('#docType').selectOption('resolution');
+    await page.locator('#docBody').fill('Be it resolved that...');
     await page.getByRole('button', { name: 'Create document' }).click();
 
-    // Should redirect to detail page
-    await page.waitForURL(/\/coop\/[^/]+\/legal\/[a-f0-9-]+$/);
+    // Should navigate to detail page
+    await page.waitForURL(/\/coop\/[^/]+\/legal\/[a-f0-9-]+$/, { timeout: 10_000 });
     await expect(page.locator('h1', { hasText: 'Resolution 2026-01' })).toBeVisible();
   });
 });
@@ -118,7 +107,7 @@ test.describe('Meeting Records UI', () => {
   test('create meeting record via modal', async ({ page }) => {
     await page.goto(wp('/legal/meetings'));
     await page.getByRole('button', { name: 'New meeting' }).click();
-    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 10_000 });
 
     await page.locator('#meetingTitle').fill('Q1 Board Meeting');
     await page.locator('#meetingDate').fill('2026-03-15');

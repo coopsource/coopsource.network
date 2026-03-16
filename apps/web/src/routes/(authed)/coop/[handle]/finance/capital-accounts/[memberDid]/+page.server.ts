@@ -8,16 +8,16 @@ export const load: PageServerLoad = async ({ params, fetch, request }) => {
   const memberDid = decodeURIComponent(params.memberDid);
 
   try {
-    const [account, transactions, members] = await Promise.all([
+    const [account, transactions, member] = await Promise.all([
       api.getMemberCapitalAccount(memberDid),
       api.getMemberCapitalTransactions(memberDid, { limit: 100 }),
-      api.getMembers({ limit: 200 }),
+      api.getMember(memberDid).catch(() => null),
     ]);
 
     return {
       account,
       transactions: transactions.transactions,
-      members: members.members,
+      member,
       memberDid,
     };
   } catch (err) {

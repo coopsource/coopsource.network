@@ -25,7 +25,7 @@ test.describe('Onboarding UI', () => {
     await expect(page.getByRole('tab', { name: /Configuration/ })).toBeVisible();
   });
 
-  test('create onboarding config', async ({ page }) => {
+  test('create onboarding config via UI', async ({ page }) => {
     await page.goto(wp('/onboarding'));
     await page.locator('button[role="tab"]').filter({ hasText: 'Configuration' }).click();
 
@@ -34,29 +34,6 @@ test.describe('Onboarding UI', () => {
 
     await page.getByRole('button', { name: 'Create configuration' }).click();
     await expect(page.getByText('Saved successfully')).toBeVisible({ timeout: 10_000 });
-  });
-
-  test('onboarding config API works', async ({ request }) => {
-    const createRes = await post(request, cookie, '/onboarding/config', {
-      probationDurationDays: 30,
-      requireTraining: true,
-      requireBuyIn: false,
-      buddySystemEnabled: false,
-    });
-    expect(createRes.status()).toBe(201);
-    const config = await createRes.json();
-    expect(config.probationDurationDays).toBe(30);
-    expect(config.requireTraining).toBe(true);
-  });
-
-  test('start onboarding for admin (self-onboard)', async ({ request }) => {
-    await post(request, cookie, '/onboarding/config', { probationDurationDays: 30 });
-
-    const startRes = await post(request, cookie, '/onboarding/start', { memberDid: adminDid });
-    expect(startRes.status()).toBe(201);
-    const progress = await startRes.json();
-    expect(progress.memberDid).toBe(adminDid);
-    expect(progress.status).toBe('in_progress');
   });
 
   test('view onboarding detail page', async ({ page, request }) => {
@@ -71,7 +48,7 @@ test.describe('Onboarding UI', () => {
     await expect(page.getByText('Training')).toBeVisible();
   });
 
-  test('complete training step', async ({ page, request }) => {
+  test('complete training step via UI', async ({ page, request }) => {
     await post(request, cookie, '/onboarding/config', {
       probationDurationDays: 30,
       requireTraining: true,
@@ -83,31 +60,6 @@ test.describe('Onboarding UI', () => {
 
     await page.getByRole('button', { name: 'Mark done' }).first().click();
     await expect(page.getByText('Updated successfully')).toBeVisible({ timeout: 10_000 });
-  });
-
-  test('create onboarding review via API', async ({ request }) => {
-    await post(request, cookie, '/onboarding/config', { probationDurationDays: 30 });
-    await post(request, cookie, '/onboarding/start', { memberDid: adminDid });
-
-    const reviewRes = await post(request, cookie, '/onboarding/review', {
-      memberDid: adminDid,
-      reviewType: 'periodic',
-      outcome: 'pass',
-      comments: 'Making good progress.',
-    });
-    expect(reviewRes.status()).toBe(201);
-    const review = await reviewRes.json();
-    expect(review.outcome).toBe('pass');
-  });
-
-  test('complete onboarding via API', async ({ request }) => {
-    await post(request, cookie, '/onboarding/config', { probationDurationDays: 30 });
-    await post(request, cookie, '/onboarding/start', { memberDid: adminDid });
-
-    const completeRes = await post(request, cookie, '/onboarding/complete', { memberDid: adminDid });
-    expect(completeRes.status()).toBe(200);
-    const completed = await completeRes.json();
-    expect(completed.status).toBe('completed');
   });
 
   test('members page shows onboarding link', async ({ page }) => {

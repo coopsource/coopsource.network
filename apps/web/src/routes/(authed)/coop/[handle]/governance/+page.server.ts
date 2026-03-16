@@ -15,7 +15,7 @@ export const load: PageServerLoad = async ({ fetch, request, url }) => {
       api.getDelegations({ limit: 50 }).catch(() => ({ delegations: [], cursor: null })),
       api.getGovernanceActionItems({ limit: 20 }).catch(() => ({ items: [], cursor: undefined })),
       api.getGovernanceOutcomes({ limit: 20 }).catch(() => ({ items: [], cursor: undefined })),
-      api.getMembers({ limit: 200 }),
+      api.getMembers({ limit: 50 }),
     ]);
     return {
       proposals: result.proposals,

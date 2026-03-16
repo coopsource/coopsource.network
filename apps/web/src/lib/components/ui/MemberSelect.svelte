@@ -48,10 +48,10 @@
   }
 
   function handleBlur() {
-    // Delay to allow click on dropdown items
-    setTimeout(() => {
+    // Close after one frame so onmousedown on dropdown items fires first
+    requestAnimationFrame(() => {
       open = false;
-    }, 200);
+    });
   }
 
   function handleInput(e: Event) {

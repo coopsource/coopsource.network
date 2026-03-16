@@ -2,18 +2,20 @@ import { fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types.js';
 import { createApiClient, ApiError } from '$lib/api/client.js';
 
-export const load: PageServerLoad = async ({ fetch, request }) => {
+export const load: PageServerLoad = async ({ fetch, request, url }) => {
   const cookie = request.headers.get('cookie') ?? undefined;
   const api = createApiClient(fetch, cookie);
+  const cursor = url.searchParams.get('cursor') ?? undefined;
 
   const [accounts, summary, members] = await Promise.all([
-    api.getCapitalAccounts({ limit: 100 }),
+    api.getCapitalAccounts({ limit: 20, cursor }),
     api.getCapitalAccountSummary().catch(() => null),
-    api.getMembers({ limit: 200 }),
+    api.getMembers({ limit: 50 }),
   ]);
 
   return {
     accounts: accounts.accounts,
+    accountsCursor: accounts.cursor,
     summary,
     members: members.members,
   };

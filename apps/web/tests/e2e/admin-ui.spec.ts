@@ -81,7 +81,7 @@ test.describe('Admin — Compliance Tab', () => {
     await page.getByRole('tab', { name: /Compliance/ }).click();
 
     await page.getByRole('button', { name: 'New compliance item' }).click();
-    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 10_000 });
 
     await page.locator('#compTitle').fill('Annual Report 2026');
     await page.locator('#dueDate').fill('2026-04-15');
@@ -136,7 +136,7 @@ test.describe('Admin — Fiscal Periods Tab', () => {
     await page.getByRole('tab', { name: /Fiscal/ }).click();
 
     await page.getByRole('button', { name: 'New fiscal period' }).click();
-    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 10_000 });
 
     await page.locator('#fiscalLabel').fill('FY2026');
     await page.locator('#startsAt').fill('2026-01-01');

@@ -1,14 +1,10 @@
 <script lang="ts">
   import { Badge } from '$lib/components/ui';
   import { workspacePrefix } from '$lib/utils/workspace.js';
-  import type { Member } from '$lib/api/types.js';
 
   let { data } = $props();
 
-  function getMemberName(did: string): string {
-    const member = data.members.find((m: Member) => m.did === did);
-    return member?.displayName ?? did;
-  }
+  const memberName = $derived(data.member?.displayName ?? data.memberDid);
 
   function fmt(n: number): string {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
@@ -24,7 +20,7 @@
 </script>
 
 <svelte:head>
-  <title>{getMemberName(data.memberDid)} — Capital Account — Co-op Source</title>
+  <title>{memberName} — Capital Account — Co-op Source</title>
 </svelte:head>
 
 <div class="mx-auto max-w-3xl space-y-6">
@@ -34,7 +30,7 @@
 
   <!-- Account Summary -->
   <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-6">
-    <h1 class="text-xl font-semibold text-[var(--cs-text)]">{getMemberName(data.memberDid)}</h1>
+    <h1 class="text-xl font-semibold text-[var(--cs-text)]">{memberName}</h1>
     <div class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
       <div>
         <p class="text-xs text-[var(--cs-text-muted)]">Contribution</p>

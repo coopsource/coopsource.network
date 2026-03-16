@@ -2,23 +2,31 @@ import { fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types.js';
 import { createApiClient, ApiError } from '$lib/api/client.js';
 
-export const load: PageServerLoad = async ({ fetch, request }) => {
+export const load: PageServerLoad = async ({ fetch, request, url }) => {
   const cookie = request.headers.get('cookie') ?? undefined;
   const api = createApiClient(fetch, cookie);
+  const officersCursor = url.searchParams.get('officersCursor') ?? undefined;
+  const complianceCursor = url.searchParams.get('complianceCursor') ?? undefined;
+  const noticesCursor = url.searchParams.get('noticesCursor') ?? undefined;
+  const fiscalCursor = url.searchParams.get('fiscalCursor') ?? undefined;
 
   const [officers, compliance, notices, fiscalPeriods, membersData] = await Promise.all([
-    api.getOfficers({ limit: 50 }),
-    api.getComplianceItems({ limit: 50 }),
-    api.getNotices({ limit: 50 }),
-    api.getFiscalPeriods({ limit: 50 }),
-    api.getMembers({ limit: 200 }),
+    api.getOfficers({ limit: 20, cursor: officersCursor }),
+    api.getComplianceItems({ limit: 20, cursor: complianceCursor }),
+    api.getNotices({ limit: 20, cursor: noticesCursor }),
+    api.getFiscalPeriods({ limit: 20, cursor: fiscalCursor }),
+    api.getMembers({ limit: 50 }),
   ]);
 
   return {
     officers: officers.officers,
+    officersCursor: officers.cursor,
     complianceItems: compliance.items,
+    complianceCursor: compliance.cursor,
     notices: notices.notices,
+    noticesCursor: notices.cursor,
     fiscalPeriods: fiscalPeriods.fiscalPeriods,
+    fiscalCursor: fiscalPeriods.cursor,
     members: membersData.members,
   };
 };

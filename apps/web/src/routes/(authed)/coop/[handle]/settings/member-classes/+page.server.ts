@@ -8,7 +8,7 @@ export const load: PageServerLoad = async ({ fetch, request }) => {
 
   const [classes, members] = await Promise.all([
     api.getMemberClasses(),
-    api.getMembers({ limit: 200 }),
+    api.getMembers({ limit: 50 }),
   ]);
 
   return {

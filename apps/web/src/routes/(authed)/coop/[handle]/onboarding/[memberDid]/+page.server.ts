@@ -7,31 +7,33 @@ export const load: PageServerLoad = async ({ params, fetch, request }) => {
   const api = createApiClient(fetch, cookie);
   const memberDid = decodeURIComponent(params.memberDid);
 
+  let progress;
   try {
-    const [progress, reviews, config, membersData] = await Promise.all([
-      api.getMemberOnboarding(memberDid),
-      api.getOnboardingReviews(memberDid),
-      api.getOnboardingConfig().catch(() => null),
-      api.getMembers({ limit: 200 }),
-    ]);
-
-    if (!progress) {
-      error(404, 'Onboarding not found for this member.');
-    }
-
-    return {
-      progress,
-      reviews: reviews.reviews,
-      config,
-      members: membersData.members,
-      memberDid,
-    };
+    progress = await api.getMemberOnboarding(memberDid);
   } catch (err) {
     if (err instanceof ApiError && err.status === 404) {
       error(404, 'Onboarding not found.');
     }
     throw err;
   }
+
+  if (!progress) {
+    error(404, 'Onboarding not found for this member.');
+  }
+
+  const [reviews, config, membersData] = await Promise.all([
+    api.getOnboardingReviews(memberDid),
+    api.getOnboardingConfig().catch(() => null),
+    api.getMembers({ limit: 50 }),
+  ]);
+
+  return {
+    progress,
+    reviews: reviews.reviews,
+    config,
+    members: membersData.members,
+    memberDid,
+  };
 };
 
 export const actions: Actions = {

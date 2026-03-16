@@ -10,7 +10,7 @@ export const load: PageServerLoad = async ({ fetch, request, url }) => {
   const [configs, fiscalPeriods, members] = await Promise.all([
     api.getPatronageConfigs(),
     api.getFiscalPeriods({ limit: 50 }),
-    api.getMembers({ limit: 200 }),
+    api.getMembers({ limit: 50 }),
   ]);
 
   let records = null;
