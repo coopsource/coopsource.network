@@ -113,6 +113,15 @@ import type {
   ExpensesResponse,
   RevenueEntry,
   RevenueEntriesResponse,
+  CommerceListing,
+  CommerceNeed,
+  IntercoopAgreement,
+  CollaborativeProject,
+  SharedResource,
+  ResourceBooking,
+  ConnectorConfig,
+  WebhookEndpoint,
+  EventCatalogEntry,
 } from './types.js';
 
 export class ApiError extends Error {
@@ -1325,5 +1334,107 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string, apiBase?
       request<{ totalAmount: number; count: number; currency: string }>(`/finance/revenue/summary/project/${encodeURIComponent(projectId)}?startDate=${startDate}&endDate=${endDate}`),
     getOverallRevenueSummary: (startDate: string, endDate: string) =>
       request<{ items: Array<{ projectId: string | null; totalAmount: number; count: number }> }>(`/finance/revenue/summary?startDate=${startDate}&endDate=${endDate}`),
+
+    // ── Commerce Listings (Phase 9) ──────────────────────────────────
+    createCommerceListing: (body: { title: string; description?: string; category: string; availability?: string; location?: string; tags?: string[] }) =>
+      request<CommerceListing>('/commerce/listings', { method: 'POST', body: JSON.stringify(body) }),
+    getCommerceListings: (params?: { category?: string; status?: string; limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.category) qs.set('category', params.category);
+      if (params?.status) qs.set('status', params.status);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<{ items: CommerceListing[]; cursor: string | null }>(`/commerce/listings${qs.size ? `?${qs}` : ''}`);
+    },
+    searchCommerceListings: (params?: { category?: string; location?: string; query?: string; limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.category) qs.set('category', params.category);
+      if (params?.location) qs.set('location', params.location);
+      if (params?.query) qs.set('query', params.query);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<{ items: CommerceListing[]; cursor: string | null }>(`/commerce/listings/search${qs.size ? `?${qs}` : ''}`);
+    },
+    getCommerceListing: (id: string) => request<CommerceListing>(`/commerce/listings/${id}`),
+    updateCommerceListing: (id: string, body: Record<string, unknown>) =>
+      request<CommerceListing>(`/commerce/listings/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    deleteCommerceListing: (id: string) => request<void>(`/commerce/listings/${id}`, { method: 'DELETE' }),
+
+    // ── Commerce Needs (Phase 9) ─────────────────────────────────────
+    createCommerceNeed: (body: { title: string; description?: string; category: string; urgency?: string; tags?: string[] }) =>
+      request<CommerceNeed>('/commerce/needs', { method: 'POST', body: JSON.stringify(body) }),
+    getCommerceNeeds: (params?: { category?: string; status?: string; limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.category) qs.set('category', params.category);
+      if (params?.status) qs.set('status', params.status);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<{ items: CommerceNeed[]; cursor: string | null }>(`/commerce/needs${qs.size ? `?${qs}` : ''}`);
+    },
+    searchCommerceNeeds: (params?: { category?: string; urgency?: string; limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.category) qs.set('category', params.category);
+      if (params?.urgency) qs.set('urgency', params.urgency);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<{ items: CommerceNeed[]; cursor: string | null }>(`/commerce/needs/search${qs.size ? `?${qs}` : ''}`);
+    },
+    deleteCommerceNeed: (id: string) => request<void>(`/commerce/needs/${id}`, { method: 'DELETE' }),
+
+    // ── Inter-Coop Agreements (Phase 9) ──────────────────────────────
+    createIntercoopAgreement: (body: { responderDid: string; title: string; description?: string; agreementType?: string; terms?: Record<string, unknown> }) =>
+      request<IntercoopAgreement>('/commerce/agreements', { method: 'POST', body: JSON.stringify(body) }),
+    getIntercoopAgreements: (params?: { status?: string; limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.status) qs.set('status', params.status);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<{ items: IntercoopAgreement[]; cursor: string | null }>(`/commerce/agreements${qs.size ? `?${qs}` : ''}`);
+    },
+    getIntercoopAgreement: (id: string) => request<IntercoopAgreement>(`/commerce/agreements/${id}`),
+    respondToIntercoopAgreement: (id: string, body: { accept: boolean }) =>
+      request<IntercoopAgreement>(`/commerce/agreements/${id}/respond`, { method: 'POST', body: JSON.stringify(body) }),
+
+    // ── Collaborative Projects (Phase 9) ─────────────────────────────
+    createCollaborativeProject: (body: { title: string; description?: string; participantDids: string[]; revenueSplit?: Record<string, number> }) =>
+      request<CollaborativeProject>('/commerce/projects', { method: 'POST', body: JSON.stringify(body) }),
+    getCollaborativeProjects: (params?: { status?: string; limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.status) qs.set('status', params.status);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<{ items: CollaborativeProject[]; cursor: string | null }>(`/commerce/projects${qs.size ? `?${qs}` : ''}`);
+    },
+    getCollaborativeProject: (id: string) => request<CollaborativeProject>(`/commerce/projects/${id}`),
+
+    // ── Shared Resources (Phase 9) ───────────────────────────────────
+    createSharedResource: (body: { title: string; description?: string; resourceType: string; location?: string; costPerUnit?: number; costUnit?: string }) =>
+      request<SharedResource>('/commerce/resources', { method: 'POST', body: JSON.stringify(body) }),
+    getSharedResources: (params?: { resourceType?: string; status?: string; limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.resourceType) qs.set('resourceType', params.resourceType);
+      if (params?.status) qs.set('status', params.status);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<{ items: SharedResource[]; cursor: string | null }>(`/commerce/resources${qs.size ? `?${qs}` : ''}`);
+    },
+    getSharedResource: (id: string) => request<SharedResource>(`/commerce/resources/${id}`),
+    createResourceBooking: (resourceId: string, body: { startsAt: string; endsAt: string; purpose?: string }) =>
+      request<ResourceBooking>(`/commerce/resources/${resourceId}/bookings`, { method: 'POST', body: JSON.stringify(body) }),
+    reviewResourceBooking: (id: string, body: { action: 'approve' | 'reject' }) =>
+      request<ResourceBooking>(`/commerce/bookings/${id}/review`, { method: 'POST', body: JSON.stringify(body) }),
+
+    // ── Connectors (Phase 9) ─────────────────────────────────────────
+    getConnectorConfigs: () => request<{ items: ConnectorConfig[] }>('/connectors/configs'),
+    createConnectorConfig: (body: { connectorType: string; displayName: string; config?: Record<string, unknown>; enabled?: boolean }) =>
+      request<ConnectorConfig>('/connectors/configs', { method: 'POST', body: JSON.stringify(body) }),
+    deleteConnectorConfig: (id: string) => request<void>(`/connectors/configs/${id}`, { method: 'DELETE' }),
+
+    // ── Webhooks (Phase 9) ───────────────────────────────────────────
+    getWebhookEndpoints: () => request<{ items: WebhookEndpoint[] }>('/webhooks/endpoints'),
+    createWebhookEndpoint: (body: { url: string; eventTypes: string[]; secret: string; enabled?: boolean }) =>
+      request<WebhookEndpoint>('/webhooks/endpoints', { method: 'POST', body: JSON.stringify(body) }),
+    deleteWebhookEndpoint: (id: string) => request<void>(`/webhooks/endpoints/${id}`, { method: 'DELETE' }),
+    getEventCatalog: () => request<{ events: EventCatalogEntry[] }>('/webhooks/events'),
   };
 }

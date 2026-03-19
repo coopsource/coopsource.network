@@ -1194,3 +1194,193 @@ export type ReviewExpenseInput = z.infer<typeof ReviewExpenseSchema>;
 export type ReimburseExpenseInput = z.infer<typeof ReimburseExpenseSchema>;
 export type CreateRevenueEntryInput = z.infer<typeof CreateRevenueEntrySchema>;
 export type UpdateRevenueEntryInput = z.infer<typeof UpdateRevenueEntrySchema>;
+
+// --- Commerce Schemas (Phase 9) ---
+
+export const CommerceListingStatusEnum = z.enum(['active', 'paused', 'archived']);
+export const CommerceAvailabilityEnum = z.enum(['available', 'limited', 'unavailable']);
+
+export const CreateCommerceListingSchema = z.object({
+  title: z.string().min(1).max(255),
+  description: z.string().max(5000).optional(),
+  category: z.string().min(1).max(100),
+  availability: CommerceAvailabilityEnum.default('available'),
+  location: z.string().max(500).optional(),
+  cooperativeType: z.string().max(100).optional(),
+  tags: z.array(z.string().max(50)).max(20).default([]),
+});
+
+export const UpdateCommerceListingSchema = z.object({
+  title: z.string().min(1).max(255).optional(),
+  description: z.string().max(5000).optional(),
+  category: z.string().min(1).max(100).optional(),
+  availability: CommerceAvailabilityEnum.optional(),
+  location: z.string().max(500).nullable().optional(),
+  cooperativeType: z.string().max(100).nullable().optional(),
+  tags: z.array(z.string().max(50)).max(20).optional(),
+  status: CommerceListingStatusEnum.optional(),
+});
+
+export const CommerceNeedStatusEnum = z.enum(['open', 'matched', 'fulfilled', 'cancelled']);
+export const CommerceNeedUrgencyEnum = z.enum(['low', 'normal', 'high', 'urgent']);
+
+export const CreateCommerceNeedSchema = z.object({
+  title: z.string().min(1).max(255),
+  description: z.string().max(5000).optional(),
+  category: z.string().min(1).max(100),
+  urgency: CommerceNeedUrgencyEnum.default('normal'),
+  location: z.string().max(500).optional(),
+  tags: z.array(z.string().max(50)).max(20).default([]),
+});
+
+export const UpdateCommerceNeedSchema = z.object({
+  title: z.string().min(1).max(255).optional(),
+  description: z.string().max(5000).optional(),
+  category: z.string().min(1).max(100).optional(),
+  urgency: CommerceNeedUrgencyEnum.optional(),
+  location: z.string().max(500).nullable().optional(),
+  tags: z.array(z.string().max(50)).max(20).optional(),
+  status: CommerceNeedStatusEnum.optional(),
+});
+
+export const IntercoopAgreementTypeEnum = z.enum(['service', 'supply', 'joint_venture', 'procurement', 'resource_sharing', 'other']);
+
+export const CreateIntercoopAgreementSchema = z.object({
+  responderDid: z.string().min(1),
+  title: z.string().min(1).max(255),
+  description: z.string().max(10000).optional(),
+  agreementType: IntercoopAgreementTypeEnum.default('service'),
+  terms: z.record(z.string(), z.unknown()).optional(),
+});
+
+export const UpdateIntercoopAgreementSchema = z.object({
+  title: z.string().min(1).max(255).optional(),
+  description: z.string().max(10000).optional(),
+  terms: z.record(z.string(), z.unknown()).optional(),
+  status: z.enum(['proposed', 'negotiating', 'active', 'completed', 'cancelled']).optional(),
+});
+
+export const CreateCollaborativeProjectSchema = z.object({
+  title: z.string().min(1).max(255),
+  description: z.string().max(10000).optional(),
+  participantDids: z.array(z.string()).min(1).max(50),
+  revenueSplit: z.record(z.string(), z.number()).optional(),
+});
+
+export const UpdateCollaborativeProjectSchema = z.object({
+  title: z.string().min(1).max(255).optional(),
+  description: z.string().max(10000).optional(),
+  participantDids: z.array(z.string()).max(50).optional(),
+  revenueSplit: z.record(z.string(), z.number()).optional(),
+  status: z.enum(['planning', 'active', 'completed', 'cancelled']).optional(),
+});
+
+export const RecordContributionToProjectSchema = z.object({
+  cooperativeDid: z.string().min(1),
+  hoursContributed: z.number().nonnegative().optional(),
+  revenueEarned: z.number().nonnegative().optional(),
+  expenseIncurred: z.number().nonnegative().optional(),
+  periodStart: z.string().min(1),
+  periodEnd: z.string().min(1),
+});
+
+export const ResourceTypeEnum = z.enum(['equipment', 'space', 'expertise', 'vehicle', 'other']);
+
+export const CreateSharedResourceSchema = z.object({
+  title: z.string().min(1).max(255),
+  description: z.string().max(5000).optional(),
+  resourceType: ResourceTypeEnum,
+  location: z.string().max(500).optional(),
+  costPerUnit: z.number().nonnegative().optional(),
+  costUnit: z.string().max(50).optional(),
+});
+
+export const UpdateSharedResourceSchema = z.object({
+  title: z.string().min(1).max(255).optional(),
+  description: z.string().max(5000).optional(),
+  resourceType: ResourceTypeEnum.optional(),
+  location: z.string().max(500).nullable().optional(),
+  costPerUnit: z.number().nonnegative().nullable().optional(),
+  costUnit: z.string().max(50).nullable().optional(),
+  status: z.enum(['available', 'reserved', 'unavailable']).optional(),
+});
+
+export const CreateResourceBookingSchema = z.object({
+  resourceId: z.string().min(1),
+  startsAt: z.string().min(1),
+  endsAt: z.string().min(1),
+  purpose: z.string().max(2000).optional(),
+});
+
+export const ReviewBookingSchema = z.object({
+  action: z.enum(['approve', 'reject']),
+});
+
+export const CreateProcurementGroupSchema = z.object({
+  title: z.string().min(1).max(255),
+  description: z.string().max(5000).optional(),
+  category: z.string().max(100).optional(),
+  targetQuantity: z.number().int().positive().optional(),
+  deadline: z.string().optional(),
+});
+
+export const AddProcurementDemandSchema = z.object({
+  quantity: z.number().int().positive(),
+  notes: z.string().max(2000).optional(),
+});
+
+// --- Connector Framework Schemas (Phase 9) ---
+
+export const CreateConnectorConfigSchema = z.object({
+  connectorType: z.string().min(1).max(100),
+  displayName: z.string().min(1).max(255),
+  config: z.record(z.string(), z.unknown()).default({}),
+  enabled: z.boolean().default(true),
+});
+
+export const UpdateConnectorConfigSchema = z.object({
+  displayName: z.string().min(1).max(255).optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
+  enabled: z.boolean().optional(),
+});
+
+export const CreateFieldMappingSchema = z.object({
+  localField: z.string().min(1).max(255),
+  remoteField: z.string().min(1).max(255),
+  transform: z.string().max(500).optional(),
+});
+
+export const CreateWebhookEndpointSchema = z.object({
+  url: z.string().url().max(2000),
+  eventTypes: z.array(z.string().min(1).max(100)).min(1).max(50),
+  secret: z.string().min(16).max(500),
+  enabled: z.boolean().default(true),
+});
+
+export const UpdateWebhookEndpointSchema = z.object({
+  url: z.string().url().max(2000).optional(),
+  eventTypes: z.array(z.string().min(1).max(100)).min(1).max(50).optional(),
+  enabled: z.boolean().optional(),
+});
+
+// Type exports
+export type CreateCommerceListingInput = z.infer<typeof CreateCommerceListingSchema>;
+export type UpdateCommerceListingInput = z.infer<typeof UpdateCommerceListingSchema>;
+export type CreateCommerceNeedInput = z.infer<typeof CreateCommerceNeedSchema>;
+export type UpdateCommerceNeedInput = z.infer<typeof UpdateCommerceNeedSchema>;
+export type CreateIntercoopAgreementInput = z.infer<typeof CreateIntercoopAgreementSchema>;
+export type UpdateIntercoopAgreementInput = z.infer<typeof UpdateIntercoopAgreementSchema>;
+export type CreateCollaborativeProjectInput = z.infer<typeof CreateCollaborativeProjectSchema>;
+export type UpdateCollaborativeProjectInput = z.infer<typeof UpdateCollaborativeProjectSchema>;
+export type RecordContributionToProjectInput = z.infer<typeof RecordContributionToProjectSchema>;
+export type CreateSharedResourceInput = z.infer<typeof CreateSharedResourceSchema>;
+export type UpdateSharedResourceInput = z.infer<typeof UpdateSharedResourceSchema>;
+export type CreateResourceBookingInput = z.infer<typeof CreateResourceBookingSchema>;
+export type ReviewBookingInput = z.infer<typeof ReviewBookingSchema>;
+export type CreateProcurementGroupInput = z.infer<typeof CreateProcurementGroupSchema>;
+export type AddProcurementDemandInput = z.infer<typeof AddProcurementDemandSchema>;
+export type CreateConnectorConfigInput = z.infer<typeof CreateConnectorConfigSchema>;
+export type UpdateConnectorConfigInput = z.infer<typeof UpdateConnectorConfigSchema>;
+export type CreateFieldMappingInput = z.infer<typeof CreateFieldMappingSchema>;
+export type CreateWebhookEndpointInput = z.infer<typeof CreateWebhookEndpointSchema>;
+export type UpdateWebhookEndpointInput = z.infer<typeof UpdateWebhookEndpointSchema>;

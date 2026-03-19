@@ -1208,3 +1208,111 @@ export interface RevenueEntriesResponse {
   items: RevenueEntry[];
   cursor: string | null;
 }
+
+// ── Commerce — Phase 9 ──────────────────────────────────────────────
+
+export interface CommerceListing {
+  id: string;
+  cooperativeDid: string;
+  title: string;
+  description: string | null;
+  category: string;
+  availability: string;
+  location: string | null;
+  cooperativeType: string | null;
+  tags: string[];
+  status: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CommerceNeed {
+  id: string;
+  cooperativeDid: string;
+  title: string;
+  description: string | null;
+  category: string;
+  urgency: string;
+  location: string | null;
+  tags: string[];
+  status: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IntercoopAgreement {
+  id: string;
+  initiatorDid: string;
+  responderDid: string;
+  title: string;
+  description: string | null;
+  agreementType: string;
+  status: string;
+  terms: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CollaborativeProject {
+  id: string;
+  hostCooperativeDid: string;
+  title: string;
+  description: string | null;
+  status: string;
+  participantDids: string[];
+  revenueSplit: Record<string, unknown> | null;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface SharedResource {
+  id: string;
+  cooperativeDid: string;
+  title: string;
+  description: string | null;
+  resourceType: string;
+  location: string | null;
+  costPerUnit: number | null;
+  costUnit: string | null;
+  status: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface ResourceBooking {
+  id: string;
+  resourceId: string;
+  requestingDid: string;
+  startsAt: string;
+  endsAt: string;
+  purpose: string | null;
+  status: string;
+  costTotal: number | null;
+  createdAt: string;
+}
+
+export interface ConnectorConfig {
+  id: string;
+  cooperativeDid: string;
+  connectorType: string;
+  displayName: string;
+  enabled: boolean;
+  lastSyncAt: string | null;
+  createdAt: string;
+}
+
+export interface WebhookEndpoint {
+  id: string;
+  cooperativeDid: string;
+  url: string;
+  eventTypes: string[];
+  enabled: boolean;
+  createdAt: string;
+}
+
+export interface EventCatalogEntry {
+  type: string;
+  description: string;
+}

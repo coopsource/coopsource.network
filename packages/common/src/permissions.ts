@@ -41,6 +41,8 @@ export const PERMISSIONS = {
   'onboarding.manage': 'Manage onboarding configuration and member progress',
   'coop.links.manage': 'Manage inter-cooperative connections',
   'ops.manage': 'Manage tasks, schedules, and time entry reviews',
+  'commerce.manage': 'Manage commerce listings, inter-coop agreements, and collaborative projects',
+  'connector.manage': 'Manage integration connectors and webhooks',
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -85,6 +87,8 @@ export const BUILT_IN_ROLES: Record<
       'onboarding.manage',
       'coop.links.manage',
       'ops.manage',
+      'commerce.manage',
+      'connector.manage',
     ],
     inherits: ['member'],
   },

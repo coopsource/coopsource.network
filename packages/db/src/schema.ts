@@ -960,6 +960,32 @@ export interface Database {
 
   // Operations — revenue (042)
   revenue_entry: RevenueEntryTable;
+
+  // Commerce (043)
+  commerce_listing: CommerceListingTable;
+  commerce_need: CommerceNeedTable;
+
+  // Inter-cooperative agreements (044)
+  intercoop_agreement: IntercoopAgreementTable;
+
+  // Collaborative projects (045)
+  collaborative_project: CollaborativeProjectTable;
+  collaborative_contribution: CollaborativeContributionTable;
+
+  // Shared resources (046)
+  shared_resource: SharedResourceTable;
+  resource_booking: ResourceBookingTable;
+
+  // Procurement (047)
+  procurement_group: ProcurementGroupTable;
+  procurement_demand: ProcurementDemandTable;
+
+  // Connector framework (048)
+  connector_config: ConnectorConfigTable;
+  connector_sync_log: ConnectorSyncLogTable;
+  connector_field_mapping: ConnectorFieldMappingTable;
+  webhook_endpoint: WebhookEndpointTable;
+  webhook_delivery_log: WebhookDeliveryLogTable;
 }
 
 // ──────────────────────────────────────────────
@@ -1336,4 +1362,224 @@ export interface RevenueEntryTable {
   period_end: ColumnType<Date | null, Date | string | null, Date | string | null>;
   created_at: ColumnType<Date, Date | string | undefined, Date | string>;
   indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+// ──────────────────────────────────────────────
+// 043 — Commerce listings
+// ──────────────────────────────────────────────
+
+export interface CommerceListingTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  title: string;
+  description: string | null;
+  category: string;
+  availability: string;
+  location: string | null;
+  cooperative_type: string | null;
+  tags: ColumnType<string[], string[] | undefined, string[]>;
+  uri: string | null;
+  cid: string | null;
+  status: string;
+  created_by: string;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface CommerceNeedTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  title: string;
+  description: string | null;
+  category: string;
+  urgency: string;
+  location: string | null;
+  tags: ColumnType<string[], string[] | undefined, string[]>;
+  uri: string | null;
+  cid: string | null;
+  status: string;
+  created_by: string;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+// ──────────────────────────────────────────────
+// 044 — Inter-cooperative agreements
+// ──────────────────────────────────────────────
+
+export interface IntercoopAgreementTable {
+  id: Generated<string>;
+  initiator_did: string;
+  responder_did: string;
+  title: string;
+  description: string | null;
+  agreement_type: string;
+  initiator_uri: string | null;
+  initiator_cid: string | null;
+  responder_uri: string | null;
+  responder_cid: string | null;
+  status: string;
+  terms: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+// ──────────────────────────────────────────────
+// 045 — Collaborative projects
+// ──────────────────────────────────────────────
+
+export interface CollaborativeProjectTable {
+  id: Generated<string>;
+  host_cooperative_did: string;
+  title: string;
+  description: string | null;
+  status: string;
+  participant_dids: ColumnType<string[], string[], string[]>;
+  uri: string | null;
+  cid: string | null;
+  revenue_split: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
+  created_by: string;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface CollaborativeContributionTable {
+  id: Generated<string>;
+  project_id: string;
+  cooperative_did: string;
+  hours_contributed: ColumnType<string, string | number | undefined, string | number>;
+  revenue_earned: ColumnType<string, string | number | undefined, string | number>;
+  expense_incurred: ColumnType<string, string | number | undefined, string | number>;
+  period_start: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  period_end: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+// ──────────────────────────────────────────────
+// 046 — Shared resources
+// ──────────────────────────────────────────────
+
+export interface SharedResourceTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  title: string;
+  description: string | null;
+  resource_type: string;
+  availability_schedule: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
+  location: string | null;
+  cost_per_unit: ColumnType<string | null, string | number | null, string | number | null>;
+  cost_unit: string | null;
+  uri: string | null;
+  cid: string | null;
+  status: string;
+  created_by: string;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface ResourceBookingTable {
+  id: Generated<string>;
+  resource_id: string;
+  requesting_did: string;
+  starts_at: ColumnType<Date, Date | string, Date | string>;
+  ends_at: ColumnType<Date, Date | string, Date | string>;
+  purpose: string | null;
+  status: string;
+  cost_total: ColumnType<string | null, string | number | null, string | number | null>;
+  approved_by: string | null;
+  approved_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+// ──────────────────────────────────────────────
+// 047 — Procurement
+// ──────────────────────────────────────────────
+
+export interface ProcurementGroupTable {
+  id: Generated<string>;
+  network_did: string;
+  title: string;
+  description: string | null;
+  category: string | null;
+  target_quantity: number | null;
+  deadline: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  status: string;
+  created_by: string;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface ProcurementDemandTable {
+  id: Generated<string>;
+  group_id: string;
+  cooperative_did: string;
+  quantity: number;
+  notes: string | null;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+// ──────────────────────────────────────────────
+// 048 — Connector framework
+// ──────────────────────────────────────────────
+
+export interface ConnectorConfigTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  connector_type: string;
+  display_name: string;
+  config: ColumnType<Record<string, unknown>, string | Record<string, unknown>, string | Record<string, unknown>>;
+  enabled: boolean;
+  last_sync_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface ConnectorSyncLogTable {
+  id: Generated<string>;
+  connector_config_id: string;
+  direction: string;
+  records_synced: ColumnType<number, number | undefined, number>;
+  records_failed: ColumnType<number, number | undefined, number>;
+  error_details: string | null;
+  started_at: ColumnType<Date, Date | string, Date | string>;
+  completed_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  status: string;
+}
+
+export interface ConnectorFieldMappingTable {
+  id: Generated<string>;
+  connector_config_id: string;
+  local_field: string;
+  remote_field: string;
+  transform: string | null;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface WebhookEndpointTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  url: string;
+  event_types: ColumnType<string[], string[], string[]>;
+  secret: string;
+  enabled: boolean;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface WebhookDeliveryLogTable {
+  id: Generated<string>;
+  webhook_endpoint_id: string;
+  event_type: string;
+  payload: ColumnType<Record<string, unknown>, string | Record<string, unknown>, string | Record<string, unknown>>;
+  response_status: number | null;
+  response_body: string | null;
+  attempts: ColumnType<number, number | undefined, number>;
+  delivered_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }

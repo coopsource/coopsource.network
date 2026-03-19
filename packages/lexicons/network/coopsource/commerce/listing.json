@@ -1,0 +1,27 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.commerce.listing",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A service or product offering published by a cooperative. Discoverable across the ATProto ecosystem via firehose.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["cooperativeDid", "title", "category", "createdBy", "createdAt"],
+        "properties": {
+          "cooperativeDid": { "type": "string", "format": "did" },
+          "title": { "type": "string", "maxLength": 255 },
+          "description": { "type": "string", "maxLength": 5000 },
+          "category": { "type": "string", "maxLength": 100 },
+          "availability": { "type": "string", "knownValues": ["available", "limited", "unavailable"] },
+          "location": { "type": "string", "maxLength": 500 },
+          "cooperativeType": { "type": "string", "maxLength": 100 },
+          "tags": { "type": "array", "items": { "type": "string", "maxLength": 50 }, "maxLength": 20 },
+          "createdBy": { "type": "string", "format": "did" },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

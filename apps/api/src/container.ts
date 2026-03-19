@@ -51,6 +51,15 @@ import { TimeTrackingService } from './services/time-tracking-service.js';
 import { ScheduleService } from './services/schedule-service.js';
 import { ExpenseService } from './services/expense-service.js';
 import { RevenueService } from './services/revenue-service.js';
+import { CommerceListingService } from './services/commerce-listing-service.js';
+import { CommerceNeedService } from './services/commerce-need-service.js';
+import { IntercoopAgreementService } from './services/intercoop-agreement-service.js';
+import { CollaborativeProjectService } from './services/collaborative-project-service.js';
+import { SharedResourceService } from './services/shared-resource-service.js';
+import { ProcurementService } from './services/procurement-service.js';
+import { ConnectorRegistryService } from './services/connector-registry-service.js';
+import { EventBusService } from './services/event-bus-service.js';
+import { WebhookService } from './services/webhook-service.js';
 
 export interface Container {
   db: Kysely<Database>;
@@ -100,6 +109,15 @@ export interface Container {
   scheduleService: ScheduleService;
   expenseService: ExpenseService;
   revenueService: RevenueService;
+  commerceListingService: CommerceListingService;
+  commerceNeedService: CommerceNeedService;
+  intercoopAgreementService: IntercoopAgreementService;
+  collaborativeProjectService: CollaborativeProjectService;
+  sharedResourceService: SharedResourceService;
+  procurementService: ProcurementService;
+  connectorRegistryService: ConnectorRegistryService;
+  eventBusService: EventBusService;
+  webhookService: WebhookService;
 }
 
 export function createContainer(config: AppConfig): Container {
@@ -187,6 +205,15 @@ export function createContainer(config: AppConfig): Container {
   const scheduleService = new ScheduleService(db, pdsService, clock);
   const expenseService = new ExpenseService(db, clock);
   const revenueService = new RevenueService(db, clock);
+  const commerceListingService = new CommerceListingService(db, pdsService, clock);
+  const commerceNeedService = new CommerceNeedService(db, pdsService, clock);
+  const intercoopAgreementService = new IntercoopAgreementService(db, pdsService, clock);
+  const collaborativeProjectService = new CollaborativeProjectService(db, pdsService, clock);
+  const sharedResourceService = new SharedResourceService(db, pdsService, clock);
+  const procurementService = new ProcurementService(db, clock);
+  const connectorRegistryService = new ConnectorRegistryService(db, clock);
+  const eventBusService = new EventBusService(db, clock);
+  const webhookService = new WebhookService(db, clock);
 
   return {
     db,
@@ -236,5 +263,14 @@ export function createContainer(config: AppConfig): Container {
     scheduleService,
     expenseService,
     revenueService,
+    commerceListingService,
+    commerceNeedService,
+    intercoopAgreementService,
+    collaborativeProjectService,
+    sharedResourceService,
+    procurementService,
+    connectorRegistryService,
+    eventBusService,
+    webhookService,
   };
 }

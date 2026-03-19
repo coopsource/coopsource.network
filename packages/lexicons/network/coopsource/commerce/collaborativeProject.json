@@ -1,0 +1,24 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.commerce.collaborativeProject",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Cross-cooperative project record. Shows ecosystem that cooperatives are collaborating.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["hostCooperativeDid", "title", "participantDids", "createdBy", "createdAt"],
+        "properties": {
+          "hostCooperativeDid": { "type": "string", "format": "did" },
+          "title": { "type": "string", "maxLength": 255 },
+          "description": { "type": "string", "maxLength": 10000 },
+          "participantDids": { "type": "array", "items": { "type": "string", "format": "did" }, "maxLength": 50 },
+          "status": { "type": "string", "knownValues": ["planning", "active", "completed", "cancelled"] },
+          "createdBy": { "type": "string", "format": "did" },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.commerce.intercoopAgreement",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Bilateral B2B agreement between cooperatives. Each co-op writes their copy to their PDS.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["initiatorDid", "responderDid", "title", "agreementType", "createdAt"],
+        "properties": {
+          "initiatorDid": { "type": "string", "format": "did" },
+          "responderDid": { "type": "string", "format": "did" },
+          "title": { "type": "string", "maxLength": 255 },
+          "description": { "type": "string", "maxLength": 10000 },
+          "agreementType": { "type": "string", "knownValues": ["service", "supply", "joint_venture", "procurement", "resource_sharing", "other"] },
+          "status": { "type": "string", "knownValues": ["proposed", "negotiating", "active", "completed", "cancelled"] },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

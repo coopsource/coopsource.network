@@ -1,0 +1,26 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.commerce.need",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A request for services or products published by a cooperative. Enables proactive matching across the ecosystem.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["cooperativeDid", "title", "category", "createdBy", "createdAt"],
+        "properties": {
+          "cooperativeDid": { "type": "string", "format": "did" },
+          "title": { "type": "string", "maxLength": 255 },
+          "description": { "type": "string", "maxLength": 5000 },
+          "category": { "type": "string", "maxLength": 100 },
+          "urgency": { "type": "string", "knownValues": ["low", "normal", "high", "urgent"] },
+          "location": { "type": "string", "maxLength": 500 },
+          "tags": { "type": "array", "items": { "type": "string", "maxLength": 50 }, "maxLength": 20 },
+          "createdBy": { "type": "string", "format": "did" },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

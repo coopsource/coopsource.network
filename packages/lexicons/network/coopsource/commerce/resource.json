@@ -1,0 +1,25 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.commerce.resource",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Shared resource listing. Discoverable by network members for booking.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["cooperativeDid", "title", "resourceType", "createdBy", "createdAt"],
+        "properties": {
+          "cooperativeDid": { "type": "string", "format": "did" },
+          "title": { "type": "string", "maxLength": 255 },
+          "description": { "type": "string", "maxLength": 5000 },
+          "resourceType": { "type": "string", "knownValues": ["equipment", "space", "expertise", "vehicle", "other"] },
+          "location": { "type": "string", "maxLength": 500 },
+          "status": { "type": "string", "knownValues": ["available", "reserved", "unavailable"] },
+          "createdBy": { "type": "string", "format": "did" },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

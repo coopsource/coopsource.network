@@ -70,6 +70,14 @@ import { createTimeTrackingRoutes } from './routes/ops/time-tracking.js';
 import { createScheduleRoutes } from './routes/ops/schedules.js';
 import { createExpenseRoutes } from './routes/finance/expenses.js';
 import { createRevenueRoutes } from './routes/finance/revenue.js';
+import { createCommerceListingRoutes } from './routes/commerce/listings.js';
+import { createCommerceNeedRoutes } from './routes/commerce/needs.js';
+import { createIntercoopAgreementRoutes } from './routes/commerce/agreements.js';
+import { createCollaborativeProjectRoutes } from './routes/commerce/projects.js';
+import { createSharedResourceRoutes } from './routes/commerce/resources.js';
+import { createProcurementRoutes } from './routes/commerce/procurement.js';
+import { createConnectorRoutes } from './routes/connectors/index.js';
+import { createWebhookRoutes } from './routes/connectors/webhooks.js';
 import { startAppViewLoop } from './appview/loop.js';
 import { createOAuthClient } from './auth/oauth-client.js';
 
@@ -215,6 +223,18 @@ async function start(): Promise<void> {
   app.use(createScheduleRoutes(container));
   app.use(createExpenseRoutes(container));
   app.use(createRevenueRoutes(container));
+
+  // Commerce routes (Phase 9)
+  app.use(createCommerceListingRoutes(container));
+  app.use(createCommerceNeedRoutes(container));
+  app.use(createIntercoopAgreementRoutes(container));
+  app.use(createCollaborativeProjectRoutes(container));
+  app.use(createSharedResourceRoutes(container));
+  app.use(createProcurementRoutes(container));
+
+  // Connector routes (Phase 9)
+  app.use(createConnectorRoutes(container));
+  app.use(createWebhookRoutes(container));
 
   // Governance label routes
   app.use(createLabelRoutes(container.governanceLabeler));
