@@ -145,6 +145,9 @@ export class EventBusService {
 
   // ─── Event dispatch ─────────────────────────────────────────────────
 
+  // Note: This method creates delivery log records but does NOT make HTTP calls.
+  // Actual webhook delivery is handled by a background job processor (not yet implemented).
+  // The delivery logs serve as an outbox for the async delivery system.
   async dispatchEvent(
     cooperativeDid: string,
     eventType: string,
@@ -185,8 +188,18 @@ export class EventBusService {
 
   async getDeliveryLogs(
     webhookEndpointId: string,
+    cooperativeDid: string,
     params: PageParams,
   ): Promise<Page<DeliveryLogRow>> {
+    // Verify endpoint belongs to cooperative
+    const endpoint = await this.db
+      .selectFrom('webhook_endpoint')
+      .where('id', '=', webhookEndpointId)
+      .where('cooperative_did', '=', cooperativeDid)
+      .select(['id'])
+      .executeTakeFirst();
+    if (!endpoint) throw new NotFoundError('Webhook endpoint not found');
+
     const limit = params.limit ?? 50;
 
     let query = this.db

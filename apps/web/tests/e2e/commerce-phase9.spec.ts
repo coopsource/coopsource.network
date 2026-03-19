@@ -46,7 +46,7 @@ test.describe('Commerce Listings API (E2E)', () => {
       title: 'Web Development Services',
       description: 'Full-stack web development for cooperatives',
       category: 'services',
-      availability: 'immediate',
+      availability: 'available',
       location: 'Remote',
       tags: ['web', 'development'],
     });
@@ -161,13 +161,13 @@ test.describe('Commerce Needs API (E2E)', () => {
       title: 'Need bulk office supplies',
       description: 'Looking for a cooperative supplier of office supplies',
       category: 'supplies',
-      urgency: 'medium',
+      urgency: 'normal',
       location: 'Seattle',
     });
     expect(createRes.status()).toBe(201);
     const need = await createRes.json();
     expect(need.title).toBe('Need bulk office supplies');
-    expect(need.urgency).toBe('medium');
+    expect(need.urgency).toBe('normal');
     expect(need.status).toBe('open');
 
     // Get
@@ -203,7 +203,7 @@ test.describe('Commerce Needs API (E2E)', () => {
     await post(request, cookie, '/commerce/needs', {
       title: 'Need accounting help',
       category: 'services',
-      urgency: 'medium',
+      urgency: 'normal',
     });
 
     // List all
@@ -257,14 +257,14 @@ test.describe('Inter-Coop Agreements API (E2E)', () => {
       responderDid: 'did:web:partner-coop.example',
       title: 'Joint Marketing Agreement',
       description: 'Cross-promotion partnership',
-      agreementType: 'partnership',
+      agreementType: 'other',
       terms: { duration: '12 months', scope: 'regional' },
     });
     expect(createRes.status()).toBe(201);
     const agreement = await createRes.json();
     expect(agreement.title).toBe('Joint Marketing Agreement');
     expect(agreement.status).toBe('proposed');
-    expect(agreement.agreementType).toBe('partnership');
+    expect(agreement.agreementType).toBe('other');
 
     // Get
     const getRes = await get(request, cookie, `/commerce/agreements/${agreement.id}`);
@@ -295,7 +295,7 @@ test.describe('Inter-Coop Agreements API (E2E)', () => {
     const createRes = await post(request, cookie, '/commerce/agreements', {
       responderDid: 'did:web:partner-coop.example',
       title: 'Bad Deal Agreement',
-      agreementType: 'partnership',
+      agreementType: 'other',
     });
     const agreement = await createRes.json();
 
@@ -312,7 +312,7 @@ test.describe('Inter-Coop Agreements API (E2E)', () => {
     const createRes = await post(request, cookie, '/commerce/agreements', {
       responderDid: 'did:web:partner-coop.example',
       title: 'Short Term Contract',
-      agreementType: 'contract',
+      agreementType: 'service',
     });
     const agreement = await createRes.json();
 
@@ -337,7 +337,7 @@ test.describe('Inter-Coop Agreements API (E2E)', () => {
     const res1 = await post(request, cookie, '/commerce/agreements', {
       responderDid: 'did:web:coop-a.example',
       title: 'Agreement A',
-      agreementType: 'partnership',
+      agreementType: 'other',
     });
     const a1 = await res1.json();
 
@@ -447,10 +447,12 @@ test.describe('Collaborative Projects API (E2E)', () => {
     await post(request, cookie, '/commerce/projects', {
       title: 'Project Alpha',
       description: 'First project',
+      participantDids: ['did:web:participant.example'],
     });
     await post(request, cookie, '/commerce/projects', {
       title: 'Project Beta',
       description: 'Second project',
+      participantDids: ['did:web:participant.example'],
     });
 
     const allRes = await get(request, cookie, '/commerce/projects');
@@ -724,6 +726,7 @@ test.describe('Webhook Endpoints API (E2E)', () => {
     const createRes = await post(request, cookie, '/webhooks/endpoints', {
       url: 'https://hooks.example.com/coop-events',
       eventTypes: ['membership.created', 'proposal.passed'],
+      secret: 'test-secret-key-minimum-16-chars',
     });
     expect(createRes.status()).toBe(201);
     const endpoint = await createRes.json();
@@ -751,6 +754,7 @@ test.describe('Webhook Endpoints API (E2E)', () => {
     const createRes = await post(request, cookie, '/webhooks/endpoints', {
       url: 'https://hooks.example.com/v1',
       eventTypes: ['membership.created'],
+      secret: 'test-secret-key-minimum-16-chars',
     });
     const endpoint = await createRes.json();
 
@@ -779,6 +783,7 @@ test.describe('Webhook Endpoints API (E2E)', () => {
     const createRes = await post(request, cookie, '/webhooks/endpoints', {
       url: 'https://hooks.example.com/logs-test',
       eventTypes: ['proposal.created'],
+      secret: 'test-secret-key-minimum-16-chars',
     });
     const endpoint = await createRes.json();
 

@@ -221,7 +221,7 @@ export function createContainer(config: AppConfig): Container {
   const eventBusService = new EventBusService(db, clock);
   const webhookService = new WebhookService(db, clock);
   const reportingService = new ReportingService(db, clock);
-  const dashboardService = new DashboardService(db, clock);
+  const dashboardService = new DashboardService(db);
   const mentionService = new MentionService(db, clock);
 
   return {

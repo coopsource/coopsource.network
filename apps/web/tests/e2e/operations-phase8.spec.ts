@@ -162,7 +162,7 @@ test.describe('Task Management API (E2E)', () => {
     const task = await createRes.json();
     expect(task.title).toBe('Minimal task');
     expect(task.status).toBe('backlog');
-    expect(task.priority).toBeFalsy();
+    expect(task.priority).toBe('medium');
   });
 
   test('get nonexistent task returns 404', async ({ request }) => {

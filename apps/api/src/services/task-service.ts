@@ -262,22 +262,24 @@ export class TaskService {
   }
 
   async deleteTask(id: string, cooperativeDid: string): Promise<void> {
-    // Delete checklist items first (cascade would handle this if FK is set,
-    // but explicit delete is safer for clarity)
-    await this.db
-      .deleteFrom('task_checklist_item')
-      .where('task_id', '=', id)
-      .execute();
+    await this.db.transaction().execute(async (trx) => {
+      // Delete checklist items first
+      await trx
+        .deleteFrom('task_checklist_item')
+        .where('task_id', '=', id)
+        .execute();
 
-    const result = await this.db
-      .deleteFrom('task')
-      .where('id', '=', id)
-      .where('cooperative_did', '=', cooperativeDid)
-      .executeTakeFirst();
+      // Then delete the task
+      const result = await trx
+        .deleteFrom('task')
+        .where('id', '=', id)
+        .where('cooperative_did', '=', cooperativeDid)
+        .executeTakeFirst();
 
-    if (result.numDeletedRows === 0n) {
-      throw new NotFoundError('Task not found');
-    }
+      if (result.numDeletedRows === 0n) {
+        throw new NotFoundError('Task not found');
+      }
+    });
   }
 
   // ── Labels ─────────────────────────────────────
@@ -381,12 +383,23 @@ export class TaskService {
 
   async updateChecklistItem(
     id: string,
+    cooperativeDid: string,
     data: {
       title?: string;
       completed?: boolean;
       sortOrder?: number;
     },
   ): Promise<ChecklistRow> {
+    // Verify ownership through task
+    const existing = await this.db
+      .selectFrom('task_checklist_item')
+      .innerJoin('task', 'task.id', 'task_checklist_item.task_id')
+      .where('task_checklist_item.id', '=', id)
+      .where('task.cooperative_did', '=', cooperativeDid)
+      .select(['task_checklist_item.id'])
+      .executeTakeFirst();
+    if (!existing) throw new NotFoundError('Checklist item not found');
+
     const updates: Record<string, unknown> = {};
 
     if (data.title !== undefined) updates.title = data.title;
@@ -404,15 +417,18 @@ export class TaskService {
     return row;
   }
 
-  async deleteChecklistItem(id: string): Promise<void> {
-    const result = await this.db
-      .deleteFrom('task_checklist_item')
-      .where('id', '=', id)
+  async deleteChecklistItem(id: string, cooperativeDid: string): Promise<void> {
+    // Verify ownership through task
+    const existing = await this.db
+      .selectFrom('task_checklist_item')
+      .innerJoin('task', 'task.id', 'task_checklist_item.task_id')
+      .where('task_checklist_item.id', '=', id)
+      .where('task.cooperative_did', '=', cooperativeDid)
+      .select(['task_checklist_item.id'])
       .executeTakeFirst();
+    if (!existing) throw new NotFoundError('Checklist item not found');
 
-    if (result.numDeletedRows === 0n) {
-      throw new NotFoundError('Checklist item not found');
-    }
+    await this.db.deleteFrom('task_checklist_item').where('id', '=', id).execute();
   }
 
   // ── Queries ────────────────────────────────────

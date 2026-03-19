@@ -66,7 +66,7 @@ test.describe('Reports API (E2E)', () => {
   test('delete report template', async ({ request }) => {
     const createRes = await post(request, cookie, '/reports/templates', {
       name: 'To Delete',
-      reportType: 'financial',
+      reportType: 'custom',
     });
     const template = await createRes.json();
 
@@ -118,7 +118,7 @@ test.describe('Reports API (E2E)', () => {
       title: 'Report 1',
     });
     await post(request, cookie, '/reports/generate', {
-      reportType: 'financial',
+      reportType: 'custom',
       title: 'Report 2',
     });
     await post(request, cookie, '/reports/generate', {

@@ -180,6 +180,7 @@ export function createTaskRoutes(container: Container): Router {
       const data = UpdateChecklistItemSchema.parse(req.body);
       const item = await container.taskService.updateChecklistItem(
         String(req.params.id),
+        req.actor!.cooperativeDid,
         data,
       );
       res.json(formatChecklistItem(item));
@@ -192,6 +193,7 @@ export function createTaskRoutes(container: Container): Router {
     asyncHandler(async (req, res) => {
       await container.taskService.deleteChecklistItem(
         String(req.params.id),
+        req.actor!.cooperativeDid,
       );
       res.status(204).end();
     }),

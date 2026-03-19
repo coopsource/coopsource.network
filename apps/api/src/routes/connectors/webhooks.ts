@@ -119,6 +119,7 @@ export function createWebhookRoutes(container: Container): Router {
       const params = parsePagination(req.query as Record<string, unknown>);
       const page = await container.eventBusService.getDeliveryLogs(
         String(req.params.id),
+        req.actor!.cooperativeDid,
         params,
       );
       res.json({ deliveries: page.items.map(formatDeliveryLog), cursor: page.cursor ?? null });

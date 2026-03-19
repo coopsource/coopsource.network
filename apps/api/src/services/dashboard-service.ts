@@ -1,6 +1,5 @@
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
-import type { IClock } from '@coopsource/federation';
 
 export interface MemberEngagement {
   votingParticipation: number;
@@ -29,7 +28,6 @@ export interface OperationalSummary {
 export class DashboardService {
   constructor(
     private db: Kysely<Database>,
-    private clock: IClock,
   ) {}
 
   async getMemberEngagement(

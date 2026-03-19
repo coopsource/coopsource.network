@@ -16,6 +16,12 @@ export function createDashboardRoutes(container: Container): Router {
         res.status(400).json({ error: 'VALIDATION', message: 'startDate and endDate are required' });
         return;
       }
+      const startParsed = new Date(startDate);
+      const endParsed = new Date(endDate);
+      if (isNaN(startParsed.getTime()) || isNaN(endParsed.getTime())) {
+        res.status(400).json({ error: 'VALIDATION', message: 'Invalid date format' });
+        return;
+      }
       const engagement = await container.dashboardService.getMemberEngagement(
         req.actor!.cooperativeDid,
         startDate,
@@ -35,6 +41,12 @@ export function createDashboardRoutes(container: Container): Router {
         res.status(400).json({ error: 'VALIDATION', message: 'startDate and endDate are required' });
         return;
       }
+      const startParsed = new Date(startDate);
+      const endParsed = new Date(endDate);
+      if (isNaN(startParsed.getTime()) || isNaN(endParsed.getTime())) {
+        res.status(400).json({ error: 'VALIDATION', message: 'Invalid date format' });
+        return;
+      }
       const summary = await container.dashboardService.getFinancialSummary(
         req.actor!.cooperativeDid,
         startDate,
@@ -52,6 +64,12 @@ export function createDashboardRoutes(container: Container): Router {
       const endDate = String(req.query.endDate ?? '');
       if (!startDate || !endDate) {
         res.status(400).json({ error: 'VALIDATION', message: 'startDate and endDate are required' });
+        return;
+      }
+      const startParsed = new Date(startDate);
+      const endParsed = new Date(endDate);
+      if (isNaN(startParsed.getTime()) || isNaN(endParsed.getTime())) {
+        res.status(400).json({ error: 'VALIDATION', message: 'Invalid date format' });
         return;
       }
       const summary = await container.dashboardService.getOperationalSummary(
