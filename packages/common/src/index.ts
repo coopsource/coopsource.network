@@ -159,6 +159,11 @@ export {
   CreateFieldMappingSchema,
   CreateWebhookEndpointSchema,
   UpdateWebhookEndpointSchema,
+  ReportTypeEnum,
+  CreateReportTemplateSchema,
+  GenerateReportSchema,
+  UpdateNotificationPreferenceSchema,
+  CreateMentionSchema,
 } from './validation.js';
 export type {
   CreateCooperativeInput,
@@ -270,6 +275,10 @@ export type {
   CreateFieldMappingInput,
   CreateWebhookEndpointInput,
   UpdateWebhookEndpointInput,
+  CreateReportTemplateInput,
+  GenerateReportInput,
+  UpdateNotificationPreferenceInput,
+  CreateMentionInput,
 } from './validation.js';
 export { encodeAtUri, decodeAtUri, extractRkey, buildAtUri } from './uri.js';
 export { didWebToUrl, urlToDidWeb, buildMemberDidWeb, isDidWeb } from './did-web.js';

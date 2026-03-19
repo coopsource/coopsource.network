@@ -118,6 +118,12 @@ import type {
   IntercoopAgreement,
   CollaborativeProject,
   SharedResource,
+  ReportTemplate,
+  ReportSnapshot,
+  MemberEngagement,
+  FinancialSummary,
+  OperationalSummary,
+  Mention,
   ResourceBooking,
   ConnectorConfig,
   WebhookEndpoint,
@@ -1436,5 +1442,40 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string, apiBase?
       request<WebhookEndpoint>('/webhooks/endpoints', { method: 'POST', body: JSON.stringify(body) }),
     deleteWebhookEndpoint: (id: string) => request<void>(`/webhooks/endpoints/${id}`, { method: 'DELETE' }),
     getEventCatalog: () => request<{ events: EventCatalogEntry[] }>('/webhooks/events'),
+
+    // ── Reports & Dashboards (Phase 10) ──────────────────────────────
+    createReportTemplate: (body: { name: string; reportType: string; config?: Record<string, unknown> }) =>
+      request<ReportTemplate>('/reports/templates', { method: 'POST', body: JSON.stringify(body) }),
+    getReportTemplates: () => request<{ items: ReportTemplate[] }>('/reports/templates'),
+    deleteReportTemplate: (id: string) => request<void>(`/reports/templates/${id}`, { method: 'DELETE' }),
+    generateReport: (body: { templateId?: string; reportType: string; title: string; periodStart?: string; periodEnd?: string }) =>
+      request<ReportSnapshot>('/reports/generate', { method: 'POST', body: JSON.stringify(body) }),
+    getReports: (params?: { reportType?: string; limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.reportType) qs.set('reportType', params.reportType);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<{ items: ReportSnapshot[]; cursor: string | null }>(`/reports${qs.size ? `?${qs}` : ''}`);
+    },
+    getReport: (id: string) => request<ReportSnapshot>(`/reports/${id}`),
+    getMemberEngagement: (startDate: string, endDate: string) =>
+      request<MemberEngagement>(`/dashboards/engagement?startDate=${startDate}&endDate=${endDate}`),
+    getFinancialSummary: (startDate: string, endDate: string) =>
+      request<FinancialSummary>(`/dashboards/financial?startDate=${startDate}&endDate=${endDate}`),
+    getOperationalSummary: (startDate: string, endDate: string) =>
+      request<OperationalSummary>(`/dashboards/operational?startDate=${startDate}&endDate=${endDate}`),
+
+    // ── Mentions (Phase 10) ──────────────────────────────────────────
+    createMention: (body: { sourceType: string; sourceId: string; mentionedDid: string }) =>
+      request<Mention>('/mentions', { method: 'POST', body: JSON.stringify(body) }),
+    getUnreadMentions: (params?: { limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<{ items: Mention[]; cursor: string | null }>(`/mentions${qs.size ? `?${qs}` : ''}`);
+    },
+    markMentionAsRead: (id: string) => request<void>(`/mentions/${id}/read`, { method: 'POST' }),
+    markAllMentionsAsRead: () => request<void>('/mentions/read-all', { method: 'POST' }),
+    getUnreadMentionCount: () => request<{ count: number }>('/mentions/count'),
   };
 }

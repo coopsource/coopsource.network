@@ -1384,3 +1384,39 @@ export type UpdateConnectorConfigInput = z.infer<typeof UpdateConnectorConfigSch
 export type CreateFieldMappingInput = z.infer<typeof CreateFieldMappingSchema>;
 export type CreateWebhookEndpointInput = z.infer<typeof CreateWebhookEndpointSchema>;
 export type UpdateWebhookEndpointInput = z.infer<typeof UpdateWebhookEndpointSchema>;
+
+// --- Reporting & Notifications Schemas (Phase 10) ---
+
+export const ReportTypeEnum = z.enum(['annual', 'board_packet', 'equity_statement', 'patronage', 'commerce', 'custom']);
+
+export const CreateReportTemplateSchema = z.object({
+  name: z.string().min(1).max(255),
+  reportType: ReportTypeEnum,
+  config: z.record(z.string(), z.unknown()).default({}),
+});
+
+export const GenerateReportSchema = z.object({
+  templateId: z.string().optional(),
+  reportType: ReportTypeEnum,
+  title: z.string().min(1).max(255),
+  periodStart: z.string().optional(),
+  periodEnd: z.string().optional(),
+});
+
+export const UpdateNotificationPreferenceSchema = z.object({
+  channel: z.enum(['in_app', 'email', 'digest']),
+  eventTypes: z.array(z.string().min(1).max(100)).max(50),
+  digestFrequency: z.enum(['immediate', 'daily', 'weekly']).default('immediate'),
+  enabled: z.boolean().default(true),
+});
+
+export const CreateMentionSchema = z.object({
+  sourceType: z.enum(['post', 'task', 'proposal', 'expense', 'agreement']),
+  sourceId: z.string().min(1),
+  mentionedDid: z.string().min(1),
+});
+
+export type CreateReportTemplateInput = z.infer<typeof CreateReportTemplateSchema>;
+export type GenerateReportInput = z.infer<typeof GenerateReportSchema>;
+export type UpdateNotificationPreferenceInput = z.infer<typeof UpdateNotificationPreferenceSchema>;
+export type CreateMentionInput = z.infer<typeof CreateMentionSchema>;

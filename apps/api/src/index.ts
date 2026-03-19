@@ -78,6 +78,9 @@ import { createSharedResourceRoutes } from './routes/commerce/resources.js';
 import { createProcurementRoutes } from './routes/commerce/procurement.js';
 import { createConnectorRoutes } from './routes/connectors/index.js';
 import { createWebhookRoutes } from './routes/connectors/webhooks.js';
+import { createReportRoutes } from './routes/reports/index.js';
+import { createDashboardRoutes } from './routes/reports/dashboards.js';
+import { createMentionRoutes } from './routes/notifications/mentions.js';
 import { startAppViewLoop } from './appview/loop.js';
 import { createOAuthClient } from './auth/oauth-client.js';
 
@@ -235,6 +238,11 @@ async function start(): Promise<void> {
   // Connector routes (Phase 9)
   app.use(createConnectorRoutes(container));
   app.use(createWebhookRoutes(container));
+
+  // Reporting & analytics (Phase 10)
+  app.use(createReportRoutes(container));
+  app.use(createDashboardRoutes(container));
+  app.use(createMentionRoutes(container));
 
   // Governance label routes
   app.use(createLabelRoutes(container.governanceLabeler));

@@ -95,4 +95,9 @@ export type {
   ConnectorFieldMappingTable,
   WebhookEndpointTable,
   WebhookDeliveryLogTable,
+  // Reporting & notifications (049)
+  ReportTemplateTable,
+  ReportSnapshotTable,
+  NotificationPreferenceTable,
+  MentionTable,
 } from './schema.js';

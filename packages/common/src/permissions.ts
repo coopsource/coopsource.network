@@ -43,6 +43,7 @@ export const PERMISSIONS = {
   'ops.manage': 'Manage tasks, schedules, and time entry reviews',
   'commerce.manage': 'Manage commerce listings, inter-coop agreements, and collaborative projects',
   'connector.manage': 'Manage integration connectors and webhooks',
+  'reports.manage': 'Manage report templates and generate reports',
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -89,6 +90,7 @@ export const BUILT_IN_ROLES: Record<
       'ops.manage',
       'commerce.manage',
       'connector.manage',
+      'reports.manage',
     ],
     inherits: ['member'],
   },

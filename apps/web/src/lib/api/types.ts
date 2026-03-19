@@ -1316,3 +1316,63 @@ export interface EventCatalogEntry {
   type: string;
   description: string;
 }
+
+// ── Reporting & Analytics — Phase 10 ────────────────────────────────
+
+export interface ReportTemplate {
+  id: string;
+  cooperativeDid: string;
+  name: string;
+  reportType: string;
+  config: Record<string, unknown>;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface ReportSnapshot {
+  id: string;
+  cooperativeDid: string;
+  templateId: string | null;
+  reportType: string;
+  title: string;
+  data: Record<string, unknown>;
+  generatedBy: string;
+  generatedAt: string;
+  periodStart: string | null;
+  periodEnd: string | null;
+}
+
+export interface MemberEngagement {
+  votingParticipation: number;
+  proposalCount: number;
+  agreementCount: number;
+  memberCount: number;
+  activeMemberCount: number;
+}
+
+export interface FinancialSummary {
+  totalRevenue: number;
+  totalExpenses: number;
+  netIncome: number;
+  pendingExpenses: number;
+  approvedExpenses: number;
+}
+
+export interface OperationalSummary {
+  tasksCompleted: number;
+  tasksInProgress: number;
+  timeLogged: number;
+  upcomingCompliance: number;
+  activeAgreements: number;
+}
+
+export interface Mention {
+  id: string;
+  cooperativeDid: string;
+  sourceType: string;
+  sourceId: string;
+  mentionedDid: string;
+  mentionedBy: string;
+  createdAt: string;
+  readAt: string | null;
+}

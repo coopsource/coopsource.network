@@ -60,6 +60,9 @@ import { ProcurementService } from './services/procurement-service.js';
 import { ConnectorRegistryService } from './services/connector-registry-service.js';
 import { EventBusService } from './services/event-bus-service.js';
 import { WebhookService } from './services/webhook-service.js';
+import { ReportingService } from './services/reporting-service.js';
+import { DashboardService } from './services/dashboard-service.js';
+import { MentionService } from './services/mention-service.js';
 
 export interface Container {
   db: Kysely<Database>;
@@ -118,6 +121,9 @@ export interface Container {
   connectorRegistryService: ConnectorRegistryService;
   eventBusService: EventBusService;
   webhookService: WebhookService;
+  reportingService: ReportingService;
+  dashboardService: DashboardService;
+  mentionService: MentionService;
 }
 
 export function createContainer(config: AppConfig): Container {
@@ -214,6 +220,9 @@ export function createContainer(config: AppConfig): Container {
   const connectorRegistryService = new ConnectorRegistryService(db, clock);
   const eventBusService = new EventBusService(db, clock);
   const webhookService = new WebhookService(db, clock);
+  const reportingService = new ReportingService(db, clock);
+  const dashboardService = new DashboardService(db, clock);
+  const mentionService = new MentionService(db, clock);
 
   return {
     db,
@@ -272,5 +281,8 @@ export function createContainer(config: AppConfig): Container {
     connectorRegistryService,
     eventBusService,
     webhookService,
+    reportingService,
+    dashboardService,
+    mentionService,
   };
 }

@@ -986,6 +986,12 @@ export interface Database {
   connector_field_mapping: ConnectorFieldMappingTable;
   webhook_endpoint: WebhookEndpointTable;
   webhook_delivery_log: WebhookDeliveryLogTable;
+
+  // Reporting & notifications (049)
+  report_template: ReportTemplateTable;
+  report_snapshot: ReportSnapshotTable;
+  notification_preference: NotificationPreferenceTable;
+  mention: MentionTable;
 }
 
 // ──────────────────────────────────────────────
@@ -1582,4 +1588,55 @@ export interface WebhookDeliveryLogTable {
   attempts: ColumnType<number, number | undefined, number>;
   delivered_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
   created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+// ──────────────────────────────────────────────
+// 049 — Reporting & notifications
+// ──────────────────────────────────────────────
+
+export interface ReportTemplateTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  name: string;
+  report_type: string;
+  config: ColumnType<Record<string, unknown>, string | Record<string, unknown> | undefined, string | Record<string, unknown>>;
+  created_by: string;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface ReportSnapshotTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  template_id: string | null;
+  report_type: string;
+  title: string;
+  data: ColumnType<Record<string, unknown>, string | Record<string, unknown>, string | Record<string, unknown>>;
+  generated_by: string;
+  generated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  period_start: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  period_end: ColumnType<Date | null, Date | string | null, Date | string | null>;
+}
+
+export interface NotificationPreferenceTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  member_did: string;
+  channel: string;
+  event_types: ColumnType<string[], string[] | undefined, string[]>;
+  digest_frequency: string | null;
+  enabled: boolean;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface MentionTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  source_type: string;
+  source_id: string;
+  mentioned_did: string;
+  mentioned_by: string;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  read_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
 }
