@@ -1,0 +1,30 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.finance.expense",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "An expense claim submitted by a member. Tier 2 private record — stored in private_record table, never on firehose.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["cooperativeDid", "memberDid", "title", "amount", "currency", "createdAt"],
+        "properties": {
+          "cooperativeDid": { "type": "string", "format": "did" },
+          "memberDid": { "type": "string", "format": "did" },
+          "categoryId": { "type": "string" },
+          "title": { "type": "string", "maxLength": 255 },
+          "description": { "type": "string", "maxLength": 2000 },
+          "amount": { "type": "number", "minimum": 0 },
+          "currency": { "type": "string", "maxLength": 10 },
+          "receiptBlobCid": { "type": "string", "format": "cid-link" },
+          "status": {
+            "type": "string",
+            "knownValues": ["draft", "submitted", "approved", "rejected", "reimbursed"]
+          },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

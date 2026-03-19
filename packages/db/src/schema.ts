@@ -942,6 +942,24 @@ export interface Database {
   // Weighted voting + cooperative links (032)
   member_class: MemberClassTable;
   cooperative_link: CooperativeLinkTable;
+
+  // Operations — tasks & projects (038)
+  task: TaskTable;
+  task_label: TaskLabelTable;
+  task_checklist_item: TaskChecklistItemTable;
+
+  // Operations — time tracking (039)
+  time_entry: TimeEntryTable;
+
+  // Operations — scheduling (040)
+  schedule_shift: ScheduleShiftTable;
+
+  // Operations — expenses (041)
+  expense_category: ExpenseCategoryTable;
+  expense: ExpenseTable;
+
+  // Operations — revenue (042)
+  revenue_entry: RevenueEntryTable;
 }
 
 // ──────────────────────────────────────────────
@@ -1180,6 +1198,142 @@ export interface TaxForm1099PatrTable {
   generation_status: string;
   generated_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
   sent_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+// ──────────────────────────────────────────────
+// 038 — Tasks & projects
+// ──────────────────────────────────────────────
+
+export interface TaskTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  project_id: string | null;
+  title: string;
+  description: string | null;
+  status: string;
+  priority: string;
+  assignee_dids: ColumnType<string[], string[] | undefined, string[]>;
+  due_date: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  labels: ColumnType<string[], string[] | undefined, string[]>;
+  linked_proposal_id: string | null;
+  uri: string | null;
+  cid: string | null;
+  created_by: string;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface TaskLabelTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  name: string;
+  color: string;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface TaskChecklistItemTable {
+  id: Generated<string>;
+  task_id: string;
+  title: string;
+  completed: ColumnType<boolean, boolean | undefined, boolean>;
+  sort_order: ColumnType<number, number | undefined, number>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+// ──────────────────────────────────────────────
+// 039 — Time tracking
+// ──────────────────────────────────────────────
+
+export interface TimeEntryTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  member_did: string;
+  task_id: string | null;
+  project_id: string | null;
+  description: string | null;
+  started_at: ColumnType<Date, Date | string, Date | string>;
+  ended_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  duration_minutes: number | null;
+  status: string;
+  approved_by: string | null;
+  approved_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+// ──────────────────────────────────────────────
+// 040 — Scheduling
+// ──────────────────────────────────────────────
+
+export interface ScheduleShiftTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  title: string;
+  description: string | null;
+  assigned_did: string | null;
+  starts_at: ColumnType<Date, Date | string, Date | string>;
+  ends_at: ColumnType<Date, Date | string, Date | string>;
+  recurrence: string | null;
+  location: string | null;
+  status: string;
+  created_by: string;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+// ──────────────────────────────────────────────
+// 041 — Expenses
+// ──────────────────────────────────────────────
+
+export interface ExpenseCategoryTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  name: string;
+  description: string | null;
+  budget_limit: ColumnType<string | null, string | number | null, string | number | null>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface ExpenseTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  member_did: string;
+  category_id: string | null;
+  title: string;
+  description: string | null;
+  amount: ColumnType<string, string | number, string | number>;
+  currency: string;
+  receipt_blob_cid: string | null;
+  status: string;
+  reviewed_by: string | null;
+  reviewed_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  review_note: string | null;
+  reimbursed_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+// ──────────────────────────────────────────────
+// 042 — Revenue
+// ──────────────────────────────────────────────
+
+export interface RevenueEntryTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  project_id: string | null;
+  title: string;
+  description: string | null;
+  amount: ColumnType<string, string | number, string | number>;
+  currency: string;
+  source: string | null;
+  source_reference: string | null;
+  recorded_by: string;
+  recorded_at: ColumnType<Date, Date | string, Date | string>;
+  period_start: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  period_end: ColumnType<Date | null, Date | string | null, Date | string | null>;
   created_at: ColumnType<Date, Date | string | undefined, Date | string>;
   indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }

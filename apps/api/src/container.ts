@@ -46,6 +46,11 @@ import { DelegationVotingService } from './services/delegation-voting-service.js
 import { GovernanceFeedService } from './services/governance-feed-service.js';
 import { MemberClassService } from './services/member-class-service.js';
 import { CooperativeLinkService } from './services/cooperative-link-service.js';
+import { TaskService } from './services/task-service.js';
+import { TimeTrackingService } from './services/time-tracking-service.js';
+import { ScheduleService } from './services/schedule-service.js';
+import { ExpenseService } from './services/expense-service.js';
+import { RevenueService } from './services/revenue-service.js';
 
 export interface Container {
   db: Kysely<Database>;
@@ -90,6 +95,11 @@ export interface Container {
   governanceFeedService: GovernanceFeedService;
   memberClassService: MemberClassService;
   cooperativeLinkService: CooperativeLinkService;
+  taskService: TaskService;
+  timeTrackingService: TimeTrackingService;
+  scheduleService: ScheduleService;
+  expenseService: ExpenseService;
+  revenueService: RevenueService;
 }
 
 export function createContainer(config: AppConfig): Container {
@@ -172,6 +182,11 @@ export function createContainer(config: AppConfig): Container {
   const governanceFeedService = new GovernanceFeedService(db, clock);
   const memberClassService = new MemberClassService(db, clock);
   const cooperativeLinkService = new CooperativeLinkService(db, clock);
+  const taskService = new TaskService(db, pdsService, clock);
+  const timeTrackingService = new TimeTrackingService(db, clock);
+  const scheduleService = new ScheduleService(db, pdsService, clock);
+  const expenseService = new ExpenseService(db, clock);
+  const revenueService = new RevenueService(db, clock);
 
   return {
     db,
@@ -216,5 +231,10 @@ export function createContainer(config: AppConfig): Container {
     governanceFeedService,
     memberClassService,
     cooperativeLinkService,
+    taskService,
+    timeTrackingService,
+    scheduleService,
+    expenseService,
+    revenueService,
   };
 }

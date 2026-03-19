@@ -1,0 +1,30 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.ops.timeEntry",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A time entry recording work hours. Tier 2 private record — stored in private_record table, never on firehose.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["cooperativeDid", "memberDid", "startedAt", "createdAt"],
+        "properties": {
+          "cooperativeDid": { "type": "string", "format": "did" },
+          "memberDid": { "type": "string", "format": "did" },
+          "taskId": { "type": "string" },
+          "projectId": { "type": "string" },
+          "description": { "type": "string", "maxLength": 2000 },
+          "startedAt": { "type": "string", "format": "datetime" },
+          "endedAt": { "type": "string", "format": "datetime" },
+          "durationMinutes": { "type": "integer", "minimum": 1, "maximum": 1440 },
+          "status": {
+            "type": "string",
+            "knownValues": ["draft", "submitted", "approved", "rejected"]
+          },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

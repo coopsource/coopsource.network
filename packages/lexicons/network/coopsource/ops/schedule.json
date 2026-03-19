@@ -1,0 +1,32 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.ops.schedule",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A shift or schedule entry in a cooperative's work schedule",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["cooperativeDid", "title", "startsAt", "endsAt", "createdBy", "createdAt"],
+        "properties": {
+          "cooperativeDid": { "type": "string", "format": "did" },
+          "title": { "type": "string", "maxLength": 255 },
+          "description": { "type": "string", "maxLength": 2000 },
+          "assignedDid": { "type": "string", "format": "did" },
+          "startsAt": { "type": "string", "format": "datetime" },
+          "endsAt": { "type": "string", "format": "datetime" },
+          "recurrence": { "type": "string", "maxLength": 50 },
+          "location": { "type": "string", "maxLength": 500 },
+          "status": {
+            "type": "string",
+            "knownValues": ["open", "assigned", "completed", "cancelled"]
+          },
+          "calendarEventRef": { "type": "string", "format": "at-uri", "description": "Reference to Smoke Signal calendar event" },
+          "createdBy": { "type": "string", "format": "did" },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

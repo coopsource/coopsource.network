@@ -1053,3 +1053,158 @@ export interface CooperativePartner {
   linkType: string;
   linkedSince: string;
 }
+
+// ── Operations — Phase 8 ─────────────────────────────────────────────
+
+export interface Task {
+  id: string;
+  cooperativeDid: string;
+  projectId: string | null;
+  title: string;
+  description: string | null;
+  status: string;
+  priority: string;
+  assigneeDids: string[];
+  dueDate: string | null;
+  labels: string[];
+  linkedProposalId: string | null;
+  uri: string | null;
+  cid: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  indexedAt: string;
+  checklist?: ChecklistItem[];
+}
+
+export interface ChecklistItem {
+  id: string;
+  taskId: string;
+  title: string;
+  completed: boolean;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface TaskLabel {
+  id: string;
+  cooperativeDid: string;
+  name: string;
+  color: string;
+  createdAt: string;
+}
+
+export interface TasksResponse {
+  tasks: Task[];
+  cursor: string | null;
+}
+
+export interface TimeEntry {
+  id: string;
+  cooperativeDid: string;
+  memberDid: string;
+  taskId: string | null;
+  projectId: string | null;
+  description: string | null;
+  startedAt: string;
+  endedAt: string | null;
+  durationMinutes: number | null;
+  status: string;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  createdAt: string;
+  indexedAt: string;
+}
+
+export interface TimeEntriesResponse {
+  entries: TimeEntry[];
+  cursor: string | null;
+}
+
+export interface TimeSummary {
+  totalMinutes: number;
+  entryCount: number;
+}
+
+export interface ProjectTimeSummary {
+  members: Array<{ memberDid: string; totalMinutes: number; entryCount: number }>;
+}
+
+export interface ScheduleShift {
+  id: string;
+  cooperativeDid: string;
+  title: string;
+  description: string | null;
+  assignedDid: string | null;
+  recurrence: string | null;
+  location: string | null;
+  status: string;
+  createdBy: string;
+  startsAt: string;
+  endsAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ShiftsResponse {
+  items: ScheduleShift[];
+  cursor: string | null;
+}
+
+export interface FairnessSummary {
+  items: Array<{ memberDid: string; shiftCount: number }>;
+}
+
+export interface Expense {
+  id: string;
+  cooperativeDid: string;
+  memberDid: string;
+  categoryId: string | null;
+  title: string;
+  description: string | null;
+  amount: number;
+  currency: string;
+  receiptBlobCid: string | null;
+  status: string;
+  reviewedBy: string | null;
+  reviewNote: string | null;
+  reviewedAt: string | null;
+  reimbursedAt: string | null;
+  createdAt: string;
+}
+
+export interface ExpenseCategory {
+  id: string;
+  cooperativeDid: string;
+  name: string;
+  description: string | null;
+  budgetLimit: number | null;
+  createdAt: string;
+}
+
+export interface ExpensesResponse {
+  items: Expense[];
+  cursor: string | null;
+}
+
+export interface RevenueEntry {
+  id: string;
+  cooperativeDid: string;
+  projectId: string | null;
+  title: string;
+  description: string | null;
+  amount: number;
+  currency: string;
+  source: string | null;
+  sourceReference: string | null;
+  recordedBy: string;
+  recordedAt: string;
+  periodStart: string | null;
+  periodEnd: string | null;
+  createdAt: string;
+}
+
+export interface RevenueEntriesResponse {
+  items: RevenueEntry[];
+  cursor: string | null;
+}

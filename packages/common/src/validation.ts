@@ -1003,3 +1003,194 @@ export type CompleteMilestoneInput = z.infer<typeof CompleteMilestoneSchema>;
 export type AssignBuddyInput = z.infer<typeof AssignBuddySchema>;
 export type CreateOnboardingReviewInput = z.infer<typeof CreateOnboardingReviewSchema>;
 export type CompleteOnboardingInput = z.infer<typeof CompleteOnboardingSchema>;
+
+// --- Operations Schemas (Phase 8) ---
+
+export const TaskStatusEnum = z.enum([
+  'backlog', 'todo', 'in_progress', 'in_review', 'done', 'cancelled',
+]);
+
+export const TaskPriorityEnum = z.enum(['urgent', 'high', 'medium', 'low']);
+
+export const CreateTaskSchema = z.object({
+  title: z.string().min(1).max(255),
+  description: z.string().max(10000).optional(),
+  projectId: z.string().optional(),
+  status: TaskStatusEnum.default('backlog'),
+  priority: TaskPriorityEnum.default('medium'),
+  assigneeDids: z.array(z.string()).max(20).default([]),
+  dueDate: z.string().optional(),
+  labels: z.array(z.string().max(50)).max(20).default([]),
+  linkedProposalId: z.string().optional(),
+  checklist: z.array(z.object({
+    title: z.string().min(1).max(500),
+    completed: z.boolean().default(false),
+  })).max(50).optional(),
+});
+
+export const UpdateTaskSchema = z.object({
+  title: z.string().min(1).max(255).optional(),
+  description: z.string().max(10000).optional(),
+  status: TaskStatusEnum.optional(),
+  priority: TaskPriorityEnum.optional(),
+  assigneeDids: z.array(z.string()).max(20).optional(),
+  dueDate: z.string().nullable().optional(),
+  labels: z.array(z.string().max(50)).max(20).optional(),
+  linkedProposalId: z.string().nullable().optional(),
+});
+
+export const CreateTaskLabelSchema = z.object({
+  name: z.string().min(1).max(50),
+  color: z.string().max(20).default('#6366f1'),
+});
+
+export const CreateChecklistItemSchema = z.object({
+  title: z.string().min(1).max(500),
+  completed: z.boolean().default(false),
+});
+
+export const UpdateChecklistItemSchema = z.object({
+  title: z.string().min(1).max(500).optional(),
+  completed: z.boolean().optional(),
+  sortOrder: z.number().int().min(0).optional(),
+});
+
+// --- Time Tracking Schemas ---
+
+export const TimeEntryStatusEnum = z.enum(['draft', 'submitted', 'approved', 'rejected']);
+
+export const CreateTimeEntrySchema = z.object({
+  taskId: z.string().optional(),
+  projectId: z.string().optional(),
+  description: z.string().max(2000).optional(),
+  startedAt: z.string().min(1),
+  endedAt: z.string().optional(),
+  durationMinutes: z.number().int().min(1).max(1440).optional(),
+});
+
+export const UpdateTimeEntrySchema = z.object({
+  description: z.string().max(2000).optional(),
+  startedAt: z.string().optional(),
+  endedAt: z.string().nullable().optional(),
+  durationMinutes: z.number().int().min(1).max(1440).optional(),
+  status: TimeEntryStatusEnum.optional(),
+});
+
+export const SubmitTimeEntriesSchema = z.object({
+  entryIds: z.array(z.string().min(1)).min(1).max(100),
+});
+
+export const ReviewTimeEntriesSchema = z.object({
+  entryIds: z.array(z.string().min(1)).min(1).max(100),
+  action: z.enum(['approve', 'reject']),
+  note: z.string().max(1000).optional(),
+});
+
+// --- Schedule Schemas ---
+
+export const ShiftStatusEnum = z.enum(['open', 'assigned', 'completed', 'cancelled']);
+
+export const CreateShiftSchema = z.object({
+  title: z.string().min(1).max(255),
+  description: z.string().max(2000).optional(),
+  assignedDid: z.string().optional(),
+  startsAt: z.string().min(1),
+  endsAt: z.string().min(1),
+  recurrence: z.string().max(50).optional(),
+  location: z.string().max(500).optional(),
+});
+
+export const UpdateShiftSchema = z.object({
+  title: z.string().min(1).max(255).optional(),
+  description: z.string().max(2000).optional(),
+  assignedDid: z.string().nullable().optional(),
+  startsAt: z.string().optional(),
+  endsAt: z.string().optional(),
+  recurrence: z.string().max(50).nullable().optional(),
+  location: z.string().max(500).nullable().optional(),
+  status: ShiftStatusEnum.optional(),
+});
+
+// --- Expense Schemas ---
+
+export const ExpenseStatusEnum = z.enum(['draft', 'submitted', 'approved', 'rejected', 'reimbursed']);
+
+export const CreateExpenseCategorySchema = z.object({
+  name: z.string().min(1).max(100),
+  description: z.string().max(1000).optional(),
+  budgetLimit: z.number().nonnegative().optional(),
+});
+
+export const CreateExpenseSchema = z.object({
+  categoryId: z.string().optional(),
+  title: z.string().min(1).max(255),
+  description: z.string().max(2000).optional(),
+  amount: z.number().positive(),
+  currency: z.string().min(1).max(10).default('USD'),
+  receiptBlobCid: z.string().optional(),
+});
+
+export const UpdateExpenseSchema = z.object({
+  categoryId: z.string().nullable().optional(),
+  title: z.string().min(1).max(255).optional(),
+  description: z.string().max(2000).optional(),
+  amount: z.number().positive().optional(),
+  currency: z.string().min(1).max(10).optional(),
+  receiptBlobCid: z.string().nullable().optional(),
+});
+
+export const ReviewExpenseSchema = z.object({
+  action: z.enum(['approve', 'reject']),
+  note: z.string().max(1000).optional(),
+});
+
+export const ReimburseExpenseSchema = z.object({
+  expenseIds: z.array(z.string().min(1)).min(1).max(100),
+});
+
+// --- Revenue Schemas ---
+
+export const CreateRevenueEntrySchema = z.object({
+  projectId: z.string().optional(),
+  title: z.string().min(1).max(255),
+  description: z.string().max(2000).optional(),
+  amount: z.number().positive(),
+  currency: z.string().min(1).max(10).default('USD'),
+  source: z.string().max(100).optional(),
+  sourceReference: z.string().max(500).optional(),
+  recordedAt: z.string().optional(),
+  periodStart: z.string().optional(),
+  periodEnd: z.string().optional(),
+});
+
+export const UpdateRevenueEntrySchema = z.object({
+  projectId: z.string().nullable().optional(),
+  title: z.string().min(1).max(255).optional(),
+  description: z.string().max(2000).optional(),
+  amount: z.number().positive().optional(),
+  currency: z.string().min(1).max(10).optional(),
+  source: z.string().max(100).nullable().optional(),
+  sourceReference: z.string().max(500).nullable().optional(),
+  periodStart: z.string().nullable().optional(),
+  periodEnd: z.string().nullable().optional(),
+});
+
+// Type exports
+export type CreateTaskInput = z.infer<typeof CreateTaskSchema>;
+export type UpdateTaskInput = z.infer<typeof UpdateTaskSchema>;
+export type CreateTaskLabelInput = z.infer<typeof CreateTaskLabelSchema>;
+export type CreateChecklistItemInput = z.infer<typeof CreateChecklistItemSchema>;
+export type UpdateChecklistItemInput = z.infer<typeof UpdateChecklistItemSchema>;
+export type CreateTimeEntryInput = z.infer<typeof CreateTimeEntrySchema>;
+export type UpdateTimeEntryInput = z.infer<typeof UpdateTimeEntrySchema>;
+export type SubmitTimeEntriesInput = z.infer<typeof SubmitTimeEntriesSchema>;
+export type ReviewTimeEntriesInput = z.infer<typeof ReviewTimeEntriesSchema>;
+export type CreateShiftInput = z.infer<typeof CreateShiftSchema>;
+export type UpdateShiftInput = z.infer<typeof UpdateShiftSchema>;
+export type CreateExpenseCategoryInput = z.infer<typeof CreateExpenseCategorySchema>;
+export type CreateExpenseInput = z.infer<typeof CreateExpenseSchema>;
+export type UpdateExpenseInput = z.infer<typeof UpdateExpenseSchema>;
+export type ReviewExpenseInput = z.infer<typeof ReviewExpenseSchema>;
+export type ReimburseExpenseInput = z.infer<typeof ReimburseExpenseSchema>;
+export type CreateRevenueEntryInput = z.infer<typeof CreateRevenueEntrySchema>;
+export type UpdateRevenueEntryInput = z.infer<typeof UpdateRevenueEntrySchema>;

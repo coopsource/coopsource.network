@@ -1,0 +1,23 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.finance.expenseApproval",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Cooperative approval or rejection of an expense claim. Tier 2 private record.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["cooperativeDid", "expenseId", "action", "reviewedBy", "createdAt"],
+        "properties": {
+          "cooperativeDid": { "type": "string", "format": "did" },
+          "expenseId": { "type": "string" },
+          "action": { "type": "string", "knownValues": ["approve", "reject"] },
+          "reviewedBy": { "type": "string", "format": "did" },
+          "note": { "type": "string", "maxLength": 1000 },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

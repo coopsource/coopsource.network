@@ -40,6 +40,7 @@ export const PERMISSIONS = {
   'financial.manage': 'Manage patronage calculations, capital accounts, and tax forms',
   'onboarding.manage': 'Manage onboarding configuration and member progress',
   'coop.links.manage': 'Manage inter-cooperative connections',
+  'ops.manage': 'Manage tasks, schedules, and time entry reviews',
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -83,6 +84,7 @@ export const BUILT_IN_ROLES: Record<
       'financial.manage',
       'onboarding.manage',
       'coop.links.manage',
+      'ops.manage',
     ],
     inherits: ['member'],
   },

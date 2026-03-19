@@ -97,6 +97,22 @@ import type {
   CooperativeLink,
   CooperativeLinksResponse,
   CooperativePartner,
+  Task,
+  TaskLabel,
+  ChecklistItem,
+  TasksResponse,
+  TimeEntry,
+  TimeEntriesResponse,
+  TimeSummary,
+  ProjectTimeSummary,
+  ScheduleShift,
+  ShiftsResponse,
+  FairnessSummary,
+  Expense,
+  ExpenseCategory,
+  ExpensesResponse,
+  RevenueEntry,
+  RevenueEntriesResponse,
 } from './types.js';
 
 export class ApiError extends Error {
@@ -1181,5 +1197,133 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string, apiBase?
       request<CooperativeLink>(`/cooperative-links/${id}/respond`, { method: 'POST', body: JSON.stringify(body) }),
     dissolveLink: (id: string) => request<CooperativeLink>(`/cooperative-links/${id}`, { method: 'DELETE' }),
     getPartners: () => request<{ partners: CooperativePartner[] }>('/cooperative-links/partners'),
+
+    // ── Tasks (Phase 8) ──────────────────────────────────────────────
+    createTask: (body: { title: string; description?: string; projectId?: string; status?: string; priority?: string; assigneeDids?: string[]; dueDate?: string; labels?: string[]; linkedProposalId?: string; checklist?: Array<{ title: string; completed?: boolean }> }) =>
+      request<Task>('/ops/tasks', { method: 'POST', body: JSON.stringify(body) }),
+    getTasks: (params?: { status?: string; priority?: string; projectId?: string; assigneeDid?: string; limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.status) qs.set('status', params.status);
+      if (params?.priority) qs.set('priority', params.priority);
+      if (params?.projectId) qs.set('projectId', params.projectId);
+      if (params?.assigneeDid) qs.set('assigneeDid', params.assigneeDid);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<TasksResponse>(`/ops/tasks${qs.size ? `?${qs}` : ''}`);
+    },
+    getTask: (id: string) => request<Task>(`/ops/tasks/${id}`),
+    updateTask: (id: string, body: { title?: string; description?: string; status?: string; priority?: string; assigneeDids?: string[]; dueDate?: string | null; labels?: string[]; linkedProposalId?: string | null }) =>
+      request<Task>(`/ops/tasks/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    deleteTask: (id: string) => request<void>(`/ops/tasks/${id}`, { method: 'DELETE' }),
+    getTasksByAssignee: (memberDid: string, params?: { limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<TasksResponse>(`/ops/tasks/assignee/${encodeURIComponent(memberDid)}${qs.size ? `?${qs}` : ''}`);
+    },
+    addChecklistItem: (taskId: string, body: { title: string; completed?: boolean }) =>
+      request<ChecklistItem>(`/ops/tasks/${taskId}/checklist`, { method: 'POST', body: JSON.stringify(body) }),
+    updateChecklistItem: (id: string, body: { title?: string; completed?: boolean; sortOrder?: number }) =>
+      request<ChecklistItem>(`/ops/tasks/checklist/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    deleteChecklistItem: (id: string) => request<void>(`/ops/tasks/checklist/${id}`, { method: 'DELETE' }),
+    getTaskLabels: () => request<{ labels: TaskLabel[] }>('/ops/labels'),
+    createTaskLabel: (body: { name: string; color?: string }) =>
+      request<TaskLabel>('/ops/labels', { method: 'POST', body: JSON.stringify(body) }),
+    deleteTaskLabel: (id: string) => request<void>(`/ops/labels/${id}`, { method: 'DELETE' }),
+
+    // ── Time Tracking (Phase 8) ──────────────────────────────────────
+    createTimeEntry: (body: { taskId?: string; projectId?: string; description?: string; startedAt: string; endedAt?: string; durationMinutes?: number }) =>
+      request<TimeEntry>('/ops/time-entries', { method: 'POST', body: JSON.stringify(body) }),
+    getTimeEntries: (params?: { memberDid?: string; taskId?: string; projectId?: string; status?: string; limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.memberDid) qs.set('memberDid', params.memberDid);
+      if (params?.taskId) qs.set('taskId', params.taskId);
+      if (params?.projectId) qs.set('projectId', params.projectId);
+      if (params?.status) qs.set('status', params.status);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<TimeEntriesResponse>(`/ops/time-entries${qs.size ? `?${qs}` : ''}`);
+    },
+    getTimeEntry: (id: string) => request<TimeEntry>(`/ops/time-entries/${id}`),
+    updateTimeEntry: (id: string, body: { description?: string; startedAt?: string; endedAt?: string | null; durationMinutes?: number; status?: string }) =>
+      request<TimeEntry>(`/ops/time-entries/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    deleteTimeEntry: (id: string) => request<void>(`/ops/time-entries/${id}`, { method: 'DELETE' }),
+    submitTimeEntries: (body: { entryIds: string[] }) =>
+      request<{ entries: TimeEntry[] }>('/ops/time-entries/submit', { method: 'POST', body: JSON.stringify(body) }),
+    reviewTimeEntries: (body: { entryIds: string[]; action: 'approve' | 'reject'; note?: string }) =>
+      request<{ entries: TimeEntry[] }>('/ops/time-entries/review', { method: 'POST', body: JSON.stringify(body) }),
+    getMemberTimeSummary: (memberDid: string, startDate: string, endDate: string) =>
+      request<TimeSummary>(`/ops/time-entries/summary/member/${encodeURIComponent(memberDid)}?startDate=${startDate}&endDate=${endDate}`),
+    getProjectTimeSummary: (projectId: string, startDate: string, endDate: string) =>
+      request<ProjectTimeSummary>(`/ops/time-entries/summary/project/${encodeURIComponent(projectId)}?startDate=${startDate}&endDate=${endDate}`),
+
+    // ── Schedules (Phase 8) ──────────────────────────────────────────
+    createShift: (body: { title: string; description?: string; assignedDid?: string; startsAt: string; endsAt: string; recurrence?: string; location?: string }) =>
+      request<ScheduleShift>('/ops/shifts', { method: 'POST', body: JSON.stringify(body) }),
+    getShifts: (params?: { status?: string; assignedDid?: string; startAfter?: string; endBefore?: string; limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.status) qs.set('status', params.status);
+      if (params?.assignedDid) qs.set('assignedDid', params.assignedDid);
+      if (params?.startAfter) qs.set('startAfter', params.startAfter);
+      if (params?.endBefore) qs.set('endBefore', params.endBefore);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<ShiftsResponse>(`/ops/shifts${qs.size ? `?${qs}` : ''}`);
+    },
+    getShift: (id: string) => request<ScheduleShift>(`/ops/shifts/${id}`),
+    updateShift: (id: string, body: { title?: string; description?: string; assignedDid?: string | null; startsAt?: string; endsAt?: string; recurrence?: string | null; location?: string | null; status?: string }) =>
+      request<ScheduleShift>(`/ops/shifts/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    deleteShift: (id: string) => request<void>(`/ops/shifts/${id}`, { method: 'DELETE' }),
+    claimShift: (id: string) => request<ScheduleShift>(`/ops/shifts/${id}/claim`, { method: 'POST' }),
+    completeShift: (id: string) => request<ScheduleShift>(`/ops/shifts/${id}/complete`, { method: 'POST' }),
+    getShiftFairness: (startDate: string, endDate: string) =>
+      request<FairnessSummary>(`/ops/shifts/fairness?startDate=${startDate}&endDate=${endDate}`),
+
+    // ── Expenses (Phase 8) ───────────────────────────────────────────
+    createExpenseCategory: (body: { name: string; description?: string; budgetLimit?: number }) =>
+      request<ExpenseCategory>('/finance/expense-categories', { method: 'POST', body: JSON.stringify(body) }),
+    getExpenseCategories: () => request<{ categories: ExpenseCategory[] }>('/finance/expense-categories'),
+    deleteExpenseCategory: (id: string) => request<void>(`/finance/expense-categories/${id}`, { method: 'DELETE' }),
+    createExpense: (body: { categoryId?: string; title: string; description?: string; amount: number; currency?: string; receiptBlobCid?: string }) =>
+      request<Expense>('/finance/expenses', { method: 'POST', body: JSON.stringify(body) }),
+    getExpenses: (params?: { memberDid?: string; categoryId?: string; status?: string; limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.memberDid) qs.set('memberDid', params.memberDid);
+      if (params?.categoryId) qs.set('categoryId', params.categoryId);
+      if (params?.status) qs.set('status', params.status);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<ExpensesResponse>(`/finance/expenses${qs.size ? `?${qs}` : ''}`);
+    },
+    getExpense: (id: string) => request<Expense>(`/finance/expenses/${id}`),
+    updateExpense: (id: string, body: { categoryId?: string | null; title?: string; description?: string; amount?: number; currency?: string; receiptBlobCid?: string | null }) =>
+      request<Expense>(`/finance/expenses/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    deleteExpense: (id: string) => request<void>(`/finance/expenses/${id}`, { method: 'DELETE' }),
+    reviewExpense: (id: string, body: { action: 'approve' | 'reject'; note?: string }) =>
+      request<Expense>(`/finance/expenses/${id}/review`, { method: 'POST', body: JSON.stringify(body) }),
+    reimburseExpenses: (body: { expenseIds: string[] }) =>
+      request<{ reimbursed: number }>('/finance/expenses/reimburse', { method: 'POST', body: JSON.stringify(body) }),
+
+    // ── Revenue (Phase 8) ────────────────────────────────────────────
+    createRevenueEntry: (body: { projectId?: string; title: string; description?: string; amount: number; currency?: string; source?: string; sourceReference?: string; recordedAt?: string; periodStart?: string; periodEnd?: string }) =>
+      request<RevenueEntry>('/finance/revenue', { method: 'POST', body: JSON.stringify(body) }),
+    getRevenueEntries: (params?: { projectId?: string; source?: string; startDate?: string; endDate?: string; limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.projectId) qs.set('projectId', params.projectId);
+      if (params?.source) qs.set('source', params.source);
+      if (params?.startDate) qs.set('startDate', params.startDate);
+      if (params?.endDate) qs.set('endDate', params.endDate);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<RevenueEntriesResponse>(`/finance/revenue${qs.size ? `?${qs}` : ''}`);
+    },
+    getRevenueEntry: (id: string) => request<RevenueEntry>(`/finance/revenue/${id}`),
+    updateRevenueEntry: (id: string, body: { projectId?: string | null; title?: string; description?: string; amount?: number; currency?: string; source?: string | null; sourceReference?: string | null; periodStart?: string | null; periodEnd?: string | null }) =>
+      request<RevenueEntry>(`/finance/revenue/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    deleteRevenueEntry: (id: string) => request<void>(`/finance/revenue/${id}`, { method: 'DELETE' }),
+    getProjectRevenueSummary: (projectId: string, startDate: string, endDate: string) =>
+      request<{ totalAmount: number; count: number; currency: string }>(`/finance/revenue/summary/project/${encodeURIComponent(projectId)}?startDate=${startDate}&endDate=${endDate}`),
+    getOverallRevenueSummary: (startDate: string, endDate: string) =>
+      request<{ items: Array<{ projectId: string | null; totalAmount: number; count: number }> }>(`/finance/revenue/summary?startDate=${startDate}&endDate=${endDate}`),
   };
 }

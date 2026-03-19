@@ -71,4 +71,13 @@ export type {
   // Weighted voting + cooperative links (032)
   MemberClassTable,
   CooperativeLinkTable,
+  // Operations — Phase 8 (038–042)
+  TaskTable,
+  TaskLabelTable,
+  TaskChecklistItemTable,
+  TimeEntryTable,
+  ScheduleShiftTable,
+  ExpenseCategoryTable,
+  ExpenseTable,
+  RevenueEntryTable,
 } from './schema.js';

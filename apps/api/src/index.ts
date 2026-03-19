@@ -65,6 +65,11 @@ import { createPrivateRecordRoutes } from './routes/private/records.js';
 import { createPatronageRoutes } from './routes/financial/patronage.js';
 import { createCapitalAccountRoutes } from './routes/financial/capital-accounts.js';
 import { createTaxFormRoutes } from './routes/financial/tax-forms.js';
+import { createTaskRoutes } from './routes/ops/tasks.js';
+import { createTimeTrackingRoutes } from './routes/ops/time-tracking.js';
+import { createScheduleRoutes } from './routes/ops/schedules.js';
+import { createExpenseRoutes } from './routes/finance/expenses.js';
+import { createRevenueRoutes } from './routes/finance/revenue.js';
 import { startAppViewLoop } from './appview/loop.js';
 import { createOAuthClient } from './auth/oauth-client.js';
 
@@ -203,6 +208,13 @@ async function start(): Promise<void> {
   app.use(createPatronageRoutes(container));
   app.use(createCapitalAccountRoutes(container));
   app.use(createTaxFormRoutes(container));
+
+  // Operations routes (Phase 8)
+  app.use(createTaskRoutes(container));
+  app.use(createTimeTrackingRoutes(container));
+  app.use(createScheduleRoutes(container));
+  app.use(createExpenseRoutes(container));
+  app.use(createRevenueRoutes(container));
 
   // Governance label routes
   app.use(createLabelRoutes(container.governanceLabeler));

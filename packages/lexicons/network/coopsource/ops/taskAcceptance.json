@@ -1,0 +1,21 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.ops.taskAcceptance",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A member's acceptance of a task assignment. Written to member's PDS (bilateral pattern).",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["taskUri", "cooperativeDid", "createdAt"],
+        "properties": {
+          "taskUri": { "type": "string", "format": "at-uri", "description": "AT-URI of the task record" },
+          "cooperativeDid": { "type": "string", "format": "did" },
+          "note": { "type": "string", "maxLength": 2000 },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

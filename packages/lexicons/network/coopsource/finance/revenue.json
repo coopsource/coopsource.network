@@ -1,0 +1,30 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.finance.revenue",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A revenue entry recording income. Tier 2 private record — stored in private_record table, never on firehose.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["cooperativeDid", "title", "amount", "currency", "recordedBy", "createdAt"],
+        "properties": {
+          "cooperativeDid": { "type": "string", "format": "did" },
+          "projectId": { "type": "string" },
+          "title": { "type": "string", "maxLength": 255 },
+          "description": { "type": "string", "maxLength": 2000 },
+          "amount": { "type": "number", "minimum": 0 },
+          "currency": { "type": "string", "maxLength": 10 },
+          "source": { "type": "string", "maxLength": 100 },
+          "sourceReference": { "type": "string", "maxLength": 500 },
+          "recordedBy": { "type": "string", "format": "did" },
+          "recordedAt": { "type": "string", "format": "datetime" },
+          "periodStart": { "type": "string", "format": "datetime" },
+          "periodEnd": { "type": "string", "format": "datetime" },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

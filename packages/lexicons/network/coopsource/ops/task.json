@@ -1,0 +1,43 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.ops.task",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A task definition in a cooperative's work coordination system",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["cooperativeDid", "title", "status", "priority", "createdBy", "createdAt"],
+        "properties": {
+          "cooperativeDid": { "type": "string", "format": "did" },
+          "projectId": { "type": "string", "description": "Project entity ID" },
+          "title": { "type": "string", "maxLength": 255 },
+          "description": { "type": "string", "maxLength": 10000 },
+          "status": {
+            "type": "string",
+            "knownValues": ["backlog", "todo", "in_progress", "in_review", "done", "cancelled"]
+          },
+          "priority": {
+            "type": "string",
+            "knownValues": ["urgent", "high", "medium", "low"]
+          },
+          "assigneeDids": {
+            "type": "array",
+            "items": { "type": "string", "format": "did" },
+            "maxLength": 20
+          },
+          "dueDate": { "type": "string", "format": "datetime" },
+          "labels": {
+            "type": "array",
+            "items": { "type": "string", "maxLength": 50 },
+            "maxLength": 20
+          },
+          "linkedProposal": { "type": "string", "format": "at-uri" },
+          "createdBy": { "type": "string", "format": "did" },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}
