@@ -1,4 +1,4 @@
-import type { Kysely, Selectable } from 'kysely';
+import { sql, type Kysely, type Selectable } from 'kysely';
 import type { Database, SharedResourceTable, ResourceBookingTable } from '@coopsource/db';
 import { NotFoundError, ConflictError, ValidationError } from '@coopsource/common';
 import type { DID } from '@coopsource/common';
@@ -321,7 +321,9 @@ export class SharedResourceService {
     // Verify the booking exists and belongs to a resource owned by this cooperative
     const booking = await this.db
       .selectFrom('resource_booking')
-      .innerJoin('shared_resource', 'shared_resource.id', 'resource_booking.resource_id')
+      .innerJoin('shared_resource', (join) =>
+        join.on(sql`shared_resource.id::text`, '=', sql.ref('resource_booking.resource_id')),
+      )
       .where('resource_booking.id', '=', id)
       .where('shared_resource.cooperative_did', '=', cooperativeDid)
       .select([

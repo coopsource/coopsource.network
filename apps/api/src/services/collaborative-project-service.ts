@@ -1,4 +1,4 @@
-import type { Kysely, Selectable } from 'kysely';
+import { sql, type Kysely, type Selectable } from 'kysely';
 import type { Database, CollaborativeProjectTable, CollaborativeContributionTable } from '@coopsource/db';
 import { NotFoundError, ConflictError } from '@coopsource/common';
 import type { DID } from '@coopsource/common';
@@ -153,7 +153,7 @@ export class CollaborativeProjectService {
       .where((eb) =>
         eb.or([
           eb('host_cooperative_did', '=', cooperativeDid),
-          eb('participant_dids', '@>', [cooperativeDid]),
+          sql<boolean>`participant_dids @> ARRAY[${cooperativeDid}]::text[]`,
         ]),
       )
       .selectAll()

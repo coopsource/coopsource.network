@@ -25,7 +25,7 @@ export default defineConfig({
     {
       command: 'node --experimental-strip-types --experimental-transform-types tests/e2e/global-setup.ts && PORT=3002 pnpm --filter @coopsource/api dev',
       url: 'http://localhost:3002/health',
-      reuseExistingServer: false,
+      reuseExistingServer: !process.env.CI,
       timeout: 30_000,
       env: {
         DATABASE_URL: TEST_DB_URL,

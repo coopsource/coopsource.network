@@ -4,7 +4,7 @@ import type {
   ProcurementGroupTable,
   ProcurementDemandTable,
 } from '@coopsource/db';
-import { NotFoundError, ConflictError } from '@coopsource/common';
+import { NotFoundError } from '@coopsource/common';
 import type { IClock } from '@coopsource/federation';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
@@ -48,7 +48,7 @@ export class ProcurementService {
         category: data.category ?? null,
         target_quantity: data.targetQuantity ?? null,
         deadline: data.deadline ?? null,
-        status: 'collecting',
+        status: 'open',
         created_at: now,
         updated_at: now,
       })
@@ -179,54 +179,19 @@ export class ProcurementService {
   ): Promise<DemandRow> {
     const now = this.clock.now();
 
-    // Upsert: insert or update on conflict
-    try {
-      const existing = await this.db
-        .selectFrom('procurement_demand')
-        .where('group_id', '=', groupId)
-        .where('cooperative_did', '=', cooperativeDid)
-        .selectAll()
-        .executeTakeFirst();
+    const [row] = await this.db
+      .insertInto('procurement_demand')
+      .values({
+        group_id: groupId,
+        cooperative_did: cooperativeDid,
+        quantity: data.quantity,
+        notes: data.notes ?? null,
+        created_at: now,
+      })
+      .returningAll()
+      .execute();
 
-      if (existing) {
-        // Update existing demand
-        const [row] = await this.db
-          .updateTable('procurement_demand')
-          .set({
-            quantity: data.quantity,
-            notes: data.notes ?? existing.notes,
-          })
-          .where('id', '=', existing.id)
-          .returningAll()
-          .execute();
-
-        return row!;
-      }
-
-      // Insert new demand
-      const [row] = await this.db
-        .insertInto('procurement_demand')
-        .values({
-          group_id: groupId,
-          cooperative_did: cooperativeDid,
-          quantity: data.quantity,
-          notes: data.notes ?? null,
-          created_at: now,
-        })
-        .returningAll()
-        .execute();
-
-      return row!;
-    } catch (err: unknown) {
-      if (
-        err instanceof Error &&
-        (err.message.includes('duplicate key') ||
-         err.message.includes('unique constraint'))
-      ) {
-        throw new ConflictError('Demand already exists for this cooperative in this group');
-      }
-      throw err;
-    }
+    return row!;
   }
 
   async removeDemand(

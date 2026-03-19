@@ -42,7 +42,7 @@ export class MentionService {
 
   async getUnreadMentions(
     cooperativeDid: string,
-    memberDid: string,
+    memberDid: string | undefined,
     params: PageParams,
   ): Promise<Page<MentionRow>> {
     const limit = params.limit ?? 50;
@@ -50,7 +50,7 @@ export class MentionService {
     let query = this.db
       .selectFrom('mention')
       .where('cooperative_did', '=', cooperativeDid)
-      .where('mentioned_did', '=', memberDid)
+      .$if(!!memberDid, (qb) => qb.where('mentioned_did', '=', memberDid!))
       .where('read_at', 'is', null)
       .selectAll()
       .orderBy('created_at', 'desc')
@@ -80,14 +80,14 @@ export class MentionService {
     return { items: slice, cursor };
   }
 
-  async markAsRead(id: string, memberDid: string): Promise<MentionRow> {
+  async markAsRead(id: string, cooperativeDid: string): Promise<MentionRow> {
     const now = this.clock.now();
 
     const [row] = await this.db
       .updateTable('mention')
       .set({ read_at: now })
       .where('id', '=', id)
-      .where('mentioned_did', '=', memberDid)
+      .where('cooperative_did', '=', cooperativeDid)
       .returningAll()
       .execute();
 
@@ -95,25 +95,25 @@ export class MentionService {
     return row;
   }
 
-  async markAllAsRead(cooperativeDid: string, memberDid: string): Promise<number> {
+  async markAllAsRead(cooperativeDid: string, memberDid?: string): Promise<number> {
     const now = this.clock.now();
 
     const result = await this.db
       .updateTable('mention')
       .set({ read_at: now })
       .where('cooperative_did', '=', cooperativeDid)
-      .where('mentioned_did', '=', memberDid)
+      .$if(!!memberDid, (qb) => qb.where('mentioned_did', '=', memberDid!))
       .where('read_at', 'is', null)
       .execute();
 
     return Number(result[0]?.numUpdatedRows ?? 0);
   }
 
-  async getUnreadCount(cooperativeDid: string, memberDid: string): Promise<number> {
+  async getUnreadCount(cooperativeDid: string, memberDid?: string): Promise<number> {
     const result = await this.db
       .selectFrom('mention')
       .where('cooperative_did', '=', cooperativeDid)
-      .where('mentioned_did', '=', memberDid)
+      .$if(!!memberDid, (qb) => qb.where('mentioned_did', '=', memberDid!))
       .where('read_at', 'is', null)
       .select((eb) => eb.fn.count('id').as('count'))
       .executeTakeFirst();

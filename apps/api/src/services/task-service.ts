@@ -390,15 +390,21 @@ export class TaskService {
       sortOrder?: number;
     },
   ): Promise<ChecklistRow> {
-    // Verify ownership through task
-    const existing = await this.db
+    // Verify ownership: look up item, then verify its task belongs to this cooperative
+    const item = await this.db
       .selectFrom('task_checklist_item')
-      .innerJoin('task', 'task.id', 'task_checklist_item.task_id')
-      .where('task_checklist_item.id', '=', id)
-      .where('task.cooperative_did', '=', cooperativeDid)
-      .select(['task_checklist_item.id'])
+      .where('id', '=', id)
+      .select(['id', 'task_id'])
       .executeTakeFirst();
-    if (!existing) throw new NotFoundError('Checklist item not found');
+    if (!item) throw new NotFoundError('Checklist item not found');
+
+    const task = await this.db
+      .selectFrom('task')
+      .where('id', '=', item.task_id)
+      .where('cooperative_did', '=', cooperativeDid)
+      .select(['id'])
+      .executeTakeFirst();
+    if (!task) throw new NotFoundError('Checklist item not found');
 
     const updates: Record<string, unknown> = {};
 
@@ -418,15 +424,21 @@ export class TaskService {
   }
 
   async deleteChecklistItem(id: string, cooperativeDid: string): Promise<void> {
-    // Verify ownership through task
-    const existing = await this.db
+    // Verify ownership: look up item, then verify its task belongs to this cooperative
+    const item = await this.db
       .selectFrom('task_checklist_item')
-      .innerJoin('task', 'task.id', 'task_checklist_item.task_id')
-      .where('task_checklist_item.id', '=', id)
-      .where('task.cooperative_did', '=', cooperativeDid)
-      .select(['task_checklist_item.id'])
+      .where('id', '=', id)
+      .select(['id', 'task_id'])
       .executeTakeFirst();
-    if (!existing) throw new NotFoundError('Checklist item not found');
+    if (!item) throw new NotFoundError('Checklist item not found');
+
+    const task = await this.db
+      .selectFrom('task')
+      .where('id', '=', item.task_id)
+      .where('cooperative_did', '=', cooperativeDid)
+      .select(['id'])
+      .executeTakeFirst();
+    if (!task) throw new NotFoundError('Checklist item not found');
 
     await this.db.deleteFrom('task_checklist_item').where('id', '=', id).execute();
   }

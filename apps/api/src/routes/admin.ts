@@ -86,7 +86,29 @@ export function createAdminRoutes(container: Container): Router {
             role_definition, federation_peer, signature_request, federation_outbox,
             payment_provider_config, model_provider_config,
             agent_config, agent_session, agent_message, agent_usage, agent_trigger,
-            api_token, trigger_execution_log, notification
+            api_token, trigger_execution_log, notification,
+            legal_document, meeting_record, admin_officer,
+            compliance_item, member_notice, fiscal_period,
+            private_record, operator_audit_log,
+            governance_label,
+            calendar_event_ref, frontpage_post_ref,
+            patronage_config, patronage_record,
+            capital_account, capital_account_transaction, tax_form_1099_patr,
+            onboarding_config, onboarding_progress, onboarding_review,
+            member_class, cooperative_link,
+            delegation,
+            task, task_label, task_checklist_item,
+            time_entry, schedule_shift,
+            expense_category, expense, revenue_entry,
+            commerce_listing, commerce_need,
+            intercoop_agreement,
+            collaborative_project, collaborative_contribution,
+            shared_resource, resource_booking,
+            procurement_group, procurement_demand,
+            connector_config, connector_sync_log, connector_field_mapping,
+            webhook_endpoint, webhook_delivery_log,
+            report_template, report_snapshot,
+            notification_preference, mention
           CASCADE
         `.execute(container.db);
         resetSetupCache();

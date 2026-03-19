@@ -159,7 +159,12 @@ export class IntercoopAgreementService {
     const existing = await this.db
       .selectFrom('intercoop_agreement')
       .where('id', '=', id)
-      .where('responder_did', '=', responderDid)
+      .where((eb) =>
+        eb.or([
+          eb('initiator_did', '=', responderDid),
+          eb('responder_did', '=', responderDid),
+        ]),
+      )
       .selectAll()
       .executeTakeFirst();
 

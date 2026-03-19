@@ -42,12 +42,13 @@ export function createMentionRoutes(container: Container): Router {
     requireAuth,
     asyncHandler(async (req, res) => {
       const params = parsePagination(req.query as Record<string, unknown>);
+      const mentionedDid = req.query.mentionedDid ? String(req.query.mentionedDid) : undefined;
       const page = await container.mentionService.getUnreadMentions(
         req.actor!.cooperativeDid,
-        req.actor!.did,
+        mentionedDid,
         params,
       );
-      res.json({ mentions: page.items.map(formatMention), cursor: page.cursor ?? null });
+      res.json({ items: page.items.map(formatMention), cursor: page.cursor ?? null });
     }),
   );
 
@@ -57,7 +58,7 @@ export function createMentionRoutes(container: Container): Router {
     asyncHandler(async (req, res) => {
       const mention = await container.mentionService.markAsRead(
         String(req.params.id),
-        req.actor!.did,
+        req.actor!.cooperativeDid,
       );
       res.json(formatMention(mention));
     }),
@@ -69,7 +70,6 @@ export function createMentionRoutes(container: Container): Router {
     asyncHandler(async (req, res) => {
       const count = await container.mentionService.markAllAsRead(
         req.actor!.cooperativeDid,
-        req.actor!.did,
       );
       res.json({ marked: count });
     }),
@@ -79,9 +79,10 @@ export function createMentionRoutes(container: Container): Router {
     '/api/v1/mentions/count',
     requireAuth,
     asyncHandler(async (req, res) => {
+      const mentionedDid = req.query.mentionedDid ? String(req.query.mentionedDid) : undefined;
       const count = await container.mentionService.getUnreadCount(
         req.actor!.cooperativeDid,
-        req.actor!.did,
+        mentionedDid,
       );
       res.json({ count });
     }),

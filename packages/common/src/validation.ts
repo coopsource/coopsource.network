@@ -1306,7 +1306,6 @@ export const UpdateSharedResourceSchema = z.object({
 });
 
 export const CreateResourceBookingSchema = z.object({
-  resourceId: z.string().min(1),
   startsAt: z.string().min(1),
   endsAt: z.string().min(1),
   purpose: z.string().max(2000).optional(),

@@ -34,8 +34,12 @@ function formatSnapshot(row: Selectable<ReportSnapshotTable>) {
     data: row.data,
     generatedBy: row.generated_by,
     generatedAt: row.generated_at instanceof Date ? row.generated_at.toISOString() : row.generated_at,
-    periodStart: row.period_start instanceof Date ? row.period_start.toISOString() : row.period_start,
-    periodEnd: row.period_end instanceof Date ? row.period_end.toISOString() : row.period_end,
+    periodStart: row.period_start instanceof Date
+      ? row.period_start.toISOString().split('T')[0]
+      : (row.period_start ?? null),
+    periodEnd: row.period_end instanceof Date
+      ? row.period_end.toISOString().split('T')[0]
+      : (row.period_end ?? null),
   };
 }
 
@@ -64,7 +68,7 @@ export function createReportRoutes(container: Container): Router {
       const templates = await container.reportingService.listTemplates(
         req.actor!.cooperativeDid,
       );
-      res.json({ templates: templates.map(formatTemplate) });
+      res.json({ items: templates.map(formatTemplate) });
     }),
   );
 
@@ -107,7 +111,7 @@ export function createReportRoutes(container: Container): Router {
         params,
         reportType ? { reportType } : undefined,
       );
-      res.json({ reports: page.items.map(formatSnapshot), cursor: page.cursor ?? null });
+      res.json({ items: page.items.map(formatSnapshot), cursor: page.cursor ?? null });
     }),
   );
 
