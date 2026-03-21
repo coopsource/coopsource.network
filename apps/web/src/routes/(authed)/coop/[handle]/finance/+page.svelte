@@ -33,7 +33,7 @@
       <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-5">
         <p class="text-sm text-[var(--cs-text-muted)]">Total Balance</p>
         <p class="mt-1 text-2xl font-semibold text-[var(--cs-text)]">
-          {data.capitalSummary ? fmt(data.capitalSummary.totalBalance) : '—'}
+          {data.capitalSummary ? fmt(data.capitalSummary.totalEquity) : '—'}
         </p>
       </div>
       <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-5">
@@ -54,11 +54,11 @@
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-5">
           <p class="text-sm text-[var(--cs-text-muted)]">Total Contributions</p>
-          <p class="mt-1 text-lg font-medium text-[var(--cs-text)]">{fmt(data.capitalSummary.totalContributions)}</p>
+          <p class="mt-1 text-lg font-medium text-[var(--cs-text)]">{fmt(data.capitalSummary.totalInitialContributions)}</p>
         </div>
         <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-5">
           <p class="text-sm text-[var(--cs-text-muted)]">Total Allocated</p>
-          <p class="mt-1 text-lg font-medium text-[var(--cs-text)]">{fmt(data.capitalSummary.totalAllocated)}</p>
+          <p class="mt-1 text-lg font-medium text-[var(--cs-text)]">{fmt(data.capitalSummary.totalPatronageAllocated)}</p>
         </div>
         <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-5">
           <p class="text-sm text-[var(--cs-text-muted)]">Total Redeemed</p>

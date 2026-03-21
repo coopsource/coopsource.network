@@ -29,11 +29,13 @@
           href: workspace.prefix,
           isLast: contextSegments.length === 0,
         },
-        ...contextSegments.map((seg, i) => ({
-          label: seg.charAt(0).toUpperCase() + seg.slice(1).replace(/-/g, ' '),
-          href: `${workspace.prefix}/${contextSegments.slice(0, i + 1).join('/')}`,
-          isLast: i === contextSegments.length - 1,
-        })),
+        ...contextSegments
+          .filter((seg) => !seg.startsWith('did:') && !seg.startsWith('did%3A'))
+          .map((seg, i, filtered) => ({
+            label: seg.charAt(0).toUpperCase() + seg.slice(1).replace(/-/g, ' '),
+            href: `${workspace.prefix}/${contextSegments.slice(0, contextSegments.indexOf(seg) + 1).join('/')}`,
+            isLast: i === filtered.length - 1,
+          })),
       ];
       return crumbs;
     }

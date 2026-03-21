@@ -908,9 +908,9 @@ export interface CapitalAccountsResponse {
 
 export interface CapitalAccountSummary {
   totalAccounts: number;
-  totalBalance: number;
-  totalContributions: number;
-  totalAllocated: number;
+  totalEquity: number;
+  totalInitialContributions: number;
+  totalPatronageAllocated: number;
   totalRedeemed: number;
 }
 
