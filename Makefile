@@ -49,14 +49,16 @@ db-migrate: ## Run pending database migrations
 db-reset: ## Drop DB, recreate, and re-migrate
 	@$(SCRIPTS) db:reset
 
-test\:e2e: start ## Run ALL Playwright E2E tests
+test\:e2e: start ## Run ALL Playwright E2E tests (kills stale test servers first)
+	@$(SCRIPTS) kill-ports 3002 5173
 	pnpm --filter @coopsource/web exec playwright test
 
-test\:e2e-clean: ## Kill stale servers, then run E2E tests clean
+test\:e2e-clean: ## Kill ALL dev/test servers, then run E2E tests clean
 	@$(SCRIPTS) kill-ports 3001 3002 5173
 	@$(MAKE) test:e2e
 
 test\:e2e\:real: start ## Run real (non-mocked) E2E tests only
+	@$(SCRIPTS) kill-ports 3002 5173
 	pnpm --filter @coopsource/web exec playwright test --project=real
 
 test\:e2e\:mocked: ## Run mocked E2E tests (no services needed)

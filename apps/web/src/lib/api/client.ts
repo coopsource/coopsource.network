@@ -1431,13 +1431,13 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string, apiBase?
       request<ResourceBooking>(`/commerce/bookings/${id}/review`, { method: 'POST', body: JSON.stringify(body) }),
 
     // ── Connectors (Phase 9) ─────────────────────────────────────────
-    getConnectorConfigs: () => request<{ items: ConnectorConfig[] }>('/connectors/configs'),
+    getConnectorConfigs: () => request<{ configs: ConnectorConfig[] }>('/connectors/configs'),
     createConnectorConfig: (body: { connectorType: string; displayName: string; config?: Record<string, unknown>; enabled?: boolean }) =>
       request<ConnectorConfig>('/connectors/configs', { method: 'POST', body: JSON.stringify(body) }),
     deleteConnectorConfig: (id: string) => request<void>(`/connectors/configs/${id}`, { method: 'DELETE' }),
 
     // ── Webhooks (Phase 9) ───────────────────────────────────────────
-    getWebhookEndpoints: () => request<{ items: WebhookEndpoint[] }>('/webhooks/endpoints'),
+    getWebhookEndpoints: () => request<{ endpoints: WebhookEndpoint[] }>('/webhooks/endpoints'),
     createWebhookEndpoint: (body: { url: string; eventTypes: string[]; secret: string; enabled?: boolean }) =>
       request<WebhookEndpoint>('/webhooks/endpoints', { method: 'POST', body: JSON.stringify(body) }),
     deleteWebhookEndpoint: (id: string) => request<void>(`/webhooks/endpoints/${id}`, { method: 'DELETE' }),
