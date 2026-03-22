@@ -8,14 +8,14 @@ export const load: PageServerLoad = async ({ fetch, request }) => {
 
   try {
     const [connectors, webhooks, catalog] = await Promise.all([
-      api.getConnectorConfigs().catch(() => ({ items: [] })),
-      api.getWebhookEndpoints().catch(() => ({ items: [] })),
+      api.getConnectorConfigs().catch(() => ({ configs: [] })),
+      api.getWebhookEndpoints().catch(() => ({ endpoints: [] })),
       api.getEventCatalog().catch(() => ({ events: [] })),
     ]);
 
     return {
-      connectors: connectors.items,
-      webhooks: webhooks.items,
+      connectors: connectors.configs,
+      webhooks: webhooks.endpoints,
       eventCatalog: catalog.events,
     };
   } catch (err) {

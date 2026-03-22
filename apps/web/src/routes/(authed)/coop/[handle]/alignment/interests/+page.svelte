@@ -1,46 +1,77 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import { tick } from 'svelte';
   import { workspacePrefix } from '$lib/utils/workspace.js';
 
   let { data, form } = $props();
   let submitting = $state(false);
 
-  const isUpdate = $derived(data.myInterests !== null);
-
-  // Dynamic form arrays
-  let interestCount = $state(data.myInterests?.interests.length ?? 1);
-  let contributionCount = $state(data.myInterests?.contributions.length ?? 0);
-  let constraintCount = $state(data.myInterests?.constraints.length ?? 0);
-  let redLineCount = $state(data.myInterests?.redLines.length ?? 0);
-
   const existing = data.myInterests;
+  const isUpdate = $derived(existing !== null);
 
-  $effect(() => {
-    if (!existing) return;
-    tick().then(() => {
-      for (let i = 0; i < existing.interests.length; i++) {
-        const cat = document.getElementById(`interest_category_${i}`) as HTMLInputElement | null;
-        const pri = document.getElementById(`interest_priority_${i}`) as HTMLInputElement | null;
-        if (cat) cat.value = existing.interests[i]?.category ?? '';
-        if (pri) pri.value = String(existing.interests[i]?.priority ?? 3);
-      }
-      for (let i = 0; i < existing.contributions.length; i++) {
-        const cap = document.getElementById(`contribution_capacity_${i}`) as HTMLInputElement | null;
-        if (cap) cap.value = existing.contributions[i]?.capacity ?? '';
-      }
-      for (let i = 0; i < existing.redLines.length; i++) {
-        const reason = document.getElementById(`redline_reason_${i}`) as HTMLInputElement | null;
-        if (reason) reason.value = existing.redLines[i]?.reason ?? '';
-      }
-      const dm = document.getElementById('pref_decisionMaking') as HTMLInputElement | null;
-      const comm = document.getElementById('pref_communication') as HTMLInputElement | null;
-      const pace = document.getElementById('pref_pace') as HTMLInputElement | null;
-      if (dm) dm.value = existing.preferences?.decisionMaking ?? '';
-      if (comm) comm.value = existing.preferences?.communication ?? '';
-      if (pace) pace.value = existing.preferences?.pace ?? '';
-    });
-  });
+  // --- $state-backed form arrays ---
+
+  interface InterestRow {
+    category: string;
+    description: string;
+    priority: number;
+    scope: string;
+  }
+  interface ContributionRow {
+    type: string;
+    description: string;
+    capacity: string;
+  }
+  interface ConstraintRow {
+    description: string;
+    hardConstraint: boolean;
+  }
+  interface RedLineRow {
+    description: string;
+    reason: string;
+  }
+
+  let interests: InterestRow[] = $state(
+    existing?.interests.length
+      ? existing.interests.map((i) => ({
+          category: i.category ?? '',
+          description: i.description ?? '',
+          priority: i.priority ?? 3,
+          scope: i.scope ?? '',
+        }))
+      : [{ category: '', description: '', priority: 3, scope: '' }],
+  );
+
+  let contributions: ContributionRow[] = $state(
+    existing?.contributions.length
+      ? existing.contributions.map((c) => ({
+          type: c.type ?? 'skill',
+          description: c.description ?? '',
+          capacity: c.capacity ?? '',
+        }))
+      : [],
+  );
+
+  let constraints: ConstraintRow[] = $state(
+    existing?.constraints.length
+      ? existing.constraints.map((c) => ({
+          description: c.description ?? '',
+          hardConstraint: c.hardConstraint ?? false,
+        }))
+      : [],
+  );
+
+  let redLines: RedLineRow[] = $state(
+    existing?.redLines.length
+      ? existing.redLines.map((r) => ({
+          description: r.description ?? '',
+          reason: r.reason ?? '',
+        }))
+      : [],
+  );
+
+  let prefDecisionMaking = $state(existing?.preferences?.decisionMaking ?? '');
+  let prefCommunication = $state(existing?.preferences?.communication ?? '');
+  let prefPace = $state(existing?.preferences?.pace ?? '');
 </script>
 
 <svelte:head>
@@ -65,104 +96,104 @@
     <!-- Interests -->
     <fieldset class="space-y-3">
       <legend class="text-sm font-medium text-[var(--cs-text)]">Interests & Goals</legend>
-      <input type="hidden" name="interestCount" value={interestCount} />
-      {#each Array(interestCount) as _, i}
+      <input type="hidden" name="interestCount" value={interests.length} />
+      {#each interests as interest, i}
         <div class="rounded-md border border-[var(--cs-border)] p-3 space-y-2">
           <div class="grid grid-cols-3 gap-2">
             <div>
               <label for="interest_category_{i}" class="block text-xs text-[var(--cs-text-secondary)]">Category</label>
-              <input id="interest_category_{i}" name="interest_category_{i}" type="text" required maxlength="100" class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm" />
+              <input id="interest_category_{i}" name="interest_category_{i}" type="text" required maxlength="100" bind:value={interest.category} class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm" />
             </div>
             <div>
               <label for="interest_priority_{i}" class="block text-xs text-[var(--cs-text-secondary)]">Priority (1-5)</label>
-              <input id="interest_priority_{i}" name="interest_priority_{i}" type="number" min="1" max="5" value="3" class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm" />
+              <input id="interest_priority_{i}" name="interest_priority_{i}" type="number" min="1" max="5" bind:value={interest.priority} class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm" />
             </div>
             <div>
               <label for="interest_scope_{i}" class="block text-xs text-[var(--cs-text-secondary)]">Scope</label>
-              <select id="interest_scope_{i}" name="interest_scope_{i}" class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm">
+              <select id="interest_scope_{i}" name="interest_scope_{i}" bind:value={interest.scope} class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm">
                 <option value="">—</option>
-                <option value="short-term" selected={existing?.interests[i]?.scope === 'short-term'}>Short-term</option>
-                <option value="medium-term" selected={existing?.interests[i]?.scope === 'medium-term'}>Medium-term</option>
-                <option value="long-term" selected={existing?.interests[i]?.scope === 'long-term'}>Long-term</option>
+                <option value="short-term">Short-term</option>
+                <option value="medium-term">Medium-term</option>
+                <option value="long-term">Long-term</option>
               </select>
             </div>
           </div>
           <div>
             <label for="interest_description_{i}" class="block text-xs text-[var(--cs-text-secondary)]">Description</label>
-            <textarea id="interest_description_{i}" name="interest_description_{i}" required maxlength="2000" rows="2" class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm">{existing?.interests[i]?.description ?? ''}</textarea>
+            <textarea id="interest_description_{i}" name="interest_description_{i}" required maxlength="2000" rows="2" bind:value={interest.description} class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm"></textarea>
           </div>
         </div>
       {/each}
-      <button type="button" onclick={() => interestCount++} class="text-xs text-[var(--cs-primary)] hover:text-[var(--cs-primary-hover)]">+ Add Interest</button>
+      <button type="button" onclick={() => interests.push({ category: '', description: '', priority: 3, scope: '' })} class="text-xs text-[var(--cs-primary)] hover:text-[var(--cs-primary-hover)]">+ Add Interest</button>
     </fieldset>
 
     <!-- Contributions -->
     <fieldset class="space-y-3">
       <legend class="text-sm font-medium text-[var(--cs-text)]">Contributions (optional)</legend>
-      <input type="hidden" name="contributionCount" value={contributionCount} />
-      {#each Array(contributionCount) as _, i}
+      <input type="hidden" name="contributionCount" value={contributions.length} />
+      {#each contributions as contribution, i}
         <div class="rounded-md border border-[var(--cs-border)] p-3 space-y-2">
           <div class="grid grid-cols-2 gap-2">
             <div>
               <label for="contribution_type_{i}" class="block text-xs text-[var(--cs-text-secondary)]">Type</label>
-              <select id="contribution_type_{i}" name="contribution_type_{i}" class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm">
-                <option value="skill" selected={existing?.contributions[i]?.type === 'skill'}>Skill</option>
-                <option value="resource" selected={existing?.contributions[i]?.type === 'resource'}>Resource</option>
-                <option value="capital" selected={existing?.contributions[i]?.type === 'capital'}>Capital</option>
-                <option value="network" selected={existing?.contributions[i]?.type === 'network'}>Network</option>
-                <option value="time" selected={existing?.contributions[i]?.type === 'time'}>Time</option>
+              <select id="contribution_type_{i}" name="contribution_type_{i}" bind:value={contribution.type} class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm">
+                <option value="skill">Skill</option>
+                <option value="resource">Resource</option>
+                <option value="capital">Capital</option>
+                <option value="network">Network</option>
+                <option value="time">Time</option>
               </select>
             </div>
             <div>
               <label for="contribution_capacity_{i}" class="block text-xs text-[var(--cs-text-secondary)]">Capacity</label>
-              <input id="contribution_capacity_{i}" name="contribution_capacity_{i}" type="text" maxlength="500" class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm" />
+              <input id="contribution_capacity_{i}" name="contribution_capacity_{i}" type="text" maxlength="500" bind:value={contribution.capacity} class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm" />
             </div>
           </div>
           <div>
             <label for="contribution_description_{i}" class="block text-xs text-[var(--cs-text-secondary)]">Description</label>
-            <textarea id="contribution_description_{i}" name="contribution_description_{i}" maxlength="2000" rows="2" class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm">{existing?.contributions[i]?.description ?? ''}</textarea>
+            <textarea id="contribution_description_{i}" name="contribution_description_{i}" maxlength="2000" rows="2" bind:value={contribution.description} class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm"></textarea>
           </div>
         </div>
       {/each}
-      <button type="button" onclick={() => contributionCount++} class="text-xs text-[var(--cs-primary)] hover:text-[var(--cs-primary-hover)]">+ Add Contribution</button>
+      <button type="button" onclick={() => contributions.push({ type: 'skill', description: '', capacity: '' })} class="text-xs text-[var(--cs-primary)] hover:text-[var(--cs-primary-hover)]">+ Add Contribution</button>
     </fieldset>
 
     <!-- Constraints -->
     <fieldset class="space-y-3">
       <legend class="text-sm font-medium text-[var(--cs-text)]">Constraints (optional)</legend>
-      <input type="hidden" name="constraintCount" value={constraintCount} />
-      {#each Array(constraintCount) as _, i}
+      <input type="hidden" name="constraintCount" value={constraints.length} />
+      {#each constraints as constraint, i}
         <div class="rounded-md border border-[var(--cs-border)] p-3 space-y-2">
           <div>
             <label for="constraint_description_{i}" class="block text-xs text-[var(--cs-text-secondary)]">Description</label>
-            <textarea id="constraint_description_{i}" name="constraint_description_{i}" maxlength="2000" rows="2" class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm">{existing?.constraints[i]?.description ?? ''}</textarea>
+            <textarea id="constraint_description_{i}" name="constraint_description_{i}" maxlength="2000" rows="2" bind:value={constraint.description} class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm"></textarea>
           </div>
           <label class="flex items-center gap-2 text-xs text-[var(--cs-text-secondary)]">
-            <input type="checkbox" name="constraint_hard_{i}" checked={existing?.constraints[i]?.hardConstraint ?? false} class="rounded border-[var(--cs-border)]" />
+            <input type="checkbox" name="constraint_hard_{i}" bind:checked={constraint.hardConstraint} class="rounded border-[var(--cs-border)]" />
             Hard constraint (non-negotiable)
           </label>
         </div>
       {/each}
-      <button type="button" onclick={() => constraintCount++} class="text-xs text-[var(--cs-primary)] hover:text-[var(--cs-primary-hover)]">+ Add Constraint</button>
+      <button type="button" onclick={() => constraints.push({ description: '', hardConstraint: false })} class="text-xs text-[var(--cs-primary)] hover:text-[var(--cs-primary-hover)]">+ Add Constraint</button>
     </fieldset>
 
     <!-- Red Lines -->
     <fieldset class="space-y-3">
       <legend class="text-sm font-medium text-[var(--cs-text)]">Red Lines (optional)</legend>
-      <input type="hidden" name="redLineCount" value={redLineCount} />
-      {#each Array(redLineCount) as _, i}
+      <input type="hidden" name="redLineCount" value={redLines.length} />
+      {#each redLines as redLine, i}
         <div class="rounded-md border border-red-100 p-3 space-y-2">
           <div>
             <label for="redline_description_{i}" class="block text-xs text-[var(--cs-text-secondary)]">Description</label>
-            <textarea id="redline_description_{i}" name="redline_description_{i}" maxlength="2000" rows="2" class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm">{existing?.redLines[i]?.description ?? ''}</textarea>
+            <textarea id="redline_description_{i}" name="redline_description_{i}" maxlength="2000" rows="2" bind:value={redLine.description} class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm"></textarea>
           </div>
           <div>
             <label for="redline_reason_{i}" class="block text-xs text-[var(--cs-text-secondary)]">Reason (optional)</label>
-            <input id="redline_reason_{i}" name="redline_reason_{i}" type="text" maxlength="2000" class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm" />
+            <input id="redline_reason_{i}" name="redline_reason_{i}" type="text" maxlength="2000" bind:value={redLine.reason} class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm" />
           </div>
         </div>
       {/each}
-      <button type="button" onclick={() => redLineCount++} class="text-xs text-[var(--cs-primary)] hover:text-[var(--cs-primary-hover)]">+ Add Red Line</button>
+      <button type="button" onclick={() => redLines.push({ description: '', reason: '' })} class="text-xs text-[var(--cs-primary)] hover:text-[var(--cs-primary-hover)]">+ Add Red Line</button>
     </fieldset>
 
     <!-- Work Preferences -->
@@ -170,15 +201,15 @@
       <legend class="text-sm font-medium text-[var(--cs-text)]">Work Preferences (optional)</legend>
       <div>
         <label for="pref_decisionMaking" class="block text-xs text-[var(--cs-text-secondary)]">Decision Making</label>
-        <input id="pref_decisionMaking" name="pref_decisionMaking" type="text" maxlength="500" placeholder="e.g., Consensus-based, majority vote" class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm" />
+        <input id="pref_decisionMaking" name="pref_decisionMaking" type="text" maxlength="500" placeholder="e.g., Consensus-based, majority vote" bind:value={prefDecisionMaking} class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm" />
       </div>
       <div>
         <label for="pref_communication" class="block text-xs text-[var(--cs-text-secondary)]">Communication</label>
-        <input id="pref_communication" name="pref_communication" type="text" maxlength="500" placeholder="e.g., Async-first, weekly syncs" class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm" />
+        <input id="pref_communication" name="pref_communication" type="text" maxlength="500" placeholder="e.g., Async-first, weekly syncs" bind:value={prefCommunication} class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm" />
       </div>
       <div>
         <label for="pref_pace" class="block text-xs text-[var(--cs-text-secondary)]">Pace</label>
-        <input id="pref_pace" name="pref_pace" type="text" maxlength="500" placeholder="e.g., Steady iteration, rapid sprints" class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm" />
+        <input id="pref_pace" name="pref_pace" type="text" maxlength="500" placeholder="e.g., Steady iteration, rapid sprints" bind:value={prefPace} class="mt-0.5 block w-full rounded border border-[var(--cs-border)] px-2 py-1 text-sm" />
       </div>
     </fieldset>
 
