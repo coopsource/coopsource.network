@@ -27,9 +27,13 @@ vi.mock('../src/appview/indexers/alignment-indexer.js', () => ({
   indexInterestMap: vi.fn(),
 }));
 
-// Also need to mock relay-consumer and commit-verifier since loop.ts imports them
+// Also need to mock relay-consumer, tap-consumer, and commit-verifier since loop.ts imports them
 vi.mock('../src/appview/relay-consumer.js', () => ({
   subscribeRelay: vi.fn(),
+}));
+
+vi.mock('../src/appview/tap-consumer.js', () => ({
+  subscribeTap: vi.fn(),
 }));
 
 vi.mock('../src/appview/commit-verifier.js', () => ({
