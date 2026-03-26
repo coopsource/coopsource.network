@@ -26,6 +26,7 @@ The Co-op Source Network application layer is complete: 594 source files, 75 pag
 4. [Migration Phases](#4-migration-phases)
 5. [Infrastructure Requirements](#5-infrastructure-requirements)
 6. [Risk and Rollback Strategy](#6-risk-and-rollback-strategy)
+7. [ATProto Ecosystem Considerations](#7-atproto-ecosystem-considerations)
 
 ---
 
@@ -169,6 +170,11 @@ COOP_PDS_ADMIN_PASSWORD=<generated>
 
 **Key files**: `apps/api/src/services/` (write paths), `apps/api/src/auth/oauth-client.ts`, `packages/db/src/migrations/` (new migration for `private_record`)
 
+**OAuth notes** (from ecosystem research, see §7):
+- `@atproto/oauth-client-node` is confirmed correct for server-side confidential clients. DPoP key management and token refresh are handled internally — do not reimplement.
+- Auth Scopes (Proposal 0011) are partially rolled out. Continue using `transition:generic`. When finalized, define Co-op Source permission sets as Lexicon schemas (e.g., `include:network.coopsource.governance.authVoter`).
+- Client Assertion Backend (Proposal 0010) is NOT needed — the Express API is already a confidential client.
+
 ### Phase F3: Real Firehose AppView
 
 **Branch**: `feature/f3-firehose-appview`
@@ -189,6 +195,11 @@ COOP_PDS_ADMIN_PASSWORD=<generated>
 6. Drop `pds_record` and `pds_commit` tables after firehose consumer is stable
 
 **Key files**: `apps/api/src/appview/relay-consumer.ts` (harden), `apps/api/src/appview/loop.ts` (extend), `apps/api/src/appview/indexers/` (unchanged), `apps/api/src/container.ts`
+
+**Sync v1.1 notes** (from ecosystem research, see §7):
+- `com.atproto.sync.listReposByCollection` (Proposal 0006) enables efficient initial backfill — query for all repos containing `network.coopsource.*` records instead of scanning the full firehose history.
+- "Inductive firehose" reduces validation cost for relay consumers — cheaper to run the built-in `relay-consumer.ts` in production.
+- Monitor Proposal 0013 (DID Service Refs) for `aud_svc` field changes that may affect service auth JWT handling between AppView and PDS instances. Changes expected by May 2026.
 
 ### Phase F4: Ecosystem Integration + V3 Cleanup
 
@@ -252,8 +263,38 @@ Each phase is an independent feature branch. If a phase causes issues after merg
 
 ---
 
+## 7. ATProto Ecosystem Considerations
+
+Research into the broader ATProto ecosystem (March 2026) confirms the V6 architecture and surfaces several items to monitor.
+
+### OAuth Strategy
+
+**Current approach is correct**: `@atproto/oauth-client-node` for the Express API backend. The API is a confidential OAuth client — it holds its own keys, manages DPoP-bound sessions, and proxies member writes via `MemberWriteProxy`. This aligns with how ATProto OAuth is designed for server-side use.
+
+**oauth4webapi** (by panva) is a high-quality, zero-dependency OAuth 2.0 building block library (~5.75M weekly downloads, OpenID certified). ATProto's OAuth stack does NOT use it — they built their own. However, oauth4webapi is a useful reference for understanding the raw OAuth wire protocol and could serve non-ATProto integrations (e.g., external cooperative platforms via the connector framework).
+
+**Client Assertion Backend** (ATProto Proposal 0010, draft): A pattern for upgrading browser/native apps to confidential client status via a thin backend that issues DPoP-bound client assertion JWTs. NOT needed for our primary architecture (Express API is already confidential). Could become relevant if the SvelteKit frontend ever needs to be a direct OAuth client for offline-capable features.
+
+### ATProto Proposals to Monitor
+
+| Proposal | Status | Impact | Action |
+|----------|--------|--------|--------|
+| **0011 Auth Scopes** | Partially rolled out | When finalized, define Co-op Source permission sets as Lexicon schemas (e.g., `repo:network.coopsource.governance.vote`). Until then, use `transition:generic` | Phase F2: add placeholder for future scope definitions |
+| **0006 Sync v1.1** | Active rollout | `com.atproto.sync.listReposByCollection` enables efficient backfill. "Inductive firehose" reduces validation cost | Phase F3: use for initial backfill optimization |
+| **0013 DID Service Refs** | Changes expected May 2026 | Introduces `aud_svc` field in service auth JWTs, fixing `aud` format inconsistencies | Phase F3-F4: monitor for service auth changes |
+| **0008 User Intents** | Early draft | Cooperatives could set org-wide data reuse policies via public records | Future feature, not V6 scope |
+
+### Record Verification
+
+The Germ Network's ATProto work (March 2026) independently confirms the importance of cryptographic record verification via `com.atproto.sync.getRecord`. Our `commit-verifier.ts` already implements this for membership-critical records. Phase F3 should extend verification to all firehose-consumed records when `VERIFY_COMMIT_SIGNATURES=true`.
+
+---
+
 ## References
 
 - **ARCHITECTURE-V5.md** — Cooperative lifecycle design, security model (§8), bilateral membership protocol (§4), lexicon schemas (§13), three-tier data model (§5)
 - **ARCHITECTURE-V5.md §14** — Original codebase gap analysis (V6 phases are derived from this)
 - **Git tag `v3-final`** — Last commit before V6 migration work begins
+- **ATProto Proposals** — https://github.com/bluesky-social/proposals (0004 OAuth, 0006 Sync v1.1, 0010 CAB, 0011 Auth Scopes, 0013 DID Service Refs)
+- **oauth4webapi** — https://github.com/panva/oauth4webapi (reference for OAuth 2.0 primitives)
+- **Germ Network OAuth writeup** — https://mark-germ.leaflet.pub/3mhy3iphvp22o (lessons from ATProto OAuth adoption)
