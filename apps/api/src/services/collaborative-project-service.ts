@@ -4,6 +4,7 @@ import { NotFoundError, ConflictError } from '@coopsource/common';
 import type { DID } from '@coopsource/common';
 import type { IClock } from '@coopsource/federation';
 import type { IPdsService } from '@coopsource/federation';
+import type { OperatorWriteProxy } from './operator-write-proxy.js';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
 
@@ -15,6 +16,7 @@ export class CollaborativeProjectService {
     private db: Kysely<Database>,
     private pdsService: IPdsService,
     private clock: IClock,
+    private operatorWriteProxy?: OperatorWriteProxy,
   ) {}
 
   async createProject(
@@ -29,22 +31,24 @@ export class CollaborativeProjectService {
   ): Promise<ProjectRow> {
     const now = this.clock.now();
 
-    // Best-effort PDS write
+    // Best-effort PDS write (with operator audit logging when proxy available)
     let uri: string | null = null;
     let cid: string | null = null;
     try {
-      const result = await this.pdsService.createRecord({
-        did: hostCooperativeDid as DID,
-        collection: 'network.coopsource.commerce.collaborativeProject',
-        record: {
-          title: data.title,
-          description: data.description ?? undefined,
-          participantDids: data.participantDids,
-          revenueSplit: data.revenueSplit ?? undefined,
-          createdBy,
-          createdAt: now.toISOString(),
-        },
-      });
+      const collection = 'network.coopsource.commerce.collaborativeProject';
+      const record = {
+        title: data.title,
+        description: data.description ?? undefined,
+        participantDids: data.participantDids,
+        revenueSplit: data.revenueSplit ?? undefined,
+        createdBy,
+        createdAt: now.toISOString(),
+      };
+      const result = this.operatorWriteProxy
+        ? await this.operatorWriteProxy.writeCoopRecord({
+            operatorDid: createdBy, cooperativeDid: hostCooperativeDid as DID, collection, record,
+          })
+        : await this.pdsService.createRecord({ did: hostCooperativeDid as DID, collection, record });
       uri = result.uri;
       cid = result.cid;
     } catch {

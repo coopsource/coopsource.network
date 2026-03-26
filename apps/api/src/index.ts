@@ -148,10 +148,15 @@ async function start(): Promise<void> {
   // SSE events
   app.use(createEventRoutes());
 
-  // ATProto OAuth client (Stage 2 — only when PDS_URL is configured)
+  // ATProto OAuth client (V6 — only when PDS_URL is configured)
   const oauthClient = config.PDS_URL
     ? createOAuthClient({ publicUrl: config.PUBLIC_API_URL, db: container.db })
     : undefined;
+
+  // Wire OAuth client into MemberWriteProxy so it can proxy writes to member PDS
+  if (oauthClient) {
+    container.memberWriteProxy.setOAuthClient(oauthClient);
+  }
 
   // Auth routes
   app.use(createAuthRoutes(container, {

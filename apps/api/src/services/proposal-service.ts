@@ -39,6 +39,7 @@ export interface CreateProposalInput {
 
 import type { IMemberRecordWriter } from './member-write-proxy.js';
 import type { GovernanceLabeler } from './governance-labeler.js';
+import type { VisibilityRouter } from './visibility-router.js';
 
 export class ProposalService {
   constructor(
@@ -47,6 +48,7 @@ export class ProposalService {
     private clock: IClock,
     private memberWriteProxy?: IMemberRecordWriter,
     private labeler?: GovernanceLabeler,
+    private visibilityRouter?: VisibilityRouter,
   ) {}
 
   async listProposals(
@@ -124,24 +126,39 @@ export class ProposalService {
   ): Promise<ProposalRow> {
     const now = this.clock.now();
 
-    // Write PDS record
-    const ref = await this.pdsService.createRecord({
-      did: authorDid as DID,
-      collection: 'network.coopsource.governance.proposal',
-      record: {
-        title: data.title,
-        body: data.body,
-        votingType: data.votingType,
-        options: data.options,
-        quorumType: data.quorumType,
-        quorumBasis: data.quorumBasis,
-        cooperative: data.cooperativeDid,
-        ...(data.meetingEvent && { meetingEvent: data.meetingEvent }),
-        ...(data.fullDocument && { fullDocument: data.fullDocument }),
-        ...(data.discussionThread && { discussionThread: data.discussionThread }),
-        createdAt: now.toISOString(),
-      },
-    });
+    // Check visibility routing for closed cooperatives (Tier 2 private data)
+    const collection = 'network.coopsource.governance.proposal';
+    const record = {
+      title: data.title,
+      body: data.body,
+      votingType: data.votingType,
+      options: data.options,
+      quorumType: data.quorumType,
+      quorumBasis: data.quorumBasis,
+      cooperative: data.cooperativeDid,
+      ...(data.meetingEvent && { meetingEvent: data.meetingEvent }),
+      ...(data.fullDocument && { fullDocument: data.fullDocument }),
+      ...(data.discussionThread && { discussionThread: data.discussionThread }),
+      createdAt: now.toISOString(),
+    };
+
+    let ref;
+    if (this.visibilityRouter) {
+      const route = await this.visibilityRouter.routeWrite({
+        cooperativeDid: data.cooperativeDid,
+        collection,
+        record,
+        createdBy: authorDid,
+      });
+      if (route.tier === 2) {
+        // Tier 2: stored in private_record table, not on PDS/firehose
+        ref = { uri: `at://${data.cooperativeDid}/${collection}/${route.rkey}` as const, cid: 'private' as const };
+      } else {
+        ref = await this.pdsService.createRecord({ did: authorDid as DID, collection, record });
+      }
+    } else {
+      ref = await this.pdsService.createRecord({ did: authorDid as DID, collection, record });
+    }
 
     const [row] = await this.db
       .insertInto('proposal')

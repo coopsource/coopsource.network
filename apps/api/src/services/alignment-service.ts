@@ -15,7 +15,8 @@ import type {
   UpdateInterestInput,
   CreateOutcomeInput,
 } from '@coopsource/common';
-import type { IPdsService, IClock } from '@coopsource/federation';
+import type { IPdsService, IClock, RecordRef } from '@coopsource/federation';
+import type { IMemberRecordWriter } from './member-write-proxy.js';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
 import { emitAppEvent } from '../appview/sse.js';
@@ -29,7 +30,44 @@ export class AlignmentService {
     private db: Kysely<Database>,
     private pdsService: IPdsService,
     private clock: IClock,
+    private memberWriteProxy?: IMemberRecordWriter,
   ) {}
+
+  /** Write a member-owned record, using the proxy if available. */
+  private async memberWrite(params: {
+    memberDid: DID;
+    collection: string;
+    record: Record<string, unknown>;
+    rkey?: string;
+  }): Promise<RecordRef> {
+    if (this.memberWriteProxy) {
+      return this.memberWriteProxy.writeRecord(params);
+    }
+    return this.pdsService.createRecord({
+      did: params.memberDid,
+      collection: params.collection,
+      record: params.record,
+      rkey: params.rkey,
+    });
+  }
+
+  /** Update a member-owned record, using the proxy if available. */
+  private async memberUpdate(params: {
+    memberDid: DID;
+    collection: string;
+    rkey: string;
+    record: Record<string, unknown>;
+  }): Promise<RecordRef> {
+    if (this.memberWriteProxy) {
+      return this.memberWriteProxy.updateRecord(params);
+    }
+    return this.pdsService.putRecord({
+      did: params.memberDid,
+      collection: params.collection,
+      rkey: params.rkey,
+      record: params.record,
+    });
+  }
 
   // ─── Interests ──────────────────────────────────────────────────────────
 
@@ -52,8 +90,8 @@ export class AlignmentService {
       throw new ValidationError('Interests already submitted. Use update instead.');
     }
 
-    const ref = await this.pdsService.createRecord({
-      did: did as DID,
+    const ref = await this.memberWrite({
+      memberDid: did as DID,
       collection: 'network.coopsource.alignment.interest',
       record: {
         projectUri: cooperativeDid,
@@ -136,9 +174,9 @@ export class AlignmentService {
 
     const now = this.clock.now();
 
-    // Update PDS record
-    await this.pdsService.putRecord({
-      did: did as DID,
+    // Update PDS record via member proxy
+    await this.memberUpdate({
+      memberDid: did as DID,
       collection: 'network.coopsource.alignment.interest',
       rkey: existing.rkey,
       record: {
@@ -188,8 +226,8 @@ export class AlignmentService {
   ): Promise<OutcomeRow> {
     const now = this.clock.now();
 
-    const ref = await this.pdsService.createRecord({
-      did: did as DID,
+    const ref = await this.memberWrite({
+      memberDid: did as DID,
       collection: 'network.coopsource.alignment.outcome',
       record: {
         projectUri: cooperativeDid,
@@ -379,8 +417,8 @@ export class AlignmentService {
     const conflictZones = this.computeConflictZones(allInterests);
 
     // Create PDS record first (before deleting anything) to avoid data loss on crash
-    const ref = await this.pdsService.createRecord({
-      did: actorDid as DID,
+    const ref = await this.memberWrite({
+      memberDid: actorDid as DID,
       collection: 'network.coopsource.alignment.interestMap',
       record: {
         projectUri: cooperativeDid,

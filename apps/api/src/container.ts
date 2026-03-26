@@ -175,15 +175,17 @@ export function createContainer(config: AppConfig): Container {
     emailService,
     clock,
   );
+  const privateRecordService = new PrivateRecordService(db, clock);
+  const visibilityRouter = new VisibilityRouter(db, privateRecordService);
   const governanceLabeler = new GovernanceLabeler(db);
   const postService = new PostService(db, clock);
-  const proposalService = new ProposalService(db, pdsService, clock, memberWriteProxy, governanceLabeler);
+  const proposalService = new ProposalService(db, pdsService, clock, memberWriteProxy, governanceLabeler, visibilityRouter);
   const agreementService = new AgreementService(db, pdsService, clock, memberWriteProxy);
   const agreementTemplateService = new AgreementTemplateService(db, clock);
   const networkService = new NetworkService(db, pdsService, clock);
   const paymentRegistry = new PaymentProviderRegistry(db, config.KEY_ENC_KEY);
   const fundingService = new FundingService(db, pdsService, clock, paymentRegistry, memberWriteProxy);
-  const alignmentService = new AlignmentService(db, pdsService, clock);
+  const alignmentService = new AlignmentService(db, pdsService, clock, memberWriteProxy);
   const connectionService = new ConnectionService(db, pdsService, clock, config);
   const modelProviderRegistry = new ModelProviderRegistry(db, config.KEY_ENC_KEY);
   const agentService = new AgentService(db, clock, modelProviderRegistry);
@@ -196,8 +198,6 @@ export function createContainer(config: AppConfig): Container {
   const meetingRecordService = new MeetingRecordService(db, clock);
   const memberNoticeService = new MemberNoticeService(db, clock);
   const fiscalPeriodService = new FiscalPeriodService(db, clock);
-  const privateRecordService = new PrivateRecordService(db, clock);
-  const visibilityRouter = new VisibilityRouter(db, privateRecordService);
   const patronageService = new PatronageService(db, clock);
   const capitalAccountService = new CapitalAccountService(db, clock);
   const tax1099Service = new Tax1099Service(db, clock);
@@ -206,16 +206,16 @@ export function createContainer(config: AppConfig): Container {
   const governanceFeedService = new GovernanceFeedService(db, clock);
   const memberClassService = new MemberClassService(db, clock);
   const cooperativeLinkService = new CooperativeLinkService(db, clock);
-  const taskService = new TaskService(db, pdsService, clock);
+  const taskService = new TaskService(db, pdsService, clock, operatorWriteProxy);
   const timeTrackingService = new TimeTrackingService(db, clock);
-  const scheduleService = new ScheduleService(db, pdsService, clock);
+  const scheduleService = new ScheduleService(db, pdsService, clock, operatorWriteProxy);
   const expenseService = new ExpenseService(db, clock);
   const revenueService = new RevenueService(db, clock);
-  const commerceListingService = new CommerceListingService(db, pdsService, clock);
-  const commerceNeedService = new CommerceNeedService(db, pdsService, clock);
+  const commerceListingService = new CommerceListingService(db, pdsService, clock, operatorWriteProxy);
+  const commerceNeedService = new CommerceNeedService(db, pdsService, clock, operatorWriteProxy);
   const intercoopAgreementService = new IntercoopAgreementService(db, pdsService, clock);
-  const collaborativeProjectService = new CollaborativeProjectService(db, pdsService, clock);
-  const sharedResourceService = new SharedResourceService(db, pdsService, clock);
+  const collaborativeProjectService = new CollaborativeProjectService(db, pdsService, clock, operatorWriteProxy);
+  const sharedResourceService = new SharedResourceService(db, pdsService, clock, operatorWriteProxy);
   const procurementService = new ProcurementService(db, clock);
   const connectorRegistryService = new ConnectorRegistryService(db, clock);
   const eventBusService = new EventBusService(db, clock);
