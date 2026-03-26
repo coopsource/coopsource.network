@@ -4,6 +4,7 @@ import { NotFoundError, ValidationError } from '@coopsource/common';
 import type { IClock } from '@coopsource/federation';
 import type { IPdsService } from '@coopsource/federation';
 import type { DID } from '@coopsource/common';
+import type { OperatorWriteProxy } from './operator-write-proxy.js';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
 
@@ -21,6 +22,7 @@ export class ScheduleService {
     private db: Kysely<Database>,
     private pdsService: IPdsService,
     private clock: IClock,
+    private operatorWriteProxy?: OperatorWriteProxy,
   ) {}
 
   // ─── Create ─────────────────────────────────────────────────────────────
@@ -48,24 +50,28 @@ export class ScheduleService {
 
     const status = data.assignedDid ? 'assigned' : 'open';
 
-    // Best-effort PDS write for federation discoverability
+    // Best-effort PDS write for federation discoverability (with operator audit)
     try {
-      await this.pdsService.createRecord({
-        did: cooperativeDid as DID,
-        collection: 'network.coopsource.ops.scheduleShift',
-        record: {
-          title: data.title,
-          description: data.description ?? undefined,
-          assignedDid: data.assignedDid ?? undefined,
-          startsAt: startsAt.toISOString(),
-          endsAt: endsAt.toISOString(),
-          recurrence: data.recurrence ?? undefined,
-          location: data.location ?? undefined,
-          status,
-          createdBy,
-          createdAt: now.toISOString(),
-        },
-      });
+      const collection = 'network.coopsource.ops.scheduleShift';
+      const record = {
+        title: data.title,
+        description: data.description ?? undefined,
+        assignedDid: data.assignedDid ?? undefined,
+        startsAt: startsAt.toISOString(),
+        endsAt: endsAt.toISOString(),
+        recurrence: data.recurrence ?? undefined,
+        location: data.location ?? undefined,
+        status,
+        createdBy,
+        createdAt: now.toISOString(),
+      };
+      if (this.operatorWriteProxy) {
+        await this.operatorWriteProxy.writeCoopRecord({
+          operatorDid: createdBy, cooperativeDid: cooperativeDid as DID, collection, record,
+        });
+      } else {
+        await this.pdsService.createRecord({ did: cooperativeDid as DID, collection, record });
+      }
     } catch {
       // best-effort — shift table is the source of truth
     }

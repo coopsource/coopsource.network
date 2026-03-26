@@ -4,6 +4,7 @@ import { NotFoundError, ConflictError, ValidationError } from '@coopsource/commo
 import type { DID } from '@coopsource/common';
 import type { IClock } from '@coopsource/federation';
 import type { IPdsService } from '@coopsource/federation';
+import type { OperatorWriteProxy } from './operator-write-proxy.js';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
 
@@ -25,6 +26,7 @@ export class TaskService {
     private db: Kysely<Database>,
     private pdsService: IPdsService,
     private clock: IClock,
+    private operatorWriteProxy?: OperatorWriteProxy,
   ) {}
 
   // ── Tasks ──────────────────────────────────────
@@ -49,26 +51,35 @@ export class TaskService {
     const status = data.status ?? 'backlog';
     const priority = data.priority ?? 'medium';
 
-    // Best-effort PDS write
+    // Best-effort PDS write (with operator audit logging when proxy available)
     let uri: string | null = null;
     let cid: string | null = null;
     try {
-      const result = await this.pdsService.createRecord({
-        did: cooperativeDid as DID,
-        collection: 'network.coopsource.ops.task',
-        record: {
-          title: data.title,
-          description: data.description ?? undefined,
-          status,
-          priority,
-          assigneeDids: data.assigneeDids ?? [],
-          dueDate: data.dueDate ?? undefined,
-          labels: data.labels ?? [],
-          linkedProposalId: data.linkedProposalId ?? undefined,
-          createdBy,
-          createdAt: now.toISOString(),
-        },
-      });
+      const collection = 'network.coopsource.ops.task';
+      const record = {
+        title: data.title,
+        description: data.description ?? undefined,
+        status,
+        priority,
+        assigneeDids: data.assigneeDids ?? [],
+        dueDate: data.dueDate ?? undefined,
+        labels: data.labels ?? [],
+        linkedProposalId: data.linkedProposalId ?? undefined,
+        createdBy,
+        createdAt: now.toISOString(),
+      };
+      const result = this.operatorWriteProxy
+        ? await this.operatorWriteProxy.writeCoopRecord({
+            operatorDid: createdBy,
+            cooperativeDid: cooperativeDid as DID,
+            collection,
+            record,
+          })
+        : await this.pdsService.createRecord({
+            did: cooperativeDid as DID,
+            collection,
+            record,
+          });
       uri = result.uri;
       cid = result.cid;
     } catch {
