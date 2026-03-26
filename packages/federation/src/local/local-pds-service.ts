@@ -33,6 +33,11 @@ import {
 } from './did-manager.js';
 import { createFirehoseEmitter } from './firehose.js';
 
+/**
+ * @deprecated V3 scaffolding — retained for local dev and E2E tests only.
+ * In production, use AtprotoPdsService (activated by PDS_URL env var).
+ * Will be removed once all dev/test workflows support real PDS containers.
+ */
 export interface LocalPdsConfig {
   plcUrl: string; // http://localhost:2582 in dev
   instanceUrl: string; // https://acme.example.com

@@ -544,54 +544,5 @@ describe('Federation endpoints', () => {
     });
   });
 
-  // ─── Outbox ─────────────────────────────────────────────────────────
-
-  describe('Federation outbox', () => {
-    it('enqueue creates a pending message', async () => {
-      const { enqueueOutboxMessage } = await import('@coopsource/federation');
-
-      const id = await enqueueOutboxMessage(testApp.container.db, {
-        targetDid: 'did:web:remote.example.com',
-        targetUrl: 'http://remote.example.com',
-        endpoint: '/api/v1/federation/hub/notify',
-        payload: { type: 'test', data: {} },
-      });
-
-      expect(id).toBeDefined();
-
-      const msg = await testApp.container.db
-        .selectFrom('federation_outbox')
-        .where('id', '=', id)
-        .selectAll()
-        .executeTakeFirst();
-
-      expect(msg).toBeDefined();
-      expect(msg!.status).toBe('pending');
-      expect(msg!.target_did).toBe('did:web:remote.example.com');
-      expect(msg!.attempts).toBe(0);
-    });
-
-    it('idempotency key prevents duplicates', async () => {
-      const { enqueueOutboxMessage } = await import('@coopsource/federation');
-
-      await enqueueOutboxMessage(testApp.container.db, {
-        targetDid: 'did:web:remote.example.com',
-        targetUrl: 'http://remote.example.com',
-        endpoint: '/api/v1/federation/hub/notify',
-        payload: { type: 'dedup-test', data: {} },
-        idempotencyKey: 'unique-key-123',
-      });
-
-      // Second enqueue with same key should fail
-      await expect(
-        enqueueOutboxMessage(testApp.container.db, {
-          targetDid: 'did:web:remote.example.com',
-          targetUrl: 'http://remote.example.com',
-          endpoint: '/api/v1/federation/hub/notify',
-          payload: { type: 'dedup-test-2', data: {} },
-          idempotencyKey: 'unique-key-123',
-        }),
-      ).rejects.toThrow();
-    });
-  });
+  // Outbox tests removed — OutboxProcessor and enqueueOutboxMessage retired in V6 Phase F4
 });

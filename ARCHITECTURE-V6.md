@@ -3,7 +3,7 @@
 > **Supersedes**: ARCHITECTURE-V5.md §14-15 (migration phases only)
 > **Design reference**: ARCHITECTURE-V5.md (cooperative lifecycle, security model, lexicon schemas remain authoritative)
 > **Date**: March 25, 2026
-> **Status**: Pre-implementation
+> **Status**: Complete (all 4 phases merged to main)
 > **Baseline**: Git tag `v3-final` (commit f849509)
 
 ---
