@@ -271,6 +271,7 @@ async function start(): Promise<void> {
 
   // Start AppView subscription loop
   startAppViewLoop(container.pdsService, container.db, {
+    tapUrl: config.TAP_URL,
     relayUrl: config.RELAY_URL,
     verifySignatures: config.VERIFY_COMMIT_SIGNATURES === 'true',
   }).catch((err) => {

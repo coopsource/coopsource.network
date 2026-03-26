@@ -1,9 +1,11 @@
 /**
  * Commit signature verifier for ATProto.
  *
- * Verifies ECDSA P-256 signatures on commit nodes by resolving the DID
- * document and extracting the signing key. Best-effort in Phase 2 —
- * logs failures but doesn't block indexing.
+ * Verifies ECDSA signatures (P-256 and secp256k1) on commit nodes by
+ * resolving the DID document and extracting the signing key.
+ *
+ * Includes an in-memory LRU cache for DID documents to avoid repeated
+ * HTTP resolution during high-volume firehose consumption.
  */
 import * as crypto from 'node:crypto';
 import type { DidDocument } from '@coopsource/federation';
@@ -16,8 +18,48 @@ export interface CommitSignatureData {
   signedBytes: Uint8Array;
 }
 
-// Default DID resolver using plc.directory
+// ─── DID Document Cache ─────────────────────────────────────────────────────
+
+interface CacheEntry {
+  doc: DidDocument;
+  cachedAt: number;
+}
+
+const DID_CACHE = new Map<string, CacheEntry>();
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const CACHE_MAX_SIZE = 1000;
+
+function getCachedDidDoc(did: string): DidDocument | undefined {
+  const entry = DID_CACHE.get(did);
+  if (!entry) return undefined;
+  if (Date.now() - entry.cachedAt > CACHE_TTL_MS) {
+    DID_CACHE.delete(did);
+    return undefined;
+  }
+  return entry.doc;
+}
+
+function setCachedDidDoc(did: string, doc: DidDocument): void {
+  // Evict oldest entries if cache is full
+  if (DID_CACHE.size >= CACHE_MAX_SIZE) {
+    const oldest = DID_CACHE.keys().next().value;
+    if (oldest) DID_CACHE.delete(oldest);
+  }
+  DID_CACHE.set(did, { doc, cachedAt: Date.now() });
+}
+
+/** Exported for testing — clears the DID document cache. */
+export function clearDidCache(): void {
+  DID_CACHE.clear();
+}
+
+// ─── DID Resolution ─────────────────────────────────────────────────────────
+
 async function defaultResolveDid(did: DID): Promise<DidDocument> {
+  // Check cache first
+  const cached = getCachedDidDoc(did);
+  if (cached) return cached;
+
   let url: string;
   if (did.startsWith('did:plc:')) {
     url = `https://plc.directory/${did}`;
@@ -32,7 +74,9 @@ async function defaultResolveDid(did: DID): Promise<DidDocument> {
   if (!res.ok) {
     throw new Error(`DID resolution failed for ${did}: ${res.status}`);
   }
-  return (await res.json()) as DidDocument;
+  const doc = (await res.json()) as DidDocument;
+  setCachedDidDoc(did, doc);
+  return doc;
 }
 
 /**
@@ -54,53 +98,72 @@ export async function verifyCommitSignature(
       return false;
     }
 
-    let publicKey: CryptoKey;
-
     if (vm.publicKeyMultibase) {
-      publicKey = await importMultibaseKey(vm.publicKeyMultibase);
-    } else if (vm.publicKeyJwk) {
-      publicKey = await crypto.subtle.importKey(
+      const keyOrVerifier = await importMultibaseKey(vm.publicKeyMultibase);
+
+      if ('verify' in keyOrVerifier && typeof keyOrVerifier.verify === 'function') {
+        // secp256k1 key — use @atproto/crypto verifier
+        const valid = await keyOrVerifier.verify(
+          new Uint8Array(data.signedBytes),
+          new Uint8Array(data.sig),
+        );
+        return valid;
+      }
+
+      // P-256 CryptoKey — use WebCrypto
+      const valid = await crypto.subtle.verify(
+        { name: 'ECDSA', hash: 'SHA-256' },
+        keyOrVerifier as CryptoKey,
+        new Uint8Array(data.sig) as unknown as ArrayBuffer,
+        new Uint8Array(data.signedBytes) as unknown as ArrayBuffer,
+      );
+      return valid;
+    }
+
+    if (vm.publicKeyJwk) {
+      const publicKey = await crypto.subtle.importKey(
         'jwk',
         vm.publicKeyJwk as crypto.webcrypto.JsonWebKey,
         { name: 'ECDSA', namedCurve: 'P-256' },
         false,
         ['verify'],
       );
-    } else {
-      logger.warn({ did: data.did }, 'No usable public key in DID verification method');
-      return false;
+      const valid = await crypto.subtle.verify(
+        { name: 'ECDSA', hash: 'SHA-256' },
+        publicKey,
+        new Uint8Array(data.sig) as unknown as ArrayBuffer,
+        new Uint8Array(data.signedBytes) as unknown as ArrayBuffer,
+      );
+      return valid;
     }
 
-    // ATProto uses low-S ECDSA signatures which are raw r||s (64 bytes for P-256)
-    // WebCrypto expects IEEE P1363 format which is the same as raw r||s
-    const valid = await crypto.subtle.verify(
-      { name: 'ECDSA', hash: 'SHA-256' },
-      publicKey,
-      new Uint8Array(data.sig) as unknown as ArrayBuffer,
-      new Uint8Array(data.signedBytes) as unknown as ArrayBuffer,
-    );
-
-    return valid;
+    logger.warn({ did: data.did }, 'No usable public key in DID verification method');
+    return false;
   } catch (err) {
     logger.warn({ err, did: data.did }, 'Commit signature verification error');
     return false;
   }
 }
 
+interface K256Verifier {
+  verify(data: Uint8Array, sig: Uint8Array): Promise<boolean>;
+}
+
 /**
- * Import a P-256 public key from multibase (base58btc) encoding.
+ * Import a public key from multibase (base58btc) encoding.
+ * Returns a CryptoKey for P-256 or a K256Verifier for secp256k1.
  * Format: 'z' + base58btc(multicodec_varint + compressed_point)
  */
-async function importMultibaseKey(multibase: string): Promise<CryptoKey> {
+async function importMultibaseKey(multibase: string): Promise<CryptoKey | K256Verifier> {
   if (!multibase.startsWith('z')) {
     throw new Error('Only base58btc multibase (z prefix) is supported');
   }
 
   const decoded = base58btcDecode(multibase.slice(1));
 
-  // Detect secp256k1 (k256) keys — not yet supported
+  // Detect secp256k1 (k256) keys — multicodec prefix 0xe7, 0x01
   if (decoded.length >= 2 && decoded[0] === 0xe7 && decoded[1] === 0x01) {
-    throw new Error('secp256k1 (k256) signing keys not yet supported');
+    return importK256MultibaseKey(decoded.slice(2));
   }
 
   // Check for P-256 multicodec prefix: 0x80, 0x24
@@ -124,6 +187,54 @@ async function importMultibaseKey(multibase: string): Promise<CryptoKey> {
     false,
     ['verify'],
   );
+}
+
+/**
+ * Import a secp256k1 public key using @atproto/crypto.
+ * Returns a verifier object with a verify() method.
+ */
+async function importK256MultibaseKey(compressedKey: Uint8Array): Promise<K256Verifier> {
+  const { verifySignature, SECP256K1_DID_PREFIX } = await import('@atproto/crypto');
+
+  // Reconstruct the did:key format that @atproto/crypto expects
+  // did:key: + multibase('z' + base58btc(multicodec_k256 + compressed_key))
+  // The compressedKey already has the multicodec prefix stripped, so re-add it
+  const prefixed = new Uint8Array(2 + compressedKey.length);
+  prefixed[0] = 0xe7; // secp256k1 multicodec
+  prefixed[1] = 0x01;
+  prefixed.set(compressedKey, 2);
+
+  return {
+    async verify(data: Uint8Array, sig: Uint8Array): Promise<boolean> {
+      try {
+        // @atproto/crypto verifySignature takes did:key and handles the rest
+        const didKey = `did:key:z${base58btcEncode(prefixed)}`;
+        return await verifySignature(didKey, data, sig);
+      } catch {
+        return false;
+      }
+    },
+  };
+}
+
+function base58btcEncode(buf: Uint8Array): string {
+  const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+  let leadingZeros = 0;
+  for (const byte of buf) {
+    if (byte === 0) leadingZeros++;
+    else break;
+  }
+  let num = 0n;
+  for (const byte of buf) {
+    num = num * 256n + BigInt(byte);
+  }
+  let encoded = '';
+  while (num > 0n) {
+    const remainder = Number(num % 58n);
+    num = num / 58n;
+    encoded = ALPHABET[remainder] + encoded;
+  }
+  return '1'.repeat(leadingZeros) + encoded;
 }
 
 /**

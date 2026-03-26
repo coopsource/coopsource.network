@@ -117,5 +117,28 @@ export function createAdminRoutes(container: Container): Router {
     );
   }
 
+  // POST /api/v1/admin/reindex — reset firehose cursor to trigger a full re-index
+  router.post(
+    '/api/v1/admin/reindex',
+    requireAuth,
+    requireAdmin,
+    asyncHandler(async (_req, res) => {
+      // Reset all firehose cursors to 0 so the AppView loop replays from the beginning
+      const result = await container.db
+        .updateTable('pds_firehose_cursor')
+        .set({
+          last_global_seq: 0,
+          updated_at: new Date(),
+        })
+        .execute();
+
+      res.json({
+        ok: true,
+        message: 'Firehose cursors reset. Restart the server to begin re-indexing.',
+        cursorsReset: result.length,
+      });
+    }),
+  );
+
   return router;
 }

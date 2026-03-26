@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
 import { sql } from 'kysely';
+import { getFirehoseHealth } from '../appview/loop.js';
 
 export function createHealthRoutes(db?: Kysely<Database>): Router {
   const router = Router();
@@ -26,6 +27,8 @@ export function createHealthRoutes(db?: Kysely<Database>): Router {
         return;
       }
     }
+
+    status.firehose = getFirehoseHealth();
 
     res.json(status);
   });

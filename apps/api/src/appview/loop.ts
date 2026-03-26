@@ -21,6 +21,7 @@ import { indexFrontpagePost } from './indexers/frontpage-indexer.js';
 import { indexLegalDocument, indexMeetingRecord } from './indexers/legal-indexer.js';
 import { indexOfficer, indexComplianceItem, indexMemberNotice, indexFiscalPeriod } from './indexers/admin-indexer.js';
 import { subscribeRelay } from './relay-consumer.js';
+import { subscribeTap } from './tap-consumer.js';
 import { verifyCommitSignature } from './commit-verifier.js';
 import { collectionFromUri } from './utils.js';
 
@@ -33,9 +34,34 @@ const COLLECTION_PREFIXES = [
 const MAX_BACKOFF_MS = 30_000;
 
 export interface AppViewConfig {
+  tapUrl?: string;
   relayUrl?: string;
   verifySignatures?: boolean;
 }
+
+// ─── Firehose health state (exported for health endpoint) ──────────────────
+
+export interface FirehoseHealth {
+  mode: 'tap' | 'relay' | 'local';
+  lastSeq: number;
+  lastEventAt: string | null;
+  errorCount: number;
+  startedAt: string;
+}
+
+const healthState: FirehoseHealth = {
+  mode: 'local',
+  lastSeq: 0,
+  lastEventAt: null,
+  errorCount: 0,
+  startedAt: new Date().toISOString(),
+};
+
+export function getFirehoseHealth(): FirehoseHealth {
+  return { ...healthState };
+}
+
+// ─── Dispatch ──────────────────────────────────────────────────────────────
 
 /**
  * Dispatch a single firehose event to the appropriate indexer.
@@ -75,7 +101,6 @@ export async function dispatchFirehoseEvent(
     case 'network.coopsource.alignment.interestMap':
       await indexInterestMap(db, event);
       break;
-    // Ecosystem collections (Phase 3)
     case 'community.lexicon.calendar.event':
       await indexCalendarEvent(db, event);
       break;
@@ -85,7 +110,6 @@ export async function dispatchFirehoseEvent(
     case 'fyi.unravel.frontpage.post':
       await indexFrontpagePost(db, event);
       break;
-    // Legal & Administrative collections (Phase 4)
     case 'network.coopsource.legal.document':
       await indexLegalDocument(db, event);
       break;
@@ -105,22 +129,23 @@ export async function dispatchFirehoseEvent(
       await indexFiscalPeriod(db, event);
       break;
     default:
-      // Unknown collection — skip
       break;
   }
 }
 
-const MEMBERSHIP_COLLECTIONS = new Set([
-  'network.coopsource.org.membership',
-  'network.coopsource.org.memberApproval',
-]);
+// ─── AppView loop ──────────────────────────────────────────────────────────
 
 export async function startAppViewLoop(
   pdsService: IPdsService,
   db: Kysely<Database>,
   config: AppViewConfig = {},
 ): Promise<void> {
-  const subscriberId = config.relayUrl ? 'appview-relay' : 'appview';
+  // Mode priority: TAP_URL > RELAY_URL > local pg_notify
+  const mode = config.tapUrl ? 'tap' : config.relayUrl ? 'relay' : 'local';
+  const subscriberId = `appview-${mode}`;
+
+  healthState.mode = mode;
+  healthState.startedAt = new Date().toISOString();
 
   // Ensure cursor row exists
   const existing = await db
@@ -144,18 +169,91 @@ export async function startAppViewLoop(
     cursor = existing.last_global_seq;
   }
 
-  logger.info({ cursor, mode: config.relayUrl ? 'relay' : 'local' }, 'AppView loop starting');
+  logger.info({ cursor, mode }, 'AppView loop starting');
 
-  if (config.relayUrl) {
-    runRelayLoop(db, cursor, config).catch((err) => {
-      logger.error(err, 'Relay loop fatal error');
-    });
-  } else {
-    runLocalLoop(pdsService, db, cursor, config).catch((err) => {
-      logger.error(err, 'Local loop fatal error');
-    });
+  switch (mode) {
+    case 'tap':
+      runTapLoop(db, cursor, config).catch((err) => {
+        logger.error(err, 'Tap loop fatal error');
+      });
+      break;
+    case 'relay':
+      runRelayLoop(db, cursor, config).catch((err) => {
+        logger.error(err, 'Relay loop fatal error');
+      });
+      break;
+    default:
+      runLocalLoop(pdsService, db, cursor, config).catch((err) => {
+        logger.error(err, 'Local loop fatal error');
+      });
+      break;
   }
 }
+
+// ─── Shared event processing ───────────────────────────────────────────────
+
+async function processEvent(
+  db: Kysely<Database>,
+  event: FirehoseEvent,
+  subscriberId: string,
+  config: AppViewConfig,
+): Promise<void> {
+  // Signature verification (all records when enabled, not just membership)
+  if (config.verifySignatures && event.commitSig && event.commitSignedBytes) {
+    const valid = await verifyCommitSignature({
+      did: event.did,
+      sig: event.commitSig,
+      signedBytes: event.commitSignedBytes,
+    });
+    if (!valid) {
+      logger.warn(
+        { uri: event.uri, did: event.did },
+        'Commit signature verification failed — indexing anyway (best-effort)',
+      );
+    }
+  }
+
+  await dispatchFirehoseEvent(db, event);
+
+  // Update cursor
+  await db
+    .updateTable('pds_firehose_cursor')
+    .set({
+      last_global_seq: event.seq,
+      updated_at: new Date(),
+    })
+    .where('subscriber_id', '=', subscriberId)
+    .execute();
+
+  // Update health state
+  healthState.lastSeq = event.seq;
+  healthState.lastEventAt = new Date().toISOString();
+}
+
+// ─── Tap loop ──────────────────────────────────────────────────────────────
+
+async function runTapLoop(
+  db: Kysely<Database>,
+  cursor: number,
+  config: AppViewConfig,
+): Promise<void> {
+  const subscriberId = 'appview-tap';
+  const stream = subscribeTap({ tapUrl: config.tapUrl!, cursor });
+
+  for await (const event of stream) {
+    try {
+      await processEvent(db, event, subscriberId, config);
+    } catch (err) {
+      healthState.errorCount++;
+      logger.error(
+        { err, event: { seq: event.seq, uri: event.uri } },
+        'AppView indexer error (tap)',
+      );
+    }
+  }
+}
+
+// ─── Relay loop ────────────────────────────────────────────────────────────
 
 async function runRelayLoop(
   db: Kysely<Database>,
@@ -171,34 +269,9 @@ async function runRelayLoop(
 
   for await (const event of stream) {
     try {
-      // Signature verification for membership-critical records
-      if (config.verifySignatures && MEMBERSHIP_COLLECTIONS.has(collectionFromUri(event.uri))) {
-        if (event.commitSig && event.commitSignedBytes) {
-          const valid = await verifyCommitSignature({
-            did: event.did,
-            sig: event.commitSig,
-            signedBytes: event.commitSignedBytes,
-          });
-          if (!valid) {
-            logger.warn({ uri: event.uri, did: event.did }, 'Commit signature verification failed — indexing anyway (best-effort mode)');
-          }
-        } else {
-          logger.debug({ uri: event.uri }, 'No commit signature data available for verification');
-        }
-      }
-
-      await dispatchFirehoseEvent(db, event);
-
-      // Update cursor
-      await db
-        .updateTable('pds_firehose_cursor')
-        .set({
-          last_global_seq: event.seq,
-          updated_at: new Date(),
-        })
-        .where('subscriber_id', '=', subscriberId)
-        .execute();
+      await processEvent(db, event, subscriberId, config);
     } catch (err) {
+      healthState.errorCount++;
       logger.error(
         { err, event: { seq: event.seq, uri: event.uri } },
         'AppView indexer error (relay)',
@@ -207,13 +280,15 @@ async function runRelayLoop(
   }
 }
 
+// ─── Local loop ────────────────────────────────────────────────────────────
+
 async function runLocalLoop(
   pdsService: IPdsService,
   db: Kysely<Database>,
   cursor: number,
-  _config: AppViewConfig,
+  config: AppViewConfig,
 ): Promise<void> {
-  const subscriberId = 'appview';
+  const subscriberId = 'appview-local';
   let backoff = 1000;
 
   // eslint-disable-next-line no-constant-condition
@@ -223,25 +298,14 @@ async function runLocalLoop(
 
       for await (const event of stream) {
         try {
-          await dispatchFirehoseEvent(db, event);
-
-          // Update cursor
+          await processEvent(db, event, subscriberId, config);
           cursor = event.seq;
-          await db
-            .updateTable('pds_firehose_cursor')
-            .set({
-              last_global_seq: event.seq,
-              updated_at: new Date(),
-            })
-            .where('subscriber_id', '=', subscriberId)
-            .execute();
-
-          // Reset backoff on successful processing
           backoff = 1000;
         } catch (err) {
+          healthState.errorCount++;
           logger.error(
             { err, event: { seq: event.seq, uri: event.uri } },
-            'AppView indexer error',
+            'AppView indexer error (local)',
           );
         }
       }
