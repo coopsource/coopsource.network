@@ -95,6 +95,11 @@ function buildDidDocument(
 
 // ─── LocalPlcClient ───────────────────────────────────────────────────────────
 
+/**
+ * @deprecated V3 scaffolding — generates did:plc identifiers locally without
+ * connecting to plc.directory. Retained for local dev when PLC_URL='local'.
+ * In production, use PlcClient with PLC_URL=https://plc.directory.
+ */
 export class LocalPlcClient {
   constructor(private db: Kysely<FederationDatabase>) {}
 

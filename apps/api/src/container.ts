@@ -63,6 +63,7 @@ import { WebhookService } from './services/webhook-service.js';
 import { ReportingService } from './services/reporting-service.js';
 import { DashboardService } from './services/dashboard-service.js';
 import { MentionService } from './services/mention-service.js';
+import { StarterPackService } from './services/starter-pack-service.js';
 
 export interface Container {
   db: Kysely<Database>;
@@ -124,15 +125,15 @@ export interface Container {
   reportingService: ReportingService;
   dashboardService: DashboardService;
   mentionService: MentionService;
+  starterPackService: StarterPackService;
 }
 
 export function createContainer(config: AppConfig): Container {
   const db = createDb({ connectionString: config.DATABASE_URL! });
   const clock = new SystemClock();
 
-  // When PDS_URL (or COOP_PDS_URL) is set, use AtprotoPdsService (real ATProto PDS);
-  // otherwise fall back to LocalPdsService (DB-backed, Stage 0-1).
-  // COOP_PDS_URL/COOP_PDS_ADMIN_PASSWORD take precedence (V5 cooperative identity).
+  // V6: When PDS_URL (or COOP_PDS_URL) is set, use AtprotoPdsService (real ATProto PDS).
+  // LocalPdsService fallback is for dev/test only — deprecated V3 scaffolding.
   const effectivePdsUrl = config.COOP_PDS_URL ?? config.PDS_URL;
   const effectivePdsPassword = config.COOP_PDS_ADMIN_PASSWORD ?? config.PDS_ADMIN_PASSWORD;
   const pdsService: IPdsService = effectivePdsUrl
@@ -223,6 +224,7 @@ export function createContainer(config: AppConfig): Container {
   const reportingService = new ReportingService(db, clock);
   const dashboardService = new DashboardService(db);
   const mentionService = new MentionService(db, clock);
+  const starterPackService = new StarterPackService(db, pdsService);
 
   return {
     db,
@@ -284,5 +286,6 @@ export function createContainer(config: AppConfig): Container {
     reportingService,
     dashboardService,
     mentionService,
+    starterPackService,
   };
 }
