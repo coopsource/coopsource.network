@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { AtprotoPdsService } from '../src/atproto/atproto-pds-service.js';
+import { PlcClient } from '../src/local/plc-client.js';
+import { generateRotationKeypair, k256PrivateKeyToPublicMultibase } from '../src/local/plc-signing.js';
 import type { DID } from '@coopsource/common';
 
 /**
@@ -95,5 +97,58 @@ describeIfPds('AtprotoPdsService (integration)', () => {
     await expect(
       service.getRecord(`at://${testDid}/network.coopsource.test.item/test-rkey`),
     ).rejects.toThrow();
+  }, 15_000);
+});
+
+/**
+ * PLC signing integration tests.
+ * Requires a running PLC directory at PLC_URL (default: http://localhost:2582).
+ */
+const describeIfPlc = PLC_URL !== 'local' && PDS_URL ? describe : describe.skip;
+
+describeIfPlc('PlcClient signed operations (integration)', () => {
+  let plc: PlcClient;
+
+  beforeAll(() => {
+    plc = new PlcClient(PLC_URL);
+  });
+
+  it('should create a DID with a signed genesis operation', async () => {
+    const { privateKeyHex, publicKeyMultibase } = await generateRotationKeypair();
+    const signingKeyMultibase = publicKeyMultibase; // Use same key for both in test
+
+    const did = await plc.create(
+      {
+        signingKey: signingKeyMultibase,
+        handle: `test-${Date.now()}.test`,
+        pdsUrl: PDS_URL!,
+        rotationKeys: [publicKeyMultibase],
+      },
+      { type: 'k256', privateKeyHex },
+    );
+
+    expect(did).toMatch(/^did:plc:/);
+
+    // Verify the DID resolves
+    const doc = await plc.resolve(did);
+    expect(doc).toHaveProperty('id', did);
+  }, 15_000);
+
+  it('should resolve a created DID', async () => {
+    const { privateKeyHex, publicKeyMultibase } = await generateRotationKeypair();
+
+    const did = await plc.create(
+      {
+        signingKey: publicKeyMultibase,
+        handle: `resolve-${Date.now()}.test`,
+        pdsUrl: PDS_URL!,
+        rotationKeys: [publicKeyMultibase],
+      },
+      { type: 'k256', privateKeyHex },
+    );
+
+    const doc = await plc.resolve(did) as Record<string, unknown>;
+    expect(doc).toHaveProperty('id', did);
+    expect(doc).toHaveProperty('alsoKnownAs');
   }, 15_000);
 });

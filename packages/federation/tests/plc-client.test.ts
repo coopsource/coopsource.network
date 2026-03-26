@@ -1,6 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PlcClient } from '../src/local/plc-client.js';
 
+const MOCK_DID_DOC = {
+  id: 'did:plc:abc123',
+  alsoKnownAs: ['at://old.coop'],
+  rotationKeys: ['zRotation1'],
+  verificationMethods: { atproto: 'zOldKey' },
+  services: {
+    atproto_pds: {
+      type: 'AtprotoPersonalDataServer',
+      endpoint: 'https://old-pds.coop',
+    },
+  },
+};
+
 describe('PlcClient', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -149,28 +162,46 @@ describe('PlcClient', () => {
   });
 
   describe('update()', () => {
-    it('should POST an update operation to the PLC directory', async () => {
-      const mockFetch = vi.fn().mockResolvedValue({ ok: true });
+    it('should resolve current doc then POST an update operation', async () => {
+      const mockFetch = vi.fn()
+        // First call: resolve()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(MOCK_DID_DOC),
+        })
+        // Second call: update POST
+        .mockResolvedValueOnce({ ok: true });
       vi.stubGlobal('fetch', mockFetch);
 
       const client = new PlcClient('https://plc.directory');
       await client.update(
         'did:plc:abc123',
         { handle: 'newhandle.coop' },
-        { kty: 'EC', crv: 'P-256' },
+        { kty: 'EC', crv: 'P-256' }, // legacy object — no signing
       );
 
-      const [url, options] = mockFetch.mock.calls[0]!;
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+
+      // Second call is the update POST
+      const [url, options] = mockFetch.mock.calls[1]!;
       expect(url).toBe('https://plc.directory/did%3Aplc%3Aabc123');
       expect(options.method).toBe('POST');
 
       const body = JSON.parse(options.body as string);
       expect(body.type).toBe('plc_operation');
       expect(body.alsoKnownAs).toEqual(['at://newhandle.coop']);
+      // Merges with existing doc fields
+      expect(body.rotationKeys).toEqual(['zRotation1']);
+      expect(body.verificationMethods).toEqual({ atproto: 'zOldKey' });
     });
 
-    it('should include only provided update fields', async () => {
-      const mockFetch = vi.fn().mockResolvedValue({ ok: true });
+    it('should include only provided update fields, preserving others from current doc', async () => {
+      const mockFetch = vi.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(MOCK_DID_DOC),
+        })
+        .mockResolvedValueOnce({ ok: true });
       vi.stubGlobal('fetch', mockFetch);
 
       const client = new PlcClient('https://plc.directory');
@@ -180,18 +211,24 @@ describe('PlcClient', () => {
         {},
       );
 
-      const body = JSON.parse(mockFetch.mock.calls[0]![1].body as string);
+      const body = JSON.parse(mockFetch.mock.calls[1]![1].body as string);
       expect(body.services.atproto_pds.endpoint).toBe('https://new-pds.coop');
-      expect(body.alsoKnownAs).toBeUndefined();
-      expect(body.verificationMethods).toBeUndefined();
+      // Preserved from existing doc
+      expect(body.alsoKnownAs).toEqual(['at://old.coop']);
+      expect(body.verificationMethods).toEqual({ atproto: 'zOldKey' });
     });
 
     it('should throw on update failure', async () => {
-      const mockFetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 403,
-        text: () => Promise.resolve('Unauthorized rotation key'),
-      });
+      const mockFetch = vi.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(MOCK_DID_DOC),
+        })
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 403,
+          text: () => Promise.resolve('Unauthorized rotation key'),
+        });
       vi.stubGlobal('fetch', mockFetch);
 
       const client = new PlcClient('https://plc.directory');

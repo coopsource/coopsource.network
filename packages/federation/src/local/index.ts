@@ -4,7 +4,14 @@ export type { LocalPdsConfig } from './local-pds-service.js';
 export { LocalBlobStore } from './local-blob-store.js';
 export type { LocalBlobStoreConfig } from './local-blob-store.js';
 export { PlcClient } from './plc-client.js';
-export type { PlcCreateParams } from './plc-client.js';
+export type { PlcCreateParams, PlcSigningKey } from './plc-client.js';
+export {
+  signPlcOperation,
+  signPlcOperationK256,
+  generateRotationKeypair,
+  k256PrivateKeyToPublicMultibase,
+} from './plc-signing.js';
+export type { UnsignedPlcOperation, SignedPlcOperation } from './plc-signing.js';
 export { LocalPlcClient } from './local-plc-client.js';
 export { generateTid } from './tid.js';
 export { calculateCid, calculateCommitCid } from './cid-utils.js';

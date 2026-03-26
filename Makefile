@@ -6,7 +6,7 @@ SHELL := /bin/bash
 
 SCRIPTS := ./scripts/dev-services.sh
 
-.PHONY: help setup dev dev-clean start stop status ports install db-migrate db-reset clean test\:e2e test\:e2e-clean test\:e2e\:real test\:e2e\:mocked pds-up pds-status pds-logs pds-down pds-dev provision-coop dev-federation stop-federation migrate-all test-federation
+.PHONY: help setup dev dev-clean start stop status ports install db-migrate db-reset clean test\:e2e test\:e2e-clean test\:e2e\:real test\:e2e\:mocked pds-up pds-status pds-logs pds-down pds-dev provision-coop test\:pds dev-federation stop-federation migrate-all test-federation
 
 help: ## Show all targets
 	@echo ""
@@ -76,7 +76,13 @@ pds-logs: ## Tail PDS + PLC logs
 pds-down: ## Stop PDS + PLC containers
 	docker compose -f infrastructure/docker-compose.yml stop plc pds
 
-pds-dev: start pds-up ## Start all services + PDS for V5 development
+test\:pds: pds-up ## Run PDS integration tests (starts PDS containers, waits for health)
+	@echo "Waiting for PDS to be healthy..."
+	@docker compose -f infrastructure/docker-compose.yml exec pds wget -q --spider http://localhost:3000/xrpc/_health 2>/dev/null || sleep 5
+	@docker compose -f infrastructure/docker-compose.yml exec pds wget -q --spider http://localhost:3000/xrpc/_health 2>/dev/null || sleep 5
+	PDS_URL=http://localhost:2583 PLC_URL=http://localhost:2582 pnpm --filter @coopsource/federation test
+
+pds-dev: start pds-up ## Start all services + PDS for V6 development
 	pnpm turbo dev --filter=@coopsource/api --filter=@coopsource/web
 
 provision-coop: ## Provision a cooperative identity on the PDS
