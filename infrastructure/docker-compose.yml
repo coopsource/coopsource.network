@@ -9,11 +9,21 @@ services:
       POSTGRES_PASSWORD: dev_password
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U coopsource"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   mailpit:
     image: axllent/mailpit:latest
@@ -24,7 +34,7 @@ services:
       MP_MAX_MESSAGES: 500
       MP_SMTP_AUTH_ALLOW_INSECURE: true
 
-  # --- Stage 2: ATProto Federation ---
+  # --- ATProto Federation (V6 Phase F1) ---
 
   plc:
     image: ghcr.io/bluesky-social/did-method-plc:latest
@@ -34,7 +44,14 @@ services:
       DATABASE_URL: postgresql://coopsource:dev_password@postgres:5432/plc_dev
       PORT: 2582
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:2582/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   pds:
     image: ghcr.io/bluesky-social/pds:0.4
@@ -43,7 +60,7 @@ services:
     volumes:
       - pds-data:/pds
     environment:
-      PDS_HOSTNAME: localhost
+      PDS_HOSTNAME: ${PDS_HOSTNAME:-localhost}
       PDS_PORT: 3000
       PDS_JWT_SECRET: ${PDS_JWT_SECRET:-dev-jwt-secret-change-me-32chars!!}
       PDS_ADMIN_PASSWORD: ${PDS_ADMIN_PASSWORD:-admin}
@@ -57,7 +74,14 @@ services:
       PDS_REPORT_SERVICE_DID: did:plc:ar7c4by46qjdydhdevvrndac
       PDS_CRAWLERS: https://bsky.network
     depends_on:
-      - plc
+      plc:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/xrpc/_health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
 
 volumes:
   pgdata:

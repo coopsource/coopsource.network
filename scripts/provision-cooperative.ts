@@ -3,9 +3,10 @@
  * Provision a cooperative identity on a self-hosted ATProto PDS.
  *
  * This script:
- * 1. Creates an account on the PDS (which registers a did:plc with the PLC directory)
- * 2. Writes the cooperative's profile record to the PDS
- * 3. Outputs the DID and instructions for domain-as-handle DNS setup
+ * 1. Generates a signing keypair (P-256) and a rotation keypair (secp256k1)
+ * 2. Creates an account on the PDS (which registers a did:plc with the PLC directory)
+ * 3. Writes the cooperative's profile record to the PDS
+ * 4. Outputs the DID, keys, and instructions for domain-as-handle DNS setup
  *
  * Usage:
  *   pnpm --filter @coopsource/api exec tsx ../../scripts/provision-cooperative.ts \
@@ -16,14 +17,13 @@
  *     --description "A worker-owned cooperative"
  *
  * The PDS handles PLC directory registration internally, using its own rotation key.
- * This means the cooperative's DID is anchored to the PDS's rotation key by default.
- *
- * For production deployments, you should later update the DID document to add
- * a cooperative-controlled rotation key via `com.atproto.identity.requestPlcOperationSignature`.
+ * After provisioning, use --add-rotation-key to add a cooperative-controlled rotation
+ * key with higher priority than the PDS key (critical for production).
  */
 
 import { AtpAgent } from '@atproto/api';
 import { generateKeyPair, publicJwkToMultibase } from '@coopsource/federation/local';
+import { generateRotationKeypair } from '@coopsource/federation/local';
 
 interface ProvisionOptions {
   pdsUrl: string;
@@ -71,27 +71,34 @@ async function provision(opts: ProvisionOptions): Promise<void> {
   console.log(`\nProvisioning cooperative on PDS: ${opts.pdsUrl}`);
   console.log(`Handle: ${opts.handle}\n`);
 
-  // Step 1: Generate a signing keypair for the cooperative
+  // Step 1: Generate signing keypair (P-256) for ATProto verification
   console.log('1. Generating ECDSA P-256 signing keypair...');
   const { publicJwk, privateJwk } = await generateKeyPair();
   const signingKeyMultibase = publicJwkToMultibase(publicJwk);
   console.log(`   Signing key (multibase): ${signingKeyMultibase}`);
 
-  // Step 2: Authenticate as PDS admin and create an invite code
-  console.log('2. Authenticating as PDS admin...');
+  // Step 2: Generate rotation keypair (secp256k1) for PLC operations
+  console.log('2. Generating secp256k1 rotation keypair...');
+  const { privateKeyHex: rotationPrivateKeyHex, publicKeyMultibase: rotationPublicKey } =
+    await generateRotationKeypair();
+  console.log(`   Rotation key (multibase): ${rotationPublicKey}`);
+
+  // Step 3: Authenticate as PDS admin and create an invite code
+  console.log('3. Authenticating as PDS admin...');
   const adminAgent = new AtpAgent({ service: opts.pdsUrl });
   await adminAgent.login({
     identifier: 'admin',
     password: opts.adminPassword,
   });
 
-  console.log('3. Creating invite code...');
+  console.log('4. Creating invite code...');
   const invite = await adminAgent.api.com.atproto.server.createInviteCode({
     useCount: 1,
   });
 
-  // Step 3: Create the cooperative account on the PDS
-  console.log('4. Creating cooperative account...');
+  // Step 4: Create the cooperative account on the PDS
+  // The PDS registers the DID with the PLC directory using its own rotation key
+  console.log('5. Creating cooperative account...');
   const email = opts.email ?? `${opts.handle.replace(/\./g, '-')}@coopsource.local`;
   const password = `coop-${crypto.randomUUID()}`;
 
@@ -107,9 +114,9 @@ async function provision(opts: ProvisionOptions): Promise<void> {
   console.log(`   Account created!`);
   console.log(`   DID: ${did}`);
 
-  // Step 4: Write the cooperative profile record
+  // Step 5: Write the cooperative profile record
   if (opts.displayName || opts.description) {
-    console.log('5. Writing profile record...');
+    console.log('6. Writing profile record...');
     await agent.api.app.bsky.actor.putProfile(
       (_prev) => ({
         displayName: opts.displayName ?? opts.handle,
@@ -132,8 +139,12 @@ async function provision(opts: ProvisionOptions): Promise<void> {
   console.log('Signing Key (private JWK) — store securely:');
   console.log(JSON.stringify(privateJwk, null, 2));
   console.log('');
+  console.log('Rotation Key (secp256k1 private hex) — store securely:');
+  console.log(rotationPrivateKeyHex);
+  console.log(`Rotation Key (public multibase): ${rotationPublicKey}`);
+  console.log('');
 
-  // Step 5: DNS instructions for domain-as-handle
+  // Step 6: DNS instructions for domain-as-handle
   const domain = opts.handle;
   console.log('='.repeat(60));
   console.log('DOMAIN-AS-HANDLE DNS SETUP');
@@ -152,7 +163,24 @@ async function provision(opts: ProvisionOptions): Promise<void> {
   console.log(`    -d '{"handle": "${domain}"}'`);
   console.log('');
 
-  // Step 6: Environment variable instructions
+  // Step 7: Rotation key instructions
+  console.log('='.repeat(60));
+  console.log('ROTATION KEY SETUP (IMPORTANT FOR PRODUCTION)');
+  console.log('='.repeat(60));
+  console.log('');
+  console.log('The cooperative DID is currently anchored to the PDS\'s rotation key.');
+  console.log('For production, add the cooperative\'s own rotation key with higher');
+  console.log('priority. This ensures the cooperative retains control of its identity');
+  console.log('even if the PDS is compromised or changed.');
+  console.log('');
+  console.log('Use com.atproto.identity.requestPlcOperationSignature to request');
+  console.log('a signed PLC operation from the PDS, then submit it with the');
+  console.log('cooperative\'s rotation key added to the rotationKeys array.');
+  console.log('');
+  console.log(`Rotation key to add: ${rotationPublicKey}`);
+  console.log('');
+
+  // Step 8: Environment variable instructions
   console.log('='.repeat(60));
   console.log('ENVIRONMENT VARIABLES');
   console.log('='.repeat(60));
@@ -162,9 +190,12 @@ async function provision(opts: ProvisionOptions): Promise<void> {
   console.log(`COOP_PDS_URL=${opts.pdsUrl}`);
   console.log(`COOP_PDS_ADMIN_PASSWORD=${opts.adminPassword}`);
   console.log(`COOP_DID=${did}`);
+  console.log(`COOP_ROTATION_KEY_HEX=${rotationPrivateKeyHex}`);
   console.log(`PDS_URL=${opts.pdsUrl}`);
   console.log(`PDS_ADMIN_PASSWORD=${opts.adminPassword}`);
-  console.log(`PLC_URL=https://plc.directory`);
+  console.log(`PLC_URL=http://localhost:2582`);
+  console.log('');
+  console.log('For production, change PLC_URL to: https://plc.directory');
   console.log('');
 
   // Verify the DID resolves
