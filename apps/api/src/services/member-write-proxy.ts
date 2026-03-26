@@ -40,6 +40,15 @@ export class MemberWriteProxy implements IMemberRecordWriter {
     this.isProduction = nodeEnv === 'production';
   }
 
+  /**
+   * Set the OAuth client after construction.
+   * Called from index.ts once the OAuth client is initialized
+   * (it depends on the DB which is created in the container).
+   */
+  setOAuthClient(client: NodeOAuthClient): void {
+    this.oauthClient = client;
+  }
+
   async writeRecord(params: {
     memberDid: DID;
     collection: string;

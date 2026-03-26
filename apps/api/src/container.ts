@@ -183,7 +183,7 @@ export function createContainer(config: AppConfig): Container {
   const networkService = new NetworkService(db, pdsService, clock);
   const paymentRegistry = new PaymentProviderRegistry(db, config.KEY_ENC_KEY);
   const fundingService = new FundingService(db, pdsService, clock, paymentRegistry, memberWriteProxy);
-  const alignmentService = new AlignmentService(db, pdsService, clock);
+  const alignmentService = new AlignmentService(db, pdsService, clock, memberWriteProxy);
   const connectionService = new ConnectionService(db, pdsService, clock, config);
   const modelProviderRegistry = new ModelProviderRegistry(db, config.KEY_ENC_KEY);
   const agentService = new AgentService(db, clock, modelProviderRegistry);
