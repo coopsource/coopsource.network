@@ -6,9 +6,9 @@ Co-op Source Network is a federated collaboration platform built on ATProtocol. 
 
 This monorepo is deployed to `coopsource.network`.
 
-**For the full architecture, federation design, security model, cooperative lifecycle, and implementation phases, see [ARCHITECTURE-V5.md](./ARCHITECTURE-V5.md).**
+**For the ATProto federation migration plan (the work ahead), see [ARCHITECTURE-V6.md](./ARCHITECTURE-V6.md).**
 
-**For the phased implementation guide with code patterns and file references, see [CLAUDE-CODE-PROMPT-V5.md](./CLAUDE-CODE-PROMPT-V5.md).**
+**For cooperative lifecycle design, security model, lexicon schemas, and three-tier data model, see [ARCHITECTURE-V5.md](./ARCHITECTURE-V5.md).**
 
 ## Git Workflow Rules
 
@@ -78,21 +78,22 @@ make db-reset   # Drop DB, recreate, and re-migrate
 
 ## Architecture Overview
 
-### The V3→V5 Transition
+### Current State (tagged `v3-final`)
 
-The project is transitioning from V3 (pattern-aligned ATProto with custom federation) to V5 (full ATProto ecosystem citizen with comprehensive cooperative lifecycle). The current codebase is V3 — ~26,500 lines across ~280 files, 11 services, 50+ database tables, 22 lexicons, and a complete SvelteKit frontend.
+The application layer is complete: 594 source files, 75 pages, 44 services, 99 database tables, 279 E2E tests. All feature development (governance, agreements, legal, finance, operations, commerce, integrations, AI agents, alignment) is built and tested.
 
-V5 retires the parallel federation stack that V3 built:
+**Federation currently runs on V3 plumbing** — a custom `LocalPdsService` that stores ATProto-shaped records in PostgreSQL and emits events via `pg_notify`. This was always scaffolding for development. Scaffolding for real ATProto exists (`AtprotoPdsService`, `PlcClient`) but is gated behind env vars and inactive.
 
-- **`LocalPdsService`** → retired, replaced by real `@atproto/pds` via `AtprotoPdsService`
-- **`LocalPlcClient`** → retired, replaced by real `PlcClient` for plc.directory
-- **`LocalFederationClient`** → retired (direct PDS writes + Tap consumption)
-- **`HttpFederationClient`** → retained ONLY for Tier 2 private data exchange
-- **Federation outbox** → retired (PDS handles write reliability, Tap handles sync)
-- **Saga coordinator** → retired (ATProto's eventually-consistent model)
-- **`pg_notify('pds_firehose')`** → retired (Tap's WebSocket from real relay)
+### V6: ATProto Federation Migration (work ahead)
 
-See ARCHITECTURE-V5.md §14 for the full gap analysis of what stays, changes, gets retired, and what's new.
+V6 replaces the V3 simulation with real ATProto infrastructure. See [ARCHITECTURE-V6.md](./ARCHITECTURE-V6.md) for the full plan.
+
+| Phase | Scope |
+|-------|-------|
+| F1 | PDS + Identity: self-hosted `@atproto/pds`, `did:plc`, cooperative provisioning |
+| F2 | Member OAuth: DPoP-bound write proxy, `private_record` table for Tier 2 |
+| F3 | Tap AppView: firehose consumer via Tap, retire `pg_notify` loop |
+| F4 | Ecosystem + Cleanup: Ozone labeler, retire LocalPdsService/LocalFederationClient |
 
 ### Three-Tier Data Model
 
@@ -121,8 +122,8 @@ coopsource.network/
 │   └── docker-compose.federation.yml   # Multi-instance federation dev environment
 ├── scripts/
 │   └── dev-services.sh     # Homebrew-based local dev setup
-├── ARCHITECTURE-V5.md      # Full architecture document (replaces V3/V4)
-├── CLAUDE-CODE-PROMPT-V5.md # Implementation guide with phased tasks
+├── ARCHITECTURE-V6.md      # ATProto federation migration plan (work ahead)
+├── ARCHITECTURE-V5.md      # Cooperative lifecycle design, security model, lexicon schemas
 ├── turbo.json
 └── pnpm-workspace.yaml
 ```
@@ -135,9 +136,7 @@ Layer 2 — Core:        api (auth, entities, membership, governance, agreements
 Layer 3 — Frontend:    web (SvelteKit, design system)
 ```
 
-### Key Library Versions (Target)
-
-See ARCHITECTURE-V5.md §15 and CLAUDE-CODE-PROMPT-V5.md for the full version matrix.
+### Key Library Versions
 
 | Package | Target Version |
 |---------|---------------|
@@ -178,19 +177,19 @@ Same machinery at every level:
 - **Agreement**: Entities co-sign a record; each signature in the signer's PDS
 - **Project**: A cooperative entity with its own membership (projects are mini-co-ops)
 
-V5 extends this by adding legal entity types (cooperative corporation, cooperative LLC, LCA) and compliance workflows that also follow the recursive pattern.
+The application supports legal entity types (cooperative corporation, cooperative LLC, LCA) and compliance workflows that also follow the recursive pattern.
 
 ## Federation Architecture
 
-The platform is a full ATProto ecosystem citizen. Cooperatives are genuine ATProto accounts. Members bring their own Bluesky identities. Governance records flow through the real relay network alongside Bluesky posts, Tangled commits, Smoke Signal RSVPs, and WhiteWind blog entries.
+**Target**: Cooperatives are genuine ATProto accounts. Members bring their own Bluesky identities. Governance records flow through the real relay network alongside Bluesky posts, Tangled commits, Smoke Signal RSVPs, and WhiteWind blog entries.
 
-See ARCHITECTURE-V5.md for complete details.
+**Current**: Federation runs on V3 plumbing (`LocalPdsService`, `pg_notify`, `did:web`). The V6 migration (see ARCHITECTURE-V6.md) replaces this with real ATProto infrastructure.
 
 ### Identity
 
 | Environment | DID Method | Notes |
 |-------------|-----------|-------|
-| Production | `did:plc` | Portable, recoverable (72-hour rotation window), ecosystem standard |
+| Production (V6) | `did:plc` | Portable, recoverable (72-hour rotation window), ecosystem standard |
 | Local dev | `did:web` | Resolved via `/.well-known/did.json`, works with `localhost:PORT` |
 
 Cooperatives use domain-as-handle (e.g., `@mycoop.coop`) for branding. Members use their existing ATProto identities (e.g., their Bluesky handle).
@@ -211,23 +210,14 @@ Controlled by `INSTANCE_ROLE` env var:
 | `hub` | Network directory, cross-co-op AppView | coopsource.network in production |
 | `coop` | Single co-op's API, PDS, local AppView | Individual co-op server |
 
-### Current Federation Abstractions (V3, being retired)
+### Federation Abstractions
 
-These exist in the codebase but are being replaced as part of V5 migration:
-
-- **`IFederationClient`** — interface for cross-co-op operations (being retired for public data; retained for Tier 2 only)
 - **`IPdsService`** — interface for PDS operations
-  - `LocalPdsService`: PostgreSQL-backed PDS (being retired → `AtprotoPdsService`)
-  - `AtprotoPdsService`: real ATProto XRPC (V5 target, already exists gated behind `PDS_URL` env var)
+  - `LocalPdsService`: current implementation — PostgreSQL-backed, `pg_notify` firehose (V3 plumbing, retired in V6 Phase F4)
+  - `AtprotoPdsService`: real ATProto XRPC — exists but inactive, gated behind `PDS_URL` env var (activated in V6 Phase F1)
+- **`IFederationClient`** — interface for cross-co-op operations (retained for Tier 2 private data only)
 - **`DidWebResolver`** — resolves `did:web` identifiers (remains for local dev)
-
-### V5 Target Federation
-
-- **Tap** (Go binary): Production firehose sync tool replacing pg_notify, filters by collection
-- **Real `@atproto/pds`**: Self-hosted PDS for cooperative accounts
-- **`PlcClient`**: HTTP client for real plc.directory (already exists in codebase)
-- **DPoP-bound OAuth**: Member writes proxied to member's PDS via OAuth tokens
-- **Ozone labeler**: Governance status labels published via ATProto label system
+- **`PlcClient`** — HTTP client for plc.directory (exists but inactive, activated in V6 Phase F1)
 
 ## ATProtocol Patterns
 
@@ -263,9 +253,9 @@ network.coopsource.alignment.*   — interests, outcomes, maps (future)
 
 Records of authority live in user PDS instances. PostgreSQL is a **materialized index**.
 
-V3 (current): `LocalPdsService` creates records and emits firehose events via `pg NOTIFY`. AppView loop subscribes and indexes into PostgreSQL for fast queries.
+Currently: `LocalPdsService` creates records and emits firehose events via `pg_notify`. AppView loop subscribes and indexes into PostgreSQL for fast queries.
 
-V5 (target): Records written to real `@atproto/pds`. Tap binary consumes firehose from `bsky.network` relay, filtering for `network.coopsource.*` collections. Tap consumer service dispatches events to indexers.
+After V6: Records written to real `@atproto/pds`. Tap binary consumes firehose from `bsky.network` relay, filtering for `network.coopsource.*` collections. Tap consumer service dispatches events to existing indexers.
 
 ## Security Requirements
 
@@ -303,27 +293,9 @@ Implement these throughout all phases (see ARCHITECTURE-V5.md §8 for full secur
 - AT URI as PK for PDS tables; UUID for app tables — don't mix these
 - Cursor-based pagination everywhere, not offset-based
 
-## API Routes (Currently Mounted)
+## API Routes
 
-All under `/api/v1/`:
-
-| Route | Handler |
-|-------|---------|
-| Health | `routes/health.ts` |
-| Setup | `routes/setup.ts` |
-| Auth | `routes/auth.ts` |
-| Cooperative | `routes/org/cooperatives.ts` |
-| Membership | `routes/org/memberships.ts` |
-| Posts | `routes/posts.ts` |
-| Proposals | `routes/governance/proposals.ts` |
-| Agreements | `routes/agreement/agreements.ts` |
-| Networks | `routes/org/networks.ts` |
-| Blobs | `routes/blobs.ts` |
-| Events (SSE) | `routes/events.ts` |
-| Admin | `routes/admin.ts` |
-| Federation | `routes/federation.ts` *(server-to-server, signed HTTP)* |
-
-V5 will add: legal documents, compliance calendar, officer records, meeting records, fiscal periods, patronage, capital accounts, onboarding workflows.
+All under `/api/v1/`. 61 route files covering: health, setup, auth, cooperatives, memberships, posts, proposals, agreements, networks, blobs, events (SSE), admin (officers, compliance, notices, fiscal periods), federation, legal (documents, meetings), finance (patronage, capital accounts, tax forms, expenses, revenue), operations (tasks, time tracking, schedules), commerce (listings, needs, procurement, shared resources, bookings), connectors, webhooks, reports, notifications, mentions, agents, alignment, onboarding, member classes, cooperative links, and AI providers/payments settings.
 
 ## Frontend Patterns
 
@@ -354,31 +326,33 @@ export default defineConfig({
 
 ## DI Container
 
-`apps/api/src/container.ts` currently instantiates:
-- `db` (Kysely), `pdsService` (LocalPdsService), `blobStore` (LocalBlobStore)
-- `federationClient` (LocalFederationClient or HttpFederationClient, based on INSTANCE_ROLE)
-- `didResolver` (DidWebResolver)
-- `clock` (SystemClock), `emailService` (DevEmailService)
-- `authService`, `entityService`, `membershipService`
-- `postService`, `proposalService`, `agreementService`
-- `networkService`, `fundingService`, `alignmentService`, `connectionService`
+`apps/api/src/container.ts` instantiates 44 services including:
+- **Infrastructure**: `db` (Kysely), `pdsService` (LocalPdsService), `blobStore`, `federationClient`, `didResolver`, `clock`, `emailService`
+- **Core**: `authService`, `entityService`, `membershipService`, `postService`, `proposalService`, `agreementService`, `networkService`
+- **Legal/Admin**: `legalDocumentService`, `meetingRecordService`, `officerRecordService`, `complianceCalendarService`, `memberNoticeService`, `fiscalPeriodService`
+- **Finance**: `patronageService`, `capitalAccountService`, `tax1099Service`, `expenseService`, `revenueService`
+- **Operations**: `taskService`, `timeTrackingService`, `scheduleService`
+- **Commerce**: `commerceListingService`, `commerceNeedService`, `procurementService`, `sharedResourceService`, `intercoopAgreementService`
+- **Platform**: `agentService`, `connectorRegistryService`, `eventBusService`, `webhookService`, `reportingService`, `dashboardService`, `mentionService`, `onboardingService`, `alignmentService`, `fundingService`, `connectionService`, `delegationVotingService`, `governanceFeedService`, `cooperativeLinkService`, `memberClassService`, `starterPackService`, `collaborativeProjectService`
 
-V5 will add: `PlcClient`, `AtprotoPdsService` (gated behind `PDS_URL`), `oauthClient`, `memberWriteProxy`, `tapConsumer`, `governanceLabeler`, `legalDocumentService`, `complianceCalendarService`, `officerRecordService`, `patronageService`, `capitalAccountService`, `onboardingService`.
+V6 will add: `tapConsumer`, `memberWriteProxy`, `governanceLabeler`, and activate `PlcClient`/`AtprotoPdsService` (scaffolding exists).
 
 ## Implementation Phases
 
-V5 is implemented in seven sequential phases. See CLAUDE-CODE-PROMPT-V5.md for detailed tasks and file references.
+### Completed: Application Layer (tagged `v3-final`)
+
+All application features are built and tested on V3 federation plumbing. This includes governance, agreements, legal documents, meeting records, officers, compliance, fiscal periods, patronage, capital accounts, tax forms, expenses, revenue, tasks, time tracking, schedules, commerce, connectors, webhooks, reports, AI agents, onboarding, alignment, and delegation voting.
+
+### Ahead: V6 Federation Migration
+
+See [ARCHITECTURE-V6.md](./ARCHITECTURE-V6.md) for full details.
 
 | Phase | Branch | Scope |
 |-------|--------|-------|
-| 0 | `feature/phase-0-pds-identity` | Foundation: self-hosted PDS, did:plc, cooperative provisioning |
-| 1 | `feature/phase-1-member-oauth` | Member identity: OAuth proxy, DPoP, write routing, private_record table |
-| 2 | `feature/phase-2-tap-appview` | Tap-based AppView: firehose consumption, bilateral state machine |
-| 3 | `feature/phase-3-ecosystem` | Ecosystem composability: Ozone labeler, Smoke Signal, retire V3 federation |
-| 4 | `feature/phase-4-legal-admin` | Legal lifecycle: documents, compliance, officers, meeting records |
-| 5 | `feature/phase-5-private-data` | Private data: Tier 2 CRUD, visibility routing, closed cooperative UI |
-| 6 | `feature/phase-6-financial` | Financial tools: patronage calculation, capital accounts, 1099-PATR |
-| 7 | `feature/phase-7-onboarding-advanced` | Onboarding workflows, delegation voting, feed generators |
+| F1 | `feature/f1-pds-identity` | Self-hosted `@atproto/pds`, `did:plc`, cooperative provisioning |
+| F2 | `feature/f2-member-oauth` | DPoP-bound OAuth proxy, member write routing, `private_record` table |
+| F3 | `feature/f3-tap-appview` | Tap firehose consumer, bilateral state machine on real records |
+| F4 | `feature/f4-ecosystem-cleanup` | Ozone labeler, Smoke Signal, retire V3 federation components |
 
 ## Pitfalls
 

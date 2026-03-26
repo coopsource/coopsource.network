@@ -1,9 +1,11 @@
 # CLAUDE-CODE-PROMPT-V5.md — Implementation Guide for Co-op Source Network
 
+> **DEPRECATED (March 25, 2026)**: The feature phases described in this document are complete (tagged `v3-final`). For the next phase of work (ATProto federation migration), see [ARCHITECTURE-V6.md](./ARCHITECTURE-V6.md). This file is retained for historical reference only.
+
 > **For**: Claude Code / Claude agents working on the Co-op Source Network codebase
 > **Architecture reference**: ARCHITECTURE-V5.md
 > **Date**: March 6, 2026
-> **Status**: Active
+> **Status**: Deprecated — feature phases complete
 
 ---
 

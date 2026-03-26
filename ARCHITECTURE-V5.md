@@ -1,9 +1,11 @@
 # ARCHITECTURE-V5.md — Full ATProto Ecosystem Citizen with Cooperative Lifecycle
 
+> **Note (March 25, 2026)**: The migration phases in §14-15 are superseded by [ARCHITECTURE-V6.md](./ARCHITECTURE-V6.md). This document remains the authoritative reference for cooperative lifecycle design (§1-13), security model (§8), bilateral membership protocol (§4), lexicon schemas (§13), and three-tier data model (§5).
+
 > **Replaces**: ARCHITECTURE-V4.md + V4 Addendum
 > **Approach**: Full ATProto ecosystem citizen with comprehensive cooperative lifecycle management
 > **Date**: March 6, 2026
-> **Status**: Implementation-ready
+> **Status**: Design reference (migration phases superseded by V6)
 > **Author**: Synthesized from V4 Deep Research, V4 Addendum, independent research, and codebase gap analysis
 
 ---
