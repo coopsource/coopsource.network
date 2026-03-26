@@ -160,31 +160,35 @@ COOP_PDS_ADMIN_PASSWORD=<generated>
 **Goal**: Members authenticate with their ATProto identities and write governance records to their own PDS. Private data is stored in Tier 2.
 
 **Tasks**:
-1. Build member write proxy service: intercepts membership/vote/signature/delegation/pledge writes, proxies to member's PDS via DPoP-bound OAuth tokens
-2. Implement multi-user auth proxy for cooperative operators (multiple admins writing as the co-op's DID)
-3. Create `private_record` table and service for Tier 2 data (closed deliberations, drafts, financials)
+1. Wire existing `MemberWriteProxy` into all member-owned record writes (membership, vote, signature, delegation, pledge) — class exists but is only connected to 3 of ~8 relevant services
+2. Wire existing `OperatorWriteProxy` into cooperative-owned record writes — class exists but services bypass it
+3. Integrate OAuth client into `MemberWriteProxy` (currently receives `undefined` oauthClient)
 4. Implement visibility routing: public records → PDS, private records → `private_record` table
 5. Modify service layer write paths to use proxy (reads unchanged — still from AppView tables)
 6. Upgrade OAuth scopes from `transition:generic` to granular when available
 
 **Key files**: `apps/api/src/services/` (write paths), `apps/api/src/auth/oauth-client.ts`, `packages/db/src/migrations/` (new migration for `private_record`)
 
-### Phase F3: Tap-Based AppView
+### Phase F3: Real Firehose AppView
 
-**Branch**: `feature/f3-tap-appview`
+**Branch**: `feature/f3-firehose-appview`
 
-**Goal**: Replace the local `pg_notify` firehose with real network firehose consumption via Tap.
+**Goal**: Replace the local `pg_notify` firehose with real network firehose consumption.
+
+**Firehose consumer strategy** (dual-mode):
+- **Default**: Built-in `relay-consumer.ts` (TypeScript, already exists) — activated by `RELAY_URL` env var. Connects directly to relay WebSocket (e.g., `wss://bsky.network`), filters by collection prefix, two-pass decode.
+- **Optional**: Tap (external Go binary) — activated by `TAP_URL` env var. For deployments that prefer the ATProto ecosystem standard tool.
+- **Fallback**: `pg_notify` loop remains for local dev when neither `RELAY_URL` nor `TAP_URL` is set.
 
 **Tasks**:
-1. Deploy Tap binary with filter config for `network.coopsource.*` collections
-2. Build Tap WebSocket consumer service (replaces `appview/loop.ts`)
-3. Build event dispatcher adapting Tap events to existing indexer dispatch (indexers stay unchanged)
+1. Harden existing `relay-consumer.ts` for production use (error recovery, metrics, health checks)
+2. Add optional Tap WebSocket consumer as an alternative event source
+3. Build event dispatcher adapting both sources to existing indexer dispatch (indexers stay unchanged)
 4. Implement bilateral membership state machine on real firehose events (handles out-of-order arrival from different PDS instances)
 5. Add commit signature verification on incoming records
-6. Feature-flag: keep `pg_notify` loop as fallback for local dev without Tap
-7. Drop `pds_record` and `pds_commit` tables after Tap consumer is stable
+6. Drop `pds_record` and `pds_commit` tables after firehose consumer is stable
 
-**Key files**: `apps/api/src/appview/loop.ts` (replace), `apps/api/src/appview/indexers/` (unchanged), `apps/api/src/container.ts`
+**Key files**: `apps/api/src/appview/relay-consumer.ts` (harden), `apps/api/src/appview/loop.ts` (extend), `apps/api/src/appview/indexers/` (unchanged), `apps/api/src/container.ts`
 
 ### Phase F4: Ecosystem Integration + V3 Cleanup
 
