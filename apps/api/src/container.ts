@@ -175,9 +175,11 @@ export function createContainer(config: AppConfig): Container {
     emailService,
     clock,
   );
+  const privateRecordService = new PrivateRecordService(db, clock);
+  const visibilityRouter = new VisibilityRouter(db, privateRecordService);
   const governanceLabeler = new GovernanceLabeler(db);
   const postService = new PostService(db, clock);
-  const proposalService = new ProposalService(db, pdsService, clock, memberWriteProxy, governanceLabeler);
+  const proposalService = new ProposalService(db, pdsService, clock, memberWriteProxy, governanceLabeler, visibilityRouter);
   const agreementService = new AgreementService(db, pdsService, clock, memberWriteProxy);
   const agreementTemplateService = new AgreementTemplateService(db, clock);
   const networkService = new NetworkService(db, pdsService, clock);
@@ -196,8 +198,6 @@ export function createContainer(config: AppConfig): Container {
   const meetingRecordService = new MeetingRecordService(db, clock);
   const memberNoticeService = new MemberNoticeService(db, clock);
   const fiscalPeriodService = new FiscalPeriodService(db, clock);
-  const privateRecordService = new PrivateRecordService(db, clock);
-  const visibilityRouter = new VisibilityRouter(db, privateRecordService);
   const patronageService = new PatronageService(db, clock);
   const capitalAccountService = new CapitalAccountService(db, clock);
   const tax1099Service = new Tax1099Service(db, clock);
