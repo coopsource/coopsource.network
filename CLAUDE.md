@@ -13,7 +13,6 @@ This monorepo is deployed to `coopsource.network`.
 ## Git Workflow Rules
 
 - **All work must be done on feature branches**, never directly on `main`
-- **Never merge to `main` without explicit user approval** — ask first
 - **Clean up merged branches** — delete feature branches after they've been merged to `main`
 
 ## Critical Constraints
