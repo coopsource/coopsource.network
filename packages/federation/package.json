@@ -54,7 +54,7 @@
     "cborg": "^4.5.8",
     "kysely": "^0.28.11",
     "multiformats": "^13.4.2",
-    "nodemailer": "^8.0.1",
+    "nodemailer": "^8.0.4",
     "pg": "^8.19.0",
     "structured-headers": "^2.0.2"
   },
