@@ -1,106 +1,107 @@
 # Co-op Source Network
 
-A federated collaboration platform for technology-focused cooperatives, built on the [AT Protocol](https://atproto.com). Members bring their own Bluesky identities, cooperatives run as genuine ATProto accounts, and governance records flow through the real relay network alongside Bluesky posts, Tangled commits, and other ecosystem content.
+A federated collaboration platform for cooperatives, built on [ATProtocol](https://atproto.com). Cooperatives are genuine ATProto accounts. Members bring their own Bluesky identities. Governance records flow through the real relay network.
 
-The core design principle is the **recursive cooperative model**: everything is an entity (person or cooperative), and a network is just a cooperative whose members are other cooperatives. The same membership, governance, and agreement machinery works at every level — no special types needed.
+## Quick Start (Development)
 
-## Why ATProto?
+```bash
+# Prerequisites: Node.js 24, pnpm 10+, PostgreSQL 16, Redis 7
 
-The ICA's seven cooperative principles map naturally onto ATProto's architecture. Voluntary membership becomes portable identity. Democratic control becomes public governance records verifiable by anyone. Autonomy becomes self-hosted PDS instances under the cooperative's domain. Cooperation among cooperatives becomes cross-app composability through shared lexicons. Co-op Source Network is a full ecosystem citizen — cooperatives federate with Bluesky, Tangled, OpenMeet, Smoke Signal, and any other ATProto application.
+# First-time setup
+make setup
 
-## Architecture
-
-The platform uses a three-tier data model: public ATProto records for governance and membership (Tier 1), private PostgreSQL storage for internal cooperative data (Tier 2), and end-to-end encrypted messaging via the Germ protocol for confidential communications (Tier 3).
-
-Membership follows a **bilateral protocol** — both the member and the cooperative must create matching records in their respective PDS instances for membership to become active. This prevents unilateral claims and ensures both parties consent.
-
-### Instance Roles
-
-A single codebase supports three deployment modes controlled by the `INSTANCE_ROLE` environment variable:
-
-- **standalone** — Hub, co-op, and AppView in one process with one database (development and demos)
-- **hub** — Network directory and cross-co-op AppView (runs coopsource.network in production)
-- **coop** — A single cooperative's API, PDS, and local AppView (individual co-op servers)
-
-## Monorepo Layout
-
-```
-coopsource.network/
-├── apps/
-│   ├── api/          — Express 5 backend (AppView + REST API)
-│   └── web/          — SvelteKit 2 / Svelte 5 frontend
-├── packages/
-│   ├── lexicons/     — ATProto lexicon schemas + generated TypeScript
-│   ├── federation/   — Federation client, PDS service, DID resolution
-│   ├── db/           — Kysely database layer + migrations (PostgreSQL 16)
-│   ├── common/       — Shared types, constants, errors, validation
-│   └── config/       — Shared tsconfig, eslint, prettier
-├── infrastructure/   — Docker Compose for dev (Postgres, Redis, Mailpit)
-├── scripts/          — Dev tooling and setup scripts
-└── docs/             — Planning and design documents
+# Start dev servers (API :3001, Web :5173)
+make dev
 ```
 
-## Tech Stack
+## Production Deployment
 
-TypeScript (strict mode), Express 5, SvelteKit 2 with Svelte 5 runes, Kysely 0.28+ on PostgreSQL 16, Tailwind CSS 4, Vite 7, Vitest 4, Zod 4, pnpm 10 workspaces with Turborepo 2, and Node.js 24 LTS.
-
-## Getting Started
+Deploy to a VPS with Docker Compose + Caddy (automatic HTTPS via Let's Encrypt).
 
 ### Prerequisites
 
-- Node.js 24 LTS
-- pnpm 10.30+
-- PostgreSQL 16
-- Redis 7
+- A Linux server with Docker and Docker Compose installed
+- A domain name (e.g., `coopsource.network`) with DNS A record pointing to the server IP
+- Ports 80 and 443 open
 
-### Quick Start (macOS with Homebrew)
+### Steps
 
 ```bash
-git clone https://github.com/coopsource/coopsource.network.git
+# 1. Clone the repo on the server
+git clone <repo-url> coopsource.network
 cd coopsource.network
-make setup    # Install services, create DB, copy .env, run migrations
-make dev      # Start everything (API on :3001, Web on :5173)
+
+# 2. Create production environment file
+cp infrastructure/.env.prod.example infrastructure/.env
+
+# 3. Edit infrastructure/.env and set required values:
+#    POSTGRES_PASSWORD  — generate with: openssl rand -hex 32
+#    SESSION_SECRET     — generate with: openssl rand -hex 32
+#    KEY_ENC_KEY        — generate with: openssl rand -base64 32
+#    DOMAIN             — your domain (default: coopsource.network)
+#    SMTP_HOST/PORT     — your email provider
+
+# 4. Build Docker images
+make deploy-build
+
+# 5. Start the stack (PostgreSQL, Redis, API, Web, Caddy)
+make deploy-up
+
+# 6. Run database migrations
+DATABASE_URL=postgresql://coopsource:<POSTGRES_PASSWORD>@localhost:5432/coopsource \
+  make deploy-migrate
+
+# 7. Verify
+curl https://your-domain.com/health
 ```
 
-### Quick Start (Docker)
+Caddy automatically provisions TLS certificates from Let's Encrypt. Ensure DNS is configured before starting.
+
+### Production Stack
+
+| Service | Port | Description |
+|---------|------|-------------|
+| Caddy | 80, 443 | Reverse proxy with automatic HTTPS |
+| API | 3001 (internal) | Express backend |
+| Web | 3000 (internal) | SvelteKit frontend (adapter-node) |
+| PostgreSQL | 5432 (internal) | Database (99 tables, 51 migrations) |
+| Redis | 6379 (internal) | Session cache |
+
+### Management
 
 ```bash
-pnpm install
-docker compose -f infrastructure/docker-compose.yml up -d
-pnpm --filter @coopsource/db migrate
-pnpm dev
+make deploy-up       # Start production stack
+make deploy-down     # Stop production stack
+make deploy-logs     # Tail logs
+make deploy-build    # Rebuild Docker images
+make deploy-migrate  # Run database migrations
 ```
 
-### Common Commands
+### Environment Variables
+
+See `infrastructure/.env.prod.example` for the full list. Key variables:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DOMAIN` | Yes | Public domain name |
+| `POSTGRES_PASSWORD` | Yes | Database password |
+| `SESSION_SECRET` | Yes | Cookie signing secret (min 32 chars) |
+| `KEY_ENC_KEY` | Yes | Encryption key for signing keys (base64) |
+| `SMTP_HOST` | Yes | Email server for invitations/notifications |
+| `PLC_URL` | No | ATProto PLC directory (default: local) |
+| `RELAY_URL` | No | ATProto relay for firehose (e.g., `wss://bsky.network`) |
+
+## Architecture
+
+See [ARCHITECTURE-V6.md](./ARCHITECTURE-V6.md) for the federation migration plan and [ARCHITECTURE-V5.md](./ARCHITECTURE-V5.md) for cooperative lifecycle design, security model, and lexicon schemas.
+
+## Development
 
 ```bash
-pnpm dev                    # Start all dev servers
-pnpm build                  # Build all packages
-pnpm test                   # Run all tests
-pnpm format                 # Format codebase
-
-make dev-federation         # Multi-instance federation mode
-make test-federation        # Run federation integration tests
-
-pnpm --filter @coopsource/lexicons lex:generate   # Regenerate lexicon types
+make dev              # Start API + Web dev servers
+make test:e2e         # Run 279 Playwright E2E tests
+make pds-up           # Start ATProto PDS + PLC containers
+make provision-coop   # Provision a cooperative identity
+pnpm test             # Run unit tests
+pnpm build            # Build all packages
 ```
-
-## Federation
-
-Cooperatives federate with each other and with the broader ATProto ecosystem. Cross-co-op operations always go through the `IFederationClient` interface — never direct database access across co-op boundaries. Identity uses `did:web` in development (resolving via `/.well-known/did.json`) and migrates to `did:plc` for production.
-
-The lexicon namespace is `network.coopsource.*`, covering organizations, governance, agreements, and alignment.
-
-## Documentation
-
-- **[ARCHITECTURE-V5.md](./ARCHITECTURE-V5.md)** — Full architecture specification covering ATProto integration, bilateral membership, security model, legal lifecycle, financial tools, and phased migration plan
-- **[CLAUDE-CODE-PROMPT-V5.md](./CLAUDE-CODE-PROMPT-V5.md)** — Implementation guide with phased tasks, code patterns, and file references
-- **[CLAUDE.md](./CLAUDE.md)** — Project context for AI-assisted development
-
-## Contributing
-
-Co-op Source Network is itself organized as a cooperative. We welcome contributions from developers, designers, cooperative organizers, and anyone interested in building federated infrastructure for democratic organizations.
-
-## License
-
-See repository for license details.
