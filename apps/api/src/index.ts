@@ -87,14 +87,18 @@ import { createOAuthClient } from './auth/oauth-client.js';
 const config = loadConfig();
 const app: Express = express();
 
+// Trust proxy when behind reverse proxy (Caddy/nginx) — required for secure cookies
+if (config.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 // Middleware
 app.use(helmet());
 app.use(
   cors({
-    origin:
-      config.NODE_ENV === 'production'
-        ? 'https://coopsource.network'
-        : 'http://localhost:5173',
+    origin: config.NODE_ENV === 'production'
+      ? config.FRONTEND_URL
+      : 'http://localhost:5173',
     credentials: true,
   }),
 );

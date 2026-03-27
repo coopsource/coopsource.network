@@ -1,0 +1,14 @@
+{$DOMAIN:coopsource.network} {
+	# API routes
+	handle /api/* {
+		reverse_proxy api:3001
+	}
+	handle /health {
+		reverse_proxy api:3001
+	}
+
+	# SvelteKit web app (everything else)
+	handle {
+		reverse_proxy web:3000
+	}
+}
