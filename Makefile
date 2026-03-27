@@ -6,7 +6,7 @@ SHELL := /bin/bash
 
 SCRIPTS := ./scripts/dev-services.sh
 
-.PHONY: help setup dev dev-clean start stop status ports install db-migrate db-reset clean test\:e2e test\:e2e-clean test\:e2e\:real test\:e2e\:mocked pds-up pds-status pds-logs pds-down pds-dev provision-coop test\:pds dev-federation stop-federation migrate-all test-federation
+.PHONY: help setup dev dev-clean start stop status ports install db-migrate db-reset clean test\:e2e test\:e2e-clean test\:e2e\:real test\:e2e\:mocked pds-up pds-status pds-logs pds-down pds-dev provision-coop test\:pds dev-federation stop-federation migrate-all test-federation deploy-build deploy-up deploy-down deploy-logs deploy-migrate
 
 help: ## Show all targets
 	@echo ""
@@ -108,3 +108,20 @@ test-federation: ## Run federation integration tests (requires running stack)
 	cd infrastructure && docker compose -f docker-compose.federation.yml up -d --wait
 	pnpm --filter @coopsource/api test:federation
 	cd infrastructure && docker compose -f docker-compose.federation.yml down
+
+# ─── Production deployment ──────────────────────────────────────────
+
+deploy-build: ## Build production Docker images
+	docker compose -f infrastructure/docker-compose.prod.yml build
+
+deploy-up: ## Start production stack (requires .env in infrastructure/)
+	docker compose -f infrastructure/docker-compose.prod.yml up -d
+
+deploy-down: ## Stop production stack
+	docker compose -f infrastructure/docker-compose.prod.yml down
+
+deploy-logs: ## Tail production logs
+	docker compose -f infrastructure/docker-compose.prod.yml logs -f
+
+deploy-migrate: ## Run database migrations (set DATABASE_URL or source infrastructure/.env)
+	pnpm --filter @coopsource/db migrate

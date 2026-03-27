@@ -19,7 +19,8 @@
   },
   "dependencies": {
     "@coopsource/common": "workspace:*",
-    "@lucide/svelte": "^0.575.0"
+    "@lucide/svelte": "^0.575.0",
+    "@sveltejs/adapter-node": "^5.5.4"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
