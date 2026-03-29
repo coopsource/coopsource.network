@@ -39,7 +39,7 @@ cp infrastructure/.env.prod.example infrastructure/.env
 #    SESSION_SECRET     — generate with: openssl rand -hex 32
 #    KEY_ENC_KEY        — generate with: openssl rand -base64 32
 #    DOMAIN             — your domain (default: coopsource.network)
-#    SMTP_HOST/PORT     — your email provider
+#    SMTP_HOST/PORT     — your email provider (optional — leave unset to disable email)
 
 # 4. Build Docker images
 make deploy-build
@@ -87,7 +87,7 @@ See `infrastructure/.env.prod.example` for the full list. Key variables:
 | `POSTGRES_PASSWORD` | Yes | Database password |
 | `SESSION_SECRET` | Yes | Cookie signing secret (min 32 chars) |
 | `KEY_ENC_KEY` | Yes | Encryption key for signing keys (base64) |
-| `SMTP_HOST` | Yes | Email server for invitations/notifications |
+| `SMTP_HOST` | No | Email server for invitations/notifications (leave unset to disable — invitations still work via shareable links) |
 | `PLC_URL` | No | ATProto PLC directory (default: local) |
 | `RELAY_URL` | No | ATProto relay for firehose (e.g., `wss://bsky.network`) |
 

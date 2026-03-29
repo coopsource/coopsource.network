@@ -24,8 +24,11 @@ const envSchema = z
     COOP_ROTATION_KEY_HEX: z.string().optional(),    // Cooperative's secp256k1 rotation key (hex) for PLC operations
     // Frontend URL for OAuth redirects (API → frontend after OAuth callback)
     FRONTEND_URL: z.string().url().default('http://localhost:5173'),
-    SMTP_HOST: z.string().default('localhost'),
-    SMTP_PORT: z.coerce.number().default(1025),
+    SMTP_HOST: z.string().optional(),
+    SMTP_PORT: z.coerce.number().default(587),
+    SMTP_USER: z.string().optional(),
+    SMTP_PASS: z.string().optional(),
+    SMTP_FROM: z.string().default('noreply@coopsource.local'),
     // Legacy / Stage 2-3 (kept for compatibility)
     OAUTH_CLIENT_ID: z.string().optional(),
     OAUTH_PRIVATE_KEY: z.string().optional(),

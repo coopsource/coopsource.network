@@ -7,7 +7,7 @@ import { MockClock } from '@coopsource/federation';
 import { LocalPdsService, LocalBlobStore } from '@coopsource/federation/local';
 import type { FederationDatabase } from '@coopsource/federation/local';
 import { DidWebResolver } from '@coopsource/federation/http';
-import { DevEmailService } from '@coopsource/federation/email';
+import { NoopEmailService } from '@coopsource/federation/email';
 import type { Container } from '../../src/container.js';
 import { AuthService } from '../../src/services/auth-service.js';
 import { EntityService } from '../../src/services/entity-service.js';
@@ -119,10 +119,7 @@ export function createTestApp(): TestApp {
 
   const didResolver = new DidWebResolver();
 
-  const emailService = new DevEmailService({
-    host: 'localhost',
-    port: 1025,
-  });
+  const emailService = new NoopEmailService();
 
   // V5: MemberWriteProxy in test mode (warns + falls back to pdsService)
   const memberWriteProxy = new MemberWriteProxy(undefined, pdsService, 'test');

@@ -45,8 +45,11 @@ services:
       PUBLIC_API_URL: https://${DOMAIN:-coopsource.network}
       PLC_URL: ${PLC_URL:-local}
       BLOB_DIR: /app/data/blobs
-      SMTP_HOST: ${SMTP_HOST:-localhost}
+      SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-noreply@coopsource.local}
     volumes:
       - blobdata:/app/data/blobs
     healthcheck:

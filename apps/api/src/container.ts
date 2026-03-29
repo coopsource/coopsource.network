@@ -7,7 +7,9 @@ import { LocalPdsService, LocalBlobStore } from '@coopsource/federation/local';
 import type { FederationDatabase } from '@coopsource/federation/local';
 import { DidWebResolver } from '@coopsource/federation/http';
 import { AtprotoPdsService } from '@coopsource/federation/atproto';
-import { DevEmailService } from '@coopsource/federation/email';
+import { SmtpEmailService, NoopEmailService } from '@coopsource/federation/email';
+import type { IEmailService } from '@coopsource/federation';
+import { logger } from './middleware/logger.js';
 import type { AppConfig } from './config.js';
 import { AuthService } from './services/auth-service.js';
 import { EntityService } from './services/entity-service.js';
@@ -71,7 +73,7 @@ export interface Container {
   didResolver: DidWebResolver;
   blobStore: LocalBlobStore;
   clock: SystemClock;
-  emailService: DevEmailService;
+  emailService: IEmailService;
   authService: AuthService;
   entityService: EntityService;
   membershipService: MembershipService;
@@ -157,10 +159,18 @@ export function createContainer(config: AppConfig): Container {
 
   const blobStore = new LocalBlobStore({ blobDir: config.BLOB_DIR });
 
-  const emailService = new DevEmailService({
-    host: config.SMTP_HOST,
-    port: config.SMTP_PORT,
-  });
+  const emailService: IEmailService = config.SMTP_HOST
+    ? new SmtpEmailService({
+        host: config.SMTP_HOST,
+        port: config.SMTP_PORT,
+        user: config.SMTP_USER,
+        pass: config.SMTP_PASS,
+        from: config.SMTP_FROM,
+      })
+    : (() => {
+        logger.info('Email disabled: SMTP_HOST not configured. Invitations will be created without sending email.');
+        return new NoopEmailService();
+      })();
 
   // V5: Member write proxy (OAuth → member PDS) + operator write proxy (ACL + audit)
   // oauthClient is undefined here; it's created in index.ts and could be passed via config.

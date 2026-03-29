@@ -5,26 +5,34 @@ import type {
   NotificationEmailParams,
 } from '../interfaces/email-service.js';
 
-export interface DevEmailConfig {
-  host: string; // 'localhost'
-  port: number; // 1025 (Mailpit default SMTP port)
+export interface SmtpEmailConfig {
+  host: string;
+  port: number;
+  secure?: boolean;
+  user?: string;
+  pass?: string;
+  from?: string;
 }
 
-export class DevEmailService implements IEmailService {
+export class SmtpEmailService implements IEmailService {
   private transporter: nodemailer.Transporter;
+  private from: string;
 
-  constructor(config: DevEmailConfig) {
+  constructor(config: SmtpEmailConfig) {
+    this.from = config.from ?? 'noreply@coopsource.local';
     this.transporter = nodemailer.createTransport({
       host: config.host,
       port: config.port,
-      secure: false,
-      ignoreTLS: true,
+      secure: config.secure ?? config.port === 465,
+      ...(config.user && config.pass
+        ? { auth: { user: config.user, pass: config.pass } }
+        : {}),
     });
   }
 
   async sendInvitation(params: InvitationEmailParams): Promise<void> {
     await this.transporter.sendMail({
-      from: `"${params.coopName}" <noreply@coopsource.local>`,
+      from: `"${params.coopName}" <${this.from}>`,
       to: params.to,
       subject: `You're invited to join ${params.coopName}`,
       text: [
@@ -38,7 +46,7 @@ export class DevEmailService implements IEmailService {
 
   async sendNotification(params: NotificationEmailParams): Promise<void> {
     await this.transporter.sendMail({
-      from: '"Co-op Source" <noreply@coopsource.local>',
+      from: `"Co-op Source" <${this.from}>`,
       to: params.to,
       subject: params.subject,
       text: params.textBody,

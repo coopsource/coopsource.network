@@ -6,6 +6,7 @@ type InvitationRow = Selectable<InvitationTable>;
 import type { DID } from '@coopsource/common';
 import { NotFoundError, ValidationError, ConflictError } from '@coopsource/common';
 import type { IPdsService, IEmailService, IClock } from '@coopsource/federation';
+import { logger } from '../middleware/logger.js';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
 
@@ -194,8 +195,8 @@ export class MembershipService {
         message: params.message,
         expiresAt,
       });
-    } catch {
-      // Email send failure is not fatal
+    } catch (err) {
+      logger.warn({ err, email: params.email }, 'Failed to send invitation email');
     }
 
     return row!;

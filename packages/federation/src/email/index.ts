@@ -1,2 +1,3 @@
-export { DevEmailService } from './dev-email-service.js';
-export type { DevEmailConfig } from './dev-email-service.js';
+export { SmtpEmailService } from './smtp-email-service.js';
+export type { SmtpEmailConfig } from './smtp-email-service.js';
+export { NoopEmailService } from './noop-email-service.js';
