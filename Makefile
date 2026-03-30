@@ -1,5 +1,5 @@
 # Makefile — Co-op Source Network local development
-# Requires: macOS, Homebrew, pnpm, Node.js 22+
+# Requires: macOS, Homebrew, pnpm, Node.js 24+
 
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
@@ -123,5 +123,5 @@ deploy-down: ## Stop production stack
 deploy-logs: ## Tail production logs
 	docker compose -f infrastructure/docker-compose.prod.yml logs -f
 
-deploy-migrate: ## Run database migrations (set DATABASE_URL or source infrastructure/.env)
-	pnpm --filter @coopsource/db migrate
+deploy-migrate: ## Run database migrations inside the API container
+	docker compose -f infrastructure/docker-compose.prod.yml exec api node packages/db/dist/migrate.js

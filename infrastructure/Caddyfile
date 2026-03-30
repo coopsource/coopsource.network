@@ -6,6 +6,9 @@
 	handle /health {
 		reverse_proxy api:3001
 	}
+	handle /.well-known/* {
+		reverse_proxy api:3001
+	}
 
 	# SvelteKit web app (everything else)
 	handle {

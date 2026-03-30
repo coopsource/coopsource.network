@@ -47,9 +47,8 @@ make deploy-build
 # 5. Start the stack (PostgreSQL, Redis, API, Web, Caddy)
 make deploy-up
 
-# 6. Run database migrations
-DATABASE_URL=postgresql://coopsource:<POSTGRES_PASSWORD>@localhost:5432/coopsource \
-  make deploy-migrate
+# 6. Run database migrations (runs inside the API container)
+make deploy-migrate
 
 # 7. Verify
 curl https://your-domain.com/health
@@ -90,6 +89,10 @@ See `infrastructure/.env.prod.example` for the full list. Key variables:
 | `SMTP_HOST` | No | Email server for invitations/notifications (leave unset to disable — invitations still work via shareable links) |
 | `PLC_URL` | No | ATProto PLC directory (default: local) |
 | `RELAY_URL` | No | ATProto relay for firehose (e.g., `wss://bsky.network`) |
+| `PUBLIC_API_URL` | Auto | Client-side API base URL (set automatically from DOMAIN in docker-compose) |
+| `ORIGIN` | Auto | SvelteKit CSRF origin (set automatically from DOMAIN in docker-compose) |
+
+See [docs/operations.md](./docs/operations.md) for backup, log management, and operational procedures.
 
 ## Architecture
 

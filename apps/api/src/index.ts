@@ -299,13 +299,16 @@ async function start(): Promise<void> {
     logger.info(`API server listening on port ${config.PORT}`);
   });
 
-  // Graceful shutdown
+  // Graceful shutdown — drain connections before exit
   const shutdown = async () => {
     logger.info('Shutting down...');
-    server.close();
     container.eventDispatcher.stop();
+    await new Promise<void>((resolve) => {
+      server.close(() => resolve());
+      // Force exit after 10 seconds if connections don't drain
+      setTimeout(resolve, 10_000).unref();
+    });
     await container.mcpClient.disconnectAll();
-    // Outbox processor retired
     process.exit(0);
   };
   process.on('SIGTERM', shutdown);

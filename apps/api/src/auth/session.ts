@@ -11,6 +11,7 @@ export function createSessionMiddleware(config: AppConfig): RequestHandler {
       conString: config.DATABASE_URL,
       tableName: 'session',
       createTableIfMissing: false,
+      pruneSessionInterval: 900, // prune expired sessions every 15 minutes
     }),
     secret: config.SESSION_SECRET,
     resave: false,

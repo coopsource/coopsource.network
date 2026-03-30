@@ -2,7 +2,11 @@ import { Router } from 'express';
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
 import { sql } from 'kysely';
+import { createRequire } from 'node:module';
 import { getFirehoseHealth } from '../appview/loop.js';
+
+const require = createRequire(import.meta.url);
+const { version } = require('../../package.json') as { version: string };
 
 export function createHealthRoutes(db?: Kysely<Database>): Router {
   const router = Router();
@@ -10,7 +14,7 @@ export function createHealthRoutes(db?: Kysely<Database>): Router {
   router.get('/health', async (_req, res) => {
     const status: Record<string, unknown> = {
       status: 'ok',
-      version: '0.1.0',
+      version,
       uptime: process.uptime(),
     };
 

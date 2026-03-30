@@ -1,0 +1,45 @@
+# Dependencies (installed fresh inside container)
+node_modules/
+
+# Build outputs (rebuilt inside container)
+dist/
+.svelte-kit/
+.turbo/
+
+# Environment files (secrets)
+.env
+.env.*
+!.env.example
+
+# Git
+.git/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+coverage/
+playwright-report/
+test-results/
+
+# Data
+data/
+
+# Docker
+infrastructure/pgdata/
+
+# Worktrees
+.worktrees/
+
+# Documentation (not needed at build time)
+*.md
+docs/
+LICENSE
