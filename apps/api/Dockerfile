@@ -7,11 +7,15 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json ./
 COPY apps/api/package.json apps/api/
 COPY packages/common/package.json packages/common/
 COPY packages/db/package.json packages/db/
+COPY packages/federation/package.json packages/federation/
+COPY packages/lexicons/package.json packages/lexicons/
 COPY packages/config/ packages/config/
 RUN pnpm install --frozen-lockfile
 
 COPY packages/common/ packages/common/
 COPY packages/db/ packages/db/
+COPY packages/lexicons/ packages/lexicons/
+COPY packages/federation/ packages/federation/
 COPY apps/api/ apps/api/
 RUN pnpm --filter @coopsource/api build
 
@@ -26,6 +30,10 @@ COPY --from=build /app/packages/common/dist ./packages/common/dist
 COPY --from=build /app/packages/common/package.json ./packages/common/
 COPY --from=build /app/packages/db/dist ./packages/db/dist
 COPY --from=build /app/packages/db/package.json ./packages/db/
+COPY --from=build /app/packages/federation/dist ./packages/federation/dist
+COPY --from=build /app/packages/federation/package.json ./packages/federation/
+COPY --from=build /app/packages/lexicons/dist ./packages/lexicons/dist
+COPY --from=build /app/packages/lexicons/package.json ./packages/lexicons/
 
 EXPOSE 3001
 CMD ["node", "apps/api/dist/index.js"]
