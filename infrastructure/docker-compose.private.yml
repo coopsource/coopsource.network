@@ -10,6 +10,12 @@
 #   make private-up
 
 services:
+  # Override postgres to create relay and plc databases on first init
+  postgres:
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init-private-dbs.sql:/docker-entrypoint-initdb.d/init-private-dbs.sql:ro
+
   # Self-hosted PLC directory for private DID resolution
   plc:
     image: ghcr.io/bluesky-social/did-method-plc:latest

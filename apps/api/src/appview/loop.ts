@@ -27,8 +27,6 @@ import { collectionFromUri } from './utils.js';
 
 export interface AppViewConfig {
   tapUrl?: string;
-  relayUrl?: string;
-  verifySignatures?: boolean;
 }
 
 // ─── Firehose health state (exported for health endpoint) ──────────────────
@@ -184,7 +182,7 @@ export async function startAppViewLoop(
       cursor = existing.last_global_seq;
     }
 
-    runLocalLoop(pdsService, db, cursor, config).catch((err) => {
+    runLocalLoop(pdsService, db, cursor).catch((err) => {
       logger.error(err, 'Local loop fatal error');
     });
   }
@@ -232,7 +230,6 @@ async function runLocalLoop(
   pdsService: IPdsService,
   db: Kysely<Database>,
   cursor: number,
-  config: AppViewConfig,
 ): Promise<void> {
   const subscriberId = 'appview-local';
   let backoff = 1000;

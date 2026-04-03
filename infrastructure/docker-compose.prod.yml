@@ -54,6 +54,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      tap:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       PORT: 3001
