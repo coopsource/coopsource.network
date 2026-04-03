@@ -71,6 +71,7 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-noreply@coopsource.local}
+      TAP_URL: ${TAP_URL:-http://tap:2480}
     volumes:
       - blobdata:/app/data/blobs
     healthcheck:
@@ -89,6 +90,35 @@ services:
         limits:
           memory: 512M
           cpus: "1.0"
+
+  tap:
+    image: ghcr.io/bluesky-social/indigo/tap:latest
+    restart: unless-stopped
+    environment:
+      TAP_RELAY_URL: ${RELAY_URL:-https://relay1.us-east.bsky.network}
+      TAP_PLC_URL: ${PLC_URL:-https://plc.directory}
+      TAP_COLLECTION_FILTERS: network.coopsource.*,community.lexicon.calendar.*,fyi.unravel.frontpage.*
+      TAP_DATABASE_URL: sqlite:///data/tap.db
+      TAP_BIND: :2480
+      TAP_ADMIN_PASSWORD: ${TAP_ADMIN_PASSWORD:-}
+    volumes:
+      - tapdata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:2480/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
 
   web:
     build:
@@ -153,5 +183,6 @@ services:
 volumes:
   pgdata:
   blobdata:
+  tapdata:
   caddy_data:
   caddy_config:
