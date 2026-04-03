@@ -169,7 +169,7 @@ See `infrastructure/.env.prod.example` for the full list. Key variables:
 
 ## Architecture
 
-See [ARCHITECTURE-V6.md](./ARCHITECTURE-V6.md) for the federation migration plan and [ARCHITECTURE-V5.md](./ARCHITECTURE-V5.md) for cooperative lifecycle design, security model, and lexicon schemas.
+See [ARCHITECTURE-V7.md](./ARCHITECTURE-V7.md) for remaining work (Ozone labeler, DB cleanup, ecosystem proposals), [ARCHITECTURE-V6.md](./ARCHITECTURE-V6.md) for the ATProto federation design (complete), and [ARCHITECTURE-V5.md](./ARCHITECTURE-V5.md) for cooperative lifecycle design, security model, and lexicon schemas.
 
 ## Development
 
