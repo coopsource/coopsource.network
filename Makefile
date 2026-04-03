@@ -6,7 +6,7 @@ SHELL := /bin/bash
 
 SCRIPTS := ./scripts/dev-services.sh
 
-.PHONY: help setup dev dev-clean start stop status ports install db-migrate db-reset clean test\:e2e test\:e2e-clean test\:e2e\:real test\:e2e\:mocked pds-up pds-status pds-logs pds-down pds-dev provision-coop test\:pds dev-federation stop-federation migrate-all test-federation deploy-build deploy-up deploy-down deploy-logs deploy-migrate
+.PHONY: help setup dev dev-clean start stop status ports install db-migrate db-reset clean test\:e2e test\:e2e-clean test\:e2e\:real test\:e2e\:mocked pds-up pds-status pds-logs pds-down pds-dev provision-coop test\:pds dev-federation stop-federation migrate-all test-federation deploy-build deploy-up deploy-down deploy-logs deploy-migrate private-build private-up private-down private-logs private-migrate
 
 help: ## Show all targets
 	@echo ""
@@ -113,6 +113,7 @@ test-federation: ## Run federation integration tests (requires running stack)
 
 PROD_COMPOSE := docker compose --env-file infrastructure/.env -f infrastructure/docker-compose.prod.yml
 LOCAL_COMPOSE := $(PROD_COMPOSE) -f infrastructure/docker-compose.local.yml
+PRIVATE_COMPOSE := docker compose --env-file infrastructure/.env.private -f infrastructure/docker-compose.prod.yml -f infrastructure/docker-compose.private.yml
 
 deploy-build: ## Build production Docker images
 	$(PROD_COMPOSE) build
@@ -149,3 +150,20 @@ local-migrate: ## Run migrations for local production preview
 local-reset: ## Reset database for local production preview
 	$(LOCAL_COMPOSE) exec postgres psql -U coopsource -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'coopsource' AND pid <> pg_backend_pid();" -c "DROP DATABASE IF EXISTS coopsource;" -c "CREATE DATABASE coopsource;"
 	$(MAKE) local-migrate
+
+# ─── Private network (self-hosted PLC + relay + PDS) ────────────────
+
+private-build: ## Build images for private network
+	$(PRIVATE_COMPOSE) build
+
+private-up: ## Start private network stack (PLC, relay, PDS, Tap, AppView)
+	$(PRIVATE_COMPOSE) up -d
+
+private-down: ## Stop private network stack
+	$(PRIVATE_COMPOSE) down
+
+private-logs: ## Tail private network logs
+	$(PRIVATE_COMPOSE) logs -f
+
+private-migrate: ## Run migrations for private network
+	$(PRIVATE_COMPOSE) exec api node packages/db/dist/migrate.js

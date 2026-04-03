@@ -1,0 +1,129 @@
+# Private network deployment — self-hosted PLC, relay, Tap, and PDS
+# No connection to bsky.network or plc.directory.
+#
+# Usage:
+#   docker compose --env-file infrastructure/.env.private \
+#     -f infrastructure/docker-compose.prod.yml \
+#     -f infrastructure/docker-compose.private.yml up -d
+#
+# Or via Makefile:
+#   make private-up
+
+services:
+  # Self-hosted PLC directory for private DID resolution
+  plc:
+    image: ghcr.io/bluesky-social/did-method-plc:latest
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-coopsource}:${POSTGRES_PASSWORD}@postgres:5432/plc
+      PORT: 2582
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:2582/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+
+  # Self-hosted ATProto relay — aggregates events from all PDS instances
+  relay:
+    image: ghcr.io/bluesky-social/indigo/relay:latest
+    restart: unless-stopped
+    environment:
+      RELAY_ADMIN_PASSWORD: ${RELAY_ADMIN_PASSWORD:?Set RELAY_ADMIN_PASSWORD}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-coopsource}:${POSTGRES_PASSWORD}@postgres:5432/relay
+      RELAY_REPLAY_WINDOW: 72h
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:2470/xrpc/_health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+
+  # PDS for the network's own cooperative account
+  pds:
+    image: ghcr.io/bluesky-social/pds:0.4
+    restart: unless-stopped
+    volumes:
+      - pdsdata:/pds
+    environment:
+      PDS_HOSTNAME: ${PDS_HOSTNAME:?Set PDS_HOSTNAME (e.g. pds.example.net)}
+      PDS_PORT: 3000
+      PDS_JWT_SECRET: ${PDS_JWT_SECRET:?Set PDS_JWT_SECRET (min 32 chars)}
+      PDS_ADMIN_PASSWORD: ${PDS_ADMIN_PASSWORD:?Set PDS_ADMIN_PASSWORD}
+      PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX: ${PDS_ROTATION_KEY:-}
+      PDS_DATA_DIRECTORY: /pds
+      PDS_BLOBSTORE_DISK_LOCATION: /pds/blobs
+      PDS_DID_PLC_URL: http://plc:2582
+      PDS_BSKY_APP_VIEW_URL: http://api:3001
+      PDS_BSKY_APP_VIEW_DID: ${INSTANCE_DID:-did:web:localhost}
+      PDS_REPORT_SERVICE_URL: ""
+      PDS_REPORT_SERVICE_DID: ""
+      PDS_CRAWLERS: http://relay:2470
+    depends_on:
+      plc:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/xrpc/_health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+
+  # Override Tap to connect to private relay instead of bsky.network
+  tap:
+    environment:
+      TAP_RELAY_URL: http://relay:2470
+      TAP_PLC_URL: http://plc:2582
+    depends_on:
+      relay:
+        condition: service_healthy
+
+  # Override API to use private PLC and PDS
+  api:
+    environment:
+      PLC_URL: http://plc:2582
+      PDS_URL: http://pds:3000
+      PDS_ADMIN_PASSWORD: ${PDS_ADMIN_PASSWORD}
+      INSTANCE_URL: https://${DOMAIN:-localhost}
+    depends_on:
+      pds:
+        condition: service_healthy
+
+volumes:
+  pdsdata:

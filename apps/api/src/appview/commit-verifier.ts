@@ -62,7 +62,10 @@ async function defaultResolveDid(did: DID): Promise<DidDocument> {
 
   let url: string;
   if (did.startsWith('did:plc:')) {
-    url = `https://plc.directory/${did}`;
+    const plcBase = process.env.PLC_URL && process.env.PLC_URL !== 'local'
+      ? process.env.PLC_URL
+      : 'https://plc.directory';
+    url = `${plcBase}/${did}`;
   } else if (did.startsWith('did:web:')) {
     const host = did.replace('did:web:', '').replace(/%3A/g, ':');
     url = `https://${host}/.well-known/did.json`;
