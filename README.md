@@ -98,10 +98,31 @@ Caddy automatically provisions TLS certificates from Let's Encrypt.
 | Service | Port | Description |
 |---------|------|-------------|
 | Caddy | 80, 443 | Reverse proxy with automatic HTTPS |
-| API | 3001 (internal) | Express backend |
+| API | 3001 (internal) | Express backend (AppView) |
 | Web | 3000 (internal) | SvelteKit frontend (adapter-node) |
+| Tap | 2480 (internal) | ATProto firehose sync + backfill |
 | PostgreSQL | 5432 (internal) | Database (99 tables, 51 migrations) |
 | Redis | 6379 (internal) | Password-protected cache |
+
+### PDS Setup (Cooperatives)
+
+Each cooperative needs its own PDS. Use the [official installer](https://github.com/bluesky-social/pds):
+
+```bash
+# On the cooperative's server (separate from the AppView server)
+curl https://raw.githubusercontent.com/bluesky-social/pds/main/installer.sh > installer.sh
+sudo bash installer.sh
+```
+
+> **Domain separation required**: PDS and AppView MUST be on different domains (not subdomains). Example: AppView at `coopsource.network`, PDS at `coopsource-pds.net`. See [ATProto production guide](https://atproto.com/guides/going-to-production).
+
+Create a cooperative account on the PDS:
+```bash
+docker exec pds goat pds admin account create \
+  --handle mycoop.pds-domain.net \
+  --email admin@mycoop.example \
+  --password <secure-password>
+```
 
 ### Management
 
@@ -167,9 +188,44 @@ See `infrastructure/.env.prod.example` for the full list. Key variables:
 | Can't connect to site | Firewall blocking ports | `ufw allow 80/tcp && ufw allow 443/tcp` |
 | Session/login issues | Secrets not loaded | Verify `infrastructure/.env` exists and has all required values |
 
+## Private Network Deployment
+
+Run a fully self-hosted network disconnected from public ATProto — no traffic to `bsky.network` or `plc.directory`.
+
+```bash
+# 1. Create private network environment file
+cp infrastructure/.env.private.example infrastructure/.env.private
+# Edit and set all REQUIRED values (passwords, secrets, PDS_HOSTNAME)
+
+# 2. Build and start (adds self-hosted PLC, relay, PDS to the base stack)
+make private-build
+make private-up
+make private-migrate
+
+# 3. Verify
+curl https://yourdomain.com/health
+```
+
+The private stack adds:
+
+| Service | Description |
+|---------|-------------|
+| PLC | Self-hosted DID directory |
+| Relay | ATProto event relay (Go, from `bluesky-social/indigo`) |
+| PDS | Data server for the network's cooperative account |
+
+```bash
+make private-up      # Start private network
+make private-down    # Stop private network
+make private-logs    # Tail logs
+make private-migrate # Run migrations
+```
+
+See [ARCHITECTURE-V7.md](./ARCHITECTURE-V7.md) for the full private network topology.
+
 ## Architecture
 
-See [ARCHITECTURE-V7.md](./ARCHITECTURE-V7.md) for remaining work (Ozone labeler, DB cleanup, ecosystem proposals), [ARCHITECTURE-V6.md](./ARCHITECTURE-V6.md) for the ATProto federation design (complete), and [ARCHITECTURE-V5.md](./ARCHITECTURE-V5.md) for cooperative lifecycle design, security model, and lexicon schemas.
+See [ARCHITECTURE-V7.md](./ARCHITECTURE-V7.md) for production deployment plans, [ARCHITECTURE-V6.md](./ARCHITECTURE-V6.md) for the ATProto federation design (complete), and [ARCHITECTURE-V5.md](./ARCHITECTURE-V5.md) for cooperative lifecycle design, security model, and lexicon schemas.
 
 ## Development
 
