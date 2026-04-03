@@ -111,17 +111,41 @@ test-federation: ## Run federation integration tests (requires running stack)
 
 # ─── Production deployment ──────────────────────────────────────────
 
+PROD_COMPOSE := docker compose --env-file infrastructure/.env -f infrastructure/docker-compose.prod.yml
+LOCAL_COMPOSE := $(PROD_COMPOSE) -f infrastructure/docker-compose.local.yml
+
 deploy-build: ## Build production Docker images
-	docker compose -f infrastructure/docker-compose.prod.yml build
+	$(PROD_COMPOSE) build
 
 deploy-up: ## Start production stack (requires .env in infrastructure/)
-	docker compose -f infrastructure/docker-compose.prod.yml up -d
+	$(PROD_COMPOSE) up -d
 
 deploy-down: ## Stop production stack
-	docker compose -f infrastructure/docker-compose.prod.yml down
+	$(PROD_COMPOSE) down
 
 deploy-logs: ## Tail production logs
-	docker compose -f infrastructure/docker-compose.prod.yml logs -f
+	$(PROD_COMPOSE) logs -f
 
 deploy-migrate: ## Run database migrations inside the API container
-	docker compose -f infrastructure/docker-compose.prod.yml exec api node packages/db/dist/migrate.js
+	$(PROD_COMPOSE) exec api node packages/db/dist/migrate.js
+
+# ─── Local production preview (HTTP, no TLS) ────────────────────────
+
+local-build: ## Build production Docker images for local preview
+	$(PROD_COMPOSE) build
+
+local-up: ## Start local production preview (HTTP on port 80)
+	$(LOCAL_COMPOSE) up -d
+
+local-down: ## Stop local production preview
+	$(LOCAL_COMPOSE) down
+
+local-logs: ## Tail local production preview logs
+	$(LOCAL_COMPOSE) logs -f
+
+local-migrate: ## Run migrations for local production preview
+	$(LOCAL_COMPOSE) exec api node packages/db/dist/migrate.js
+
+local-reset: ## Reset database for local production preview
+	$(LOCAL_COMPOSE) exec postgres psql -U coopsource -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'coopsource' AND pid <> pg_backend_pid();" -c "DROP DATABASE IF EXISTS coopsource;" -c "CREATE DATABASE coopsource;"
+	$(MAKE) local-migrate

@@ -119,10 +119,13 @@ coopsource.network/
 ├── infrastructure/
 │   ├── docker-compose.yml              # PostgreSQL 16 + Redis 7 + Mailpit (dev)
 │   └── docker-compose.federation.yml   # Multi-instance federation dev environment
+├── docs/
+│   ├── operations.md               # Production ops: backups, logs, migrations
+│   └── archive/                    # Historical research & planning docs
 ├── scripts/
-│   └── dev-services.sh     # Homebrew-based local dev setup
-├── ARCHITECTURE-V6.md      # ATProto federation migration plan (work ahead)
-├── ARCHITECTURE-V5.md      # Cooperative lifecycle design, security model, lexicon schemas
+│   └── dev-services.sh             # Homebrew-based local dev setup
+├── ARCHITECTURE-V6.md              # ATProto federation migration plan (work ahead)
+├── ARCHITECTURE-V5.md              # Cooperative lifecycle design, security model, lexicon schemas
 ├── turbo.json
 └── pnpm-workspace.yaml
 ```

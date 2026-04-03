@@ -13,6 +13,9 @@ COPY packages/common/ packages/common/
 COPY apps/web/ apps/web/
 RUN pnpm --filter @coopsource/web build
 
+# Prune to production dependencies
+RUN CI=true pnpm install --frozen-lockfile --prod
+
 FROM base AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
@@ -21,6 +24,9 @@ ENV PORT=3000
 COPY --from=build /app/apps/web/build ./build
 COPY --from=build /app/apps/web/package.json ./
 COPY --from=build /app/node_modules ./node_modules
+
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+USER appuser
 
 EXPOSE 3000
 CMD ["node", "build/index.js"]

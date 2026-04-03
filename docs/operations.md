@@ -2,10 +2,12 @@
 
 ## Database Backups
 
-Back up PostgreSQL daily. Run from the host where `docker-compose.prod.yml` is deployed:
+Back up PostgreSQL daily. Run from the repo root on the host:
 
 ```bash
-docker compose -f infrastructure/docker-compose.prod.yml exec -T postgres \
+make deploy-backup
+# Or manually:
+docker compose --env-file infrastructure/.env -f infrastructure/docker-compose.prod.yml exec -T postgres \
   pg_dump -U coopsource coopsource | gzip > backup-$(date +%Y%m%d).sql.gz
 ```
 
@@ -13,14 +15,14 @@ Restore from a backup:
 
 ```bash
 gunzip -c backup-20260329.sql.gz | \
-  docker compose -f infrastructure/docker-compose.prod.yml exec -T postgres \
+  docker compose --env-file infrastructure/.env -f infrastructure/docker-compose.prod.yml exec -T postgres \
   psql -U coopsource coopsource
 ```
 
 Automate with a cron job (e.g., daily at 2 AM):
 
 ```
-0 2 * * * cd /path/to/coopsource.network && docker compose -f infrastructure/docker-compose.prod.yml exec -T postgres pg_dump -U coopsource coopsource | gzip > /backups/coopsource-$(date +\%Y\%m\%d).sql.gz
+0 2 * * * cd /path/to/coopsource.network && docker compose --env-file infrastructure/.env -f infrastructure/docker-compose.prod.yml exec -T postgres pg_dump -U coopsource coopsource | gzip > /backups/coopsource-$(date +\%Y\%m\%d).sql.gz
 ```
 
 ## Blob Storage Backups
@@ -65,9 +67,11 @@ Or globally in `/etc/docker/daemon.json`:
 View logs:
 
 ```bash
-make deploy-logs              # tail all services
-docker compose -f infrastructure/docker-compose.prod.yml logs api    # single service
-docker compose -f infrastructure/docker-compose.prod.yml logs --since 1h  # last hour
+make deploy-logs                            # tail all services
+make deploy-logs -- api                     # single service (append service name)
+# Or manually:
+docker compose --env-file infrastructure/.env -f infrastructure/docker-compose.prod.yml logs api
+docker compose --env-file infrastructure/.env -f infrastructure/docker-compose.prod.yml logs --since 1h
 ```
 
 ## Session Cleanup
