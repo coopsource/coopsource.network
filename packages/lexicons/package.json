@@ -13,6 +13,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
+    "prebuild": "rm -rf dist",
     "build": "tsc",
     "lex:generate": "npx @atproto/lex-cli gen-ts-obj network/coopsource/**/*.json > src/generated/lexicons.ts",
     "test": "vitest run",

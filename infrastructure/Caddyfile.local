@@ -1,0 +1,19 @@
+http://{$DOMAIN:localhost} {
+	encode gzip
+
+	# API routes
+	handle /api/* {
+		reverse_proxy api:3001
+	}
+	handle /health {
+		reverse_proxy api:3001
+	}
+	handle /.well-known/* {
+		reverse_proxy api:3001
+	}
+
+	# SvelteKit web app (everything else)
+	handle {
+		reverse_proxy web:3000
+	}
+}

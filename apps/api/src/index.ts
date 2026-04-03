@@ -12,6 +12,7 @@ import express, { type Express } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
+import rateLimit from 'express-rate-limit';
 import { loadConfig } from './config.js';
 import { httpLogger, logger } from './middleware/logger.js';
 import { errorHandler } from './middleware/error-handler.js';
@@ -104,6 +105,26 @@ app.use(
 );
 app.use(compression());
 
+// Rate limiting — safety net for all API routes (skip in test to avoid flaky e2e)
+if (config.NODE_ENV === 'production') {
+  const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 200,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+  });
+  app.use('/api/', apiLimiter);
+
+  // Strict rate limit on auth endpoints to prevent brute-force
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 20,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+  });
+  app.use('/api/v1/auth/', authLimiter);
+}
+
 async function start(): Promise<void> {
   if (!config.DATABASE_URL) {
     logger.fatal('DATABASE_URL is required');
@@ -134,7 +155,7 @@ async function start(): Promise<void> {
   app.use(createPaymentWebhookRoutes(container));
 
   // JSON body parsing
-  app.use(express.json());
+  app.use(express.json({ limit: '1mb' }));
   app.use(httpLogger);
 
   // Session middleware (PostgreSQL-backed)
@@ -309,6 +330,7 @@ async function start(): Promise<void> {
       setTimeout(resolve, 10_000).unref();
     });
     await container.mcpClient.disconnectAll();
+    await container.db.destroy();
     process.exit(0);
   };
   process.on('SIGTERM', shutdown);

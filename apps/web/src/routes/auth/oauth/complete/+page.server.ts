@@ -1,10 +1,10 @@
 import { redirect, error } from '@sveltejs/kit';
+import { env } from '$env/dynamic/private';
 import type { PageServerLoad } from './$types.js';
 import { forwardSessionCookie } from '$lib/server/cookies.js';
 
-const API_BASE = process.env.API_URL ?? 'http://localhost:3001';
-
 export const load: PageServerLoad = async ({ url, cookies, fetch }) => {
+  const API_BASE = env.API_URL ?? 'http://localhost:3001';
   const token = url.searchParams.get('token');
 
   if (!token) {

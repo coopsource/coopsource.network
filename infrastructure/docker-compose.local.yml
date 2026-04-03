@@ -1,0 +1,15 @@
+services:
+  api:
+    environment:
+      INSTANCE_URL: http://localhost
+      FRONTEND_URL: http://localhost
+      PUBLIC_API_URL: http://localhost
+
+  web:
+    environment:
+      PUBLIC_API_URL: http://localhost
+      ORIGIN: http://localhost
+
+  caddy:
+    volumes:
+      - ./Caddyfile.local:/etc/caddy/Caddyfile:ro

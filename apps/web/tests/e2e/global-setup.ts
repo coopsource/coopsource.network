@@ -6,7 +6,7 @@ import { promises as fs } from 'node:fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEST_DB_NAME = 'coopsource_test';
-const ADMIN_URL = 'postgresql://localhost:5432/postgres';
+const ADMIN_URL = 'postgresql://coopsource:coopsource_dev@localhost:5432/postgres';
 
 async function globalSetup(): Promise<void> {
   // Drop and recreate the test database
@@ -27,7 +27,7 @@ async function globalSetup(): Promise<void> {
   const db = new Kysely<Record<string, unknown>>({
     dialect: new PostgresDialect({
       pool: new pg.Pool({
-        connectionString: `postgresql://localhost:5432/${TEST_DB_NAME}`,
+        connectionString: `postgresql://coopsource:coopsource_dev@localhost:5432/${TEST_DB_NAME}`,
         max: 3,
       }),
     }),

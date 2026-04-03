@@ -17,7 +17,7 @@ export function createSessionMiddleware(config: AppConfig): RequestHandler {
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: config.NODE_ENV === 'production',
+      secure: config.INSTANCE_URL.startsWith('https://'),
       httpOnly: true,
       sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days

@@ -50,6 +50,9 @@ export function createAuthRoutes(
       });
 
       req.session.did = result.did;
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err) => (err ? reject(err) : resolve()));
+      });
       res.status(201).json(result);
     }),
   );
@@ -96,6 +99,9 @@ export function createAuthRoutes(
 
       const result = await container.authService.login(email, password);
       req.session.did = result.did;
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err) => (err ? reject(err) : resolve()));
+      });
 
       // Fetch full actor context for the response
       const actor = await container.authService.getSessionActor(result.did);
@@ -348,8 +354,11 @@ export function createAuthRoutes(
           ? JSON.parse(row.state) as { did: string }
           : row.state as unknown as { did: string };
 
-        // Set session
+        // Set session and wait for persistence
         req.session.did = did;
+        await new Promise<void>((resolve, reject) => {
+          req.session.save((err) => (err ? reject(err) : resolve()));
+        });
 
         // Return user info (same format as login endpoint)
         const actor = await container.authService.getSessionActor(did);

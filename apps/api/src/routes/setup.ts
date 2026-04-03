@@ -195,8 +195,11 @@ export function createSetupRoutes(container: Container): Router {
 
       markSetupComplete();
 
-      // Set session
+      // Set session and wait for it to persist before responding
       req.session.did = adminDid;
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err) => (err ? reject(err) : resolve()));
+      });
 
       res.status(201).json({ coopDid, adminDid });
     }),

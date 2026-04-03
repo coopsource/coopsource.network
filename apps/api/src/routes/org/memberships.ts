@@ -355,8 +355,11 @@ export function createMembershipRoutes(container: Container): Router {
           .execute();
       });
 
-      // Set session
+      // Set session and wait for persistence
       req.session.did = memberDid;
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err) => (err ? reject(err) : resolve()));
+      });
 
       res.status(201).json({
         member: {
