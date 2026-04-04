@@ -173,7 +173,8 @@ See `infrastructure/.env.prod.example` for the full list. Key variables:
 | `KEY_ENC_KEY` | Yes | Encryption key for signing keys (base64) |
 | `SMTP_HOST` | No | Email server for invitations/notifications (leave unset to disable — invitations still work via shareable links) |
 | `PLC_URL` | No | ATProto PLC directory (default: local) |
-| `RELAY_URL` | No | ATProto relay for firehose (e.g., `wss://bsky.network`) |
+| `TAP_URL` | Auto | Tap firehose consumer HTTP URL (defaults to `http://tap:2480` in docker-compose) |
+| `RELAY_URL` | No | Configures Tap container's upstream relay (e.g., `wss://bsky.network`), not the API |
 | `PUBLIC_API_URL` | Auto | Client-side API base URL (set automatically from DOMAIN) |
 | `ORIGIN` | Auto | SvelteKit CSRF origin (set automatically from DOMAIN) |
 
