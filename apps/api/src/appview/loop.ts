@@ -1,6 +1,9 @@
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
 import type { IPdsService, FirehoseEvent } from '@coopsource/federation';
+import type { DID, AtUri, CID } from '@coopsource/common';
+import { Tap, SimpleIndexer } from '@atproto/tap';
+import type { RecordEvent } from '@atproto/tap';
 import { logger } from '../middleware/logger.js';
 import {
   indexMembership,
@@ -20,29 +23,16 @@ import { indexCalendarEvent, indexCalendarRsvp } from './indexers/calendar-index
 import { indexFrontpagePost } from './indexers/frontpage-indexer.js';
 import { indexLegalDocument, indexMeetingRecord } from './indexers/legal-indexer.js';
 import { indexOfficer, indexComplianceItem, indexMemberNotice, indexFiscalPeriod } from './indexers/admin-indexer.js';
-import { subscribeRelay } from './relay-consumer.js';
-import { subscribeTap } from './tap-consumer.js';
-import { verifyCommitSignature } from './commit-verifier.js';
 import { collectionFromUri } from './utils.js';
-
-const COLLECTION_PREFIXES = [
-  'network.coopsource.',
-  'community.lexicon.calendar.',
-  'fyi.unravel.frontpage.',
-];
-
-const MAX_BACKOFF_MS = 30_000;
 
 export interface AppViewConfig {
   tapUrl?: string;
-  relayUrl?: string;
-  verifySignatures?: boolean;
 }
 
 // ─── Firehose health state (exported for health endpoint) ──────────────────
 
 export interface FirehoseHealth {
-  mode: 'tap' | 'relay' | 'local';
+  mode: 'tap' | 'local';
   lastSeq: number;
   lastEventAt: string | null;
   errorCount: number;
@@ -133,160 +123,113 @@ export async function dispatchFirehoseEvent(
   }
 }
 
+// ─── Convert Tap RecordEvent to our FirehoseEvent ─────────────────────────
+
+function tapEventToFirehoseEvent(evt: RecordEvent): FirehoseEvent {
+  return {
+    seq: evt.id,
+    did: evt.did as DID,
+    operation: evt.action,
+    uri: `at://${evt.did}/${evt.collection}/${evt.rkey}` as AtUri,
+    cid: (evt.cid ?? '') as CID,
+    record: evt.record as Record<string, unknown> | undefined,
+    time: new Date().toISOString(),
+  };
+}
+
 // ─── AppView loop ──────────────────────────────────────────────────────────
+
+const MAX_BACKOFF_MS = 30_000;
 
 export async function startAppViewLoop(
   pdsService: IPdsService,
   db: Kysely<Database>,
   config: AppViewConfig = {},
 ): Promise<void> {
-  // Mode priority: TAP_URL > RELAY_URL > local pg_notify
-  const mode = config.tapUrl ? 'tap' : config.relayUrl ? 'relay' : 'local';
-  const subscriberId = `appview-${mode}`;
+  // Mode: TAP_URL → Tap client, otherwise local pg_notify fallback
+  const mode = config.tapUrl ? 'tap' : 'local';
 
   healthState.mode = mode;
   healthState.startedAt = new Date().toISOString();
 
-  // Ensure cursor row exists
-  const existing = await db
-    .selectFrom('pds_firehose_cursor')
-    .where('subscriber_id', '=', subscriberId)
-    .select('last_global_seq')
-    .executeTakeFirst();
+  logger.info({ mode, tapUrl: config.tapUrl }, 'AppView loop starting');
 
-  let cursor: number;
-  if (!existing) {
-    await db
-      .insertInto('pds_firehose_cursor')
-      .values({
-        subscriber_id: subscriberId,
-        last_global_seq: 0,
-        updated_at: new Date(),
-      })
-      .execute();
-    cursor = 0;
-  } else {
-    cursor = existing.last_global_seq;
-  }
-
-  logger.info({ cursor, mode }, 'AppView loop starting');
-
-  switch (mode) {
-    case 'tap':
-      runTapLoop(db, cursor, config).catch((err) => {
-        logger.error(err, 'Tap loop fatal error');
-      });
-      break;
-    case 'relay':
-      runRelayLoop(db, cursor, config).catch((err) => {
-        logger.error(err, 'Relay loop fatal error');
-      });
-      break;
-    default:
-      runLocalLoop(pdsService, db, cursor, config).catch((err) => {
-        logger.error(err, 'Local loop fatal error');
-      });
-      break;
-  }
-}
-
-// ─── Shared event processing ───────────────────────────────────────────────
-
-async function processEvent(
-  db: Kysely<Database>,
-  event: FirehoseEvent,
-  subscriberId: string,
-  config: AppViewConfig,
-): Promise<void> {
-  // Signature verification (all records when enabled, not just membership)
-  if (config.verifySignatures && event.commitSig && event.commitSignedBytes) {
-    const valid = await verifyCommitSignature({
-      did: event.did,
-      sig: event.commitSig,
-      signedBytes: event.commitSignedBytes,
+  if (mode === 'tap') {
+    runTapLoop(db, config).catch((err) => {
+      logger.error(err, 'Tap loop fatal error');
     });
-    if (!valid) {
-      logger.warn(
-        { uri: event.uri, did: event.did },
-        'Commit signature verification failed — indexing anyway (best-effort)',
-      );
+  } else {
+    // Ensure cursor row exists for local mode
+    const subscriberId = 'appview-local';
+    const existing = await db
+      .selectFrom('pds_firehose_cursor')
+      .where('subscriber_id', '=', subscriberId)
+      .select('last_global_seq')
+      .executeTakeFirst();
+
+    let cursor: number;
+    if (!existing) {
+      await db
+        .insertInto('pds_firehose_cursor')
+        .values({
+          subscriber_id: subscriberId,
+          last_global_seq: 0,
+          updated_at: new Date(),
+        })
+        .execute();
+      cursor = 0;
+    } else {
+      cursor = existing.last_global_seq;
     }
+
+    runLocalLoop(pdsService, db, cursor).catch((err) => {
+      logger.error(err, 'Local loop fatal error');
+    });
   }
-
-  await dispatchFirehoseEvent(db, event);
-
-  // Update cursor
-  await db
-    .updateTable('pds_firehose_cursor')
-    .set({
-      last_global_seq: event.seq,
-      updated_at: new Date(),
-    })
-    .where('subscriber_id', '=', subscriberId)
-    .execute();
-
-  // Update health state
-  healthState.lastSeq = event.seq;
-  healthState.lastEventAt = new Date().toISOString();
 }
 
-// ─── Tap loop ──────────────────────────────────────────────────────────────
+// ─── Tap loop (using @atproto/tap client) ─────────────────────────────────
 
 async function runTapLoop(
   db: Kysely<Database>,
-  cursor: number,
   config: AppViewConfig,
 ): Promise<void> {
-  const subscriberId = 'appview-tap';
-  const stream = subscribeTap({ tapUrl: config.tapUrl!, cursor });
+  const tap = new Tap(config.tapUrl!);
+  const indexer = new SimpleIndexer();
 
-  for await (const event of stream) {
+  indexer.record(async (evt) => {
     try {
-      await processEvent(db, event, subscriberId, config);
+      const firehoseEvent = tapEventToFirehoseEvent(evt);
+      await dispatchFirehoseEvent(db, firehoseEvent);
+
+      healthState.lastSeq = evt.id;
+      healthState.lastEventAt = new Date().toISOString();
     } catch (err) {
       healthState.errorCount++;
       logger.error(
-        { err, event: { seq: event.seq, uri: event.uri } },
+        { err, event: { id: evt.id, collection: evt.collection, did: evt.did } },
         'AppView indexer error (tap)',
       );
     }
-  }
-}
-
-// ─── Relay loop ────────────────────────────────────────────────────────────
-
-async function runRelayLoop(
-  db: Kysely<Database>,
-  cursor: number,
-  config: AppViewConfig,
-): Promise<void> {
-  const subscriberId = 'appview-relay';
-  const stream = subscribeRelay({
-    relayUrl: config.relayUrl!,
-    collectionPrefixes: COLLECTION_PREFIXES,
-    cursor,
   });
 
-  for await (const event of stream) {
-    try {
-      await processEvent(db, event, subscriberId, config);
-    } catch (err) {
-      healthState.errorCount++;
-      logger.error(
-        { err, event: { seq: event.seq, uri: event.uri } },
-        'AppView indexer error (relay)',
-      );
-    }
-  }
+  indexer.error((err) => {
+    healthState.errorCount++;
+    logger.error({ err }, 'Tap indexer error');
+  });
+
+  const channel = tap.channel(indexer);
+  await channel.start();
+
+  logger.info({ tapUrl: config.tapUrl }, 'Tap channel started');
 }
 
-// ─── Local loop ────────────────────────────────────────────────────────────
+// ─── Local loop (pg_notify fallback for dev) ──────────────────────────────
 
 async function runLocalLoop(
   pdsService: IPdsService,
   db: Kysely<Database>,
   cursor: number,
-  config: AppViewConfig,
 ): Promise<void> {
   const subscriberId = 'appview-local';
   let backoff = 1000;
@@ -298,7 +241,21 @@ async function runLocalLoop(
 
       for await (const event of stream) {
         try {
-          await processEvent(db, event, subscriberId, config);
+          await dispatchFirehoseEvent(db, event);
+
+          // Update cursor
+          await db
+            .updateTable('pds_firehose_cursor')
+            .set({
+              last_global_seq: event.seq,
+              updated_at: new Date(),
+            })
+            .where('subscriber_id', '=', subscriberId)
+            .execute();
+
+          healthState.lastSeq = event.seq;
+          healthState.lastEventAt = new Date().toISOString();
+
           cursor = event.seq;
           backoff = 1000;
         } catch (err) {

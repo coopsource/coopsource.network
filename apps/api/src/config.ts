@@ -50,10 +50,8 @@ const envSchema = z
     INSTANCE_ROLE: z.enum(['standalone', 'hub', 'coop']).default('standalone'),
     INSTANCE_DID: z.string().optional(),   // Override auto-derived DID
     HUB_URL: z.string().optional(),        // Hub URL for co-op instances to register with
-    // V6 Phase F3: Firehose AppView (TAP_URL takes priority over RELAY_URL; neither = local pg_notify)
-    TAP_URL: z.string().url().optional(),     // Tap WebSocket URL (e.g. ws://localhost:4000). Pre-filtered firehose events.
-    RELAY_URL: z.string().url().optional(),    // ATProto relay WebSocket (e.g. wss://bsky.network). Raw firehose, filtered by collection prefix.
-    VERIFY_COMMIT_SIGNATURES: z.enum(['true', 'false']).default('false'), // Verify commit signatures on firehose records
+    // Tap firehose consumer (pre-filtered ATProto events over HTTP; unset = local pg_notify)
+    TAP_URL: z.string().url().optional(),     // Tap HTTP URL (e.g. http://localhost:2480)
   })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV === 'production') {

@@ -6,7 +6,9 @@ Co-op Source Network is a federated collaboration platform built on ATProtocol. 
 
 This monorepo is deployed to `coopsource.network`.
 
-**For the ATProto federation migration plan (the work ahead), see [ARCHITECTURE-V6.md](./ARCHITECTURE-V6.md).**
+**For remaining work (Ozone labeler, DB cleanup, ecosystem proposals), see [ARCHITECTURE-V7.md](./ARCHITECTURE-V7.md).**
+
+**For the ATProto federation migration design (complete, all 4 phases merged), see [ARCHITECTURE-V6.md](./ARCHITECTURE-V6.md).**
 
 **For cooperative lifecycle design, security model, lexicon schemas, and three-tier data model, see [ARCHITECTURE-V5.md](./ARCHITECTURE-V5.md).**
 
@@ -77,22 +79,22 @@ make db-reset   # Drop DB, recreate, and re-migrate
 
 ## Architecture Overview
 
-### Current State (tagged `v3-final`)
+### Current State
 
 The application layer is complete: 594 source files, 75 pages, 44 services, 99 database tables, 279 E2E tests. All feature development (governance, agreements, legal, finance, operations, commerce, integrations, AI agents, alignment) is built and tested.
 
-**Federation currently runs on V3 plumbing** — a custom `LocalPdsService` that stores ATProto-shaped records in PostgreSQL and emits events via `pg_notify`. This was always scaffolding for development. Scaffolding for real ATProto exists (`AtprotoPdsService`, `PlcClient`) but is gated behind env vars and inactive.
+**V6 federation migration is complete** (all 4 phases merged March 26, 2026). Real ATProto infrastructure (`AtprotoPdsService`, `PlcClient`, `MemberWriteProxy`, relay/Tap firehose consumers) is production-ready and activated via environment variables. `LocalPdsService` is retained as a dev-only fallback when `PDS_URL` is not set.
 
-### V6: ATProto Federation Migration (work ahead)
+### V6: ATProto Federation Migration (complete)
 
-V6 replaces the V3 simulation with real ATProto infrastructure. See [ARCHITECTURE-V6.md](./ARCHITECTURE-V6.md) for the full plan.
+V6 replaced the V3 simulation with real ATProto infrastructure. See [ARCHITECTURE-V6.md](./ARCHITECTURE-V6.md) for the full design.
 
-| Phase | Scope |
-|-------|-------|
-| F1 | PDS + Identity: self-hosted `@atproto/pds`, `did:plc`, cooperative provisioning |
-| F2 | Member OAuth: DPoP-bound write proxy, `private_record` table for Tier 2 |
-| F3 | Tap AppView: firehose consumer via Tap, retire `pg_notify` loop |
-| F4 | Ecosystem + Cleanup: Ozone labeler, retire LocalPdsService/LocalFederationClient |
+| Phase | Status | Scope |
+|-------|--------|-------|
+| F1 | Done | PDS + Identity: self-hosted `@atproto/pds`, `did:plc`, cooperative provisioning |
+| F2 | Done | Member OAuth: DPoP-bound write proxy, `private_record` table for Tier 2 |
+| F3 | Done | Firehose AppView: relay/Tap consumers, tri-mode AppView loop |
+| F4 | Done | Ecosystem: GovernanceLabeler, StarterPackService, retire V3 federation components |
 
 ### Three-Tier Data Model
 
@@ -111,8 +113,8 @@ coopsource.network/
 │   └── web/          # @coopsource/web — SvelteKit frontend
 ├── packages/
 │   ├── lexicons/     # @coopsource/lexicons — ATProto lexicon JSON + generated TS
-│   ├── federation/   # @coopsource/federation — IPdsService, IFederationClient,
-│   │                 #   LocalPdsService, DidWebResolver, HTTP signing, blobs, email
+│   ├── federation/   # @coopsource/federation — IPdsService, AtprotoPdsService,
+│   │                 #   PlcClient, firehose decoder, HTTP signing, blobs, email
 │   ├── db/           # @coopsource/db — Kysely database layer + migrations
 │   ├── common/       # @coopsource/common — Shared types, constants, errors, validation
 │   └── config/       # @coopsource/config — Shared tsconfig, eslint, prettier
@@ -124,7 +126,8 @@ coopsource.network/
 │   └── archive/                    # Historical research & planning docs
 ├── scripts/
 │   └── dev-services.sh             # Homebrew-based local dev setup
-├── ARCHITECTURE-V6.md              # ATProto federation migration plan (work ahead)
+├── ARCHITECTURE-V7.md              # Remaining work: Ozone, DB cleanup, ecosystem proposals
+├── ARCHITECTURE-V6.md              # ATProto federation migration design (complete)
 ├── ARCHITECTURE-V5.md              # Cooperative lifecycle design, security model, lexicon schemas
 ├── turbo.json
 └── pnpm-workspace.yaml
@@ -183,9 +186,9 @@ The application supports legal entity types (cooperative corporation, cooperativ
 
 ## Federation Architecture
 
-**Target**: Cooperatives are genuine ATProto accounts. Members bring their own Bluesky identities. Governance records flow through the real relay network alongside Bluesky posts, Tangled commits, Smoke Signal RSVPs, and WhiteWind blog entries.
+Cooperatives are genuine ATProto accounts. Members bring their own Bluesky identities. Governance records flow through the real relay network alongside Bluesky posts, Tangled commits, Smoke Signal RSVPs, and WhiteWind blog entries.
 
-**Current**: Federation runs on V3 plumbing (`LocalPdsService`, `pg_notify`, `did:web`). The V6 migration (see ARCHITECTURE-V6.md) replaces this with real ATProto infrastructure.
+V6 federation is complete. In production (with `PDS_URL` set), records are written to a real `@atproto/pds` and consumed from the ATProto relay firehose. In local dev (without `PDS_URL`), `LocalPdsService` provides a PostgreSQL-backed fallback with `pg_notify` firehose.
 
 ### Identity
 
@@ -215,11 +218,12 @@ Controlled by `INSTANCE_ROLE` env var:
 ### Federation Abstractions
 
 - **`IPdsService`** — interface for PDS operations
-  - `LocalPdsService`: current implementation — PostgreSQL-backed, `pg_notify` firehose (V3 plumbing, retired in V6 Phase F4)
-  - `AtprotoPdsService`: real ATProto XRPC — exists but inactive, gated behind `PDS_URL` env var (activated in V6 Phase F1)
-- **`IFederationClient`** — interface for cross-co-op operations (retained for Tier 2 private data only)
-- **`DidWebResolver`** — resolves `did:web` identifiers (remains for local dev)
-- **`PlcClient`** — HTTP client for plc.directory (exists but inactive, activated in V6 Phase F1)
+  - `AtprotoPdsService`: production implementation — real ATProto XRPC, activated by `PDS_URL` env var
+  - `LocalPdsService`: dev fallback — PostgreSQL-backed, `pg_notify` firehose (used when `PDS_URL` is not set)
+- **`MemberWriteProxy`** — proxies record writes to member's own PDS via DPoP-bound OAuth
+- **`OperatorWriteProxy`** — writes to cooperative's PDS with operator authorization and audit logging
+- **`PlcClient`** — HTTP client for plc.directory, activated by `PLC_URL` (falls back to `LocalPlcClient` when `PLC_URL=local`)
+- **`DidWebResolver`** — resolves `did:web` identifiers (local dev only)
 
 ## ATProtocol Patterns
 
@@ -337,7 +341,7 @@ export default defineConfig({
 - **Commerce**: `commerceListingService`, `commerceNeedService`, `procurementService`, `sharedResourceService`, `intercoopAgreementService`
 - **Platform**: `agentService`, `connectorRegistryService`, `eventBusService`, `webhookService`, `reportingService`, `dashboardService`, `mentionService`, `onboardingService`, `alignmentService`, `fundingService`, `connectionService`, `delegationVotingService`, `governanceFeedService`, `cooperativeLinkService`, `memberClassService`, `starterPackService`, `collaborativeProjectService`
 
-V6 will add: `tapConsumer`, `memberWriteProxy`, `governanceLabeler`, and activate `PlcClient`/`AtprotoPdsService` (scaffolding exists).
+V6 added: `tapConsumer`, `memberWriteProxy`, `operatorWriteProxy`, `governanceLabeler`, `starterPackService`, `visibilityRouter`, `privateRecordService`, and activated `PlcClient`/`AtprotoPdsService`.
 
 ## Implementation Phases
 
@@ -345,16 +349,16 @@ V6 will add: `tapConsumer`, `memberWriteProxy`, `governanceLabeler`, and activat
 
 All application features are built and tested on V3 federation plumbing. This includes governance, agreements, legal documents, meeting records, officers, compliance, fiscal periods, patronage, capital accounts, tax forms, expenses, revenue, tasks, time tracking, schedules, commerce, connectors, webhooks, reports, AI agents, onboarding, alignment, and delegation voting.
 
-### Ahead: V6 Federation Migration
+### Completed: V6 Federation Migration (March 26, 2026)
 
-See [ARCHITECTURE-V6.md](./ARCHITECTURE-V6.md) for full details.
+All 4 phases merged to main. See [ARCHITECTURE-V6.md](./ARCHITECTURE-V6.md) for the full design.
 
-| Phase | Branch | Scope |
-|-------|--------|-------|
-| F1 | `feature/f1-pds-identity` | Self-hosted `@atproto/pds`, `did:plc`, cooperative provisioning |
-| F2 | `feature/f2-member-oauth` | DPoP-bound OAuth proxy, member write routing, `private_record` table |
-| F3 | `feature/f3-tap-appview` | Tap firehose consumer, bilateral state machine on real records |
-| F4 | `feature/f4-ecosystem-cleanup` | Ozone labeler, Smoke Signal, retire V3 federation components |
+| Phase | Scope |
+|-------|-------|
+| F1 | Self-hosted `@atproto/pds`, `did:plc`, cooperative provisioning |
+| F2 | DPoP-bound OAuth proxy, member write routing, `private_record` table |
+| F3 | Relay/Tap firehose consumers, tri-mode AppView loop |
+| F4 | GovernanceLabeler, StarterPackService, retire V3 federation components |
 
 ## Pitfalls
 
