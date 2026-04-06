@@ -1093,6 +1093,7 @@ export interface GovernanceLabelTable {
   label_value: string;
   neg: ColumnType<boolean, boolean | undefined, boolean>;
   created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  seq: Generated<number>;
 }
 
 // ──────────────────────────────────────────────
