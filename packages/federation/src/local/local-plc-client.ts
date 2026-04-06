@@ -66,6 +66,22 @@ function buildDidDocument(
   did: string,
   params: PlcCreateParams,
 ): Record<string, unknown> {
+  const service: Array<{ id: string; type: string; serviceEndpoint: string }> = [
+    {
+      id: '#atproto_pds',
+      type: 'AtprotoPersonalDataServer',
+      serviceEndpoint: params.pdsUrl,
+    },
+  ];
+
+  if (params.labelerUrl) {
+    service.push({
+      id: '#atproto_labeler',
+      type: 'AtprotoLabeler',
+      serviceEndpoint: params.labelerUrl,
+    });
+  }
+
   return {
     '@context': [
       'https://www.w3.org/ns/did/v1',
@@ -83,13 +99,7 @@ function buildDidDocument(
     ],
     authentication: [`${did}#atproto`],
     assertionMethod: [`${did}#atproto`],
-    service: [
-      {
-        id: '#atproto_pds',
-        type: 'AtprotoPersonalDataServer',
-        serviceEndpoint: params.pdsUrl,
-      },
-    ],
+    service,
   };
 }
 
@@ -104,17 +114,26 @@ export class LocalPlcClient {
   constructor(private db: Kysely<FederationDatabase>) {}
 
   async create(params: PlcCreateParams): Promise<string> {
+    const services: Record<string, { type: string; endpoint: string }> = {
+      atproto_pds: {
+        type: 'AtprotoPersonalDataServer',
+        endpoint: params.pdsUrl,
+      },
+    };
+
+    if (params.labelerUrl) {
+      services.atproto_labeler = {
+        type: 'AtprotoLabeler',
+        endpoint: params.labelerUrl,
+      };
+    }
+
     const genesisOp = {
       type: 'plc_operation',
       rotationKeys: params.rotationKeys ?? [params.signingKey],
       verificationMethods: { atproto: params.signingKey },
       alsoKnownAs: [`at://${params.handle}`],
-      services: {
-        atproto_pds: {
-          type: 'AtprotoPersonalDataServer',
-          endpoint: params.pdsUrl,
-        },
-      },
+      services,
       prev: null,
     };
 

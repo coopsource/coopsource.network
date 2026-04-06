@@ -10,6 +10,7 @@ export interface PlcCreateParams {
   handle: string; // e.g. alice.acme.example.com
   pdsUrl: string; // e.g. https://acme.example.com
   rotationKeys?: string[];
+  labelerUrl?: string; // AppView URL for ATProto labeler service
 }
 
 export interface PlcSigningKey {
@@ -40,6 +41,20 @@ export class PlcClient {
   ): Promise<string> {
     const rotationKeys = params.rotationKeys ?? [params.signingKey];
 
+    const services: Record<string, { type: string; endpoint: string }> = {
+      atproto_pds: {
+        type: 'AtprotoPersonalDataServer',
+        endpoint: params.pdsUrl,
+      },
+    };
+
+    if (params.labelerUrl) {
+      services.atproto_labeler = {
+        type: 'AtprotoLabeler',
+        endpoint: params.labelerUrl,
+      };
+    }
+
     const unsignedOp: UnsignedPlcOperation = {
       type: 'plc_operation',
       rotationKeys,
@@ -47,12 +62,7 @@ export class PlcClient {
         atproto: params.signingKey,
       },
       alsoKnownAs: [`at://${params.handle}`],
-      services: {
-        atproto_pds: {
-          type: 'AtprotoPersonalDataServer',
-          endpoint: params.pdsUrl,
-        },
-      },
+      services,
       prev: null,
     };
 
