@@ -56,6 +56,7 @@ import { createMemberClassRoutes } from './routes/governance/member-classes.js';
 import { createCooperativeLinkRoutes } from './routes/governance/cooperative-links.js';
 import { createMcpRoutes } from './mcp/server.js';
 import { createLabelRoutes } from './routes/labels.js';
+import { createAdminLexiconRoutes } from './routes/admin-lexicons.js';
 import { createLegalDocumentRoutes } from './routes/legal/documents.js';
 import { createMeetingRoutes } from './routes/legal/meetings.js';
 import { createOfficerRoutes } from './routes/admin-legal/officers.js';
@@ -290,6 +291,12 @@ async function start(): Promise<void> {
 
   // MCP server (bearer token auth)
   app.use(createMcpRoutes(container.db));
+
+  // Admin lexicon management (V7 P7)
+  app.use(createAdminLexiconRoutes(container));
+
+  // V7 P7: Load registered lexicons from database at startup
+  await container.lexiconManagementService.loadRegisteredLexicons();
 
   // Error handling (must be last)
   app.use(errorHandler);

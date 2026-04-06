@@ -100,4 +100,8 @@ export type {
   ReportSnapshotTable,
   NotificationPreferenceTable,
   MentionTable,
+  // Hook pipeline (052)
+  HookDeadLetterTable,
+  // Registered lexicons (053)
+  RegisteredLexiconTable,
 } from './schema.js';
