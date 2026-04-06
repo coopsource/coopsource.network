@@ -29,6 +29,7 @@ import { EventDispatcher } from '../../src/ai/triggers/event-dispatcher.js';
 import { MemberWriteProxy } from '../../src/services/member-write-proxy.js';
 import { OperatorWriteProxy } from '../../src/services/operator-write-proxy.js';
 import { GovernanceLabeler } from '../../src/services/governance-labeler.js';
+import { LabelSubscriptionManager } from '../../src/services/label-subscription.js';
 import { LegalDocumentService } from '../../src/services/legal-document-service.js';
 import { ComplianceCalendarService } from '../../src/services/compliance-calendar-service.js';
 import { OfficerRecordService } from '../../src/services/officer-record-service.js';
@@ -99,6 +100,7 @@ import { createMemberClassRoutes } from '../../src/routes/governance/member-clas
 import { createCooperativeLinkRoutes } from '../../src/routes/governance/cooperative-links.js';
 import { createAdminLexiconRoutes } from '../../src/routes/admin-lexicons.js';
 import { createAdminScriptRoutes } from '../../src/routes/admin-scripts.js';
+import { createXrpcLabelRoutes } from '../../src/routes/xrpc-labels.js';
 import { errorHandler } from '../../src/middleware/error-handler.js';
 import { getTestDb, getTestConnectionString } from './test-db.js';
 
@@ -150,7 +152,8 @@ export function createTestApp(): TestApp {
     emailService,
     clock,
   );
-  const governanceLabeler = new GovernanceLabeler(db);
+  const labelSubscriptionManager = new LabelSubscriptionManager(db);
+  const governanceLabeler = new GovernanceLabeler(db, labelSubscriptionManager);
   const postService = new PostService(db, clock);
   const proposalService = new ProposalService(db, pdsService, clock, memberWriteProxy, governanceLabeler);
   const agreementService = new AgreementService(db, pdsService, clock, memberWriteProxy);
@@ -227,6 +230,8 @@ export function createTestApp(): TestApp {
     memberWriteProxy,
     operatorWriteProxy,
     governanceLabeler,
+    labelSubscriptionManager,
+    labelSigner: undefined,
     legalDocumentService,
     complianceCalendarService,
     officerRecordService,
@@ -319,6 +324,7 @@ export function createTestApp(): TestApp {
   app.use(createCooperativeLinkRoutes(container));
   app.use(createAdminLexiconRoutes(container));
   app.use(createAdminScriptRoutes(container));
+  app.use(createXrpcLabelRoutes(db));
 
   // Error handler (must be last)
   app.use(errorHandler);
