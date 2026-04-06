@@ -86,6 +86,7 @@ import { createMentionRoutes } from './routes/notifications/mentions.js';
 import { createAdminScriptRoutes } from './routes/admin-scripts.js';
 import { startAppViewLoop } from './appview/loop.js';
 import { createOAuthClient } from './auth/oauth-client.js';
+import { createXrpcLabelRoutes, setupLabelWebSocket } from './routes/xrpc-labels.js';
 
 const config = loadConfig();
 const app: Express = express();
@@ -282,6 +283,9 @@ async function start(): Promise<void> {
   // Governance label routes
   app.use(createLabelRoutes(container.governanceLabeler));
 
+  // XRPC label routes (ATProto com.atproto.label.queryLabels)
+  app.use(createXrpcLabelRoutes(container.db));
+
   // Onboarding routes (Phase 7)
   app.use(createOnboardingRoutes(container));
 
@@ -335,11 +339,14 @@ async function start(): Promise<void> {
     logger.info(`API server listening on port ${config.PORT}`);
   });
 
+  const labelWss = setupLabelWebSocket(server, container.labelSubscriptionManager);
+
   // Graceful shutdown — drain connections before exit
   const shutdown = async () => {
     logger.info('Shutting down...');
     container.eventDispatcher.stop();
     await container.scriptWorkerPool.shutdown();
+    labelWss.close();
     await new Promise<void>((resolve) => {
       server.close(() => resolve());
       // Force exit after 10 seconds if connections don't drain

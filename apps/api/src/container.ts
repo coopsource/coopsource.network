@@ -32,6 +32,8 @@ import { MemberWriteProxy } from './services/member-write-proxy.js';
 import type { IMemberRecordWriter } from './services/member-write-proxy.js';
 import { OperatorWriteProxy } from './services/operator-write-proxy.js';
 import { GovernanceLabeler } from './services/governance-labeler.js';
+import { LabelSubscriptionManager } from './services/label-subscription.js';
+import { LabelSigner } from './services/label-signer.js';
 import { LegalDocumentService } from './services/legal-document-service.js';
 import { ComplianceCalendarService } from './services/compliance-calendar-service.js';
 import { OfficerRecordService } from './services/officer-record-service.js';
@@ -100,6 +102,8 @@ export interface Container {
   memberWriteProxy: MemberWriteProxy;
   operatorWriteProxy: OperatorWriteProxy;
   governanceLabeler: GovernanceLabeler;
+  labelSubscriptionManager: LabelSubscriptionManager;
+  labelSigner: LabelSigner | undefined;
   legalDocumentService: LegalDocumentService;
   complianceCalendarService: ComplianceCalendarService;
   officerRecordService: OfficerRecordService;
@@ -198,7 +202,11 @@ export function createContainer(config: AppConfig): Container {
   );
   const privateRecordService = new PrivateRecordService(db, clock);
   const visibilityRouter = new VisibilityRouter(db, privateRecordService);
-  const governanceLabeler = new GovernanceLabeler(db);
+  const labelSubscriptionManager = new LabelSubscriptionManager(db);
+  const labelSigner = config.COOP_ROTATION_KEY_HEX
+    ? new LabelSigner(config.COOP_ROTATION_KEY_HEX)
+    : undefined;
+  const governanceLabeler = new GovernanceLabeler(db, labelSubscriptionManager, labelSigner);
   const postService = new PostService(db, clock);
   const proposalService = new ProposalService(db, pdsService, clock, memberWriteProxy, governanceLabeler, visibilityRouter);
   const agreementService = new AgreementService(db, pdsService, clock, memberWriteProxy);
@@ -290,6 +298,8 @@ export function createContainer(config: AppConfig): Container {
     memberWriteProxy,
     operatorWriteProxy,
     governanceLabeler,
+    labelSubscriptionManager,
+    labelSigner,
     legalDocumentService,
     complianceCalendarService,
     officerRecordService,
