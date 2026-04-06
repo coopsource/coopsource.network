@@ -1,6 +1,8 @@
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
 import { logger } from '../middleware/logger.js';
+import type { LabelSubscriptionManager, ATProtoLabel } from './label-subscription.js';
+import type { LabelSigner, UnsignedLabel } from './label-signer.js';
 
 export type GovernanceLabelValue =
   | 'proposal-active'
@@ -11,7 +13,11 @@ export type GovernanceLabelValue =
   | 'agreement-ratified';
 
 export class GovernanceLabeler {
-  constructor(private db: Kysely<Database>) {}
+  constructor(
+    private db: Kysely<Database>,
+    private subscriptionManager?: LabelSubscriptionManager,
+    private labelSigner?: LabelSigner,
+  ) {}
 
   /**
    * Emit a governance label for a record.
@@ -24,18 +30,40 @@ export class GovernanceLabeler {
     subjectCid?: string,
   ): Promise<void> {
     try {
-      await this.db
+      const now = new Date();
+      const result = await this.db
         .insertInto('governance_label')
         .values({
           src_did: srcDid,
           subject_uri: subjectUri,
           subject_cid: subjectCid ?? null,
           label_value: labelValue,
-          created_at: new Date(),
+          created_at: now,
         })
-        .execute();
+        .returning(['seq', 'created_at'])
+        .executeTakeFirstOrThrow();
 
       logger.info({ srcDid, subjectUri, labelValue }, 'Governance label emitted');
+
+      // Notify WebSocket subscribers
+      if (this.subscriptionManager) {
+        const unsignedLabel: UnsignedLabel = {
+          ver: 1,
+          src: srcDid,
+          uri: subjectUri,
+          cid: subjectCid,
+          val: labelValue,
+          neg: false,
+          cts: now.toISOString(),
+        };
+
+        const atLabel: ATProtoLabel = {
+          ...unsignedLabel,
+          sig: this.labelSigner ? await this.labelSigner.sign(unsignedLabel) : undefined,
+        };
+
+        this.subscriptionManager.notifyNewLabel(Number(result.seq), atLabel);
+      }
     } catch (err) {
       logger.warn({ err, srcDid, subjectUri, labelValue }, 'Failed to emit governance label');
     }
@@ -50,16 +78,37 @@ export class GovernanceLabeler {
     labelValue: GovernanceLabelValue,
   ): Promise<void> {
     try {
-      await this.db
+      const now = new Date();
+      const result = await this.db
         .insertInto('governance_label')
         .values({
           src_did: srcDid,
           subject_uri: subjectUri,
           label_value: labelValue,
           neg: true,
-          created_at: new Date(),
+          created_at: now,
         })
-        .execute();
+        .returning(['seq', 'created_at'])
+        .executeTakeFirstOrThrow();
+
+      // Notify WebSocket subscribers
+      if (this.subscriptionManager) {
+        const unsignedLabel: UnsignedLabel = {
+          ver: 1,
+          src: srcDid,
+          uri: subjectUri,
+          val: labelValue,
+          neg: true,
+          cts: now.toISOString(),
+        };
+
+        const atLabel: ATProtoLabel = {
+          ...unsignedLabel,
+          sig: this.labelSigner ? await this.labelSigner.sign(unsignedLabel) : undefined,
+        };
+
+        this.subscriptionManager.notifyNewLabel(Number(result.seq), atLabel);
+      }
     } catch (err) {
       logger.warn({ err, subjectUri, labelValue }, 'Failed to negate governance label');
     }
@@ -75,6 +124,7 @@ export class GovernanceLabeler {
     labelValue: string;
     neg: boolean;
     createdAt: Date;
+    seq: number;
   }>> {
     const rows = await this.db
       .selectFrom('governance_label')
@@ -90,6 +140,7 @@ export class GovernanceLabeler {
       labelValue: r.label_value,
       neg: r.neg,
       createdAt: r.created_at as Date,
+      seq: Number(r.seq),
     }));
   }
 
@@ -106,6 +157,7 @@ export class GovernanceLabeler {
     labelValue: string;
     neg: boolean;
     createdAt: Date;
+    seq: number;
   }>> {
     const rows = await this.db
       .selectFrom('governance_label')
@@ -123,6 +175,7 @@ export class GovernanceLabeler {
       labelValue: r.label_value,
       neg: r.neg,
       createdAt: r.created_at as Date,
+      seq: Number(r.seq),
     }));
   }
 }
