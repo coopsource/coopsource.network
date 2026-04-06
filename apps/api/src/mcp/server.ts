@@ -247,7 +247,7 @@ function createScopedMcpServer(
         .selectFrom('pds_record')
         .where('deleted_at', 'is', null)
         .where(
-          sql<boolean>`content::text ILIKE ${'%' + searchQuery + '%'}`,
+          sql<boolean>`content::text ILIKE ${'%' + searchQuery.replace(/[%_\\]/g, '\\$&') + '%'}`,
         )
         .select(['uri', 'did', 'collection', 'content', 'indexed_at'])
         .orderBy('indexed_at', 'desc')
@@ -296,8 +296,8 @@ function createScopedMcpServer(
     },
     async ({ nsid }) => {
       // Check built-in lexicons first
-      const builtIn = (lexiconSchemas as ReadonlyArray<{ id: string }>).find(
-        (lex) => lex.id === nsid,
+      const builtIn = (lexiconSchemas as unknown[]).find(
+        (lex) => typeof lex === 'object' && lex !== null && 'id' in lex && (lex as { id: string }).id === nsid,
       );
       if (builtIn) {
         return { content: [{ type: 'text' as const, text: JSON.stringify(builtIn, null, 2) }] };

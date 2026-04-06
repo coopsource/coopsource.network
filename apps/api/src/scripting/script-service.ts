@@ -85,6 +85,8 @@ export interface TestResult {
 export class ScriptService {
   /** Track domain-event listener cleanup functions by script id */
   private domainEventListeners = new Map<string, (event: AppEvent) => void>();
+  /** Guard against concurrent execution of the same domain-event script */
+  private executingScripts = new Set<string>();
 
   constructor(
     private db: Kysely<Database>,
@@ -365,12 +367,22 @@ export class ScriptService {
       // Filter: only fire for matching event types (empty = all)
       if (eventTypes.size > 0 && !eventTypes.has(event.type)) return;
 
-      this.executeDomainEventScript(script, event).catch((err) => {
-        logger.error(
-          { err, scriptId: script.id, eventType: event.type },
-          'Domain event script execution failed',
-        );
-      });
+      // Skip if this script is already executing (prevent queue exhaustion under load)
+      if (this.executingScripts.has(script.id)) {
+        logger.debug({ scriptId: script.id }, 'Skipping domain event script (already executing)');
+        return;
+      }
+      this.executingScripts.add(script.id);
+      this.executeDomainEventScript(script, event)
+        .catch((err) => {
+          logger.error(
+            { err, scriptId: script.id, eventType: event.type },
+            'Domain event script execution failed',
+          );
+        })
+        .finally(() => {
+          this.executingScripts.delete(script.id);
+        });
     };
 
     sseEmitter.on('event', listener);
@@ -572,7 +584,7 @@ export class ScriptService {
       uri: r.uri,
       did: r.did,
       collection: r.collection,
-      content: typeof r.content === 'string' ? JSON.parse(r.content) : r.content,
+      content: typeof r.content === 'string' ? (() => { try { return JSON.parse(r.content as string); } catch { return {}; } })() : (r.content ?? {}),
     }));
   }
 
@@ -608,7 +620,7 @@ export class ScriptService {
       uri: row.uri,
       did: row.did,
       collection: row.collection,
-      content: typeof row.content === 'string' ? JSON.parse(row.content) : row.content,
+      content: typeof row.content === 'string' ? (() => { try { return JSON.parse(row.content as string); } catch { return {}; } })() : (row.content ?? {}),
     };
   }
 

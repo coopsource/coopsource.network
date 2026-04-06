@@ -48,6 +48,16 @@ export class LexiconManagementService {
       throw new Error(`Invalid NSID format: ${nsid}`);
     }
 
+    // Validate fieldMappings structure if provided
+    if (fieldMappings) {
+      if (!fieldMappings.collection || !fieldMappings.targetTable) {
+        throw new Error('fieldMappings must have collection and targetTable');
+      }
+      if (!Array.isArray(fieldMappings.fieldMappings)) {
+        throw new Error('fieldMappings.fieldMappings must be an array');
+      }
+    }
+
     // Upsert to database
     await this.db
       .insertInto('registered_lexicon')

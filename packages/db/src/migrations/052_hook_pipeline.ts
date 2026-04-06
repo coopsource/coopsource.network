@@ -48,6 +48,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
   await sql`
     CREATE INDEX IF NOT EXISTS idx_pds_record_indexed_at
       ON pds_record (indexed_at DESC)
+      WHERE deleted_at IS NULL
   `.execute(db);
 
   await sql`

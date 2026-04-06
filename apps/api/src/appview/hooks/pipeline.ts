@@ -95,7 +95,7 @@ export async function processFirehoseEvent(
         hookPhase: 'pre-storage',
         error: err,
       }).catch((dlErr) => {
-        logger.error({ err: dlErr }, 'Failed to record dead letter');
+        logger.error({ err: dlErr, originalError: String(err), hookId: hook.id, collection }, 'Failed to record dead letter');
       });
     }
   }
@@ -157,7 +157,7 @@ export async function processFirehoseEvent(
         hookPhase: 'post-storage',
         error: err,
       }).catch((dlErr) => {
-        logger.error({ err: dlErr }, 'Failed to record dead letter');
+        logger.error({ err: dlErr, originalError: String(err), hookId: hook.id, collection }, 'Failed to record dead letter');
       });
     }
   }

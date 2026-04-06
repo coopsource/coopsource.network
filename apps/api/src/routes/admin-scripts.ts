@@ -12,14 +12,29 @@ import { requireAuth } from '../auth/middleware.js';
 export function createAdminScriptRoutes(container: Container): Router {
   const router = Router();
 
+  /**
+   * Verify the authenticated user has authority over the cooperative in the URL.
+   * The user's session cooperative DID must match the :did route param.
+   */
+  function authorizeCooperative(req: import('express').Request, res: import('express').Response): string | null {
+    const paramDid = Array.isArray(req.params.did)
+      ? req.params.did[0]!
+      : req.params.did;
+    const actorCoopDid = req.actor?.cooperativeDid;
+    if (!actorCoopDid || actorCoopDid !== paramDid) {
+      res.status(403).json({ error: 'Not authorized for this cooperative' });
+      return null;
+    }
+    return paramDid;
+  }
+
   // POST /api/v1/cooperatives/:did/scripts — create a script
   router.post(
     '/api/v1/cooperatives/:did/scripts',
     requireAuth,
     asyncHandler(async (req, res) => {
-      const cooperativeDid = Array.isArray(req.params.did)
-        ? req.params.did[0]!
-        : req.params.did;
+      const cooperativeDid = authorizeCooperative(req, res);
+      if (!cooperativeDid) return;
 
       const body = req.body as {
         name: string;
@@ -70,9 +85,8 @@ export function createAdminScriptRoutes(container: Container): Router {
     '/api/v1/cooperatives/:did/scripts',
     requireAuth,
     asyncHandler(async (req, res) => {
-      const cooperativeDid = Array.isArray(req.params.did)
-        ? req.params.did[0]!
-        : req.params.did;
+      const cooperativeDid = authorizeCooperative(req, res);
+      if (!cooperativeDid) return;
 
       const scripts = await container.scriptService.list(cooperativeDid);
       res.json({ items: scripts });
@@ -84,9 +98,8 @@ export function createAdminScriptRoutes(container: Container): Router {
     '/api/v1/cooperatives/:did/scripts/:id',
     requireAuth,
     asyncHandler(async (req, res) => {
-      const cooperativeDid = Array.isArray(req.params.did)
-        ? req.params.did[0]!
-        : req.params.did;
+      const cooperativeDid = authorizeCooperative(req, res);
+      if (!cooperativeDid) return;
       const id = Array.isArray(req.params.id)
         ? req.params.id[0]!
         : req.params.id;
@@ -106,9 +119,8 @@ export function createAdminScriptRoutes(container: Container): Router {
     '/api/v1/cooperatives/:did/scripts/:id',
     requireAuth,
     asyncHandler(async (req, res) => {
-      const cooperativeDid = Array.isArray(req.params.did)
-        ? req.params.did[0]!
-        : req.params.did;
+      const cooperativeDid = authorizeCooperative(req, res);
+      if (!cooperativeDid) return;
       const id = Array.isArray(req.params.id)
         ? req.params.id[0]!
         : req.params.id;
@@ -152,9 +164,8 @@ export function createAdminScriptRoutes(container: Container): Router {
     '/api/v1/cooperatives/:did/scripts/:id',
     requireAuth,
     asyncHandler(async (req, res) => {
-      const cooperativeDid = Array.isArray(req.params.did)
-        ? req.params.did[0]!
-        : req.params.did;
+      const cooperativeDid = authorizeCooperative(req, res);
+      if (!cooperativeDid) return;
       const id = Array.isArray(req.params.id)
         ? req.params.id[0]!
         : req.params.id;
@@ -169,9 +180,8 @@ export function createAdminScriptRoutes(container: Container): Router {
     '/api/v1/cooperatives/:did/scripts/:id/enable',
     requireAuth,
     asyncHandler(async (req, res) => {
-      const cooperativeDid = Array.isArray(req.params.did)
-        ? req.params.did[0]!
-        : req.params.did;
+      const cooperativeDid = authorizeCooperative(req, res);
+      if (!cooperativeDid) return;
       const id = Array.isArray(req.params.id)
         ? req.params.id[0]!
         : req.params.id;
@@ -195,9 +205,8 @@ export function createAdminScriptRoutes(container: Container): Router {
     '/api/v1/cooperatives/:did/scripts/:id/disable',
     requireAuth,
     asyncHandler(async (req, res) => {
-      const cooperativeDid = Array.isArray(req.params.did)
-        ? req.params.did[0]!
-        : req.params.did;
+      const cooperativeDid = authorizeCooperative(req, res);
+      if (!cooperativeDid) return;
       const id = Array.isArray(req.params.id)
         ? req.params.id[0]!
         : req.params.id;
@@ -212,9 +221,8 @@ export function createAdminScriptRoutes(container: Container): Router {
     '/api/v1/cooperatives/:did/scripts/:id/test',
     requireAuth,
     asyncHandler(async (req, res) => {
-      const cooperativeDid = Array.isArray(req.params.did)
-        ? req.params.did[0]!
-        : req.params.did;
+      const cooperativeDid = authorizeCooperative(req, res);
+      if (!cooperativeDid) return;
       const id = Array.isArray(req.params.id)
         ? req.params.id[0]!
         : req.params.id;
@@ -240,9 +248,8 @@ export function createAdminScriptRoutes(container: Container): Router {
     '/api/v1/cooperatives/:did/scripts/:id/logs',
     requireAuth,
     asyncHandler(async (req, res) => {
-      const cooperativeDid = Array.isArray(req.params.did)
-        ? req.params.did[0]!
-        : req.params.did;
+      const cooperativeDid = authorizeCooperative(req, res);
+      if (!cooperativeDid) return;
       const id = Array.isArray(req.params.id)
         ? req.params.id[0]!
         : req.params.id;
