@@ -70,6 +70,8 @@ import { HookRegistry } from './appview/hooks/registry.js';
 import { registerBuiltinHooks } from './appview/hooks/builtin/index.js';
 import { lexiconValidatorHook } from './appview/hooks/builtin/lexicon-validator-hook.js';
 import { LexiconManagementService } from './services/lexicon-management-service.js';
+import { ScriptWorkerPool } from './scripting/worker-pool.js';
+import { ScriptService } from './scripting/script-service.js';
 
 export interface Container {
   db: Kysely<Database>;
@@ -134,6 +136,8 @@ export interface Container {
   starterPackService: StarterPackService;
   hookRegistry: HookRegistry;
   lexiconManagementService: LexiconManagementService;
+  scriptWorkerPool: ScriptWorkerPool;
+  scriptService: ScriptService;
 }
 
 export function createContainer(config: AppConfig): Container {
@@ -249,6 +253,15 @@ export function createContainer(config: AppConfig): Container {
 
   // V7 P7: Lexicon management service — runtime lexicon registration + declarative hooks
   const lexiconManagementService = new LexiconManagementService(db, hookRegistry);
+  // V7 P8: Cooperative scripting engine
+  const scriptWorkerPool = new ScriptWorkerPool();
+  const scriptService = new ScriptService(
+    db,
+    hookRegistry,
+    scriptWorkerPool,
+    emailService,
+    operatorWriteProxy,
+  );
 
   return {
     db,
@@ -313,5 +326,7 @@ export function createContainer(config: AppConfig): Container {
     starterPackService,
     hookRegistry,
     lexiconManagementService,
+    scriptWorkerPool,
+    scriptService,
   };
 }

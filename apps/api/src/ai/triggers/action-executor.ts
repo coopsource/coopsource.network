@@ -55,6 +55,9 @@ export async function executeAction(
       case 'notify':
         await executeNotify(action, context);
         break;
+      case 'run_script':
+        await executeRunScript(action, context);
+        break;
       default:
         throw new Error(`Unknown action type: ${(action as TriggerAction).type}`);
     }
@@ -129,6 +132,30 @@ async function executeWebhook(
   if (!res.ok) {
     throw new Error(`Webhook returned ${res.status}: ${body.slice(0, 200)}`);
   }
+}
+
+async function executeRunScript(
+  action: TriggerAction,
+  context: ActionContext,
+): Promise<void> {
+  const scriptId = action.config.scriptId as string | undefined;
+  if (!scriptId) {
+    throw new Error('run_script action requires config.scriptId');
+  }
+
+  // ScriptService is not available in ActionContext — emit a domain event
+  // that the script's domain-event listener will pick up
+  emitAppEvent({
+    type: 'notification.created' as AppEvent['type'],
+    data: {
+      _trigger: 'run_script',
+      scriptId,
+      triggerId: context.trigger.id,
+      event: context.event.type,
+      eventData: context.event.data,
+    },
+    cooperativeDid: context.trigger.cooperativeDid,
+  });
 }
 
 async function executeNotify(

@@ -5,6 +5,6 @@ export interface TriggerCondition {
 }
 
 export interface TriggerAction {
-  type: 'agent_message' | 'call_webhook' | 'notify';
+  type: 'agent_message' | 'call_webhook' | 'notify' | 'run_script';
   config: Record<string, unknown>;
 }

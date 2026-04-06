@@ -83,6 +83,7 @@ import { createWebhookRoutes } from './routes/connectors/webhooks.js';
 import { createReportRoutes } from './routes/reports/index.js';
 import { createDashboardRoutes } from './routes/reports/dashboards.js';
 import { createMentionRoutes } from './routes/notifications/mentions.js';
+import { createAdminScriptRoutes } from './routes/admin-scripts.js';
 import { startAppViewLoop } from './appview/loop.js';
 import { createOAuthClient } from './auth/oauth-client.js';
 
@@ -210,6 +211,9 @@ async function start(): Promise<void> {
   // Admin routes
   app.use(createAdminRoutes(container));
 
+  // Cooperative script routes (V7 P8)
+  app.use(createAdminScriptRoutes(container));
+
   // Funding routes (Stage 3)
   app.use(createCampaignRoutes(container));
   app.use(createPaymentConfigRoutes(container));
@@ -313,6 +317,11 @@ async function start(): Promise<void> {
   container.eventDispatcher.start();
   logger.info('Event dispatcher started');
 
+  // Load enabled cooperative scripts (V7 P8)
+  container.scriptService.loadEnabledScripts().catch((err) => {
+    logger.error(err, 'Failed to load cooperative scripts');
+  });
+
   // Outbox processor retired — public data flows through ATProto relay firehose
 
   // Background: resolve expired proposals every 60s
@@ -330,6 +339,7 @@ async function start(): Promise<void> {
   const shutdown = async () => {
     logger.info('Shutting down...');
     container.eventDispatcher.stop();
+    await container.scriptWorkerPool.shutdown();
     await new Promise<void>((resolve) => {
       server.close(() => resolve());
       // Force exit after 10 seconds if connections don't drain

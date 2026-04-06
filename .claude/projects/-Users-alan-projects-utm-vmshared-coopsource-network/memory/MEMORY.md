@@ -1,0 +1,3 @@
+- [Deployment Review](project_deployment_review.md) — Completed review of deployment infra for DO droplet
+- [Branch Workflow](feedback_branch_workflow.md) — Always start on a feature branch, never work directly on main
+- [V7 Progress](project_v7_progress.md) — V7 branch status: P1-P3 done, consistency fixes pending (stale RELAY_URL/VERIFY_COMMIT_SIGNATURES refs)

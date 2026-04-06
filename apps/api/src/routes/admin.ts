@@ -142,7 +142,8 @@ export function createAdminRoutes(container: Container): Router {
             webhook_endpoint, webhook_delivery_log,
             report_template, report_snapshot,
             notification_preference, mention,
-            hook_dead_letter
+            hook_dead_letter,
+            script_execution_log, cooperative_script
           CASCADE
         `.execute(container.db);
         resetSetupCache();
