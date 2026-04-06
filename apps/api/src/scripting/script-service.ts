@@ -275,11 +275,17 @@ export class ScriptService {
    * Called at startup.
    */
   async loadEnabledScripts(): Promise<void> {
-    const rows = await this.db
-      .selectFrom('cooperative_script')
-      .where('enabled', '=', true)
-      .selectAll()
-      .execute();
+    let rows;
+    try {
+      rows = await this.db
+        .selectFrom('cooperative_script')
+        .where('enabled', '=', true)
+        .selectAll()
+        .execute();
+    } catch {
+      // Table may not exist yet (pre-migration) — skip silently
+      return;
+    }
 
     let loaded = 0;
     for (const row of rows) {

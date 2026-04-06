@@ -21,19 +21,19 @@ const INSTANCES = {
   hub: {
     url: 'http://localhost:3001',
     dbUrl: 'postgresql://coopsource:dev_password@localhost:5432/coopsource_hub',
-    keyEncKey: 'aHViLWRldi1rZXktZW5jLWtleS0zMi1ieXRlcw==',
+    keyEncKey: 'SZ2Y6jswJawz0b4ZNil0gQhZZ1SRNPFXgDGn6/MlOIk=',
     role: 'hub',
   },
   coopA: {
     url: 'http://localhost:3002',
     dbUrl: 'postgresql://coopsource:dev_password@localhost:5432/coopsource_coop_a',
-    keyEncKey: 'Y29vcC1hLWRldi1rZXktZW5jLWtleS0zMg==',
+    keyEncKey: 'CpdEFK7O9eH6xNv6F6Y90HvssdPGeLkzUKENgR4EBF8=',
     role: 'coop',
   },
   coopB: {
     url: 'http://localhost:3003',
     dbUrl: 'postgresql://coopsource:dev_password@localhost:5432/coopsource_coop_b',
-    keyEncKey: 'Y29vcC1iLWRldi1rZXktZW5jLWtleS0zMg==',
+    keyEncKey: 'KpkXbpKPhezRK5E0onAhVCL7ayL8oNuEdPtTOUsgC4k=',
     role: 'coop',
   },
 } as const;
