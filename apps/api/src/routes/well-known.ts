@@ -20,7 +20,23 @@ export function createWellKnownRoutes(
 
   router.get('/.well-known/did.json', async (_req, res) => {
     try {
-      const instanceDid = config.INSTANCE_DID ?? urlToDidWeb(config.INSTANCE_URL);
+      // Resolve the primary cooperative DID:
+      // 1. Explicit INSTANCE_DID env var (production override)
+      // 2. system_config 'cooperative_did' (set during setup — works regardless of DID method)
+      // 3. Fallback: derive did:web from INSTANCE_URL
+      let instanceDid = config.INSTANCE_DID;
+
+      if (!instanceDid) {
+        const sysConfig = await db
+          .selectFrom('system_config')
+          .where('key', '=', 'cooperative_did')
+          .select('value')
+          .executeTakeFirst();
+
+        instanceDid = sysConfig
+          ? String(sysConfig.value)
+          : urlToDidWeb(config.INSTANCE_URL);
+      }
 
       // Look up the entity — in standalone mode this is the primary cooperative
       const entity = await db

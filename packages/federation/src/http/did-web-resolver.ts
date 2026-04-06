@@ -3,6 +3,8 @@ import type { DidDocument } from '../types.js';
 
 export interface DidWebResolverOptions {
   cacheTtlMs?: number;
+  /** Fallback resolver for non-did:web DIDs (e.g. did:plc in local dev). */
+  fallbackResolve?: (did: string) => Promise<DidDocument>;
 }
 
 interface CacheEntry {
@@ -17,15 +19,27 @@ interface CacheEntry {
 export class DidWebResolver {
   private cache = new Map<string, CacheEntry>();
   private cacheTtlMs: number;
+  private fallbackResolve?: (did: string) => Promise<DidDocument>;
 
   constructor(options?: DidWebResolverOptions) {
     this.cacheTtlMs = options?.cacheTtlMs ?? 5 * 60 * 1000;
+    this.fallbackResolve = options?.fallbackResolve;
   }
 
   async resolve(did: string): Promise<DidDocument> {
     const cached = this.cache.get(did);
     if (cached && cached.expiresAt > Date.now()) {
       return cached.doc;
+    }
+
+    // Non-did:web identifiers (e.g. did:plc) need a fallback resolver
+    if (!did.startsWith('did:web:')) {
+      if (!this.fallbackResolve) {
+        throw new Error(`Cannot resolve non-did:web identifier without fallback: ${did}`);
+      }
+      const doc = await this.fallbackResolve(did);
+      this.cache.set(did, { doc, expiresAt: Date.now() + this.cacheTtlMs });
+      return doc;
     }
 
     const url = didWebToUrl(did);

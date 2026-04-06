@@ -3,7 +3,7 @@ import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
 import { SystemClock } from '@coopsource/federation';
 import type { IPdsService } from '@coopsource/federation';
-import { LocalPdsService, LocalBlobStore } from '@coopsource/federation/local';
+import { LocalPdsService, LocalBlobStore, LocalPlcClient } from '@coopsource/federation/local';
 import type { FederationDatabase } from '@coopsource/federation/local';
 import { DidWebResolver } from '@coopsource/federation/http';
 import { AtprotoPdsService } from '@coopsource/federation/atproto';
@@ -169,7 +169,14 @@ export function createContainer(config: AppConfig): Container {
         clock,
       );
 
-  const didResolver = new DidWebResolver();
+  // LocalPlcClient provides fallback DID resolution for did:plc identifiers in local dev
+  const localPlc = new LocalPlcClient(
+    db as unknown as import('kysely').Kysely<FederationDatabase>,
+    config.INSTANCE_URL,
+  );
+  const didResolver = new DidWebResolver({
+    fallbackResolve: (did) => localPlc.resolve(did) as Promise<import('@coopsource/federation').DidDocument>,
+  });
 
   const blobStore = new LocalBlobStore({ blobDir: config.BLOB_DIR });
 
