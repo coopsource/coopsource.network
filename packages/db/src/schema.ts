@@ -844,6 +844,24 @@ export interface CooperativeLinkTable {
   updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }
 
+// ── Hook pipeline (V7 P6) ─────────────────────
+
+export interface HookDeadLetterTable {
+  id: Generated<string>;
+  event_uri: string;
+  event_did: string;
+  collection: string;
+  operation: string;
+  hook_id: string;
+  hook_phase: string;
+  error_message: string;
+  error_stack: string | null;
+  event_data: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
+  retry_count: ColumnType<number, number | undefined, number>;
+  resolved_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
 // ──────────────────────────────────────────────
 // Database interface
 // ──────────────────────────────────────────────
@@ -992,6 +1010,9 @@ export interface Database {
   report_snapshot: ReportSnapshotTable;
   notification_preference: NotificationPreferenceTable;
   mention: MentionTable;
+
+  // Hook pipeline (052)
+  hook_dead_letter: HookDeadLetterTable;
 }
 
 // ──────────────────────────────────────────────

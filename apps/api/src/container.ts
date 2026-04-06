@@ -66,6 +66,9 @@ import { ReportingService } from './services/reporting-service.js';
 import { DashboardService } from './services/dashboard-service.js';
 import { MentionService } from './services/mention-service.js';
 import { StarterPackService } from './services/starter-pack-service.js';
+import { HookRegistry } from './appview/hooks/registry.js';
+import { registerBuiltinHooks } from './appview/hooks/builtin/index.js';
+import { lexiconValidatorHook } from './appview/hooks/builtin/lexicon-validator-hook.js';
 
 export interface Container {
   db: Kysely<Database>;
@@ -128,6 +131,7 @@ export interface Container {
   dashboardService: DashboardService;
   mentionService: MentionService;
   starterPackService: StarterPackService;
+  hookRegistry: HookRegistry;
 }
 
 export function createContainer(config: AppConfig): Container {
@@ -236,6 +240,11 @@ export function createContainer(config: AppConfig): Container {
   const mentionService = new MentionService(db, clock);
   const starterPackService = new StarterPackService(db, pdsService);
 
+  // V7 P6: Hook pipeline — register builtin indexers + lexicon validator
+  const hookRegistry = new HookRegistry();
+  registerBuiltinHooks(hookRegistry);
+  hookRegistry.register(lexiconValidatorHook);
+
   return {
     db,
     pdsService,
@@ -297,5 +306,6 @@ export function createContainer(config: AppConfig): Container {
     dashboardService,
     mentionService,
     starterPackService,
+    hookRegistry,
   };
 }

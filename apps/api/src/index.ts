@@ -297,6 +297,7 @@ async function start(): Promise<void> {
   // Start AppView subscription loop
   startAppViewLoop(container.pdsService, container.db, {
     tapUrl: config.TAP_URL,
+    hookRegistry: container.hookRegistry,
   }).catch((err) => {
     logger.error(err, 'AppView loop failed to start');
   });

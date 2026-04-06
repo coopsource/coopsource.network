@@ -65,6 +65,9 @@ importers:
       '@coopsource/federation':
         specifier: workspace:*
         version: link:../../packages/federation
+      '@coopsource/lexicons':
+        specifier: workspace:*
+        version: link:../../packages/lexicons
       '@modelcontextprotocol/sdk':
         specifier: ^1.27.1
         version: 1.27.1(zod@4.3.6)
