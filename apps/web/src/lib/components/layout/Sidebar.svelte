@@ -14,6 +14,9 @@
   import Bot from '@lucide/svelte/icons/bot';
   import Scale from '@lucide/svelte/icons/scale';
   import Shield from '@lucide/svelte/icons/shield';
+  import Activity from '@lucide/svelte/icons/activity';
+  import BookOpenIcon from '@lucide/svelte/icons/book-open';
+  import CodeIcon from '@lucide/svelte/icons/code';
   import UserPlus from '@lucide/svelte/icons/user-plus';
   import DollarSign from '@lucide/svelte/icons/dollar-sign';
   import Handshake from '@lucide/svelte/icons/handshake';
@@ -76,6 +79,9 @@
         { href: `${prefix}/partners`, label: 'Partners', icon: Handshake },
         { href: `${prefix}/agents`, label: 'Agents', icon: Bot },
         { href: `${prefix}/admin`, label: 'Admin', icon: Shield },
+        { href: `${prefix}/admin/pipeline`, label: 'Pipeline', icon: Activity },
+        { href: `${prefix}/admin/lexicons`, label: 'Lexicons', icon: BookOpenIcon },
+        { href: `${prefix}/admin/scripts`, label: 'Scripts', icon: CodeIcon },
       ];
     }
 

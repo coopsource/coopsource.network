@@ -1376,3 +1376,102 @@ export interface Mention {
   createdAt: string;
   readAt: string | null;
 }
+
+// ── Pipeline (V7 P6) ────────────────────────────────────────────────
+
+export interface PipelineHook {
+  id: string;
+  name: string;
+  phase: string;
+  source: 'builtin' | 'declarative' | 'script';
+  collections: string[];
+  priority: number;
+  enabled: boolean;
+}
+
+export interface PipelineHealth {
+  mode: string;
+  lastSeq: number;
+  lastEventAt: string | null;
+  errorCount: number;
+  validationWarnings: number;
+  startedAt: string;
+}
+
+export interface HooksResponse {
+  hooks: PipelineHook[];
+  health: PipelineHealth;
+}
+
+export interface DeadLetterEntry {
+  id: string;
+  event_uri: string;
+  collection: string;
+  hook_id: string;
+  error_message: string;
+  created_at: string;
+}
+
+export interface DeadLettersResponse {
+  entries: DeadLetterEntry[];
+  cursor: string | null;
+}
+
+// ── Lexicons (V7 P7) ────────────────────────────────────────────────
+
+export interface RegisteredLexicon {
+  nsid: string;
+  source: 'built-in' | 'registered';
+  lexiconDoc: Record<string, unknown>;
+  fieldMappings: Record<string, unknown> | null;
+  registeredAt: string | null;
+}
+
+export interface LexiconsResponse {
+  lexicons: RegisteredLexicon[];
+}
+
+// ── Scripts (V7 P8) ─────────────────────────────────────────────────
+
+export interface CoopScript {
+  id: string;
+  cooperativeDid: string;
+  name: string;
+  description: string | null;
+  sourceCode: string;
+  phase: 'pre-storage' | 'post-storage' | 'domain-event';
+  collections: string[];
+  eventTypes: string[];
+  config: Record<string, unknown> | null;
+  timeoutMs: number;
+  enabled: boolean;
+  lastExecutedAt: string | null;
+  errorCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ScriptsResponse {
+  items: CoopScript[];
+}
+
+export interface ScriptTestResult {
+  success: boolean;
+  error?: string;
+  durationMs: number;
+  logs: string[];
+}
+
+export interface ScriptLogEntry {
+  id: string;
+  scriptId: string;
+  trigger: string;
+  durationMs: number;
+  status: 'success' | 'error' | 'timeout';
+  error: string | null;
+  createdAt: string;
+}
+
+export interface ScriptLogsResponse {
+  items: ScriptLogEntry[];
+}
