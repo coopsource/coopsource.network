@@ -27,6 +27,32 @@ vi.mock('../src/appview/indexers/alignment-indexer.js', () => ({
   indexInterestMap: vi.fn(),
 }));
 
+vi.mock('../src/appview/indexers/calendar-indexer.js', () => ({
+  indexCalendarEvent: vi.fn(),
+  indexCalendarRsvp: vi.fn(),
+}));
+
+vi.mock('../src/appview/indexers/frontpage-indexer.js', () => ({
+  indexFrontpagePost: vi.fn(),
+}));
+
+vi.mock('../src/appview/indexers/legal-indexer.js', () => ({
+  indexLegalDocument: vi.fn(),
+  indexMeetingRecord: vi.fn(),
+}));
+
+vi.mock('../src/appview/indexers/admin-indexer.js', () => ({
+  indexOfficer: vi.fn(),
+  indexComplianceItem: vi.fn(),
+  indexMemberNotice: vi.fn(),
+  indexFiscalPeriod: vi.fn(),
+}));
+
+vi.mock('../src/appview/hooks/pipeline.js', () => ({
+  processFirehoseEvent: vi.fn(),
+  getValidationWarnings: vi.fn().mockReturnValue(0),
+}));
+
 // Also need to mock relay-consumer, tap-consumer, and commit-verifier since loop.ts imports them
 vi.mock('../src/appview/relay-consumer.js', () => ({
   subscribeRelay: vi.fn(),
