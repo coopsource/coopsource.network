@@ -4,14 +4,18 @@
 > **Design reference**: ARCHITECTURE-V5.md (cooperative lifecycle, security model, lexicon schemas)
 > **Federation reference**: ARCHITECTURE-V6.md (ATProto integration design)
 > **ATProto guidance**: https://atproto.com/guides/going-to-production, https://atproto.com/guides/self-hosting
-> **Date**: April 2, 2026
-> **Status**: Planning
+> **Date**: April 2, 2026 (updated April 5, 2026 — P6-P9 added)
+> **Status**: P1-P3 complete, P4-P5 pending, P6-P9 planned
 
 ---
 
 ## Executive Summary
 
-V6 delivered real ATProto federation. V7 gets it production-ready by aligning with the official ATProto deployment guidance and leveraging existing ecosystem tools to reduce custom code.
+V6 delivered real ATProto federation. V7 gets it production-ready and extensible:
+
+- **P1-P3 (complete)**: Production deployment — Tap firehose, PDS setup, private network mode
+- **P4-P5 (pending)**: Ozone labeler, V3 cleanup
+- **P6-P9 (planned)**: Unified hook pipeline, declarative indexers, cooperative scripting engine, MCP tools
 
 **Key simplifications from ATProto ecosystem review (April 2026):**
 
@@ -19,6 +23,12 @@ V6 delivered real ATProto federation. V7 gets it production-ready by aligning wi
 2. **Use Tap with `@atproto/tap` TypeScript client** instead of our custom `relay-consumer.ts` — Tap handles firehose connections, crypto verification, backfill, filtering, and cursor management. Our relay consumer reimplements all of this
 3. **Don't run our own relay for public mode** — use `bsky.network`. For private networks, use the Go relay from `bluesky-social/indigo`
 4. **Domain separation is mandatory** — PDS and AppView MUST be on different domains (not subdomains). This is a security requirement for blob serving and OAuth
+
+**Key insights from Quickslice/Happyview research (April 2026):**
+
+5. **Unified hook pipeline** — Replace our hard-coded 18-case switch statement with a registry of hooks. `pds_record` (generic JSONB) becomes the source of truth; hooks build materialized views in domain tables.
+6. **Declarative indexers** — 12 of 18 indexers are simple field mappings that can be expressed as JSON config instead of TypeScript code. External lexicons can be registered at runtime without code changes.
+7. **Cooperative scripting** — Per-cooperative TypeScript automation via Worker Thread sandboxes. Scripts are Tier 2 private data (not on the firehose). Triggered by record events or domain events.
 
 **Two deployment modes:**
 
@@ -87,7 +97,7 @@ Our `COOP_ROTATION_KEY_HEX` env var is fine for dev. Production cooperatives sho
 
 ## 3. Phases
 
-### Phase P1: Replace Custom Firehose Code with Tap + `@atproto/tap`
+### Phase P1: Replace Custom Firehose Code with Tap + `@atproto/tap` ✅
 
 **Goal**: Delete our custom `relay-consumer.ts` and `tap-consumer.ts`, replace with the official Tap binary and `@atproto/tap` TypeScript client. This eliminates ~300 lines of custom firehose code and gets us backfill, crypto verification, cursor management, and reconnection for free.
 
@@ -144,7 +154,7 @@ Our `COOP_ROTATION_KEY_HEX` env var is fine for dev. Production cooperatives sho
 - `apps/api/src/appview/tap-consumer.ts`
 - `packages/federation/src/atproto/firehose-decoder.ts`
 
-### Phase P2: Production PDS Setup
+### Phase P2: Production PDS Setup ✅
 
 **Goal**: Document and support the official PDS install script for cooperative PDS deployment. Remove our custom PDS Docker configuration for production use.
 
@@ -175,7 +185,7 @@ The official PDS installer (`installer.sh`) sets up:
 
 **Key restriction**: PDS domain MUST differ from AppView domain (`coopsource.network`). Each cooperative can use their own PDS domain or a shared PDS can host multiple cooperatives.
 
-### Phase P3: Private Network Mode
+### Phase P3: Private Network Mode ✅
 
 **Goal**: Provide a complete docker-compose stack for running a private cooperative network disconnected from public ATProto.
 
@@ -267,10 +277,133 @@ agreement-ratified   — Agreement fully signed and ratified
 
 **Tasks:**
 1. Gate V3 table drop behind `DROP_V3_TABLES=true` env var; run in production
-2. Implement per-DID reindex endpoint (`apps/api/src/routes/admin.ts:41` TODO)
+2. ~~Implement per-DID reindex endpoint~~ → moved to P6 (replays `pds_record` through post-storage hooks)
 3. Add E2E test for Tier 2 private record exchange between cooperatives
 4. Resolve hub registration stub (501 in cross-instance test)
 5. Consider S3-compatible blob storage for production (ATProto recommends against local disk at scale)
+
+### Phase P6: Unified Hook Pipeline + Generic Records
+
+**Goal**: Replace the hard-coded 18-case switch statement in `dispatchFirehoseEvent` with a hook pipeline. `pds_record` becomes the source of truth for ALL firehose events. Pre-storage and post-storage hooks. Dead letter queue.
+
+**Inspired by**: Quickslice (Gleam ATProto framework) and Happyview (Rust ATProto AppView) — both use generic JSONB record stores with hooks that build materialized views in real time.
+
+**Architecture**:
+```
+Firehose Event (from Tap or pg_notify)
+  ↓
+[Pre-storage hooks] — can transform record, skip storage, or pass through
+  ↓                    (on failure → dead letter, store original anyway)
+pds_record upsert — generic JSONB storage (source of truth)
+  ↓
+[Post-storage hooks] — build materialized views in domain tables, emit events
+  ↓                     (on failure → dead letter, record safe in pds_record)
+Domain tables updated (membership, proposal, vote, etc.)
+```
+
+Three hook types, one pipeline:
+- **Built-in TypeScript** (in-process, priority 0-99): Complex domain logic — membership bilateral matching, weighted voting, signature tracking
+- **Declarative config** (in-process, priority 100-199): JSON field mappings for simple collections — admin, legal, alignment, calendar, frontpage
+- **User scripts** (Worker Thread, priority 200+): Per-cooperative TypeScript automation
+
+**Key files**:
+- `apps/api/src/appview/hooks/pipeline.ts` — replaces `dispatchFirehoseEvent`
+- `apps/api/src/appview/hooks/registry.ts` — hook registration and dispatch
+- `apps/api/src/appview/hooks/types.ts` — `HookRegistration`, `HookContext`, `PreStorageResult`
+- `apps/api/src/appview/hooks/dead-letter.ts` — dead letter queue management
+- `packages/db/src/migrations/052_hook_pipeline.ts` — dead letter table + pds_record indexes
+
+### Phase P7: Declarative Config Hooks + Admin Lexicon Management
+
+**Goal**: Convert 12 simple indexers to declarative JSON config. Admin API for registering external lexicons with optional field mappings at runtime — no code changes needed for new record types.
+
+**Declarative config** replaces hand-written indexers with JSON field mappings:
+```typescript
+interface DeclarativeHookConfig {
+  collection: string;
+  targetTable: string;
+  writeMode: 'update-only' | 'upsert';
+  deleteStrategy: 'soft-delete' | 'hard-delete' | 'ignore';
+  fieldMappings: { recordField: string; column: string; transform?: 'json_stringify' | 'date_parse' }[];
+}
+```
+
+**Collections converted** (12 of 18):
+- Admin: officer, complianceItem, memberNotice, fiscalPeriod (update-only, soft-delete)
+- Legal: document, meetingRecord (update-only, soft-delete)
+- Alignment: interest, outcome, interestMap (update-only, hard-delete, json_stringify)
+- External: frontpage.post, calendar.event (upsert, hard-delete), calendar.rsvp (counter)
+
+**Collections remaining as TypeScript** (6 of 18):
+- Membership: membership, memberApproval (bilateral state machine)
+- Governance: proposal, vote (weighted voting, retract logic)
+- Agreement: agreement, signature (cross-table lookup, event emission)
+
+**Admin lexicon API**: Register external lexicons at runtime → auto-creates declarative hooks → records indexed in `pds_record` with optional domain table materialization.
+
+**Tap filter strategy**: Tap has NO runtime API for updating collection filters (verified). Use broad wildcards (`network.coopsource.*`); our pipeline decides what to index.
+
+**Key files**:
+- `apps/api/src/appview/hooks/declarative/handler.ts` — generic declarative handler
+- `apps/api/src/appview/hooks/declarative/configs.ts` — 12 collection configs
+- `apps/api/src/services/lexicon-management-service.ts` — lexicon CRUD + runtime validation
+- `apps/api/src/routes/admin-lexicons.ts` — admin API
+- `packages/db/src/migrations/053_registered_lexicon.ts`
+
+### Phase P8: Cooperative Scripting Engine
+
+**Goal**: Per-cooperative TypeScript scripting triggered by record events or domain events. Scripts stored as Tier 2 private data. Executed in Worker Thread sandboxes with defense-in-depth isolation.
+
+**Why Tier 2**: Scripts may contain business logic, API endpoints, webhook URLs — cooperatives don't want this on the public firehose.
+
+**Execution model**: Worker Thread (separate V8 heap, `resourceLimits` for memory, `AbortController` for timeouts) → `vm.createContext()` (restricted globals — no `require`, `process`, `fs`) → structured query API (auto-scoped to cooperative). No native dependencies — Worker Threads are built into Node.js.
+
+**Curated API surface** (exposed to scripts as `ctx`):
+- `ctx.db.query(collection, filters)` — structured query on `pds_record`, scoped to cooperative
+- `ctx.db.get(uri)`, `ctx.db.count(collection)` — scoped reads
+- `ctx.http.fetch(url, opts)` — SSRF-protected outbound HTTP
+- `ctx.email.send({to, subject, textBody})` — via cooperative's email service
+- `ctx.pds.createRecord(collection, record)` — write to cooperative's PDS
+- `ctx.emitEvent(type, data)` — fire domain events
+- `ctx.log(level, msg)` — structured logging
+
+**Script phases**:
+- `pre-storage`: Runs before `pds_record` upsert. Can transform or skip records.
+- `post-storage`: Runs after `pds_record` upsert. Builds materialized views, sends notifications.
+- `domain-event`: Triggered by `sseEmitter` events (member.joined, proposal.passed, etc.). Cooperative automation — send welcome emails, sync to external systems.
+
+**Key files**:
+- `apps/api/src/scripting/worker-pool.ts` — custom Worker Thread pool with MessagePort callbacks
+- `apps/api/src/scripting/worker.ts` — worker harness (vm.createContext sandbox)
+- `apps/api/src/scripting/script-service.ts` — CRUD, enable/disable, test, startup loading
+- `apps/api/src/routes/admin-scripts.ts` — cooperative script management API
+- `packages/db/src/migrations/054_cooperative_scripts.ts`
+
+### Phase P9: MCP Server Enhancement
+
+**Goal**: Expand the existing MCP server (4 tools) with generic record access, lexicon introspection, and search. Leverages `pds_record` as unified record store.
+
+**New tools**:
+- `query-records` — Query `pds_record` by collection, optional DID/time range
+- `get-record` — Single record by AT URI
+- `search-records` — JSONB containment or text search
+- `list-collections` — Distinct collections with record counts
+- `introspect-lexicon` — Lexicon schema JSON (built-in + registered)
+- `get-firehose-health` — AppView health stats
+
+**Key files**: `apps/api/src/mcp/server.ts` (extend existing)
+
+### Phase Dependencies
+
+```
+P1-P3 (complete) → merged to main
+P4 (Ozone) — independent
+P5 (Cleanup) — independent (reindex endpoint moves to P6)
+P6 (Hook Pipeline) — foundational
+ ├── P7 (Declarative Config + Lexicons)
+ ├── P8 (Scripting Engine)
+ └── P9 (MCP Enhancement)
+```
 
 ---
 
@@ -314,19 +447,39 @@ PDS, relay, and PLC are provided by the ATProto network (Bluesky infrastructure)
 | Tap is beta software | Potential bugs in sync | Retain `pg_notify` local fallback for dev; Tap community is active |
 | Private relay bandwidth | Scales with network size | Start small; relay handles 100M accounts on single server |
 | `@atproto/tap` client changes | API surface may evolve | Pin version; client is part of official `@atproto` monorepo |
+| Tap has no runtime filter API | Can't dynamically add collection filters | Use broad wildcards; pipeline decides what to index |
+| pds_record upsert adds latency | Extra DB write per firehose event | Simple JSONB upsert; benchmark before/after |
+| Dead letter queue unbounded growth | Disk usage if hooks fail consistently | Background prune of resolved entries; alert on count > 100 |
+| Declarative handler diverges from hand-written indexers | Silent data differences | Comparison tests verify identical output before deleting old code |
+| Worker Thread `vm.createContext()` escape | Script sandbox breach | Defense-in-depth: worker isolation + vm restrictions + structured API (no raw SQL) |
+| Worker Thread memory leaks | OOM from user scripts | Per-worker `resourceLimits`, idle timeout, max execution time |
 
 ---
 
 ## 7. Success Criteria
 
-- [ ] Tap binary consuming firehose and feeding our AppView indexers
-- [ ] Custom `relay-consumer.ts` and `tap-consumer.ts` deleted
-- [ ] PDS deployment documented using official install script
-- [ ] Domain separation enforced (PDS ≠ AppView domain)
-- [ ] Private network docker-compose stack functional
+**P1-P3 (complete)**:
+- [x] Tap binary consuming firehose and feeding our AppView indexers
+- [x] Custom `relay-consumer.ts` and `tap-consumer.ts` deleted
+- [x] PDS deployment documented using official install script
+- [x] Domain separation enforced (PDS ≠ AppView domain)
+- [x] Private network docker-compose stack functional
+
+**P4-P5 (pending)**:
 - [ ] Governance labels visible via Ozone
 - [ ] V3 tables dropped in production
 - [ ] Tier 2 private data E2E test passing
+
+**P6-P9 (planned)**:
+- [ ] Hook pipeline replaces hard-coded switch statement
+- [ ] `pds_record` is source of truth for all firehose events (Tap and local)
+- [ ] Dead letter queue captures hook failures without data loss
+- [ ] 12 simple indexers replaced with declarative JSON configs
+- [ ] External lexicons registerable at runtime via admin API
+- [ ] Cooperative scripts execute in Worker Thread sandboxes
+- [ ] Scripts can trigger on record events and domain events
+- [ ] MCP server exposes generic record access and lexicon introspection
+- [ ] Admin UI for pipeline health, lexicon management, and script management
 
 ---
 
@@ -344,3 +497,5 @@ PDS, relay, and PLC are provided by the ATProto network (Bluesky infrastructure)
 - **Ozone** — https://github.com/bluesky-social/ozone
 - **ATProto Proposals** — https://github.com/bluesky-social/proposals
 - **Microcosm** — https://www.microcosm.blue (Rust query APIs — alternative to full AppView for simple cases)
+- **Quickslice** — https://tangled.org/slices.network/quickslice (Gleam ATProto AppView framework — dynamic lexicon ingestion, GraphQL, MCP)
+- **Happyview** — https://github.com/gamesgamesgamesgamesgames/happyview (Rust ATProto AppView — Lua index hooks, materialized views, dynamic lexicons)

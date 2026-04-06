@@ -24,9 +24,13 @@ import { indexFrontpagePost } from './indexers/frontpage-indexer.js';
 import { indexLegalDocument, indexMeetingRecord } from './indexers/legal-indexer.js';
 import { indexOfficer, indexComplianceItem, indexMemberNotice, indexFiscalPeriod } from './indexers/admin-indexer.js';
 import { collectionFromUri } from './utils.js';
+import type { HookRegistry } from './hooks/registry.js';
+import { processFirehoseEvent } from './hooks/pipeline.js';
+import { getValidationWarnings } from './hooks/pipeline.js';
 
 export interface AppViewConfig {
   tapUrl?: string;
+  hookRegistry?: HookRegistry;
 }
 
 // ─── Firehose health state (exported for health endpoint) ──────────────────
@@ -36,10 +40,11 @@ export interface FirehoseHealth {
   lastSeq: number;
   lastEventAt: string | null;
   errorCount: number;
+  validationWarnings: number;
   startedAt: string;
 }
 
-const healthState: FirehoseHealth = {
+const healthState: Omit<FirehoseHealth, 'validationWarnings'> = {
   mode: 'local',
   lastSeq: 0,
   lastEventAt: null,
@@ -48,7 +53,7 @@ const healthState: FirehoseHealth = {
 };
 
 export function getFirehoseHealth(): FirehoseHealth {
-  return { ...healthState };
+  return { ...healthState, validationWarnings: getValidationWarnings() };
 }
 
 // ─── Dispatch ──────────────────────────────────────────────────────────────
@@ -182,7 +187,7 @@ export async function startAppViewLoop(
       cursor = existing.last_global_seq;
     }
 
-    runLocalLoop(pdsService, db, cursor).catch((err) => {
+    runLocalLoop(pdsService, db, cursor, config).catch((err) => {
       logger.error(err, 'Local loop fatal error');
     });
   }
@@ -200,7 +205,11 @@ async function runTapLoop(
   indexer.record(async (evt) => {
     try {
       const firehoseEvent = tapEventToFirehoseEvent(evt);
-      await dispatchFirehoseEvent(db, firehoseEvent);
+      if (config.hookRegistry) {
+        await processFirehoseEvent(db, config.hookRegistry, firehoseEvent);
+      } else {
+        await dispatchFirehoseEvent(db, firehoseEvent);
+      }
 
       healthState.lastSeq = evt.id;
       healthState.lastEventAt = new Date().toISOString();
@@ -230,6 +239,7 @@ async function runLocalLoop(
   pdsService: IPdsService,
   db: Kysely<Database>,
   cursor: number,
+  config: AppViewConfig = {},
 ): Promise<void> {
   const subscriberId = 'appview-local';
   let backoff = 1000;
@@ -241,7 +251,11 @@ async function runLocalLoop(
 
       for await (const event of stream) {
         try {
-          await dispatchFirehoseEvent(db, event);
+          if (config.hookRegistry) {
+            await processFirehoseEvent(db, config.hookRegistry, event);
+          } else {
+            await dispatchFirehoseEvent(db, event);
+          }
 
           // Update cursor
           await db

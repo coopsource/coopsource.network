@@ -4,6 +4,7 @@ import type { ChatEngine } from '../chat-engine.js';
 import type { AppEvent } from '../../appview/sse.js';
 import { emitAppEvent } from '../../appview/sse.js';
 import type { TriggerAction } from './types.js';
+import { validateWebhookUrl } from '../../utils/url-validation.js';
 
 export interface ActionResult {
   type: string;
@@ -54,6 +55,9 @@ export async function executeAction(
       case 'notify':
         await executeNotify(action, context);
         break;
+      case 'run_script':
+        await executeRunScript(action, context);
+        break;
       default:
         throw new Error(`Unknown action type: ${(action as TriggerAction).type}`);
     }
@@ -96,35 +100,6 @@ async function executeAgentMessage(
   });
 }
 
-/**
- * Validate that a webhook URL is safe to call (prevent SSRF).
- * Requires HTTPS and blocks private/internal addresses.
- */
-function validateWebhookUrl(raw: string): URL {
-  const parsed = new URL(raw);
-
-  if (parsed.protocol !== 'https:') {
-    throw new Error('Webhook URL must use HTTPS');
-  }
-
-  const hostname = parsed.hostname;
-  if (
-    hostname === 'localhost' ||
-    hostname === '127.0.0.1' ||
-    hostname === '::1' ||
-    hostname.startsWith('10.') ||
-    hostname.startsWith('192.168.') ||
-    /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) ||
-    hostname === '169.254.169.254' ||
-    hostname.endsWith('.local') ||
-    hostname.endsWith('.internal')
-  ) {
-    throw new Error('Webhook URL must not point to internal/private addresses');
-  }
-
-  return parsed;
-}
-
 async function executeWebhook(
   action: TriggerAction,
   context: ActionContext,
@@ -157,6 +132,30 @@ async function executeWebhook(
   if (!res.ok) {
     throw new Error(`Webhook returned ${res.status}: ${body.slice(0, 200)}`);
   }
+}
+
+async function executeRunScript(
+  action: TriggerAction,
+  context: ActionContext,
+): Promise<void> {
+  const scriptId = action.config.scriptId as string | undefined;
+  if (!scriptId) {
+    throw new Error('run_script action requires config.scriptId');
+  }
+
+  // ScriptService is not available in ActionContext — emit a domain event
+  // that the script's domain-event listener will pick up
+  emitAppEvent({
+    type: 'notification.created' as AppEvent['type'],
+    data: {
+      _trigger: 'run_script',
+      scriptId,
+      triggerId: context.trigger.id,
+      event: context.event.type,
+      eventData: context.event.data,
+    },
+    cooperativeDid: context.trigger.cooperativeDid,
+  });
 }
 
 async function executeNotify(

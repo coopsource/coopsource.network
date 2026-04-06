@@ -3,6 +3,11 @@ import { sql } from 'kysely';
 import type { Container } from '../container.js';
 import { asyncHandler } from '../lib/async-handler.js';
 import { requireAuth, requireAdmin, resetSetupCache } from '../auth/middleware.js';
+import { getFirehoseHealth } from '../appview/loop.js';
+import { listDeadLetters, resolveDeadLetter } from '../appview/hooks/dead-letter.js';
+import { processFirehoseEvent } from '../appview/hooks/pipeline.js';
+import type { FirehoseEvent } from '@coopsource/federation';
+import type { DID, AtUri, CID } from '@coopsource/common';
 
 export function createAdminRoutes(container: Container): Router {
   const router = Router();
@@ -32,16 +37,44 @@ export function createAdminRoutes(container: Container): Router {
     }),
   );
 
-  // POST /api/v1/admin/pds/reindex/:did
+  // POST /api/v1/admin/pds/reindex/:did — replay pds_record through post-storage hooks
   router.post(
     '/api/v1/admin/pds/reindex/:did',
     requireAuth,
     requireAdmin,
     asyncHandler(async (req, res) => {
-      // TODO: Implement reindex
-      res.json({
-        message: `TODO: reindex ${req.params.did}`,
-      });
+      const did = req.params.did;
+
+      const records = await container.db
+        .selectFrom('pds_record')
+        .where('did', '=', did)
+        .where('deleted_at', 'is', null)
+        .selectAll()
+        .execute();
+
+      let processed = 0;
+      let errors = 0;
+
+      for (const record of records) {
+        const event: FirehoseEvent = {
+          seq: 0,
+          did: record.did as DID,
+          operation: 'create',
+          uri: record.uri as AtUri,
+          cid: record.cid as CID,
+          record: record.content as Record<string, unknown>,
+          time: new Date().toISOString(),
+        };
+
+        try {
+          await processFirehoseEvent(container.db, container.hookRegistry, event);
+          processed++;
+        } catch {
+          errors++;
+        }
+      }
+
+      res.json({ ok: true, did, processed, errors, total: records.length });
     }),
   );
 
@@ -108,7 +141,9 @@ export function createAdminRoutes(container: Container): Router {
             connector_config, connector_sync_log, connector_field_mapping,
             webhook_endpoint, webhook_delivery_log,
             report_template, report_snapshot,
-            notification_preference, mention
+            notification_preference, mention,
+            hook_dead_letter,
+            script_execution_log, cooperative_script
           CASCADE
         `.execute(container.db);
         resetSetupCache();
@@ -139,6 +174,61 @@ export function createAdminRoutes(container: Container): Router {
       });
     }),
   );
+
+  // ─── Hook pipeline introspection ────────────────────────────────────────
+
+  // GET /api/v1/admin/hooks — list all registered hooks
+  router.get(
+    '/api/v1/admin/hooks',
+    requireAuth,
+    requireAdmin,
+    asyncHandler(async (_req, res) => {
+      const hooks = container.hookRegistry.listAll().map((h) => ({
+        id: h.id,
+        name: h.name,
+        phase: h.phase,
+        source: h.source,
+        collections: h.collections,
+        priority: h.priority,
+      }));
+      const health = getFirehoseHealth();
+      res.json({ hooks, health });
+    }),
+  );
+
+  // GET /api/v1/admin/hooks/dead-letter — list unresolved dead letter entries
+  router.get(
+    '/api/v1/admin/hooks/dead-letter',
+    requireAuth,
+    requireAdmin,
+    asyncHandler(async (req, res) => {
+      const limitParam = req.query.limit;
+      const limit = typeof limitParam === 'string' ? Number(limitParam) : undefined;
+      const cursorParam = req.query.cursor;
+      const cursor = typeof cursorParam === 'string' ? cursorParam : undefined;
+      const result = await listDeadLetters(container.db, { limit, cursor });
+      res.json(result);
+    }),
+  );
+
+  // POST /api/v1/admin/hooks/dead-letter/:id/resolve — mark as resolved
+  router.post(
+    '/api/v1/admin/hooks/dead-letter/:id/resolve',
+    requireAuth,
+    requireAdmin,
+    asyncHandler(async (req, res) => {
+      const id = Array.isArray(req.params.id) ? req.params.id[0]! : req.params.id;
+      const resolved = await resolveDeadLetter(container.db, id);
+      if (!resolved) {
+        res.status(404).json({ error: 'Dead letter entry not found or already resolved' });
+        return;
+      }
+      res.json({ ok: true });
+    }),
+  );
+
+  // Add hook_dead_letter to test-reset truncate list
+  // (already in the SQL truncate above via cascade, but noted for awareness)
 
   return router;
 }

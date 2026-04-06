@@ -844,6 +844,66 @@ export interface CooperativeLinkTable {
   updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }
 
+// ── Hook pipeline (V7 P6) ─────────────────────
+
+export interface RegisteredLexiconTable {
+  nsid: string;
+  lexicon_doc: ColumnType<Record<string, unknown>, string | Record<string, unknown>, string | Record<string, unknown>>;
+  field_mappings: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
+  registered_by: string;
+  enabled: ColumnType<boolean, boolean | undefined, boolean>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface HookDeadLetterTable {
+  id: Generated<string>;
+  event_uri: string;
+  event_did: string;
+  collection: string;
+  operation: string;
+  hook_id: string;
+  hook_phase: string;
+  error_message: string;
+  error_stack: string | null;
+  event_data: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
+  retry_count: ColumnType<number, number | undefined, number>;
+  resolved_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+// ── Cooperative scripts (V7 P8) ──────────────
+
+export interface CooperativeScriptTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  name: string;
+  description: string | null;
+  source_code: string;
+  compiled_js: string | null;
+  phase: string;
+  collections: ColumnType<string[] | null, string[] | null, string[] | null>;
+  event_types: ColumnType<string[] | null, string[] | null, string[] | null>;
+  priority: ColumnType<number, number | undefined, number>;
+  enabled: ColumnType<boolean, boolean | undefined, boolean>;
+  config: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
+  timeout_ms: ColumnType<number, number | undefined, number>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface ScriptExecutionLogTable {
+  id: Generated<string>;
+  script_id: string;
+  cooperative_did: string;
+  trigger_type: string;
+  trigger_detail: string | null;
+  duration_ms: number;
+  status: string;
+  error: string | null;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
 // ──────────────────────────────────────────────
 // Database interface
 // ──────────────────────────────────────────────
@@ -992,6 +1052,15 @@ export interface Database {
   report_snapshot: ReportSnapshotTable;
   notification_preference: NotificationPreferenceTable;
   mention: MentionTable;
+
+  // Hook pipeline (052)
+  hook_dead_letter: HookDeadLetterTable;
+
+  // Registered lexicons (053)
+  registered_lexicon: RegisteredLexiconTable;
+  // Cooperative scripts (054)
+  cooperative_script: CooperativeScriptTable;
+  script_execution_log: ScriptExecutionLogTable;
 }
 
 // ──────────────────────────────────────────────

@@ -128,6 +128,14 @@ import type {
   ConnectorConfig,
   WebhookEndpoint,
   EventCatalogEntry,
+  HooksResponse,
+  DeadLettersResponse,
+  LexiconsResponse,
+  RegisteredLexicon,
+  ScriptsResponse,
+  CoopScript,
+  ScriptTestResult,
+  ScriptLogsResponse,
 } from './types.js';
 
 export class ApiError extends Error {
@@ -1477,5 +1485,57 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string, apiBase?
     markMentionAsRead: (id: string) => request<void>(`/mentions/${id}/read`, { method: 'POST' }),
     markAllMentionsAsRead: () => request<void>('/mentions/read-all', { method: 'POST' }),
     getUnreadMentionCount: () => request<{ count: number }>('/mentions/count'),
+
+    // ── Pipeline (V7 P6) ────────────────────────────────────────────
+    getHooks: () => request<HooksResponse>('/admin/hooks'),
+    getDeadLetters: (params?: { limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<DeadLettersResponse>(`/admin/hooks/dead-letter${qs.size ? `?${qs}` : ''}`);
+    },
+    resolveDeadLetter: (id: string) =>
+      request<{ ok: boolean }>(`/admin/hooks/dead-letter/${id}/resolve`, { method: 'POST' }),
+
+    // ── Lexicons (V7 P7) ────────────────────────────────────────────
+    getLexicons: () => request<LexiconsResponse>('/admin/lexicons'),
+    registerLexicon: (body: { nsid: string; lexiconDoc: Record<string, unknown>; fieldMappings?: Record<string, unknown> }) =>
+      request<{ nsid: string; registered: boolean }>('/admin/lexicons', { method: 'POST', body: JSON.stringify(body) }),
+    getLexicon: (nsid: string) =>
+      request<RegisteredLexicon>(`/admin/lexicons/${encodeURIComponent(nsid)}`),
+    deleteLexicon: (nsid: string) =>
+      request<{ nsid: string; removed: boolean }>(`/admin/lexicons/${encodeURIComponent(nsid)}`, { method: 'DELETE' }),
+
+    // ── Scripts (V7 P8) ─────────────────────────────────────────────
+    getScripts: (coopDid: string) =>
+      request<ScriptsResponse>(`/cooperatives/${encodeURIComponent(coopDid)}/scripts`),
+    createScript: (coopDid: string, body: {
+      name: string; sourceCode: string; phase: string;
+      description?: string; collections?: string[]; eventTypes?: string[];
+      config?: Record<string, unknown>; timeoutMs?: number;
+    }) =>
+      request<CoopScript>(`/cooperatives/${encodeURIComponent(coopDid)}/scripts`, {
+        method: 'POST', body: JSON.stringify(body),
+      }),
+    getScript: (coopDid: string, id: string) =>
+      request<CoopScript>(`/cooperatives/${encodeURIComponent(coopDid)}/scripts/${id}`),
+    updateScript: (coopDid: string, id: string, body: {
+      name?: string; sourceCode?: string; phase?: string;
+      description?: string; collections?: string[]; eventTypes?: string[];
+      config?: Record<string, unknown>; timeoutMs?: number;
+    }) =>
+      request<CoopScript>(`/cooperatives/${encodeURIComponent(coopDid)}/scripts/${id}`, {
+        method: 'PUT', body: JSON.stringify(body),
+      }),
+    deleteScript: (coopDid: string, id: string) =>
+      request<void>(`/cooperatives/${encodeURIComponent(coopDid)}/scripts/${id}`, { method: 'DELETE' }),
+    enableScript: (coopDid: string, id: string) =>
+      request<{ ok: boolean }>(`/cooperatives/${encodeURIComponent(coopDid)}/scripts/${id}/enable`, { method: 'POST' }),
+    disableScript: (coopDid: string, id: string) =>
+      request<{ ok: boolean }>(`/cooperatives/${encodeURIComponent(coopDid)}/scripts/${id}/disable`, { method: 'POST' }),
+    testScript: (coopDid: string, id: string) =>
+      request<ScriptTestResult>(`/cooperatives/${encodeURIComponent(coopDid)}/scripts/${id}/test`, { method: 'POST' }),
+    getScriptLogs: (coopDid: string, id: string) =>
+      request<ScriptLogsResponse>(`/cooperatives/${encodeURIComponent(coopDid)}/scripts/${id}/logs`),
   };
 }

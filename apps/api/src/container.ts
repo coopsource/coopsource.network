@@ -66,6 +66,12 @@ import { ReportingService } from './services/reporting-service.js';
 import { DashboardService } from './services/dashboard-service.js';
 import { MentionService } from './services/mention-service.js';
 import { StarterPackService } from './services/starter-pack-service.js';
+import { HookRegistry } from './appview/hooks/registry.js';
+import { registerBuiltinHooks } from './appview/hooks/builtin/index.js';
+import { lexiconValidatorHook } from './appview/hooks/builtin/lexicon-validator-hook.js';
+import { LexiconManagementService } from './services/lexicon-management-service.js';
+import { ScriptWorkerPool } from './scripting/worker-pool.js';
+import { ScriptService } from './scripting/script-service.js';
 
 export interface Container {
   db: Kysely<Database>;
@@ -128,6 +134,10 @@ export interface Container {
   dashboardService: DashboardService;
   mentionService: MentionService;
   starterPackService: StarterPackService;
+  hookRegistry: HookRegistry;
+  lexiconManagementService: LexiconManagementService;
+  scriptWorkerPool: ScriptWorkerPool;
+  scriptService: ScriptService;
 }
 
 export function createContainer(config: AppConfig): Container {
@@ -236,6 +246,23 @@ export function createContainer(config: AppConfig): Container {
   const mentionService = new MentionService(db, clock);
   const starterPackService = new StarterPackService(db, pdsService);
 
+  // V7 P6: Hook pipeline — register builtin indexers + lexicon validator
+  const hookRegistry = new HookRegistry();
+  registerBuiltinHooks(hookRegistry);
+  hookRegistry.register(lexiconValidatorHook);
+
+  // V7 P7: Lexicon management service — runtime lexicon registration + declarative hooks
+  const lexiconManagementService = new LexiconManagementService(db, hookRegistry);
+  // V7 P8: Cooperative scripting engine
+  const scriptWorkerPool = new ScriptWorkerPool();
+  const scriptService = new ScriptService(
+    db,
+    hookRegistry,
+    scriptWorkerPool,
+    emailService,
+    operatorWriteProxy,
+  );
+
   return {
     db,
     pdsService,
@@ -297,5 +324,9 @@ export function createContainer(config: AppConfig): Container {
     dashboardService,
     mentionService,
     starterPackService,
+    hookRegistry,
+    lexiconManagementService,
+    scriptWorkerPool,
+    scriptService,
   };
 }

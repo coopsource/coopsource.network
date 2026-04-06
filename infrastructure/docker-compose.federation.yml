@@ -53,7 +53,7 @@ services:
       INSTANCE_ROLE: hub
       PORT: 3001
       SESSION_SECRET: dev-hub-session-secret-32chars!!!
-      KEY_ENC_KEY: aHViLWRldi1rZXktZW5jLWtleS0zMi1ieXRlcw==
+      KEY_ENC_KEY: SZ2Y6jswJawz0b4ZNil0gQhZZ1SRNPFXgDGn6/MlOIk=
       REDIS_URL: redis://redis:6379
       SMTP_HOST: mailpit
       SMTP_PORT: 1025
@@ -86,7 +86,7 @@ services:
       HUB_URL: http://hub:3001
       PORT: 3002
       SESSION_SECRET: dev-coop-a-session-secret-32chars!
-      KEY_ENC_KEY: Y29vcC1hLWRldi1rZXktZW5jLWtleS0zMg==
+      KEY_ENC_KEY: CpdEFK7O9eH6xNv6F6Y90HvssdPGeLkzUKENgR4EBF8=
       REDIS_URL: redis://redis:6379
       SMTP_HOST: mailpit
       SMTP_PORT: 1025
@@ -119,7 +119,7 @@ services:
       HUB_URL: http://hub:3001
       PORT: 3003
       SESSION_SECRET: dev-coop-b-session-secret-32chars!
-      KEY_ENC_KEY: Y29vcC1iLWRldi1rZXktZW5jLWtleS0zMg==
+      KEY_ENC_KEY: KpkXbpKPhezRK5E0onAhVCL7ayL8oNuEdPtTOUsgC4k=
       REDIS_URL: redis://redis:6379
       SMTP_HOST: mailpit
       SMTP_PORT: 1025
