@@ -461,9 +461,9 @@ export function createFederationRoutes(
 
   // ── Hub-only endpoints ──
 
+  // No fedAuth — these endpoints return 501 unconditionally (V3 deprecated)
   router.post(
     '/api/v1/federation/hub/register',
-    fedAuth,
     asyncHandler(async (_req, res) => {
       res.status(501).json({
         error: 'NotImplemented',
@@ -474,7 +474,6 @@ export function createFederationRoutes(
 
   router.post(
     '/api/v1/federation/hub/notify',
-    fedAuth,
     asyncHandler(async (_req, res) => {
       res.status(501).json({
         error: 'NotImplemented',
