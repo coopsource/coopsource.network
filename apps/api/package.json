@@ -27,6 +27,7 @@
     "@coopsource/db": "workspace:*",
     "@coopsource/federation": "workspace:*",
     "@coopsource/lexicons": "workspace:*",
+    "@ipld/dag-cbor": "^9.2.5",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "ai": "^6.0.0",
     "bcrypt": "^6.0.0",
