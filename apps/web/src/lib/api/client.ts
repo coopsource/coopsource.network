@@ -1537,5 +1537,24 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string, apiBase?
       request<ScriptTestResult>(`/cooperatives/${encodeURIComponent(coopDid)}/scripts/${id}/test`, { method: 'POST' }),
     getScriptLogs: (coopDid: string, id: string) =>
       request<ScriptLogsResponse>(`/cooperatives/${encodeURIComponent(coopDid)}/scripts/${id}/logs`),
+
+    // ── Governance Labels (V7 P4) ────────────────────────────────────
+    getGovernanceLabels(params?: { value?: string; limit?: number }): Promise<{
+      labels: Array<{
+        id: string;
+        srcDid: string;
+        subjectUri: string;
+        labelValue: string;
+        neg: boolean;
+        createdAt: string;
+        seq: number;
+      }>;
+    }> {
+      const search = new URLSearchParams();
+      if (params?.value) search.set('value', params.value);
+      if (params?.limit) search.set('limit', String(params.limit));
+      const qs = search.toString();
+      return request(`/labels${qs ? `?${qs}` : ''}`);
+    },
   };
 }

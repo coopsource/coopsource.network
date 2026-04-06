@@ -360,7 +360,7 @@
       </label>
       <textarea id="script-config" name="config" rows={5} bind:value={formConfig}
         class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 font-mono text-xs text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
-        placeholder='{"key": "value"}'></textarea>
+        placeholder='&#123;"key": "value"&#125;'></textarea>
     </div>
     <div>
       <label for="script-timeout" class="block text-sm font-medium text-[var(--cs-text-secondary)]">

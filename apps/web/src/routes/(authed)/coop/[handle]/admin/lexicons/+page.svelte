@@ -112,7 +112,7 @@
       <label for="lex-doc" class="block text-sm font-medium text-[var(--cs-text-secondary)]">Lexicon Document (JSON)</label>
       <textarea id="lex-doc" name="lexiconDoc" rows={10} required
         class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 font-mono text-xs text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
-        placeholder='{"lexicon": 1, "id": "com.example.record", ...}'></textarea>
+        placeholder='&#123;"lexicon": 1, "id": "com.example.record", ...&#125;'></textarea>
     </div>
     <div>
       <label for="lex-mappings" class="block text-sm font-medium text-[var(--cs-text-secondary)]">
@@ -120,7 +120,7 @@
       </label>
       <textarea id="lex-mappings" name="fieldMappings" rows={5}
         class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 font-mono text-xs text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
-        placeholder='{"field": "column", ...}'></textarea>
+        placeholder='&#123;"field": "column", ...&#125;'></textarea>
     </div>
     <div class="flex justify-end gap-3">
       <button type="button" onclick={() => (registerModalOpen = false)}

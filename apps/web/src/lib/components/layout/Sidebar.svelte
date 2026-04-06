@@ -17,6 +17,7 @@
   import Activity from '@lucide/svelte/icons/activity';
   import BookOpenIcon from '@lucide/svelte/icons/book-open';
   import CodeIcon from '@lucide/svelte/icons/code';
+  import TagIcon from '@lucide/svelte/icons/tag';
   import UserPlus from '@lucide/svelte/icons/user-plus';
   import DollarSign from '@lucide/svelte/icons/dollar-sign';
   import Handshake from '@lucide/svelte/icons/handshake';
@@ -82,6 +83,7 @@
         { href: `${prefix}/admin/pipeline`, label: 'Pipeline', icon: Activity },
         { href: `${prefix}/admin/lexicons`, label: 'Lexicons', icon: BookOpenIcon },
         { href: `${prefix}/admin/scripts`, label: 'Scripts', icon: CodeIcon },
+        { href: `${prefix}/admin/labels`, label: 'Labels', icon: TagIcon },
       ];
     }
 
