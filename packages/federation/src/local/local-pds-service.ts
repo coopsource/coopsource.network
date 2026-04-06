@@ -70,11 +70,19 @@ export class LocalPdsService implements IPdsService {
       _options.handle ??
       `entity.${new URL(this.config.instanceUrl).hostname}`;
 
-    const did = await this.plc.create({
-      signingKey,
-      handle,
-      pdsUrl: this.config.instanceUrl,
-    });
+    // Import private key for PLC operation signing (needed when PLC_URL is a real URL)
+    const privateKey = await crypto.subtle.importKey(
+      'jwk',
+      privateJwk as Record<string, unknown>,
+      { name: 'ECDSA', namedCurve: 'P-256' },
+      false,
+      ['sign'],
+    );
+
+    const did = await this.plc.create(
+      { signingKey, handle, pdsUrl: this.config.instanceUrl },
+      { type: 'p256', privateKey },
+    );
 
     await this.db
       .insertInto('entity_key')

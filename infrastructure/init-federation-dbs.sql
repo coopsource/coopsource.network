@@ -5,3 +5,4 @@
 CREATE DATABASE coopsource_hub;
 CREATE DATABASE coopsource_coop_a;
 CREATE DATABASE coopsource_coop_b;
+CREATE DATABASE plc_federation;

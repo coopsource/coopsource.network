@@ -216,11 +216,7 @@ describe('Cross-Instance Federation', () => {
 
   // ─── 5. Signed cross-instance membership request ─────────────────
 
-  // Requires shared PLC directory for cross-instance did:plc resolution.
-  // The dev federation stack uses per-instance databases without a PLC directory,
-  // so coop-b cannot resolve coop-a's did:plc to verify the HTTP signature.
-  // These tests pass in production where PLC_URL points to plc.directory.
-  it.skip('coop-a can request membership on coop-b via signed federation call', async () => {
+  it('coop-a can request membership on coop-b via signed federation call', async () => {
     const db = createDb(INSTANCES.coopA.dbUrl);
     dbs.push(db);
     const resolver = new SigningKeyResolver(db as Kysely<Database>, INSTANCES.coopA.keyEncKey);
@@ -244,7 +240,7 @@ describe('Cross-Instance Federation', () => {
     dbs.pop();
   });
 
-  it.skip('coop-b can approve membership for coop-a via signed federation call', async () => {
+  it('coop-b can approve membership for coop-a via signed federation call', async () => {
     const db = createDb(INSTANCES.coopB.dbUrl);
     dbs.push(db);
     const resolver = new SigningKeyResolver(db as Kysely<Database>, INSTANCES.coopB.keyEncKey);

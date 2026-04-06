@@ -3,7 +3,7 @@ import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
 import { SystemClock } from '@coopsource/federation';
 import type { IPdsService } from '@coopsource/federation';
-import { LocalPdsService, LocalBlobStore, LocalPlcClient } from '@coopsource/federation/local';
+import { LocalPdsService, LocalBlobStore, LocalPlcClient, PlcClient } from '@coopsource/federation/local';
 import type { FederationDatabase } from '@coopsource/federation/local';
 import { DidWebResolver } from '@coopsource/federation/http';
 import { AtprotoPdsService } from '@coopsource/federation/atproto';
@@ -169,13 +169,17 @@ export function createContainer(config: AppConfig): Container {
         clock,
       );
 
-  // LocalPlcClient provides fallback DID resolution for did:plc identifiers in local dev
-  const localPlc = new LocalPlcClient(
-    db as unknown as import('kysely').Kysely<FederationDatabase>,
-    config.INSTANCE_URL,
-  );
+  // Fallback DID resolution for did:plc identifiers:
+  // - When PLC_URL is a real URL → use PlcClient (HTTP to PLC directory)
+  // - When PLC_URL is 'local' → use LocalPlcClient (DB-backed, dev-only)
+  const plcFallback = config.PLC_URL !== 'local'
+    ? new PlcClient(config.PLC_URL)
+    : new LocalPlcClient(
+        db as unknown as import('kysely').Kysely<FederationDatabase>,
+        config.INSTANCE_URL,
+      );
   const didResolver = new DidWebResolver({
-    fallbackResolve: (did) => localPlc.resolve(did) as Promise<import('@coopsource/federation').DidDocument>,
+    fallbackResolve: (did) => plcFallback.resolve(did) as Promise<import('@coopsource/federation').DidDocument>,
   });
 
   const blobStore = new LocalBlobStore({ blobDir: config.BLOB_DIR });

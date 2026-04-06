@@ -119,7 +119,7 @@ export class LocalPlcClient {
     private pdsUrl?: string,
   ) {}
 
-  async create(params: PlcCreateParams): Promise<string> {
+  async create(params: PlcCreateParams, _signingKey?: unknown): Promise<string> {
     const services: Record<string, { type: string; endpoint: string }> = {
       atproto_pds: {
         type: 'AtprotoPersonalDataServer',
