@@ -27,6 +27,7 @@ export interface WorkspaceContext {
   handle: string;
   prefix: string;
   cooperative: CoopEntity;
+  userRoles?: string[];
 }
 
 export interface MyMembershipsResponse {
