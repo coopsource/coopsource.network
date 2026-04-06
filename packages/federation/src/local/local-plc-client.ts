@@ -140,23 +140,32 @@ export class LocalPlcClient {
     const did = computeDid(genesisOp);
     const didDocument = buildDidDocument(did, params);
 
-    // Idempotent — if DID already exists return it (same key = same DID)
-    const existing = await this.db
-      .selectFrom('plc_operation')
-      .where('did', '=', did)
-      .select('did')
-      .executeTakeFirst();
+    // Idempotent — if DID already exists return it (same key = same DID).
+    // plc_operation table may not exist after V3 cleanup migration (056) — skip gracefully.
+    try {
+      const existing = await this.db
+        .selectFrom('plc_operation')
+        .where('did', '=', did)
+        .select('did')
+        .executeTakeFirst();
 
-    if (!existing) {
-      await this.db
-        .insertInto('plc_operation')
-        .values({
-          did,
-          genesis_op: genesisOp,
-          did_document: didDocument,
-          created_at: new Date(),
-        })
-        .execute();
+      if (!existing) {
+        await this.db
+          .insertInto('plc_operation')
+          .values({
+            did,
+            genesis_op: genesisOp,
+            did_document: didDocument,
+            created_at: new Date(),
+          })
+          .execute();
+      }
+    } catch (err: unknown) {
+      // plc_operation table may not exist after V3 cleanup migration (056)
+      const msg = err instanceof Error ? err.message : '';
+      if (!msg.includes('relation') || !msg.includes('does not exist')) {
+        throw err; // Re-throw unexpected errors
+      }
     }
 
     return did;
@@ -180,46 +189,56 @@ export class LocalPlcClient {
     params: Partial<PlcCreateParams>,
     _signingPrivateKeyJwk: object,
   ): Promise<void> {
-    const row = await this.db
-      .selectFrom('plc_operation')
-      .where('did', '=', did)
-      .select('did_document')
-      .executeTakeFirst();
+    // plc_operation table may not exist after V3 cleanup migration (056) — skip gracefully.
+    try {
+      const row = await this.db
+        .selectFrom('plc_operation')
+        .where('did', '=', did)
+        .select('did_document')
+        .executeTakeFirst();
 
-    if (!row) throw new Error(`DID not found: ${did}`);
+      if (!row) throw new Error(`DID not found: ${did}`);
 
-    const current = row.did_document as Record<string, unknown>;
+      const current = row.did_document as Record<string, unknown>;
 
-    // Merge updates into the existing DID document
-    const updated: Record<string, unknown> = { ...current };
+      // Merge updates into the existing DID document
+      const updated: Record<string, unknown> = { ...current };
 
-    if (params.handle) {
-      updated.alsoKnownAs = [`at://${params.handle}`];
+      if (params.handle) {
+        updated.alsoKnownAs = [`at://${params.handle}`];
+      }
+      if (params.signingKey) {
+        updated.verificationMethod = [
+          {
+            id: `${did}#atproto`,
+            type: 'EcdsaSecp256r1VerificationKey2019',
+            controller: did,
+            publicKeyMultibase: params.signingKey,
+          },
+        ];
+      }
+      if (params.pdsUrl) {
+        updated.service = [
+          {
+            id: '#atproto_pds',
+            type: 'AtprotoPersonalDataServer',
+            serviceEndpoint: params.pdsUrl,
+          },
+        ];
+      }
+
+      await this.db
+        .updateTable('plc_operation')
+        .set({ did_document: updated })
+        .where('did', '=', did)
+        .execute();
+    } catch (err: unknown) {
+      // Re-throw "DID not found" and other real errors; ignore only missing table
+      const msg = err instanceof Error ? err.message : '';
+      if (!msg.includes('relation') || !msg.includes('does not exist')) {
+        throw err; // Re-throw unexpected errors
+      }
+      // plc_operation table does not exist — update is a no-op
     }
-    if (params.signingKey) {
-      updated.verificationMethod = [
-        {
-          id: `${did}#atproto`,
-          type: 'EcdsaSecp256r1VerificationKey2019',
-          controller: did,
-          publicKeyMultibase: params.signingKey,
-        },
-      ];
-    }
-    if (params.pdsUrl) {
-      updated.service = [
-        {
-          id: '#atproto_pds',
-          type: 'AtprotoPersonalDataServer',
-          serviceEndpoint: params.pdsUrl,
-        },
-      ];
-    }
-
-    await this.db
-      .updateTable('plc_operation')
-      .set({ did_document: updated })
-      .where('did', '=', did)
-      .execute();
   }
 }

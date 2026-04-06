@@ -287,12 +287,22 @@ export class LocalPdsService implements IPdsService {
         // Calculate localSeq inside the transaction. The (did, local_seq)
         // unique constraint is the final guard against concurrent races;
         // we retry on violation (see catch below).
-        const seqResult = await trx
-          .selectFrom('pds_commit')
-          .where('did', '=', did)
-          .select((eb) => [eb.fn.max('local_seq').as('max_seq')])
-          .executeTakeFirst();
-        const localSeq = (Number(seqResult?.max_seq ?? 0) || 0) + 1;
+        // pds_commit may not exist after V3 cleanup migration (056) — fall back to 0.
+        let localSeq = 1;
+        try {
+          const seqResult = await trx
+            .selectFrom('pds_commit')
+            .where('did', '=', did)
+            .select((eb) => [eb.fn.max('local_seq').as('max_seq')])
+            .executeTakeFirst();
+          localSeq = (Number(seqResult?.max_seq ?? 0) || 0) + 1;
+        } catch (seqErr: unknown) {
+          const seqMsg = seqErr instanceof Error ? seqErr.message : '';
+          if (!seqMsg.includes('relation') || !seqMsg.includes('does not exist')) {
+            throw seqErr;
+          }
+          // pds_commit table does not exist — localSeq stays at 1
+        }
 
         if (operation === 'create') {
           const uriStr = uri.replace('at://', '');
@@ -329,23 +339,34 @@ export class LocalPdsService implements IPdsService {
             .execute();
         }
 
-        const [commit] = await trx
-          .insertInto('pds_commit')
-          .values({
-            local_seq: localSeq,
-            did,
-            commit_cid: commitCid,
-            record_uri: uri,
-            record_cid: cid,
-            operation,
-            prev_record_cid: prevCid ?? null,
-            committed_at: now,
-          })
-          .returning('global_seq')
-          .execute();
+        // pds_commit may not exist after V3 cleanup migration (056) — skip gracefully.
+        let globalSeq: number = Date.now();
+        try {
+          const [commit] = await trx
+            .insertInto('pds_commit')
+            .values({
+              local_seq: localSeq,
+              did,
+              commit_cid: commitCid,
+              record_uri: uri,
+              record_cid: cid,
+              operation,
+              prev_record_cid: prevCid ?? null,
+              committed_at: now,
+            })
+            .returning('global_seq')
+            .execute();
+          globalSeq = commit!.global_seq as number;
+        } catch (commitErr: unknown) {
+          const commitMsg = commitErr instanceof Error ? commitErr.message : '';
+          if (!commitMsg.includes('relation') || !commitMsg.includes('does not exist')) {
+            throw commitErr; // Re-throw unexpected errors
+          }
+          // pds_commit table does not exist — use timestamp as fallback seq
+        }
 
         const event: FirehoseEvent = {
-          seq: commit!.global_seq as number,
+          seq: globalSeq,
           did: did as DID,
           operation,
           uri,
