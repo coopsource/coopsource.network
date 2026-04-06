@@ -101,7 +101,7 @@ Caddy automatically provisions TLS certificates from Let's Encrypt.
 | API | 3001 (internal) | Express backend (AppView) |
 | Web | 3000 (internal) | SvelteKit frontend (adapter-node) |
 | Tap | 2480 (internal) | ATProto firehose sync + backfill |
-| PostgreSQL | 5432 (internal) | Database (99 tables, 51 migrations) |
+| PostgreSQL | 5432 (internal) | Database (100 tables, 56 migrations) |
 | Redis | 6379 (internal) | Password-protected cache |
 
 ### PDS Setup (Cooperatives)

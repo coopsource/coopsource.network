@@ -81,7 +81,7 @@ make db-reset   # Drop DB, recreate, and re-migrate
 
 ### Current State
 
-The application layer is complete: 594 source files, 75 pages, 44 services, 99 database tables, 279 E2E tests. All feature development (governance, agreements, legal, finance, operations, commerce, integrations, AI agents, alignment) is built and tested.
+The application layer is complete: 594 source files, 75 pages, 44 services, 100 database tables, 279 E2E tests. All feature development (governance, agreements, legal, finance, operations, commerce, integrations, AI agents, alignment) is built and tested.
 
 **V6 federation migration is complete** (all 4 phases merged March 26, 2026). Real ATProto infrastructure (`AtprotoPdsService`, `PlcClient`, `MemberWriteProxy`, relay/Tap firehose consumers) is production-ready and activated via environment variables. `LocalPdsService` is retained as a dev-only fallback when `PDS_URL` is not set.
 

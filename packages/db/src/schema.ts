@@ -301,7 +301,7 @@ export interface AgreementRevisionTable {
 }
 
 // ──────────────────────────────────────────────
-// Legacy tables (kept for Stage 2-3 features)
+// Alignment & interests
 // ──────────────────────────────────────────────
 
 export interface StakeholderInterestTable {
@@ -416,6 +416,10 @@ export interface AgreementTemplateTable {
   updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }
 
+// ──────────────────────────────────────────────
+// External connections
+// ──────────────────────────────────────────────
+
 export interface ExternalConnectionTable {
   uri: string;
   did: string;
@@ -440,6 +444,10 @@ export interface ConnectionBindingTable {
   created_at: ColumnType<Date, Date | string, Date | string>;
   indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }
+
+// ──────────────────────────────────────────────
+// Funding campaigns & pledges
+// ──────────────────────────────────────────────
 
 export interface FundingCampaignTable {
   uri: string;
@@ -492,6 +500,10 @@ export interface PaymentProviderConfigTable {
   updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }
 
+// ──────────────────────────────────────────────
+// OIDC provider (dormant — no active routes/services)
+// ──────────────────────────────────────────────
+
 export interface OidcClientTable {
   client_id: string;
   client_secret_hash: string | null;
@@ -530,6 +542,10 @@ export interface OidcConsentTable {
   created_at: ColumnType<Date, Date | string | undefined, Date | string>;
   updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }
+
+// ──────────────────────────────────────────────
+// AI agents, model providers & API tokens
+// ──────────────────────────────────────────────
 
 export interface ModelProviderConfigTable {
   id: Generated<string>;
@@ -631,6 +647,10 @@ export interface AgentTriggerTable {
   updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }
 
+// ──────────────────────────────────────────────
+// Notifications & trigger execution
+// ──────────────────────────────────────────────
+
 export interface TriggerExecutionLogTable {
   id: Generated<string>;
   trigger_id: string;
@@ -658,6 +678,10 @@ export interface NotificationTable {
   read: ColumnType<boolean, boolean | undefined, boolean>;
   created_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }
+
+// ──────────────────────────────────────────────
+// Delegation voting
+// ──────────────────────────────────────────────
 
 export interface DelegationTable {
   uri: string;
@@ -871,28 +895,40 @@ export interface Database {
   role_definition: RoleDefinitionTable;
   signature_request: SignatureRequestTable;
 
-  // Legacy tables (kept for Stage 2-3 features)
+  // Alignment & interests
   stakeholder_interest: StakeholderInterestTable;
   desired_outcome: DesiredOutcomeTable;
   interest_map: InterestMapTable;
   stakeholder_terms: StakeholderTermsTable;
+
+  // External connections
   external_connection: ExternalConnectionTable;
   connection_binding: ConnectionBindingTable;
-  trigger_execution_log: TriggerExecutionLogTable;
-  notification: NotificationTable;
+
+  // Funding campaigns & pledges
   funding_campaign: FundingCampaignTable;
   funding_pledge: FundingPledgeTable;
   payment_provider_config: PaymentProviderConfigTable;
-  model_provider_config: ModelProviderConfigTable;
+
+  // OIDC provider (dormant)
   oidc_client: OidcClientTable;
   oidc_payload: OidcPayloadTable;
   oidc_consent: OidcConsentTable;
+
+  // AI agents, model providers & API tokens
+  model_provider_config: ModelProviderConfigTable;
   agent_config: AgentConfigTable;
   agent_session: AgentSessionTable;
   agent_message: AgentMessageTable;
   agent_usage: AgentUsageTable;
   agent_trigger: AgentTriggerTable;
   api_token: ApiTokenTable;
+
+  // Notifications & trigger execution
+  trigger_execution_log: TriggerExecutionLogTable;
+  notification: NotificationTable;
+
+  // Delegation voting
   delegation: DelegationTable;
 
   // OAuth tables (013)
