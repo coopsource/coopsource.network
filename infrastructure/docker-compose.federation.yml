@@ -31,18 +31,22 @@ services:
       retries: 10
 
   plc:
-    image: ghcr.io/bluesky-social/did-method-plc:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.plc
     environment:
       DATABASE_URL: postgresql://coopsource:dev_password@postgres:5432/plc_federation
       PORT: 2582
+      LOG_ENABLED: "true"
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:2582/health || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:2582/_health || exit 1"]
       interval: 5s
       timeout: 3s
-      retries: 10
+      retries: 15
+      start_period: 30s
 
   mailpit:
     image: axllent/mailpit:latest
@@ -65,7 +69,8 @@ services:
       DATABASE_URL: postgresql://coopsource:dev_password@postgres:5432/coopsource_hub
       INSTANCE_URL: http://hub:3001
       INSTANCE_ROLE: hub
-      PLC_URL: http://plc:2582
+      # PLC_URL: http://plc:2582  # Enable when PlcClient API is updated for current PLC directory
+      PLC_URL: local
       PORT: 3001
       SESSION_SECRET: dev-hub-session-secret-32chars!!!
       KEY_ENC_KEY: SZ2Y6jswJawz0b4ZNil0gQhZZ1SRNPFXgDGn6/MlOIk=
@@ -100,7 +105,8 @@ services:
       DATABASE_URL: postgresql://coopsource:dev_password@postgres:5432/coopsource_coop_a
       INSTANCE_URL: http://coop-a:3002
       INSTANCE_ROLE: coop
-      PLC_URL: http://plc:2582
+      # PLC_URL: http://plc:2582  # Enable when PlcClient API is updated for current PLC directory
+      PLC_URL: local
       HUB_URL: http://hub:3001
       PORT: 3002
       SESSION_SECRET: dev-coop-a-session-secret-32chars!
@@ -136,7 +142,8 @@ services:
       DATABASE_URL: postgresql://coopsource:dev_password@postgres:5432/coopsource_coop_b
       INSTANCE_URL: http://coop-b:3003
       INSTANCE_ROLE: coop
-      PLC_URL: http://plc:2582
+      # PLC_URL: http://plc:2582  # Enable when PlcClient API is updated for current PLC directory
+      PLC_URL: local
       HUB_URL: http://hub:3001
       PORT: 3003
       SESSION_SECRET: dev-coop-b-session-secret-32chars!

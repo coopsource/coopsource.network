@@ -37,7 +37,9 @@ services:
   # --- ATProto Federation (V6 Phase F1) ---
 
   plc:
-    image: ghcr.io/bluesky-social/did-method-plc:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.plc
     ports:
       - "2582:2582"
     environment:

@@ -1,0 +1,17 @@
+# Build PLC directory from did-method-plc source.
+# The upstream repo does not publish a Docker image and uses yarn.
+FROM node:20-alpine AS build
+RUN corepack enable
+WORKDIR /app
+RUN apk add --no-cache git
+RUN git clone --depth 1 https://github.com/did-method-plc/did-method-plc.git .
+RUN yarn install --frozen-lockfile
+RUN yarn workspace @did-plc/server build
+
+FROM node:20-alpine
+RUN corepack enable
+WORKDIR /app
+COPY --from=build /app /app
+WORKDIR /app/packages/server
+EXPOSE 2582
+CMD ["node", "dist/bin.js"]
