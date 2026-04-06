@@ -110,78 +110,32 @@ describe('Federation endpoints', () => {
   });
 
   describe('POST /api/v1/federation/hub/register', () => {
-    it('registers a cooperative peer', async () => {
+    it('returns 501 NotImplemented (V3 deprecated)', async () => {
       const res = await testApp.agent
         .post('/api/v1/federation/hub/register')
         .send({
           cooperativeDid: coopDid,
           hubUrl: 'http://localhost:3001',
-          metadata: {
-            displayName: 'Test Cooperative',
-          },
+          metadata: { displayName: 'Test Cooperative' },
         })
-        .expect(200);
+        .expect(501);
 
-      expect(res.body.registered).toBe(true);
-      expect(res.body.did).toBe(coopDid);
-    });
-
-    it('upserts on re-registration', async () => {
-      const res = await testApp.agent
-        .post('/api/v1/federation/hub/register')
-        .send({
-          cooperativeDid: coopDid,
-          hubUrl: 'http://localhost:3001',
-          metadata: {
-            displayName: 'Updated Name',
-            description: 'Updated description',
-          },
-        })
-        .expect(200);
-
-      expect(res.body.registered).toBe(true);
-
-      // Verify the peer was updated
-      const peer = await testApp.container.db
-        .selectFrom('federation_peer')
-        .where('did', '=', coopDid)
-        .selectAll()
-        .executeTakeFirst();
-
-      expect(peer).toBeDefined();
-      expect(peer!.display_name).toBe('Updated Name');
-      expect(peer!.description).toBe('Updated description');
-    });
-
-    it('validates request body', async () => {
-      await testApp.agent
-        .post('/api/v1/federation/hub/register')
-        .send({ cooperativeDid: coopDid })
-        .expect(400);
+      expect(res.body.error).toBe('NotImplemented');
     });
   });
 
   describe('POST /api/v1/federation/hub/notify', () => {
-    it('acknowledges a valid event', async () => {
+    it('returns 501 NotImplemented (V3 deprecated)', async () => {
       const res = await testApp.agent
         .post('/api/v1/federation/hub/notify')
         .send({
           type: 'membership.approved',
           sourceDid: coopDid,
-          data: { memberDid: adminDid },
-          timestamp: new Date().toISOString(),
+          data: {},
         })
-        .expect(200);
+        .expect(501);
 
-      expect(res.body.acknowledged).toBe(true);
-      expect(res.body.eventType).toBe('membership.approved');
-    });
-
-    it('validates request body', async () => {
-      await testApp.agent
-        .post('/api/v1/federation/hub/notify')
-        .send({ type: 'membership.approved' })
-        .expect(400);
+      expect(res.body.error).toBe('NotImplemented');
     });
   });
 

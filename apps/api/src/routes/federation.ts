@@ -22,24 +22,6 @@ const MembershipApproveSchema = z.object({
   roles: z.array(z.string()),
 });
 
-const HubRegisterSchema = z.object({
-  cooperativeDid: z.string().min(1),
-  hubUrl: z.string().min(1),
-  metadata: z.object({
-    displayName: z.string().min(1),
-    description: z.string().optional(),
-    cooperativeType: z.string().optional(),
-    website: z.string().optional(),
-  }),
-});
-
-const HubNotifySchema = z.object({
-  type: z.string().min(1),
-  sourceDid: z.string().min(1),
-  data: z.record(z.string(), z.unknown()),
-  timestamp: z.string().min(1),
-});
-
 const AgreementSignRequestSchema = z.object({
   agreementUri: z.string().min(1),
   agreementTitle: z.string().optional(),
@@ -482,95 +464,22 @@ export function createFederationRoutes(
   router.post(
     '/api/v1/federation/hub/register',
     fedAuth,
-    asyncHandler(async (req, res) => {
-      if (
-        config.INSTANCE_ROLE !== 'hub' &&
-        config.INSTANCE_ROLE !== 'standalone'
-      ) {
-        res.status(403).json({
-          error: 'Forbidden',
-          message: 'This endpoint is only available on hub instances',
-        });
-        return;
-      }
-      const params = HubRegisterSchema.parse(req.body);
-
-      // Resolve DID to get PDS URL
-      let pdsUrl: string;
-      try {
-        const doc = await didResolver.resolve(params.cooperativeDid);
-        const service = doc.service.find(
-          (s: { type: string; serviceEndpoint: string }) =>
-            s.type === 'CoopSourcePds' ||
-            s.type === 'AtprotoPersonalDataServer',
-        );
-        pdsUrl = service?.serviceEndpoint ?? params.hubUrl;
-      } catch {
-        // Fallback: use the hubUrl as pds_url if DID resolution fails
-        pdsUrl = params.hubUrl;
-      }
-
-      const now = container.clock.now();
-
-      // Upsert: insert or update on conflict (idempotent re-registration)
-      await container.db
-        .insertInto('federation_peer')
-        .values({
-          did: params.cooperativeDid,
-          display_name: params.metadata.displayName,
-          description: params.metadata.description ?? null,
-          cooperative_type: params.metadata.cooperativeType ?? null,
-          website: params.metadata.website ?? null,
-          pds_url: pdsUrl,
-          registered_at: now,
-          last_seen_at: now,
-          status: 'active',
-          created_at: now,
-          updated_at: now,
-        })
-        .onConflict((oc) =>
-          oc.column('did').doUpdateSet({
-            display_name: params.metadata.displayName,
-            description: params.metadata.description ?? null,
-            cooperative_type: params.metadata.cooperativeType ?? null,
-            website: params.metadata.website ?? null,
-            pds_url: pdsUrl,
-            last_seen_at: now,
-            status: 'active',
-            updated_at: now,
-          }),
-        )
-        .execute();
-
-      res.json({ registered: true, did: params.cooperativeDid });
+    asyncHandler(async (_req, res) => {
+      res.status(501).json({
+        error: 'NotImplemented',
+        message: 'Hub registration is deprecated. Cooperatives are discovered via the ATProto relay firehose.',
+      });
     }),
   );
 
   router.post(
     '/api/v1/federation/hub/notify',
     fedAuth,
-    asyncHandler(async (req, res) => {
-      if (
-        config.INSTANCE_ROLE !== 'hub' &&
-        config.INSTANCE_ROLE !== 'standalone'
-      ) {
-        res.status(403).json({
-          error: 'Forbidden',
-          message: 'This endpoint is only available on hub instances',
-        });
-        return;
-      }
-      const event = HubNotifySchema.parse(req.body);
-
-      // Update last_seen_at for the source peer
-      const now = container.clock.now();
-      await container.db
-        .updateTable('federation_peer')
-        .set({ last_seen_at: now, updated_at: now })
-        .where('did', '=', event.sourceDid)
-        .execute();
-
-      res.json({ acknowledged: true, eventType: event.type });
+    asyncHandler(async (_req, res) => {
+      res.status(501).json({
+        error: 'NotImplemented',
+        message: 'Hub notification is deprecated. Events flow through the ATProto firehose.',
+      });
     }),
   );
 

@@ -3,7 +3,6 @@ export type { DbConfig } from './client.js';
 export type {
   Database,
   // New tables (001–009)
-  PlcOperationTable,
   SystemConfigTable,
   FactLogTable,
   FactLogRedactionTable,
@@ -14,7 +13,6 @@ export type {
   AuthCredentialTable,
   SessionTable,
   PdsRecordTable,
-  PdsCommitTable,
   PdsFirehoseCursorTable,
   InvitationTable,
   MembershipTable,

@@ -18,21 +18,22 @@ export function createAdminRoutes(container: Container): Router {
     requireAuth,
     requireAdmin,
     asyncHandler(async (_req, res) => {
-      const commitCount = await container.db
-        .selectFrom('pds_commit')
+      const recordCount = await container.db
+        .selectFrom('pds_record')
+        .where('deleted_at', 'is', null)
         .select((eb) => [eb.fn.countAll<number>().as('count')])
         .executeTakeFirst();
 
-      const lastCommit = await container.db
-        .selectFrom('pds_commit')
-        .select('global_seq')
-        .orderBy('global_seq', 'desc')
+      const lastRecord = await container.db
+        .selectFrom('pds_record')
+        .select('indexed_at')
+        .orderBy('indexed_at', 'desc')
         .limit(1)
         .executeTakeFirst();
 
       res.json({
-        totalCommits: commitCount?.count ?? 0,
-        lastSeq: lastCommit?.global_seq ?? 0,
+        totalRecords: recordCount?.count ?? 0,
+        lastIndexedAt: lastRecord?.indexed_at ?? null,
       });
     }),
   );
@@ -111,12 +112,12 @@ export function createAdminRoutes(container: Container): Router {
             vote, proposal,
             post, thread_member, thread,
             membership_role, membership, invitation,
-            pds_commit, pds_record, pds_firehose_cursor, plc_operation,
+            pds_record, pds_firehose_cursor,
             auth_credential, entity_key, session,
             cooperative_profile, entity,
             fact_log_redaction, fact_log,
             data_deletion_request, system_config,
-            role_definition, federation_peer, signature_request, federation_outbox,
+            role_definition, signature_request,
             payment_provider_config, model_provider_config,
             agent_config, agent_session, agent_message, agent_usage, agent_trigger,
             api_token, trigger_execution_log, notification,

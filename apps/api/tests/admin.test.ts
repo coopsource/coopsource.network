@@ -38,13 +38,13 @@ describe('Admin', () => {
 
   // ─── Successful Admin Operations ──────────────────────────────────
 
-  it('GET /admin/pds/status returns commit count', async () => {
+  it('GET /admin/pds/status returns record count', async () => {
     const res = await testApp.agent
       .get('/api/v1/admin/pds/status')
       .expect(200);
 
-    expect(res.body.totalCommits).toBeDefined();
-    expect(res.body.lastSeq).toBeDefined();
+    expect(res.body.totalRecords).toBeDefined();
+    expect(res.body).toHaveProperty('lastIndexedAt');
   });
 
   it('GET /admin/activity returns entries', async () => {

@@ -188,7 +188,7 @@ describe('Cross-Instance Federation', () => {
 
   // ─── 4. Signed hub registration ──────────────────────────────────
 
-  it('coop-a can register with hub using signed request', async () => {
+  it('hub registration returns 501 NotImplemented (V3 deprecated)', async () => {
     const db = createDb(INSTANCES.coopA.dbUrl);
     dbs.push(db);
     const resolver = new SigningKeyResolver(db as Kysely<Database>, INSTANCES.coopA.keyEncKey);

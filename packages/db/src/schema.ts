@@ -116,18 +116,6 @@ export interface PdsRecordTable {
   deleted_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
 }
 
-export interface PdsCommitTable {
-  global_seq: Generated<number>;
-  local_seq: number;
-  did: string;
-  commit_cid: string;
-  record_uri: string;
-  record_cid: string;
-  operation: string;
-  prev_record_cid: string | null;
-  committed_at: ColumnType<Date, Date | string | undefined, Date | string>;
-}
-
 export interface PdsFirehoseCursorTable {
   subscriber_id: string;
   last_global_seq: number;
@@ -392,26 +380,6 @@ export interface RoleDefinitionTable {
 }
 
 // ──────────────────────────────────────────────
-// Federation Peer Registry (021 migration)
-// ──────────────────────────────────────────────
-
-export interface FederationPeerTable {
-  id: Generated<string>;
-  did: string;
-  display_name: string;
-  description: string | null;
-  cooperative_type: string | null;
-  website: string | null;
-  pds_url: string;
-  registered_at: ColumnType<Date, Date | string | undefined, Date | string>;
-  last_seen_at: ColumnType<Date, Date | string | undefined, Date | string>;
-  status: string;
-  metadata: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
-  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
-  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
-}
-
-// ──────────────────────────────────────────────
 // Signature Request Tracking (022 migration)
 // ──────────────────────────────────────────────
 
@@ -430,28 +398,6 @@ export interface SignatureRequestTable {
   signature_uri: string | null;
   signature_cid: string | null;
   created_at: ColumnType<Date, Date | string | undefined, Date | string>;
-}
-
-// ──────────────────────────────────────────────
-// Federation Outbox (023 migration)
-// ──────────────────────────────────────────────
-
-export interface FederationOutboxTable {
-  id: Generated<string>;
-  target_did: string;
-  target_url: string;
-  endpoint: string;
-  method: string;
-  payload: ColumnType<Record<string, unknown>, string | Record<string, unknown>, string | Record<string, unknown>>;
-  idempotency_key: string | null;
-  status: string;
-  attempts: number;
-  max_attempts: number;
-  next_attempt_at: ColumnType<Date, Date | string, Date | string>;
-  last_error: string | null;
-  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
-  sent_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
-  completed_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
 }
 
 // ──────────────────────────────────────────────
@@ -729,17 +675,6 @@ export interface DelegationTable {
 }
 
 // ──────────────────────────────────────────────
-// 009 — Local PLC store
-// ──────────────────────────────────────────────
-
-export interface PlcOperationTable {
-  did: string;
-  genesis_op: ColumnType<Record<string, unknown>, string | Record<string, unknown>, string | Record<string, unknown>>;
-  did_document: ColumnType<Record<string, unknown>, string | Record<string, unknown>, string | Record<string, unknown>>;
-  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
-}
-
-// ──────────────────────────────────────────────
 // 030 — Private record + operator audit log
 // ──────────────────────────────────────────────
 
@@ -910,7 +845,6 @@ export interface ScriptExecutionLogTable {
 
 export interface Database {
   // New tables (001–009)
-  plc_operation: PlcOperationTable;
   system_config: SystemConfigTable;
   fact_log: FactLogTable;
   fact_log_redaction: FactLogRedactionTable;
@@ -921,7 +855,6 @@ export interface Database {
   auth_credential: AuthCredentialTable;
   session: SessionTable;
   pds_record: PdsRecordTable;
-  pds_commit: PdsCommitTable;
   pds_firehose_cursor: PdsFirehoseCursorTable;
   invitation: InvitationTable;
   membership: MembershipTable;
@@ -936,9 +869,7 @@ export interface Database {
   agreement_revision: AgreementRevisionTable;
   agreement_template: AgreementTemplateTable;
   role_definition: RoleDefinitionTable;
-  federation_peer: FederationPeerTable;
   signature_request: SignatureRequestTable;
-  federation_outbox: FederationOutboxTable;
 
   // Legacy tables (kept for Stage 2-3 features)
   stakeholder_interest: StakeholderInterestTable;

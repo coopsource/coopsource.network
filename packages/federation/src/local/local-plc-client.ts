@@ -15,8 +15,11 @@
 
 import * as crypto from 'node:crypto';
 import type { Kysely } from 'kysely';
+import { sql } from 'kysely';
 import type { FederationDatabase } from './db-tables.js';
 import type { PlcCreateParams } from './plc-client.js';
+import { publicJwkToMultibase } from './did-manager.js';
+import type { JwkKey } from './did-manager.js';
 
 // ─── base32 encoding (RFC 4648, lowercase) ───────────────────────────────────
 
@@ -111,7 +114,10 @@ function buildDidDocument(
  * In production, use PlcClient with PLC_URL=https://plc.directory.
  */
 export class LocalPlcClient {
-  constructor(private db: Kysely<FederationDatabase>) {}
+  constructor(
+    private db: Kysely<FederationDatabase>,
+    private pdsUrl?: string,
+  ) {}
 
   async create(params: PlcCreateParams): Promise<string> {
     const services: Record<string, { type: string; endpoint: string }> = {
@@ -141,24 +147,19 @@ export class LocalPlcClient {
     const didDocument = buildDidDocument(did, params);
 
     // Idempotent — if DID already exists return it (same key = same DID).
-    // plc_operation table may not exist after V3 cleanup migration (056) — skip gracefully.
+    // plc_operation table dropped in migration 056 — skip gracefully.
     try {
-      const existing = await this.db
-        .selectFrom('plc_operation')
-        .where('did', '=', did)
-        .select('did')
-        .executeTakeFirst();
+      const existingRows = await sql<{ did: string }>`
+        SELECT did FROM plc_operation WHERE did = ${did} LIMIT 1
+      `.execute(this.db);
+      const existing = existingRows.rows[0];
 
       if (!existing) {
-        await this.db
-          .insertInto('plc_operation')
-          .values({
-            did,
-            genesis_op: genesisOp,
-            did_document: didDocument,
-            created_at: new Date(),
-          })
-          .execute();
+        await sql`
+          INSERT INTO plc_operation (did, genesis_op, did_document, created_at)
+          VALUES (${did}, ${JSON.stringify(genesisOp)}, ${JSON.stringify(didDocument)}, NOW())
+          ON CONFLICT (did) DO NOTHING
+        `.execute(this.db);
       }
     } catch (err: unknown) {
       // plc_operation table may not exist after V3 cleanup migration (056)
@@ -172,16 +173,76 @@ export class LocalPlcClient {
   }
 
   async resolve(did: string): Promise<object> {
-    const row = await this.db
-      .selectFrom('plc_operation')
-      .where('did', '=', did)
-      .select('did_document')
-      .executeTakeFirst();
+    // Try plc_operation table first (dropped in migration 056 — falls through to fallback).
+    try {
+      const result = await sql<{ did_document: unknown }>`
+        SELECT did_document FROM plc_operation WHERE did = ${did} LIMIT 1
+      `.execute(this.db);
+      const row = result.rows[0];
+      if (row) return row.did_document as object;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '';
+      if (!msg.includes('relation') || !msg.includes('does not exist')) {
+        throw err;
+      }
+      // plc_operation table dropped — fall through to entity_key fallback
+    }
 
-    if (!row) {
+    // Fallback: reconstruct minimal DID document from entity_key + entity tables.
+    const keyRows = await this.db
+      .selectFrom('entity_key')
+      .where('entity_did', '=', did)
+      .where('invalidated_at', 'is', null)
+      .select(['public_key_jwk', 'key_purpose'])
+      .orderBy('created_at', 'desc')
+      .execute();
+
+    const signingKeyRow = keyRows.find((r) => r.key_purpose === 'signing') ?? keyRows[0];
+    if (!signingKeyRow) {
       throw new Error(`DID not found: ${did}`);
     }
-    return row.did_document as object;
+
+    let signingKey: string;
+    try {
+      const jwk = JSON.parse(signingKeyRow.public_key_jwk) as JwkKey;
+      signingKey = publicJwkToMultibase(jwk);
+    } catch {
+      signingKey = `did-key-${did}`;
+    }
+
+    const entityRow = await this.db
+      .selectFrom('entity')
+      .where('did', '=', did)
+      .select(['handle'])
+      .executeTakeFirst();
+
+    const handle = entityRow?.handle ?? did;
+
+    return {
+      '@context': [
+        'https://www.w3.org/ns/did/v1',
+        'https://w3id.org/security/suites/ecdsa-2019/v1',
+      ],
+      id: did,
+      alsoKnownAs: [`at://${handle}`],
+      verificationMethod: [
+        {
+          id: `${did}#atproto`,
+          type: 'EcdsaSecp256r1VerificationKey2019',
+          controller: did,
+          publicKeyMultibase: signingKey,
+        },
+      ],
+      authentication: [`${did}#atproto`],
+      assertionMethod: [`${did}#atproto`],
+      service: [
+        {
+          id: '#atproto_pds',
+          type: 'AtprotoPersonalDataServer',
+          serviceEndpoint: this.pdsUrl ?? `https://pds.local`,
+        },
+      ],
+    };
   }
 
   async update(
@@ -191,15 +252,14 @@ export class LocalPlcClient {
   ): Promise<void> {
     // plc_operation table may not exist after V3 cleanup migration (056) — skip gracefully.
     try {
-      const row = await this.db
-        .selectFrom('plc_operation')
-        .where('did', '=', did)
-        .select('did_document')
-        .executeTakeFirst();
+      const updateResult = await sql<{ did_document: Record<string, unknown> }>`
+        SELECT did_document FROM plc_operation WHERE did = ${did} LIMIT 1
+      `.execute(this.db);
+      const row = updateResult.rows[0];
 
       if (!row) throw new Error(`DID not found: ${did}`);
 
-      const current = row.did_document as Record<string, unknown>;
+      const current = row.did_document;
 
       // Merge updates into the existing DID document
       const updated: Record<string, unknown> = { ...current };
@@ -227,11 +287,9 @@ export class LocalPlcClient {
         ];
       }
 
-      await this.db
-        .updateTable('plc_operation')
-        .set({ did_document: updated })
-        .where('did', '=', did)
-        .execute();
+      await sql`
+        UPDATE plc_operation SET did_document = ${JSON.stringify(updated)} WHERE did = ${did}
+      `.execute(this.db);
     } catch (err: unknown) {
       // Re-throw "DID not found" and other real errors; ignore only missing table
       const msg = err instanceof Error ? err.message : '';

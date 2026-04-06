@@ -58,7 +58,7 @@ export class LocalPdsService implements IPdsService {
     // any URL = HTTP PLC client (Stage 2+, points to plc.directory or self-hosted)
     this.plc =
       config.plcUrl === 'local'
-        ? new LocalPlcClient(db)
+        ? new LocalPlcClient(db, config.instanceUrl)
         : new PlcClient(config.plcUrl);
     this.firehoseEmitter = createFirehoseEmitter(config.connectionString);
   }
@@ -231,13 +231,32 @@ export class LocalPdsService implements IPdsService {
   }
 
   async *subscribeRepos(cursor = 0): AsyncIterable<FirehoseEvent> {
-    // Replay backlog first
-    const backlog = await this.db
-      .selectFrom('pds_commit')
-      .where('global_seq', '>', cursor)
-      .orderBy('global_seq', 'asc')
-      .selectAll()
-      .execute();
+    // Replay backlog from pds_commit (dropped in migration 056 — returns empty after that).
+    type CommitRow = {
+      global_seq: number;
+      did: string;
+      operation: string;
+      record_uri: string;
+      record_cid: string;
+      prev_record_cid: string | null;
+      committed_at: Date;
+    };
+    let backlog: CommitRow[] = [];
+    try {
+      const rows = await sql<CommitRow>`
+        SELECT global_seq, did, operation, record_uri, record_cid, prev_record_cid, committed_at
+        FROM pds_commit
+        WHERE global_seq > ${cursor}
+        ORDER BY global_seq ASC
+      `.execute(this.db);
+      backlog = rows.rows;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '';
+      if (!msg.includes('relation') || !msg.includes('does not exist')) {
+        throw err;
+      }
+      // pds_commit table dropped in migration 056 — no backlog to replay
+    }
 
     for (const row of backlog) {
       let record: Record<string, unknown> | undefined;
@@ -288,15 +307,18 @@ export class LocalPdsService implements IPdsService {
         // unique constraint is the final guard against concurrent races;
         // we retry on violation (see catch below).
         // pds_commit may not exist after V3 cleanup migration (056) — fall back to 0.
+        // Use a SAVEPOINT to isolate a potential "relation does not exist" error
+        // so the outer transaction is not aborted.
         let localSeq = 1;
         try {
-          const seqResult = await trx
-            .selectFrom('pds_commit')
-            .where('did', '=', did)
-            .select((eb) => [eb.fn.max('local_seq').as('max_seq')])
-            .executeTakeFirst();
-          localSeq = (Number(seqResult?.max_seq ?? 0) || 0) + 1;
+          await sql`SAVEPOINT pds_commit_seq`.execute(trx);
+          const seqRows = await sql<{ max_seq: string | null }>`
+            SELECT MAX(local_seq) AS max_seq FROM pds_commit WHERE did = ${did}
+          `.execute(trx);
+          await sql`RELEASE SAVEPOINT pds_commit_seq`.execute(trx);
+          localSeq = (Number(seqRows.rows[0]?.max_seq ?? 0) || 0) + 1;
         } catch (seqErr: unknown) {
+          await sql`ROLLBACK TO SAVEPOINT pds_commit_seq`.execute(trx).catch(() => {});
           const seqMsg = seqErr instanceof Error ? seqErr.message : '';
           if (!seqMsg.includes('relation') || !seqMsg.includes('does not exist')) {
             throw seqErr;
@@ -340,24 +362,23 @@ export class LocalPdsService implements IPdsService {
         }
 
         // pds_commit may not exist after V3 cleanup migration (056) — skip gracefully.
+        // Use a SAVEPOINT to isolate a potential "relation does not exist" error
+        // so the outer transaction is not aborted.
         let globalSeq: number = Date.now();
         try {
-          const [commit] = await trx
-            .insertInto('pds_commit')
-            .values({
-              local_seq: localSeq,
-              did,
-              commit_cid: commitCid,
-              record_uri: uri,
-              record_cid: cid,
-              operation,
-              prev_record_cid: prevCid ?? null,
-              committed_at: now,
-            })
-            .returning('global_seq')
-            .execute();
-          globalSeq = commit!.global_seq as number;
+          await sql`SAVEPOINT pds_commit_insert`.execute(trx);
+          const insertResult = await sql<{ global_seq: number }>`
+            INSERT INTO pds_commit
+              (local_seq, did, commit_cid, record_uri, record_cid, operation, prev_record_cid, committed_at)
+            VALUES
+              (${localSeq}, ${did}, ${commitCid}, ${uri as string}, ${cid as string}, ${operation}, ${prevCid ?? null}, ${now})
+            RETURNING global_seq
+          `.execute(trx);
+          await sql`RELEASE SAVEPOINT pds_commit_insert`.execute(trx);
+          const firstRow = insertResult.rows[0];
+          if (firstRow) globalSeq = firstRow.global_seq;
         } catch (commitErr: unknown) {
+          await sql`ROLLBACK TO SAVEPOINT pds_commit_insert`.execute(trx).catch(() => {});
           const commitMsg = commitErr instanceof Error ? commitErr.message : '';
           if (!commitMsg.includes('relation') || !commitMsg.includes('does not exist')) {
             throw commitErr; // Re-throw unexpected errors
