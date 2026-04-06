@@ -1,7 +1,8 @@
 import type { HookRegistration } from '../types.js';
 import type { HookRegistry } from '../registry.js';
+import { declarativeConfigs, createDeclarativeHandler } from '../declarative/index.js';
 
-// ─── Existing indexer imports ────────────────────────────────────────────
+// ─── Complex indexer imports (kept as hand-written TypeScript) ──────────
 
 import {
   indexMembership,
@@ -12,19 +13,10 @@ import {
   indexAgreement,
   indexSignature,
 } from '../../indexers/agreement-indexer.js';
-import {
-  indexInterest,
-  indexOutcome,
-  indexInterestMap,
-} from '../../indexers/alignment-indexer.js';
-import { indexCalendarEvent, indexCalendarRsvp } from '../../indexers/calendar-indexer.js';
-import { indexFrontpagePost } from '../../indexers/frontpage-indexer.js';
-import { indexLegalDocument, indexMeetingRecord } from '../../indexers/legal-indexer.js';
-import { indexOfficer, indexComplianceItem, indexMemberNotice, indexFiscalPeriod } from '../../indexers/admin-indexer.js';
 
-// ─── Hook definitions ────────────────────────────────────────────────────
+// ─── Complex builtin hooks (bilateral state machines, counters) ────────
 
-const builtinHooks: HookRegistration[] = [
+const complexHooks: HookRegistration[] = [
   // ── Membership (bilateral state machine) ─────────────────────────────
   {
     id: 'builtin:org.membership',
@@ -84,134 +76,36 @@ const builtinHooks: HookRegistration[] = [
     priority: 10,
     postHandler: async (ctx) => { await indexSignature(ctx.db, ctx.event); },
   },
-
-  // ── Alignment ────────────────────────────────────────────────────────
-  {
-    id: 'builtin:alignment.interest',
-    name: 'Interest indexer',
-    phase: 'post-storage',
-    source: 'builtin',
-    collections: ['network.coopsource.alignment.interest'],
-    priority: 10,
-    postHandler: async (ctx) => { await indexInterest(ctx.db, ctx.event); },
-  },
-  {
-    id: 'builtin:alignment.outcome',
-    name: 'Outcome indexer',
-    phase: 'post-storage',
-    source: 'builtin',
-    collections: ['network.coopsource.alignment.outcome'],
-    priority: 10,
-    postHandler: async (ctx) => { await indexOutcome(ctx.db, ctx.event); },
-  },
-  {
-    id: 'builtin:alignment.interestMap',
-    name: 'Interest map indexer',
-    phase: 'post-storage',
-    source: 'builtin',
-    collections: ['network.coopsource.alignment.interestMap'],
-    priority: 10,
-    postHandler: async (ctx) => { await indexInterestMap(ctx.db, ctx.event); },
-  },
-
-  // ── Calendar (external) ──────────────────────────────────────────────
-  {
-    id: 'builtin:calendar.event',
-    name: 'Calendar event indexer',
-    phase: 'post-storage',
-    source: 'builtin',
-    collections: ['community.lexicon.calendar.event'],
-    priority: 10,
-    postHandler: async (ctx) => { await indexCalendarEvent(ctx.db, ctx.event); },
-  },
-  {
-    id: 'builtin:calendar.rsvp',
-    name: 'Calendar RSVP indexer',
-    phase: 'post-storage',
-    source: 'builtin',
-    collections: ['community.lexicon.calendar.rsvp'],
-    priority: 10,
-    postHandler: async (ctx) => { await indexCalendarRsvp(ctx.db, ctx.event); },
-  },
-
-  // ── Frontpage (external) ─────────────────────────────────────────────
-  {
-    id: 'builtin:frontpage.post',
-    name: 'Frontpage post indexer',
-    phase: 'post-storage',
-    source: 'builtin',
-    collections: ['fyi.unravel.frontpage.post'],
-    priority: 10,
-    postHandler: async (ctx) => { await indexFrontpagePost(ctx.db, ctx.event); },
-  },
-
-  // ── Legal ────────────────────────────────────────────────────────────
-  {
-    id: 'builtin:legal.document',
-    name: 'Legal document indexer',
-    phase: 'post-storage',
-    source: 'builtin',
-    collections: ['network.coopsource.legal.document'],
-    priority: 10,
-    postHandler: async (ctx) => { await indexLegalDocument(ctx.db, ctx.event); },
-  },
-  {
-    id: 'builtin:legal.meetingRecord',
-    name: 'Meeting record indexer',
-    phase: 'post-storage',
-    source: 'builtin',
-    collections: ['network.coopsource.legal.meetingRecord'],
-    priority: 10,
-    postHandler: async (ctx) => { await indexMeetingRecord(ctx.db, ctx.event); },
-  },
-
-  // ── Admin ────────────────────────────────────────────────────────────
-  {
-    id: 'builtin:admin.officer',
-    name: 'Officer indexer',
-    phase: 'post-storage',
-    source: 'builtin',
-    collections: ['network.coopsource.admin.officer'],
-    priority: 10,
-    postHandler: async (ctx) => { await indexOfficer(ctx.db, ctx.event); },
-  },
-  {
-    id: 'builtin:admin.complianceItem',
-    name: 'Compliance item indexer',
-    phase: 'post-storage',
-    source: 'builtin',
-    collections: ['network.coopsource.admin.complianceItem'],
-    priority: 10,
-    postHandler: async (ctx) => { await indexComplianceItem(ctx.db, ctx.event); },
-  },
-  {
-    id: 'builtin:admin.memberNotice',
-    name: 'Member notice indexer',
-    phase: 'post-storage',
-    source: 'builtin',
-    collections: ['network.coopsource.admin.memberNotice'],
-    priority: 10,
-    postHandler: async (ctx) => { await indexMemberNotice(ctx.db, ctx.event); },
-  },
-  {
-    id: 'builtin:admin.fiscalPeriod',
-    name: 'Fiscal period indexer',
-    phase: 'post-storage',
-    source: 'builtin',
-    collections: ['network.coopsource.admin.fiscalPeriod'],
-    priority: 10,
-    postHandler: async (ctx) => { await indexFiscalPeriod(ctx.db, ctx.event); },
-  },
 ];
+
+// ─── Declarative hooks (generated from configs) ────────────────────────
+
+function buildDeclarativeHooks(): HookRegistration[] {
+  return declarativeConfigs.map((config) => ({
+    id: `declarative:${config.collection}`,
+    name: `Declarative indexer for ${config.collection}`,
+    phase: 'post-storage' as const,
+    source: 'declarative' as const,
+    collections: [config.collection],
+    priority: 100,
+    postHandler: createDeclarativeHandler(config),
+  }));
+}
 
 // ─── Registration ────────────────────────────────────────────────────────
 
 /**
- * Register all built-in indexers as post-storage hooks.
+ * Register all built-in hooks:
+ * - 6 complex hand-written indexers (membership, proposal, agreement)
+ * - 12 declarative indexers (admin, legal, alignment, external)
+ *
  * Called once at startup from container setup.
  */
 export function registerBuiltinHooks(registry: HookRegistry): void {
-  for (const hook of builtinHooks) {
+  for (const hook of complexHooks) {
+    registry.register(hook);
+  }
+  for (const hook of buildDeclarativeHooks()) {
     registry.register(hook);
   }
 }

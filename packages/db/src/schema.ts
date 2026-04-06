@@ -846,6 +846,16 @@ export interface CooperativeLinkTable {
 
 // ── Hook pipeline (V7 P6) ─────────────────────
 
+export interface RegisteredLexiconTable {
+  nsid: string;
+  lexicon_doc: ColumnType<Record<string, unknown>, string | Record<string, unknown>, string | Record<string, unknown>>;
+  field_mappings: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
+  registered_by: string;
+  enabled: ColumnType<boolean, boolean | undefined, boolean>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
 export interface HookDeadLetterTable {
   id: Generated<string>;
   event_uri: string;
@@ -1013,6 +1023,9 @@ export interface Database {
 
   // Hook pipeline (052)
   hook_dead_letter: HookDeadLetterTable;
+
+  // Registered lexicons (053)
+  registered_lexicon: RegisteredLexiconTable;
 }
 
 // ──────────────────────────────────────────────
