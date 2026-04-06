@@ -96,7 +96,10 @@ export async function truncateAllTables(): Promise<void> {
       auth_credential, entity_key, session,
       cooperative_profile, entity,
       fact_log_redaction, fact_log,
-      data_deletion_request, system_config
+      data_deletion_request, system_config,
+      hook_dead_letter,
+      registered_lexicon,
+      script_execution_log, cooperative_script
     CASCADE
   `.execute(db);
 }

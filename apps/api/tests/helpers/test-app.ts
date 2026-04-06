@@ -24,6 +24,7 @@ import { AgreementTemplateService } from '../../src/services/agreement-template-
 import { ModelProviderRegistry } from '../../src/ai/model-provider-registry.js';
 import { AgentService } from '../../src/services/agent-service.js';
 import { ChatEngine } from '../../src/ai/chat-engine.js';
+import { McpClient } from '../../src/ai/mcp-client.js';
 import { EventDispatcher } from '../../src/ai/triggers/event-dispatcher.js';
 import { MemberWriteProxy } from '../../src/services/member-write-proxy.js';
 import { OperatorWriteProxy } from '../../src/services/operator-write-proxy.js';
@@ -44,6 +45,12 @@ import { DelegationVotingService } from '../../src/services/delegation-voting-se
 import { GovernanceFeedService } from '../../src/services/governance-feed-service.js';
 import { MemberClassService } from '../../src/services/member-class-service.js';
 import { CooperativeLinkService } from '../../src/services/cooperative-link-service.js';
+import { HookRegistry } from '../../src/appview/hooks/registry.js';
+import { registerBuiltinHooks } from '../../src/appview/hooks/builtin/index.js';
+import { lexiconValidatorHook } from '../../src/appview/hooks/builtin/lexicon-validator-hook.js';
+import { LexiconManagementService } from '../../src/services/lexicon-management-service.js';
+import { ScriptWorkerPool } from '../../src/scripting/worker-pool.js';
+import { ScriptService } from '../../src/scripting/script-service.js';
 import type { AppConfig } from '../../src/config.js';
 import { setDb, resetSetupCache } from '../../src/auth/middleware.js';
 import { setPermissionsDb } from '../../src/middleware/permissions.js';
@@ -90,6 +97,8 @@ import { createDelegationRoutes } from '../../src/routes/governance/delegations.
 import { createGovernanceFeedRoutes } from '../../src/routes/governance/feed.js';
 import { createMemberClassRoutes } from '../../src/routes/governance/member-classes.js';
 import { createCooperativeLinkRoutes } from '../../src/routes/governance/cooperative-links.js';
+import { createAdminLexiconRoutes } from '../../src/routes/admin-lexicons.js';
+import { createAdminScriptRoutes } from '../../src/routes/admin-scripts.js';
 import { errorHandler } from '../../src/middleware/error-handler.js';
 import { getTestDb, getTestConnectionString } from './test-db.js';
 
@@ -153,7 +162,8 @@ export function createTestApp(): TestApp {
   const connectionService = new ConnectionService(db, pdsService, clock, testConfig);
   const modelProviderRegistry = new ModelProviderRegistry(db, 'yIknTzhyTfVpR7cc/ZrwSpewmhyiOJA97leVbKqccsY=');
   const agentService = new AgentService(db, clock, modelProviderRegistry);
-  const chatEngine = new ChatEngine(db, clock, modelProviderRegistry);
+  const mcpClient = new McpClient();
+  const chatEngine = new ChatEngine(db, clock, modelProviderRegistry, mcpClient);
   const eventDispatcher = new EventDispatcher(db, chatEngine);
   const legalDocumentService = new LegalDocumentService(db, clock);
   const complianceCalendarService = new ComplianceCalendarService(db, clock);
@@ -171,6 +181,24 @@ export function createTestApp(): TestApp {
   const governanceFeedService = new GovernanceFeedService(db, clock);
   const memberClassService = new MemberClassService(db, clock);
   const cooperativeLinkService = new CooperativeLinkService(db, clock);
+
+  // V7 P6: Hook pipeline
+  const hookRegistry = new HookRegistry();
+  registerBuiltinHooks(hookRegistry);
+  hookRegistry.register(lexiconValidatorHook);
+
+  // V7 P7: Lexicon management
+  const lexiconManagementService = new LexiconManagementService(db, hookRegistry);
+
+  // V7 P8: Cooperative scripting
+  const scriptWorkerPool = new ScriptWorkerPool();
+  const scriptService = new ScriptService(
+    db,
+    hookRegistry,
+    scriptWorkerPool,
+    emailService,
+    operatorWriteProxy,
+  );
 
   const container: Container = {
     db,
@@ -193,6 +221,7 @@ export function createTestApp(): TestApp {
     connectionService,
     modelProviderRegistry,
     agentService,
+    mcpClient,
     chatEngine,
     eventDispatcher,
     memberWriteProxy,
@@ -214,6 +243,10 @@ export function createTestApp(): TestApp {
     governanceFeedService,
     memberClassService,
     cooperativeLinkService,
+    hookRegistry,
+    lexiconManagementService,
+    scriptWorkerPool,
+    scriptService,
   };
 
   // Set the DB reference for auth middleware + permissions middleware
@@ -284,6 +317,8 @@ export function createTestApp(): TestApp {
   app.use(createGovernanceFeedRoutes(container));
   app.use(createMemberClassRoutes(container));
   app.use(createCooperativeLinkRoutes(container));
+  app.use(createAdminLexiconRoutes(container));
+  app.use(createAdminScriptRoutes(container));
 
   // Error handler (must be last)
   app.use(errorHandler);
