@@ -1,4 +1,4 @@
-import { fail } from '@sveltejs/kit';
+import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types.js';
 import { createApiClient, ApiError } from '$lib/api/client.js';
 
@@ -6,6 +6,11 @@ export const load: PageServerLoad = async ({ fetch, request, parent }) => {
   const cookie = request.headers.get('cookie') ?? undefined;
   const api = createApiClient(fetch, cookie);
   const { workspace } = await parent();
+  // V8.2 — workspace.cooperative is nullable. This route only renders inside
+  // a coop workspace, so it's always non-null in practice, but guard anyway.
+  if (!workspace.cooperative) {
+    error(404, 'Cooperative not found');
+  }
   const coopDid = workspace.cooperative.did;
 
   const result = await api.getScripts(coopDid);

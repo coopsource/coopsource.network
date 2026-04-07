@@ -54,7 +54,10 @@
 
 <svelte:window onkeydown={open ? handleKeydown : undefined} />
 
-<div class="relative">
+<!-- clickOutside is attached to the wrapper so clicks on the toggle button
+     don't trigger "outside" dismissal (otherwise capture-phase close would
+     fire before the button's onclick, re-opening immediately). -->
+<div class="relative" use:clickOutside={close}>
   <button
     bind:this={buttonEl}
     type="button"
@@ -80,7 +83,6 @@
   {#if open}
     <div
       role="menu"
-      use:clickOutside={close}
       class="absolute left-0 top-full mt-1 w-56 z-50 bg-[var(--cs-bg-elevated)] border border-[var(--cs-border)] rounded-[var(--radius-md)] shadow-lg py-1"
     >
       <div class="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--cs-text-muted)]">

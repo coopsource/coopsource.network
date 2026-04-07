@@ -7,8 +7,10 @@
   let { data } = $props();
 
   // myCoops comes from the parent /me layout (includes both cooperatives and networks).
-  // Re-derive the split for the cards.
-  const myCoops = $derived(data.myCoops ?? []);
+  // Re-derive the split for the cards. Filter out entities with null handles —
+  // we can't render a working link without a handle, and linking to /coop/null
+  // would be broken. Consistent with myCoopsNavSection's filtering in sidebar-nav.ts.
+  const myCoops = $derived((data.myCoops ?? []).filter((c) => c.handle !== null));
   const cooperatives = $derived(myCoops.filter((c) => !c.isNetwork));
   const networks = $derived(myCoops.filter((c) => c.isNetwork));
   const invitations = $derived(data.invitations);

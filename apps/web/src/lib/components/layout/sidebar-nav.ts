@@ -130,6 +130,8 @@ export function myCoopsNavSection(
   }
   return {
     label: 'My Coops',
+    // Skip coops without a handle — we'd render /coop/null otherwise.
+    // The /me page cards apply the same filter for consistency.
     items: myCoops
       .filter((coop) => coop.handle !== null)
       .map((coop) => ({

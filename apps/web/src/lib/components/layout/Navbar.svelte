@@ -48,8 +48,6 @@
     }));
   });
 
-  const settingsHref = $derived(workspace ? `${workspace.prefix}/settings` : '/cooperative');
-
   function handleClickOutside(e: MouseEvent) {
     const target = e.target as HTMLElement;
     if (!target.closest('[data-user-menu]')) {
@@ -109,7 +107,7 @@
           </div>
           <div class="py-1">
             <a
-              href={settingsHref}
+              href="/me/profile"
               class="flex items-center gap-2 px-3 py-1.5 text-[13px] text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)] cs-transition"
               onclick={() => (menuOpen = false)}
             >
