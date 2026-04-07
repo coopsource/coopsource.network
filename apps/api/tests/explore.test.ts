@@ -32,6 +32,16 @@ async function setupWithHandle(
   };
 }
 
+/** Mark a cooperative as anon-discoverable so it appears in /explore endpoints. */
+async function makeDiscoverable(coopDid: string): Promise<void> {
+  const db = getTestDb();
+  await db
+    .updateTable('cooperative_profile')
+    .set({ anon_discoverable: true })
+    .where('entity_did', '=', coopDid)
+    .execute();
+}
+
 describe('Explore', () => {
   beforeEach(async () => {
     await truncateAllTables();
@@ -41,7 +51,8 @@ describe('Explore', () => {
 
   it('GET /api/v1/explore/cooperatives returns the cooperative created during setup', async () => {
     const testApp = createTestApp();
-    await setupAndLogin(testApp);
+    const { coopDid } = await setupWithHandle(testApp, 'test-coop');
+    await makeDiscoverable(coopDid);
 
     // No auth needed — use a fresh unauthenticated agent
     const res = await testApp.agent.get('/api/v1/explore/cooperatives').expect(200);
@@ -69,7 +80,8 @@ describe('Explore', () => {
 
   it('GET /api/v1/explore/cooperatives/:handle returns single coop profile', async () => {
     const testApp = createTestApp();
-    await setupWithHandle(testApp, 'test-coop');
+    const { coopDid } = await setupWithHandle(testApp, 'test-coop');
+    await makeDiscoverable(coopDid);
 
     const res = await testApp.agent
       .get('/api/v1/explore/cooperatives/test-coop')
@@ -95,13 +107,15 @@ describe('Explore', () => {
 
   it('GET /api/v1/explore/cooperatives does not include networks', async () => {
     const testApp = createTestApp();
-    await setupAndLogin(testApp);
+    const { coopDid } = await setupWithHandle(testApp, 'test-coop');
+    await makeDiscoverable(coopDid);
 
-    // Create a network
-    await testApp.agent
+    // Create a network and make it discoverable too (so the is_network filter is what excludes it)
+    const networkRes = await testApp.agent
       .post('/api/v1/networks')
       .send({ name: 'Test Network' })
       .expect(201);
+    await makeDiscoverable(networkRes.body.did);
 
     const res = await testApp.agent.get('/api/v1/explore/cooperatives').expect(200);
 
@@ -116,6 +130,7 @@ describe('Explore', () => {
   it('hides description when public_description is false', async () => {
     const testApp = createTestApp();
     const { coopDid } = await setupWithHandle(testApp, 'vis-coop');
+    await makeDiscoverable(coopDid);
 
     // Set public_description to false via direct DB update
     const db = getTestDb();
@@ -134,6 +149,7 @@ describe('Explore', () => {
   it('shows memberCount when public_members is true', async () => {
     const testApp = createTestApp();
     const { coopDid } = await setupWithHandle(testApp, 'mem-coop');
+    await makeDiscoverable(coopDid);
 
     // Set public_members to true
     const db = getTestDb();
@@ -150,7 +166,8 @@ describe('Explore', () => {
 
   it('hides networks when public_activity is false (default)', async () => {
     const testApp = createTestApp();
-    await setupWithHandle(testApp, 'act-coop');
+    const { coopDid } = await setupWithHandle(testApp, 'act-coop');
+    await makeDiscoverable(coopDid);
 
     // Create a network and join it
     const networkRes = await testApp.agent
@@ -183,10 +200,11 @@ describe('Explore', () => {
     const testApp = createTestApp();
     await setupAndLogin(testApp);
 
-    await testApp.agent
+    const networkRes = await testApp.agent
       .post('/api/v1/networks')
       .send({ name: 'Public Network', description: 'A public network' })
       .expect(201);
+    await makeDiscoverable(networkRes.body.did);
 
     const res = await testApp.agent.get('/api/v1/explore/networks').expect(200);
 
@@ -203,10 +221,11 @@ describe('Explore', () => {
     const testApp = createTestApp();
     await setupAndLogin(testApp);
 
-    await testApp.agent
+    const networkRes = await testApp.agent
       .post('/api/v1/networks')
       .send({ name: 'Anon Network' })
       .expect(201);
+    await makeDiscoverable(networkRes.body.did);
 
     // Clear cookies to simulate unauthenticated request
     const res = await testApp.agent.get('/api/v1/explore/networks').expect(200);
@@ -218,7 +237,8 @@ describe('Explore', () => {
 
   it('PUT /api/v1/cooperative with publicMembers:true makes explore show memberCount', async () => {
     const testApp = createTestApp();
-    await setupWithHandle(testApp, 'api-vis');
+    const { coopDid } = await setupWithHandle(testApp, 'api-vis');
+    await makeDiscoverable(coopDid);
 
     // Update visibility via PUT /api/v1/cooperative
     await testApp.agent
@@ -270,6 +290,7 @@ describe('Explore', () => {
   it('GET /api/v1/explore/cooperatives/:handle includes network memberships when public_activity is true', async () => {
     const testApp = createTestApp();
     const { coopDid } = await setupWithHandle(testApp, 'net-coop');
+    await makeDiscoverable(coopDid);
 
     // Enable public_activity
     const db = getTestDb();
@@ -295,5 +316,38 @@ describe('Explore', () => {
 
     expect(res.body.networks).toHaveLength(1);
     expect(res.body.networks[0].displayName).toBe('Federation Net');
+  });
+
+  // ─── V8.1 anon_discoverable flag ────────────────────────────────────
+
+  describe('V8.1 anon_discoverable flag', () => {
+    it('hides cooperatives that are not anon-discoverable', async () => {
+      const testApp = createTestApp();
+      await setupWithHandle(testApp, 'private-coop');
+      // No call to makeDiscoverable — coop should be hidden by default
+
+      const res = await testApp.agent.get('/api/v1/explore/cooperatives').expect(200);
+      expect(res.body.cooperatives).toHaveLength(0);
+    });
+
+    it('returns 404 for a non-discoverable cooperative by handle', async () => {
+      const testApp = createTestApp();
+      await setupWithHandle(testApp, 'hidden-coop');
+
+      const res = await testApp.agent
+        .get('/api/v1/explore/cooperatives/hidden-coop')
+        .expect(404);
+      expect(res.body.error).toBe('NOT_FOUND');
+    });
+
+    it('returns the cooperative once anon_discoverable is true', async () => {
+      const testApp = createTestApp();
+      const { coopDid } = await setupWithHandle(testApp, 'opt-in-coop');
+      await makeDiscoverable(coopDid);
+
+      const res = await testApp.agent.get('/api/v1/explore/cooperatives').expect(200);
+      expect(res.body.cooperatives).toHaveLength(1);
+      expect(res.body.cooperatives[0].handle).toBe('opt-in-coop');
+    });
   });
 });
