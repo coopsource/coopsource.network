@@ -1,22 +1,18 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import type { Component } from 'svelte';
-  import Users from '@lucide/svelte/icons/users';
-  import Vote from '@lucide/svelte/icons/vote';
-  import MessageSquare from '@lucide/svelte/icons/message-square';
-  import Compass from '@lucide/svelte/icons/compass';
-  import Banknote from '@lucide/svelte/icons/banknote';
-  import Globe from '@lucide/svelte/icons/globe';
-  import Shield from '@lucide/svelte/icons/shield';
-  import DollarSign from '@lucide/svelte/icons/dollar-sign';
-  import Handshake from '@lucide/svelte/icons/handshake';
-  import Settings from '@lucide/svelte/icons/settings';
-  import CircleUser from '@lucide/svelte/icons/circle-user';
   import PanelLeftClose from '@lucide/svelte/icons/panel-left-close';
   import PanelLeftOpen from '@lucide/svelte/icons/panel-left-open';
   import ThemeToggle from '$lib/components/ui/ThemeToggle.svelte';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import type { AuthUser, WorkspaceContext } from '$lib/api/types.js';
+  import {
+    cooperativeNavSection,
+    networkNavSection,
+    youNavSection,
+    isNavItemActive,
+    isAdminRoles,
+    type NavSection,
+  } from './sidebar-nav.js';
 
   interface Props {
     user?: AuthUser | null;
@@ -32,104 +28,17 @@
     workspace = null,
   }: Props = $props();
 
-  interface NavItem {
-    href: string;
-    label: string;
-    icon: Component;
-  }
-
-  interface NavSection {
-    label: string;
-    items: NavItem[];
-  }
-
-  const isAdmin = $derived(
-    workspace?.userRoles?.some((r) => ['admin', 'owner', 'officer'].includes(r)) ?? false
-  );
-
-  const cooperativeNav: NavSection = $derived.by(() => {
-    const prefix = workspace?.prefix ?? '';
-    if (!prefix) return { label: 'Cooperative', items: [] };
-
-    // Networks (is_network=true) use the same items as regular coops, but with
-    // "Members" relabeled to "Cooperatives" since a network's members are coops.
-    const isNetwork = workspace?.cooperative?.isNetwork ?? false;
-    const membersLabel = isNetwork ? 'Cooperatives' : 'Members';
-
-    const items: NavItem[] = [
-      { href: `${prefix}/members`, label: membersLabel, icon: Users },
-      { href: `${prefix}/governance`, label: 'Governance', icon: Vote },
-      { href: `${prefix}/posts`, label: 'Posts', icon: MessageSquare },
-    ];
-
-    if (isAdmin) {
-      items.push({ href: `${prefix}/finance`, label: 'Finance', icon: DollarSign });
-      items.push({ href: `${prefix}/admin`, label: 'Admin', icon: Shield });
-    }
-
-    return { label: 'Cooperative', items };
-  });
-
-  const networkNav: NavSection = $derived.by(() => {
-    const prefix = workspace?.prefix ?? '';
-    if (!prefix) return { label: 'Network', items: [] };
-
-    return {
-      label: 'Network',
-      items: [
-        { href: `${prefix}/networks`, label: 'Networks', icon: Globe },
-        { href: `${prefix}/partners`, label: 'Partners', icon: Handshake },
-        { href: `${prefix}/alignment`, label: 'Alignment', icon: Compass },
-        { href: `${prefix}/campaigns`, label: 'Campaigns', icon: Banknote },
-      ],
-    };
-  });
-
-  const youNav: NavSection = $derived.by(() => {
-    const prefix = workspace?.prefix ?? '';
-    if (!prefix) return { label: 'You', items: [] };
-
-    return {
-      label: 'You',
-      items: [
-        { href: `${prefix}/profile`, label: 'Profile', icon: CircleUser },
-        { href: `${prefix}/settings`, label: 'Settings', icon: Settings },
-      ],
-    };
-  });
+  const isAdmin = $derived(isAdminRoles(workspace?.userRoles));
+  const cooperativeNav = $derived(cooperativeNavSection(workspace, isAdmin));
+  const networkNav = $derived(networkNavSection(workspace));
+  const youNav = $derived(youNavSection(workspace));
 
   const sections: NavSection[] = $derived(
     [cooperativeNav, networkNav, youNav].filter((s) => s.items.length > 0)
   );
 
-  const routeParentMap: Record<string, string> = {
-    '/invitations': '/members',
-    '/onboarding': '/members',
-    '/agreements': '/governance',
-    '/legal': '/governance',
-    '/agents': '/admin',
-    '/notifications': '/settings',
-    '/settings/connections': '/settings',
-    '/settings/payments': '/settings',
-  };
-
   function isActive(href: string): boolean {
-    const pathname = $page.url.pathname;
-    const prefix = workspace?.prefix ?? '';
-
-    if (pathname === href || pathname.startsWith(href + '/')) return true;
-
-    if (prefix) {
-      for (const [subRoute, parentRoute] of Object.entries(routeParentMap)) {
-        const fullSub = prefix + subRoute;
-        const fullParent = prefix + parentRoute;
-        if (href === fullParent && (pathname === fullSub || pathname.startsWith(fullSub + '/'))) {
-          return true;
-        }
-      }
-    }
-
-    return false;
+    return isNavItemActive(href, $page.url.pathname, workspace?.prefix);
   }
 </script>
 
