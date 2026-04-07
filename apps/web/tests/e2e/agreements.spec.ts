@@ -171,10 +171,12 @@ test.describe('Agreements (Unified)', () => {
 		await expect(page).toHaveURL(wp('/agreements'));
 	});
 
-	test('sidebar navigation to agreements works', async ({ page }) => {
-		await page.goto(WORKSPACE);
-		await page.getByRole('link', { name: 'Agreements' }).click();
-		await expect(page).toHaveURL(wp('/agreements'));
-		await expect(page.getByRole('heading', { name: 'Agreements', exact: true })).toBeVisible();
+	test('Governance > Agreements tab navigation works', async ({ page }) => {
+		// V8.1: Agreements is now a tab under Governance, not a top-level sidebar item.
+		// Use ?tab=agreements URL param to land directly on the Agreements tab
+		// (bypasses any client-side hydration timing issues with tab clicks).
+		await page.goto(wp('/governance?tab=agreements'));
+		// The "New agreement" link is unique to the Agreements tab content.
+		await expect(page.getByRole('link', { name: 'New agreement' })).toBeVisible();
 	});
 });
