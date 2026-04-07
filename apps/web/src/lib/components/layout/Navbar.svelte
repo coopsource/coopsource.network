@@ -25,7 +25,7 @@
       const contextSegments = segments.slice(2);
       const crumbs = [
         {
-          label: workspace.cooperative.displayName,
+          label: workspace.cooperative?.displayName ?? workspace.handle,
           href: workspace.prefix,
           isLast: contextSegments.length === 0,
         },

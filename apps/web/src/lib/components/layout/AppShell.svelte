@@ -31,7 +31,7 @@
     }
   });
 
-  const displayName = $derived(workspace?.cooperative.displayName ?? coopName);
+  const displayName = $derived(workspace?.cooperative?.displayName ?? coopName);
 </script>
 
 <div class="flex h-screen overflow-hidden bg-[var(--cs-bg)]">
