@@ -23,11 +23,11 @@ export interface CoopEntity {
 }
 
 export interface WorkspaceContext {
-  type: 'coop';
-  handle: string;
-  prefix: string;
-  cooperative: CoopEntity;
-  userRoles?: string[];
+  type: 'coop' | 'home';
+  handle: string;       // 'me' when type === 'home'
+  prefix: string;       // '/me' when type === 'home'
+  cooperative: CoopEntity | null;  // null for home workspace
+  userRoles?: string[]; // empty for home workspace
 }
 
 export interface MyMembershipsResponse {

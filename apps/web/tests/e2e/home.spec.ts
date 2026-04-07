@@ -1,19 +1,19 @@
 import { test, expect } from '@playwright/test';
 import { ADMIN, COOP, WORKSPACE, wp, setupCooperative, loginAs } from './helpers.js';
 
-test.describe('Dashboard', () => {
+test.describe('Home', () => {
   test.beforeEach(async ({ page, request }) => {
     await setupCooperative(request);
     await loginAs(page, ADMIN.email, ADMIN.password);
   });
 
-  test('dashboard renders with cooperative card', async ({ page }) => {
-    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
-    await expect(page.getByText(COOP.name)).toBeVisible();
+  test('home renders with cooperative card', async ({ page }) => {
+    await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: COOP.name })).toBeVisible();
   });
 
   test('cooperative card navigates to workspace', async ({ page }) => {
-    await page.getByText(COOP.name).click();
+    await page.getByRole('link', { name: new RegExp(COOP.handle) }).first().click();
     await expect(page).toHaveURL(new RegExp(WORKSPACE));
   });
 
@@ -32,11 +32,12 @@ test.describe('Dashboard', () => {
     await expect(page.getByRole('link', { name: 'Alignment' })).toBeVisible();
   });
 
-  test('dashboard shows My Cooperatives section', async ({ page }) => {
+  test('home shows My Cooperatives section', async ({ page }) => {
     await expect(page.getByText('My Cooperatives')).toBeVisible();
   });
 
-  test('dashboard shows My Networks section', async ({ page }) => {
-    await expect(page.getByText('My Networks')).toBeVisible();
+  test('home hides My Networks section when user has no networks', async ({ page }) => {
+    // My Networks section is conditional — only rendered when networks.length > 0
+    await expect(page.getByText('My Networks')).not.toBeVisible();
   });
 });

@@ -25,7 +25,7 @@
       const contextSegments = segments.slice(2);
       const crumbs = [
         {
-          label: workspace.cooperative.displayName,
+          label: workspace.cooperative?.displayName ?? workspace.handle,
           href: workspace.prefix,
           isLast: contextSegments.length === 0,
         },
@@ -47,8 +47,6 @@
       isLast: i === segments.length - 1,
     }));
   });
-
-  const settingsHref = $derived(workspace ? `${workspace.prefix}/settings` : '/cooperative');
 
   function handleClickOutside(e: MouseEvent) {
     const target = e.target as HTMLElement;
@@ -109,7 +107,7 @@
           </div>
           <div class="py-1">
             <a
-              href={settingsHref}
+              href="/me/profile"
               class="flex items-center gap-2 px-3 py-1.5 text-[13px] text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)] cs-transition"
               onclick={() => (menuOpen = false)}
             >

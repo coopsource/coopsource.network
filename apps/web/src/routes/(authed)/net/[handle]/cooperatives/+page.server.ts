@@ -7,6 +7,13 @@ export const load: PageServerLoad = async ({ fetch, request, parent }) => {
   const api = createApiClient(fetch, cookie);
   const { workspace } = await parent();
 
+  // V8.2 — workspace.cooperative is nullable. /net/[handle] only renders for
+  // actual networks (the parent layout errors otherwise), so it's always
+  // non-null in practice, but guard for type safety.
+  if (!workspace.cooperative) {
+    error(404, 'Network not found');
+  }
+
   try {
     const result = await api.getNetworkMembers(workspace.cooperative.did, { limit: 50 });
     return { members: result.members, cursor: result.cursor };
