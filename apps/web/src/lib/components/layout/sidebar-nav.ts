@@ -10,7 +10,9 @@ import DollarSign from '@lucide/svelte/icons/dollar-sign';
 import Handshake from '@lucide/svelte/icons/handshake';
 import Settings from '@lucide/svelte/icons/settings';
 import CircleUser from '@lucide/svelte/icons/circle-user';
-import type { WorkspaceContext } from '$lib/api/types.js';
+import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
+import Building2 from '@lucide/svelte/icons/building-2';
+import type { CoopEntity, WorkspaceContext } from '$lib/api/types.js';
 
 export interface NavItem {
   href: string;
@@ -102,6 +104,39 @@ export function youNavSection(
       { href: '/me/profile', label: 'Profile', icon: CircleUser },
       { href: settingsHref, label: 'Settings', icon: Settings },
     ],
+  };
+}
+
+/** Compute the Home mode top nav section (Activity link). Empty for non-home workspaces. */
+export function homeNavSection(
+  workspace: WorkspaceContext | null | undefined,
+): NavSection {
+  if (workspace?.type !== 'home') return { label: '', items: [] };
+  return {
+    label: '',
+    items: [
+      { href: '/me', label: 'Activity', icon: LayoutDashboard },
+    ],
+  };
+}
+
+/** Compute the My Coops section for Home mode. Lists all coops the user belongs to. */
+export function myCoopsNavSection(
+  workspace: WorkspaceContext | null | undefined,
+  myCoops: readonly CoopEntity[],
+): NavSection {
+  if (workspace?.type !== 'home' || myCoops.length === 0) {
+    return { label: 'My Coops', items: [] };
+  }
+  return {
+    label: 'My Coops',
+    items: myCoops
+      .filter((coop) => coop.handle !== null)
+      .map((coop) => ({
+        href: `/coop/${coop.handle}`,
+        label: coop.displayName,
+        icon: Building2,
+      })),
   };
 }
 

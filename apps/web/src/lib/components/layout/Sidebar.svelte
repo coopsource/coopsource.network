@@ -4,10 +4,13 @@
   import PanelLeftOpen from '@lucide/svelte/icons/panel-left-open';
   import ThemeToggle from '$lib/components/ui/ThemeToggle.svelte';
   import Avatar from '$lib/components/ui/Avatar.svelte';
-  import type { AuthUser, WorkspaceContext } from '$lib/api/types.js';
+  import type { AuthUser, WorkspaceContext, CoopEntity } from '$lib/api/types.js';
+  import WorkspaceSwitcher from './WorkspaceSwitcher.svelte';
   import {
     cooperativeNavSection,
     networkNavSection,
+    homeNavSection,
+    myCoopsNavSection,
     youNavSection,
     isNavItemActive,
     isAdminRoles,
@@ -16,25 +19,31 @@
 
   interface Props {
     user?: AuthUser | null;
-    coopName?: string;
+    workspaceLabel?: string;
+    myCoops?: CoopEntity[];
     collapsed?: boolean;
     workspace?: WorkspaceContext | null;
   }
 
   let {
     user = null,
-    coopName = 'Co-op Source',
+    workspaceLabel = 'Co-op Source',
+    myCoops = [],
     collapsed = $bindable(false),
     workspace = null,
   }: Props = $props();
 
+  const isHome = $derived(workspace?.type === 'home');
   const isAdmin = $derived(isAdminRoles(workspace?.userRoles));
+
+  const homeNav = $derived(homeNavSection(workspace));
   const cooperativeNav = $derived(cooperativeNavSection(workspace, isAdmin));
   const networkNav = $derived(networkNavSection(workspace));
+  const myCoopsNav = $derived(myCoopsNavSection(workspace, myCoops));
   const youNav = $derived(youNavSection(workspace));
 
   const sections: NavSection[] = $derived(
-    [cooperativeNav, networkNav, youNav].filter((s) => s.items.length > 0)
+    [homeNav, cooperativeNav, networkNav, myCoopsNav, youNav].filter((s) => s.items.length > 0)
   );
 
   function isActive(href: string): boolean {
@@ -51,15 +60,18 @@
   <div class="flex items-center h-12 px-3 border-b border-[var(--cs-sidebar-border)]"
     class:justify-center={collapsed}
   >
-    {#if !collapsed}
-      <span class="text-[13px] font-semibold text-[var(--cs-sidebar-text-active)] truncate">
-        {coopName}
-      </span>
-    {/if}
+    <div class="flex-1 min-w-0">
+      <WorkspaceSwitcher
+        currentLabel={workspaceLabel}
+        {isHome}
+        currentCoopDid={workspace?.cooperative?.did}
+        {myCoops}
+        {collapsed}
+      />
+    </div>
     <button
       onclick={() => (collapsed = !collapsed)}
       class="p-1 rounded-[var(--radius-sm)] text-[var(--cs-sidebar-text)] hover:text-[var(--cs-sidebar-text-active)] hover:bg-[var(--cs-sidebar-hover)] cs-transition cursor-pointer"
-      class:ml-auto={!collapsed}
       title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
     >
       {#if collapsed}
@@ -76,7 +88,7 @@
       {#if si > 0}
         <div class="my-2 border-t border-[var(--cs-sidebar-border)]"></div>
       {/if}
-      {#if !collapsed}
+      {#if !collapsed && section.label}
         <span class="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--cs-sidebar-text)] opacity-50">
           {section.label}
         </span>
