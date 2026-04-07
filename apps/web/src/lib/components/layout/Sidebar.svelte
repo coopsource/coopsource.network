@@ -3,7 +3,6 @@
   import type { Component } from 'svelte';
   import Users from '@lucide/svelte/icons/users';
   import Vote from '@lucide/svelte/icons/vote';
-  import FileSignature from '@lucide/svelte/icons/file-signature';
   import MessageSquare from '@lucide/svelte/icons/message-square';
   import Compass from '@lucide/svelte/icons/compass';
   import Banknote from '@lucide/svelte/icons/banknote';
@@ -50,21 +49,15 @@
 
   const cooperativeNav: NavSection = $derived.by(() => {
     const prefix = workspace?.prefix ?? '';
-    // For network workspace type, return its own items (keep existing behavior)
-    if (workspace?.type === 'network') {
-      return {
-        label: 'Network',
-        items: [
-          { href: `${prefix}/cooperatives`, label: 'Cooperatives', icon: Users },
-          { href: `${prefix}/governance`, label: 'Governance', icon: Vote },
-          { href: `${prefix}/agreements`, label: 'Agreements', icon: FileSignature },
-        ],
-      };
-    }
     if (!prefix) return { label: 'Cooperative', items: [] };
 
+    // Networks (is_network=true) use the same items as regular coops, but with
+    // "Members" relabeled to "Cooperatives" since a network's members are coops.
+    const isNetwork = workspace?.cooperative?.isNetwork ?? false;
+    const membersLabel = isNetwork ? 'Cooperatives' : 'Members';
+
     const items: NavItem[] = [
-      { href: `${prefix}/members`, label: 'Members', icon: Users },
+      { href: `${prefix}/members`, label: membersLabel, icon: Users },
       { href: `${prefix}/governance`, label: 'Governance', icon: Vote },
       { href: `${prefix}/posts`, label: 'Posts', icon: MessageSquare },
     ];
@@ -79,7 +72,7 @@
 
   const networkNav: NavSection = $derived.by(() => {
     const prefix = workspace?.prefix ?? '';
-    if (!prefix || workspace?.type === 'network') return { label: 'Network', items: [] };
+    if (!prefix) return { label: 'Network', items: [] };
 
     return {
       label: 'Network',
