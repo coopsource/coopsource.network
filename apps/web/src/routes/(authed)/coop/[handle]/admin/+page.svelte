@@ -1,6 +1,8 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { Badge, EmptyState, Modal, Tabs, MemberSelect } from '$lib/components/ui';
+  import Bot from '@lucide/svelte/icons/bot';
+  import { workspacePrefix } from '$lib/utils/workspace.js';
 
   let { data, form } = $props();
 
@@ -20,6 +22,7 @@
     { id: 'compliance', label: 'Compliance', count: data.complianceItems.length },
     { id: 'notices', label: 'Notices', count: data.notices.length },
     { id: 'fiscal', label: 'Fiscal Periods', count: data.fiscalPeriods.length },
+    { id: 'agents', label: 'Agents', count: data.agents.length },
   ];
 
   $effect(() => {
@@ -73,6 +76,11 @@
           class="rounded-md bg-[var(--cs-primary)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)]">
           New fiscal period
         </button>
+      {:else if activeTab === 'agents'}
+        <a href="{$workspacePrefix}/settings/agents"
+          class="rounded-md bg-[var(--cs-primary)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)]">
+          Configure
+        </a>
       {/if}
     </div>
   </div>
@@ -266,6 +274,46 @@
           <a href="?fiscalCursor={data.fiscalCursor}" class="text-sm text-[var(--cs-primary)] hover:underline">Load more</a>
         </div>
       {/if}
+    {/if}
+  {/if}
+
+  <!-- Agents Tab -->
+  {#if activeTab === 'agents'}
+    {#if data.agents.length === 0}
+      <EmptyState
+        title="No agents configured"
+        description="Configure AI model providers and create agents to help your cooperative with governance, facilitation, and analysis."
+      />
+    {:else}
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {#each data.agents as agent}
+          <a
+            href="{$workspacePrefix}/agents/{agent.id}"
+            class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-5 hover:border-[var(--cs-primary)] transition-colors block"
+          >
+            <div class="flex items-start gap-3">
+              <div class="p-2 rounded-lg bg-[var(--cs-bg-inset)]">
+                <Bot size={20} class="text-[var(--cs-primary)]" />
+              </div>
+              <div class="min-w-0 flex-1">
+                <h3 class="font-medium text-[var(--cs-text)] truncate">{agent.name}</h3>
+                <p class="text-xs text-[var(--cs-text-muted)] mt-0.5 capitalize">{agent.agentType}</p>
+              </div>
+              {#if !agent.enabled}
+                <span class="text-xs px-2 py-0.5 rounded-full bg-[var(--cs-bg-inset)] text-[var(--cs-text-muted)]">
+                  Disabled
+                </span>
+              {/if}
+            </div>
+            {#if agent.description}
+              <p class="text-sm text-[var(--cs-text-secondary)] mt-3 line-clamp-2">{agent.description}</p>
+            {/if}
+            <div class="flex items-center gap-2 mt-3 text-xs text-[var(--cs-text-muted)]">
+              <span>Model: {agent.modelConfig.chat.split(':').pop()}</span>
+            </div>
+          </a>
+        {/each}
+      </div>
     {/if}
   {/if}
 </div>

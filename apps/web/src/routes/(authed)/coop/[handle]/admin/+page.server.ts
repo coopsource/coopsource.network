@@ -10,12 +10,13 @@ export const load: PageServerLoad = async ({ fetch, request, url }) => {
   const noticesCursor = url.searchParams.get('noticesCursor') ?? undefined;
   const fiscalCursor = url.searchParams.get('fiscalCursor') ?? undefined;
 
-  const [officers, compliance, notices, fiscalPeriods, membersData] = await Promise.all([
+  const [officers, compliance, notices, fiscalPeriods, membersData, agentsResult] = await Promise.all([
     api.getOfficers({ limit: 20, cursor: officersCursor }),
     api.getComplianceItems({ limit: 20, cursor: complianceCursor }),
     api.getNotices({ limit: 20, cursor: noticesCursor }),
     api.getFiscalPeriods({ limit: 20, cursor: fiscalCursor }),
     api.getMembers({ limit: 50 }),
+    api.getAgents().catch(() => ({ agents: [] })),
   ]);
 
   return {
@@ -28,6 +29,7 @@ export const load: PageServerLoad = async ({ fetch, request, url }) => {
     fiscalPeriods: fiscalPeriods.fiscalPeriods,
     fiscalCursor: fiscalPeriods.cursor,
     members: membersData.members,
+    agents: agentsResult.agents,
   };
 };
 
