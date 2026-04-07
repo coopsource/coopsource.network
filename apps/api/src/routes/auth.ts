@@ -61,8 +61,8 @@ export function createAuthRoutes(
     did: string;
     displayName: string;
     roles: string[];
-    cooperativeDid: string;
-    membershipId: string;
+    cooperativeDid: string | null;
+    membershipId: string | null;
   }) {
     // Fetch email from auth_credential
     const cred = await container.db
@@ -80,6 +80,10 @@ export function createAuthRoutes(
       .select(['handle'])
       .executeTakeFirst();
 
+    // V8.3 — fetch the user's default profile inline so /auth/me carries it
+    // alongside identity. Avoids a second round-trip from hooks.server.ts.
+    const profile = await container.profileService.getDefaultProfile(did);
+
     return {
       did: actor.did,
       handle: entity?.handle ?? null,
@@ -88,6 +92,15 @@ export function createAuthRoutes(
       roles: actor.roles,
       cooperativeDid: actor.cooperativeDid,
       membershipId: actor.membershipId,
+      profile: profile
+        ? {
+            id: profile.id,
+            displayName: profile.displayName,
+            avatarCid: profile.avatarCid,
+            bio: profile.bio,
+            verified: profile.verified,
+          }
+        : null,
     };
   }
 
@@ -103,14 +116,19 @@ export function createAuthRoutes(
         req.session.save((err) => (err ? reject(err) : resolve()));
       });
 
-      // Fetch full actor context for the response
+      // Fetch full actor context for the response. If the user has no
+      // active membership (yet), synthesize a minimal actor so the response
+      // shape stays consistent with /auth/me. V8.3 fixes the pre-existing
+      // type hole by typing cooperativeDid/membershipId as string | null.
       const actor = await container.authService.getSessionActor(result.did);
-      if (!actor) {
-        res.json({ did: result.did, handle: null, displayName: result.displayName, email, roles: [], cooperativeDid: null, membershipId: null });
-        return;
-      }
-
-      res.json(await buildMeResponse(result.did, actor));
+      const responseActor = actor ?? {
+        did: result.did,
+        displayName: result.displayName,
+        roles: [] as string[],
+        cooperativeDid: null,
+        membershipId: null,
+      };
+      res.json(await buildMeResponse(result.did, responseActor));
     }),
   );
 

@@ -125,6 +125,15 @@ export function createSetupRoutes(container: Container): Router {
           })
           .execute();
 
+        // V8.3 — create the admin's default profile inside the same
+        // transaction as the entity. ProfileService.createDefaultProfile
+        // accepts a transaction-scoped db so the inserts roll back together.
+        await container.profileService.createDefaultProfile({
+          entityDid: adminDid,
+          displayName: adminDisplayName,
+          db: trx,
+        });
+
         // Create auth credential for admin
         await trx
           .insertInto('auth_credential')

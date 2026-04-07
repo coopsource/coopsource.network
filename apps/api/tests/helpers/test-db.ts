@@ -94,6 +94,7 @@ export async function truncateAllTables(): Promise<void> {
       membership_role, membership, invitation,
       pds_record, pds_firehose_cursor,
       auth_credential, entity_key, session,
+      profile,
       cooperative_profile, entity,
       fact_log_redaction, fact_log,
       data_deletion_request, system_config,

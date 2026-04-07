@@ -13,12 +13,14 @@ import type { IClock } from '@coopsource/federation';
 import type { Actor } from '../auth/middleware.js';
 import { BCRYPT_ROUNDS } from '../lib/crypto-config.js';
 import type { IMemberRecordWriter } from './member-write-proxy.js';
+import type { ProfileService } from './profile-service.js';
 
 export class AuthService {
   constructor(
     private db: Kysely<Database>,
     private pdsService: IPdsService,
     private clock: IClock,
+    private profileService: ProfileService,
     private instanceUrl: string = 'http://localhost:3001',
     private memberWriteProxy?: IMemberRecordWriter,
   ) {}
@@ -86,6 +88,14 @@ export class AuthService {
         indexed_at: now,
       })
       .execute();
+
+    // V8.3 — create default profile alongside the entity. Profile is the
+    // user's presentation layer; entity owns the DID. One default profile
+    // per person, verified=true (single-profile-per-user in V8.3).
+    await this.profileService.createDefaultProfile({
+      entityDid: did,
+      displayName: params.displayName,
+    });
 
     // Insert auth_credential
     await this.db
