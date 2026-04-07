@@ -12,15 +12,15 @@ import {
 test.describe('Authentication', () => {
   test('unauthenticated user is redirected to /login', async ({ page, request }) => {
     await setupCooperative(request);
-    await page.goto('/dashboard');
+    await page.goto('/me');
     await expect(page).toHaveURL(/\/login/);
   });
 
   test('login with valid credentials lands on dashboard', async ({ page, request }) => {
     await setupCooperative(request);
     await loginAs(page, ADMIN.email, ADMIN.password);
-    await expect(page).toHaveURL('/dashboard');
-    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+    await expect(page).toHaveURL('/me');
+    await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
   });
 
   test('login with invalid credentials shows error', async ({ page, request }) => {
@@ -36,7 +36,7 @@ test.describe('Authentication', () => {
   test('sign out via UI redirects to login', async ({ page, request }) => {
     await setupCooperative(request);
     await loginAs(page, ADMIN.email, ADMIN.password);
-    await expect(page).toHaveURL('/dashboard');
+    await expect(page).toHaveURL('/me');
 
     // Navigate to workspace so Navbar with user menu is visible
     await page.goto(WORKSPACE);
@@ -53,8 +53,8 @@ test.describe('Authentication', () => {
     // Should redirect to login
     await expect(page).toHaveURL(/\/login/);
 
-    // Session should be cleared — navigating to dashboard redirects to login
-    await page.goto('/dashboard');
+    // Session should be cleared — navigating to /me redirects to login
+    await page.goto('/me');
     await expect(page).toHaveURL(/\/login/);
   });
 });
@@ -110,9 +110,9 @@ test.describe('Login Page Navigation', () => {
 });
 
 test.describe('Registration Flow', () => {
-  test.fixme('register with valid credentials redirects to dashboard', async ({ page, request }) => {
+  test.fixme('register with valid credentials redirects to /me', async ({ page, request }) => {
     // Pre-existing failure on main: registration form submit does not navigate
-    // away from /register. waitForURL('/dashboard') times out after 30s.
+    // away from /register. waitForURL('/me') times out after 30s.
     // Likely cause: server-side validation or redirect logic broken — needs
     // investigation independent of V8.1.
     await setupCooperative(request);
@@ -122,8 +122,8 @@ test.describe('Registration Flow', () => {
       email: 'newuser@e2e-test.com',
       password: 'newuserpassword123',
     });
-    await expect(page).toHaveURL('/dashboard');
-    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+    await expect(page).toHaveURL('/me');
+    await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
   });
 
   test('register with duplicate email shows error', async ({ page, request }) => {
@@ -153,17 +153,17 @@ test.describe('Registration Flow', () => {
 });
 
 test.describe('Login Flow', () => {
-  test('dashboard shows cooperative card after login', async ({ page, request }) => {
+  test('home shows cooperative card after login', async ({ page, request }) => {
     await setupCooperative(request);
     await loginAs(page, ADMIN.email, ADMIN.password);
-    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
-    await expect(page.getByText(COOP.name)).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: COOP.name })).toBeVisible();
   });
 
   test('clicking cooperative card navigates to workspace', async ({ page, request }) => {
     await setupCooperative(request);
     await loginAs(page, ADMIN.email, ADMIN.password);
-    await page.getByText(COOP.name).click();
+    await page.getByRole('link', { name: new RegExp(COOP.handle) }).first().click();
     await expect(page).toHaveURL(new RegExp(`/coop/${COOP.handle}`));
   });
 });
@@ -173,7 +173,7 @@ test.describe('Session Persistence', () => {
     await setupCooperative(request);
     await loginAs(page, ADMIN.email, ADMIN.password);
     await page.reload();
-    await expect(page).toHaveURL('/dashboard');
-    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+    await expect(page).toHaveURL('/me');
+    await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
   });
 });

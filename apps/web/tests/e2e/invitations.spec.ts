@@ -83,9 +83,9 @@ test.describe('Invitations', () => {
 
     // Submit
     await page.getByRole('button', { name: 'Accept Invitation' }).click();
-    await page.waitForURL('/dashboard');
+    await page.waitForURL('/me');
 
     // Should be logged in as the new member
-    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
   });
 });

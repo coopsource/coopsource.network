@@ -79,7 +79,7 @@ export async function loginAs(
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(password);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-  await page.waitForURL('/dashboard');
+  await page.waitForURL('/me');
 }
 
 /**
@@ -139,5 +139,5 @@ export async function registerAs(
   await page.getByLabel('Email').fill(user.email);
   await page.getByLabel('Password').fill(user.password);
   await page.getByRole('button', { name: 'Create account' }).click();
-  await page.waitForURL('/dashboard');
+  await page.waitForURL('/me');
 }
