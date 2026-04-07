@@ -18,6 +18,11 @@
     children,
   }: Props = $props();
 
+  // V8.3 — surface the user's default profile to the sidebar's
+  // ProfileDropdown. /api/v1/auth/me already returns it inline, populated
+  // by hooks.server.ts on every request, so no extra fetch is needed.
+  const currentProfile = $derived(user?.profile ?? null);
+
   let collapsed = $state(
     typeof window !== 'undefined'
       ? localStorage.getItem('sidebar-collapsed') === 'true'
@@ -40,7 +45,7 @@
 </script>
 
 <div class="flex h-screen overflow-hidden bg-[var(--cs-bg)]">
-  <Sidebar {user} workspaceLabel={displayLabel} {myCoops} bind:collapsed {workspace} />
+  <Sidebar {user} workspaceLabel={displayLabel} {myCoops} bind:collapsed {workspace} {currentProfile} />
   <div class="flex flex-1 flex-col overflow-hidden min-w-0">
     <Navbar {user} {workspace} />
     <main class="flex-1 overflow-auto p-6">
