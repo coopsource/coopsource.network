@@ -20,9 +20,10 @@ V8 introduces four new pillars:
 3. **Public Web** — Anonymous-accessible landing page, co-op directory, and discovery surface. Visibility is enforced by an expanded set of flags on each cooperative.
 4. **Discovery & Matchmaking** — Search service (Postgres full-text initially) covering cooperatives, people, and alignment data. Background matchmaking service surfaces relevant cooperatives, people, and content based on alignment, interests, and outcomes.
 
-Plus a foundational pillar:
+Plus two supporting pillars:
 
 5. **Visibility Foundation** — Audit and enforce existing visibility flags, expand them with discoverability and inter-coop sharing flags, define visibility tiers (anon, authed, member, officer, cross-coop, owner).
+6. **Entity Editing** — Reuse existing create modals and form pages to support editing for the 13 entities that currently only allow creation (proposals, agreements, tasks, expenses, etc.). State-machine gating (e.g., proposals editable in draft state but locked once voting opens). Establishes a consistent pattern across all entity surfaces.
 
 ---
 
@@ -874,6 +875,107 @@ Reuses the same dropdown pattern as workspace switcher, but for profiles. Lives 
 - Various — content updates, accessibility refinements
 - `apps/web/src/lib/components/home/GetStartedCard.svelte` (new)
 
+### Phase V8.10 — Entity Editing Foundation + Core Entities
+
+**Goal**: Establish the entity editing pattern and apply it to the 5 most user-facing entities. Addresses a long-standing gap where users could create entities but not edit them — 13 of 16 entities currently have no edit UI.
+
+**Reference patterns already in the codebase**: Cooperative Profile (`/coop/[handle]/settings/+page.svelte`) and Legal Document (`/coop/[handle]/legal/[id]/+page.svelte`) both demonstrate inline edit-toggle patterns. Alignment Interests uses upsert semantics (create and edit via the same endpoint). V8.10 formalizes these into two consistent patterns:
+
+**Pattern 1 — Modal Reuse** (for entities created via modals):
+
+```typescript
+// The existing create modal gains an `existing` prop. When null, it's create mode.
+// When an entity is provided, fields are pre-filled and form submits to ?/update.
+interface Props {
+  open: boolean;
+  existing?: EntityType | null;  // null = create, object = edit
+  onclose: () => void;
+}
+
+// In the page component, clicking an Edit button on a row sets:
+let editingEntity = $state<EntityType | null>(null);
+let modalOpen = $state(false);
+
+function openEdit(entity: EntityType) {
+  editingEntity = entity;
+  modalOpen = true;
+}
+function openCreate() {
+  editingEntity = null;
+  modalOpen = true;
+}
+
+// Modal form action is derived from the mode:
+const action = $derived(editingEntity ? '?/update' : '?/create');
+```
+
+**Pattern 2 — Form Page Reuse** (for entities with dedicated form pages):
+
+```
+apps/web/src/routes/(authed)/coop/[handle]/governance/
+  new/+page.svelte            # existing — create form
+  [id]/+page.svelte           # existing — detail/read-only view
+  [id]/edit/+page.svelte      # NEW — edit form, renders shared form component
+```
+
+Extract the form fields into a shared `<ProposalForm>` component that both `new/+page.svelte` and `[id]/edit/+page.svelte` render. The shared component accepts an optional `initialValues` prop.
+
+**State-machine gating**: Each entity defines a `canEdit(entity, user)` helper that returns true only when:
+- Entity's status is in an editable state (e.g., `draft` for proposals)
+- User has permission (creator, admin, owner — entity-specific rules)
+- Other entity-specific conditions (e.g., no signatures yet for agreements)
+
+The Edit button is conditionally rendered based on this helper. Backend also enforces the same check on the update endpoint to prevent direct API bypass.
+
+**Entities covered in V8.10**:
+
+1. **Proposal** — Editable only in `draft` state. Once `open`, locked (voting may have started). Form-page reuse.
+2. **Agreement** — Editable only in `draft` state. Once `open` (awaiting signatures) or `active`, locked — editing an active agreement would invalidate signatures. Form-page reuse.
+3. **Campaign** — Editable in `draft` and `active` states (description, goal, dates). Locked once `funded`, `completed`, or `cancelled`. Form-page reuse.
+4. **Task** — Editable in `backlog`, `todo`, `in_progress`, `in_review` (not `done`). Modal reuse.
+5. **Expense** — Editable only in `submitted` state (before review). Locked once `approved`, `rejected`, or `reimbursed`. Modal reuse.
+
+**Key files**:
+- `apps/web/src/lib/components/forms/ProposalForm.svelte` (new shared form component)
+- `apps/web/src/lib/components/forms/AgreementForm.svelte` (new)
+- `apps/web/src/lib/components/forms/CampaignForm.svelte` (new)
+- `apps/web/src/routes/(authed)/coop/[handle]/governance/[id]/edit/+page.svelte` (new)
+- `apps/web/src/routes/(authed)/coop/[handle]/governance/[id]/edit/+page.server.ts` (new)
+- `apps/web/src/routes/(authed)/coop/[handle]/governance/new/+page.svelte` (refactor to use shared form)
+- Similar file triplet for Agreement and Campaign
+- `apps/web/src/routes/(authed)/coop/[handle]/tasks/+page.svelte` (extend task modal)
+- `apps/web/src/routes/(authed)/coop/[handle]/expenses/+page.svelte` (extend expense modal)
+- `apps/web/src/lib/utils/entity-permissions.ts` (new — `canEdit` helpers)
+
+**Out of scope for V8.10**: Status transitions (already implemented), entity deletion (separate concern — see Future Work), auto-save / draft management.
+
+### Phase V8.11 — Entity Editing Extended
+
+**Goal**: Apply the V8.10 patterns to the remaining 8 entities that need edit support.
+
+**Entities covered**:
+
+1. **Officer** — Edit title, term dates, responsibilities. Only editable while status is `active`. Modal reuse.
+2. **Compliance Item** — Edit title, description, due date. Only editable while `open`. Modal reuse.
+3. **Member Notice** — Edit before `sent_at` is set (i.e., drafts). Locked once sent. Modal reuse. **Note**: Currently no update API for notices — V8.11 adds `PUT /api/v1/admin/notices/[id]`.
+4. **Fiscal Period** — Edit label, start/end dates only while `open`. Modal reuse.
+5. **Commerce Listing** — Edit title, description, category, availability while `active` or `paused`. Locked once `closed`. Modal reuse.
+6. **Commerce Need** — Edit title, description, urgency, category while `active`. Modal reuse.
+7. **Alignment Outcomes** — Edit title, description, success criteria while status is `proposed` or `endorsed`. Locked once `active`, `achieved`, or `abandoned`. Form-page or modal reuse depending on existing UI.
+8. **Member role editing** — Add a role-editing UI to the members table. Admin-only. Uses the existing `updateMemberRoles` API. Modal-based role picker.
+
+**New API endpoint required**: `PUT /api/v1/admin/notices/[id]` (plus matching service method and `updateNotice` client method) — all other entities already have update endpoints that just need UI wiring.
+
+**Key files**:
+- New `EditForm` integrations in each admin modal (officer, compliance, notice, fiscal period)
+- New modals or row-level edit buttons for commerce listings/needs
+- `apps/api/src/services/member-notice-service.ts` (add update method)
+- `apps/api/src/routes/admin/notices.ts` (add PUT endpoint)
+- `apps/web/src/lib/api/client.ts` (add `updateNotice`)
+- Member row role-picker UI in `members/+page.svelte`
+
+**Out of scope for V8.11**: Entity deletion (see Future Work), activity/audit log integration beyond the existing fact log.
+
 ---
 
 ## 8. Future Work (Captured but Not Built in V8)
@@ -936,6 +1038,13 @@ Reuses the same dropdown pattern as workspace switcher, but for profiles. Lives 
 - Public RSS/Atom feeds for coops with `publicActivity`
 - Public ATProto firehose subscription for coops (so other AppViews can index coopsource content)
 
+### Entity editing (beyond V8.10/V8.11)
+- **Entity deletion** — V8.10/V8.11 handle editing only. Soft-delete or hard-delete for user-created entities (proposals, tasks, expenses, etc.) is a separate concern. Deletion policy varies by entity (e.g., drafts deletable, active records not; some entities should tombstone rather than disappear). Deferred to post-V8.
+- **Auto-save / draft management** — currently all forms are explicit-submit; no draft persistence. Post-V8 could add client-side auto-save with an explicit "Save draft" affordance.
+- **Edit history / revisions** — Legal Document has versioning; other entities don't. A generic edit-history timeline (leveraging the existing fact log) is a post-V8 feature.
+- **Bulk editing** — editing multiple entities at once (e.g., tag multiple tasks). Not planned for V8.
+- **Collaborative editing** — multiple users editing the same entity simultaneously with conflict resolution. Far post-V8.
+
 ---
 
 ## 9. Risks & Mitigations
@@ -976,6 +1085,14 @@ V8 is successful when:
 - [x] Existing V7 sidebar (Cooperative / Network / You) continues to work for in-coop navigation
 - [x] No regressions in existing cooperative workflows (governance, agreements, finance, admin)
 - [x] No leaked private data in public-facing API endpoints (verified by integration tests)
+- [ ] **(V8.10)** Proposal, Agreement, Campaign edit UIs working, gated by state machine
+- [ ] **(V8.10)** Task and Expense edit UIs working via modal reuse
+- [ ] **(V8.10)** `canEdit(entity, user)` helper pattern documented and used consistently
+- [ ] **(V8.10)** No regressions to existing create flows; integration tests for at least one entity's edit state-gating behavior
+- [ ] **(V8.11)** All 13 originally-missing editing UIs implemented
+- [ ] **(V8.11)** New `updateNotice` API endpoint added (the only missing backend endpoint)
+- [ ] **(V8.11)** Member role editing UI in members table
+- [ ] **(V8.11)** Consistent pattern across all entities (modal reuse OR form-page reuse — no ad-hoc solutions)
 
 ---
 
