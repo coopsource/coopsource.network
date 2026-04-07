@@ -5,7 +5,7 @@ import { forwardSessionCookie } from '$lib/server/cookies.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
   if (locals.user) {
-    redirect(302, '/dashboard');
+    redirect(302, '/me');
   }
   return {};
 };
@@ -35,6 +35,6 @@ export const actions: Actions = {
     }
 
     forwardSessionCookie(res, cookies);
-    redirect(302, '/dashboard');
+    redirect(302, '/me');
   },
 };
