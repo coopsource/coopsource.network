@@ -1,9 +1,21 @@
+// V8.3 — user presentation layer (separate from DID/identity).
+// Each person has exactly one default profile in V8.3; multi-profile
+// arrives in V8.X. The default profile is always the "current" profile.
+export interface Profile {
+  id: string;
+  displayName: string;
+  avatarCid: string | null;
+  bio: string | null;
+  verified: boolean;
+}
+
 export interface AuthUser {
   did: string;
   handle: string | null;
   displayName: string;
-  email: string;
+  email: string | null;
   roles: string[];
+  profile: Profile | null;
 }
 
 export interface CoopEntity {

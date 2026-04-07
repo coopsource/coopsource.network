@@ -11,6 +11,7 @@ import { NoopEmailService } from '@coopsource/federation/email';
 import type { Container } from '../../src/container.js';
 import { AuthService } from '../../src/services/auth-service.js';
 import { EntityService } from '../../src/services/entity-service.js';
+import { ProfileService } from '../../src/services/profile-service.js';
 import { MembershipService } from '../../src/services/membership-service.js';
 import { PostService } from '../../src/services/post-service.js';
 import { ProposalService } from '../../src/services/proposal-service.js';
@@ -144,7 +145,8 @@ export function createTestApp(): TestApp {
 
   const operatorWriteProxy = new OperatorWriteProxy(pdsService, db, testConfig);
 
-  const authService = new AuthService(db, pdsService, clock, 'http://localhost:3001', memberWriteProxy);
+  const profileService = new ProfileService(db, clock);
+  const authService = new AuthService(db, pdsService, clock, profileService, 'http://localhost:3001', memberWriteProxy);
   const entityService = new EntityService(db, blobStore);
   const membershipService = new MembershipService(
     db,
@@ -211,6 +213,7 @@ export function createTestApp(): TestApp {
     clock,
     emailService,
     authService,
+    profileService,
     entityService,
     membershipService,
     postService,

@@ -3,9 +3,9 @@
   import PanelLeftClose from '@lucide/svelte/icons/panel-left-close';
   import PanelLeftOpen from '@lucide/svelte/icons/panel-left-open';
   import ThemeToggle from '$lib/components/ui/ThemeToggle.svelte';
-  import Avatar from '$lib/components/ui/Avatar.svelte';
-  import type { AuthUser, WorkspaceContext, CoopEntity } from '$lib/api/types.js';
+  import type { AuthUser, WorkspaceContext, CoopEntity, Profile } from '$lib/api/types.js';
   import WorkspaceSwitcher from './WorkspaceSwitcher.svelte';
+  import ProfileDropdown from './ProfileDropdown.svelte';
   import {
     cooperativeNavSection,
     networkNavSection,
@@ -23,6 +23,8 @@
     myCoops?: CoopEntity[];
     collapsed?: boolean;
     workspace?: WorkspaceContext | null;
+    /** V8.3 — current profile (always = the user's default profile in V8.3) */
+    currentProfile?: Profile | null;
   }
 
   let {
@@ -31,6 +33,7 @@
     myCoops = [],
     collapsed = $bindable(false),
     workspace = null,
+    currentProfile = null,
   }: Props = $props();
 
   const isHome = $derived(workspace?.type === 'home');
@@ -124,26 +127,9 @@
         <ThemeToggle variant="icon" />
       </div>
 
-      <!-- User -->
+      <!-- User / profile dropdown (V8.3) -->
       {#if user}
-        <div
-          class="flex items-center gap-2.5 px-2 py-1.5 rounded-[var(--radius-sm)]"
-          class:justify-center={collapsed}
-        >
-          <Avatar name={user.displayName} size="sm" />
-          {#if !collapsed}
-            <div class="min-w-0 flex-1">
-              <p class="text-[12px] font-medium text-[var(--cs-sidebar-text-active)] truncate">
-                {user.displayName}
-              </p>
-              {#if user.handle}
-                <p class="text-[11px] text-[var(--cs-sidebar-text)] truncate">
-                  @{user.handle}
-                </p>
-              {/if}
-            </div>
-          {/if}
-        </div>
+        <ProfileDropdown {user} profile={currentProfile} {collapsed} />
       {/if}
     </div>
   </nav>

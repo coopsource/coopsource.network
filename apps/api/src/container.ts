@@ -13,6 +13,7 @@ import { logger } from './middleware/logger.js';
 import type { AppConfig } from './config.js';
 import { AuthService } from './services/auth-service.js';
 import { EntityService } from './services/entity-service.js';
+import { ProfileService } from './services/profile-service.js';
 import { MembershipService } from './services/membership-service.js';
 import { PostService } from './services/post-service.js';
 import { ProposalService } from './services/proposal-service.js';
@@ -83,6 +84,7 @@ export interface Container {
   clock: SystemClock;
   emailService: IEmailService;
   authService: AuthService;
+  profileService: ProfileService;
   entityService: EntityService;
   membershipService: MembershipService;
   postService: PostService;
@@ -203,7 +205,8 @@ export function createContainer(config: AppConfig): Container {
   const memberWriteProxy = new MemberWriteProxy(undefined, pdsService, config.NODE_ENV);
   const operatorWriteProxy = new OperatorWriteProxy(pdsService, db, config);
 
-  const authService = new AuthService(db, pdsService, clock, config.INSTANCE_URL ?? 'http://localhost:3001', memberWriteProxy);
+  const profileService = new ProfileService(db, clock);
+  const authService = new AuthService(db, pdsService, clock, profileService, config.INSTANCE_URL ?? 'http://localhost:3001', memberWriteProxy);
   const entityService = new EntityService(db, blobStore);
   const membershipService = new MembershipService(
     db,
@@ -290,6 +293,7 @@ export function createContainer(config: AppConfig): Container {
     clock,
     emailService,
     authService,
+    profileService,
     entityService,
     membershipService,
     postService,

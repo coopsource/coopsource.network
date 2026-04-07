@@ -54,6 +54,31 @@ export interface EntityTable {
   indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }
 
+// V8.3 — profile data layer (separates user identity from presentation).
+// Each person has exactly one default profile (partial unique index).
+// Multi-profile creation is deferred to V8.X.
+export interface ProfileTable {
+  id: Generated<string>;
+  entity_did: string;
+  is_default: ColumnType<boolean, boolean | undefined, boolean>;
+  display_name: string;
+  avatar_cid: string | null;
+  bio: string | null;
+  verified: ColumnType<boolean, boolean | undefined, boolean>;
+  last_renamed_at: ColumnType<
+    Date | null,
+    Date | string | null | undefined,
+    Date | string | null
+  >;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  invalidated_at: ColumnType<
+    Date | null,
+    Date | string | null | undefined,
+    Date | string | null
+  >;
+}
+
 export interface CooperativeProfileTable {
   entity_did: string;
   uri: string | null;
@@ -877,6 +902,7 @@ export interface Database {
   data_deletion_request: DataDeletionRequestTable;
   entity: EntityTable;
   cooperative_profile: CooperativeProfileTable;
+  profile: ProfileTable;
   entity_key: EntityKeyTable;
   auth_credential: AuthCredentialTable;
   session: SessionTable;

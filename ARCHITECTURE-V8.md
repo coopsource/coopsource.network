@@ -230,20 +230,23 @@ When a cooperative renders its member list, each member is displayed using their
 
 #### V8 implementation scope
 
-V8 ships with **the data model, the API, and the "current profile" concept** — but with **only one profile per user** (the default verified one). The UI exposes the profile dropdown and switcher, but the default user state is always one profile.
+V8.3 ships with **the `profile` data model and one default profile per user**. The UI exposes a profile dropdown affordance in the sidebar footer, but the dropdown is a single-item shell — there is no profile switching, no profile creation, no rename, and no activation in V8.3.
 
 This means:
-- The `entity` table (or a new `profile` table) supports multi-profile from day one.
-- The API endpoints accept and return a `current_profile` parameter.
-- The Home configuration is per-profile (even with one profile).
-- Switching profiles is a UI affordance that exists but only does anything if the user has created additional profiles.
+- The `profile` table supports multi-profile from day one (the schema has `is_default`, `verified`, `last_renamed_at`, etc.)
+- `/api/v1/auth/me` returns the user's default profile inline alongside `did`/`handle`/`displayName`/`roles`
+- The default profile is always "the current profile" in V8.3 — no separate session state, no `currentProfileId`
+- The dropdown affordance is in place so users see the path; the multi-profile machinery comes in V8.X
 
 **V8.X+ delivers**:
-- Profile creation UI
-- Profile switcher in Home/sidebar
-- Per-profile widget configurations (already supported by data model from V8.3)
-- Verification mechanism for default profile
+- Profile creation UI + `POST /api/v1/me/profiles` endpoint
+- Profile switcher in Home/sidebar (multi-item dropdown)
+- `currentProfileId` session state + `POST /api/v1/me/profiles/[id]/activate` endpoint
+- `PATCH /api/v1/me/profiles/[id]` with rate-limited renames
+- `profile.handle` column with explicit uniqueness semantics
+- Verification mechanism for default profile + `verified_via` distinction
 - Click-through DID disclosure UI
+- `MembershipService` LEFT JOIN to profile for cross-coop persona display
 
 **Future work captured for later**:
 - True multi-DID alts (separate identities under one account) — not supported, deliberate design choice
@@ -450,27 +453,34 @@ This is the standard pattern from Slack, Linear, Notion. Users will recognize it
 
 ```sql
 CREATE TABLE profile (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_did TEXT NOT NULL REFERENCES entity(did),
-  is_default BOOLEAN NOT NULL DEFAULT false,
-  display_name TEXT NOT NULL,
-  handle TEXT,                    -- profile-specific handle (optional)
-  avatar_blob_cid TEXT,
-  bio TEXT,
-  verified BOOLEAN NOT NULL DEFAULT false,
-  last_renamed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  invalidated_at TIMESTAMPTZ
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  entity_did      TEXT NOT NULL REFERENCES entity(did),
+  is_default      BOOLEAN NOT NULL DEFAULT false,
+  display_name    TEXT NOT NULL,
+  avatar_cid      TEXT,
+  bio             TEXT,
+  verified        BOOLEAN NOT NULL DEFAULT false,
+  last_renamed_at TIMESTAMPTZ,                       -- NULL until first rename; rate-limit driver in V8.X
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  invalidated_at  TIMESTAMPTZ
 );
 
-CREATE UNIQUE INDEX idx_profile_user_default ON profile(user_did) WHERE is_default = true AND invalidated_at IS NULL;
-CREATE INDEX idx_profile_user ON profile(user_did) WHERE invalidated_at IS NULL;
+CREATE UNIQUE INDEX idx_profile_entity_default
+  ON profile(entity_did)
+  WHERE is_default = true AND invalidated_at IS NULL;
 ```
 
-Each user has exactly one default profile (enforced by partial unique index). The default profile's `verified` flag drives the verification tier. Renaming the default profile updates `last_renamed_at` and is rate-limited at the API layer.
+Each person has exactly one default profile (enforced by the partial unique index). The default profile's `verified` flag *will* drive the verification tier in V8.X; in V8.3 it is `true` for all profiles since one default profile per user trivially satisfies the §2.2 invariant.
 
-For V8.3, only the default profile is created automatically when an account is created. Multi-profile creation is deferred but the table supports it.
+For V8.3, only the default profile is created automatically when an account is created. Multi-profile creation is deferred (V8.X) but the table supports it.
+
+**V8.3 design notes**:
+
+- `entity_did` references `entity(did)`. The `entity.type = 'person'` constraint is enforced at the application layer (not via a CHECK), since the model is conceptually open to other entity types in the future.
+- `last_renamed_at` defaults to NULL (not NOW()) so V8.X's rate-limited renames don't accidentally lock out grandfathered users.
+- `profile.handle` is intentionally NOT in V8.3. It will be added by V8.X with explicit uniqueness semantics (global unique vs namespaced) once the multi-profile UI exists to define the rule.
+- Migration 058 backfills exactly one default profile per active person entity, with `verified=true`, mirroring `entity.display_name` and `entity.avatar_cid`. The backfill is idempotent (`NOT EXISTS` guard) and excludes suspended/deleted/invalidated rows.
 
 #### `home_layout` (V8.2)
 
@@ -566,10 +576,11 @@ Similar indexes added to `entity` (people search) and `pds_record` (post search)
 |----------|-------|------|---------|
 | `GET /api/v1/me/home` | V8.2 | Required | Get current user's Home layout config + widget data |
 | `PATCH /api/v1/me/home/layout` | V8.X | Required | Update Home layout config |
-| `GET /api/v1/me/profiles` | V8.3 | Required | List user's profiles |
-| `POST /api/v1/me/profiles` | V8.3 | Required | Create a new profile |
-| `PATCH /api/v1/me/profiles/[id]` | V8.3 | Required | Update profile (rate-limited if default) |
-| `POST /api/v1/me/profiles/[id]/activate` | V8.3 | Required | Set current profile |
+| `GET /api/v1/auth/me` (extended) | V8.3 | Required | Now includes `profile: { id, displayName, avatarCid, bio, verified } \| null` inline |
+| `GET /api/v1/me/profiles` | V8.X | Required | List user's profiles (deferred — no UI consumer in V8.3) |
+| `POST /api/v1/me/profiles` | V8.X | Required | Create a new profile (deferred — multi-profile UI is V8.X) |
+| `PATCH /api/v1/me/profiles/[id]` | V8.X | Required | Update profile (rate-limited if default, deferred) |
+| `POST /api/v1/me/profiles/[id]/activate` | V8.X | Required | Set current profile (deferred — only one profile per user in V8.3) |
 | `GET /api/v1/me/matches` | V8.7 | Required | Get current user's match suggestions |
 | `POST /api/v1/me/matches/[id]/dismiss` | V8.7 | Required | Dismiss a match |
 | `POST /api/v1/me/matches/[id]/act` | V8.7 | Required | Mark match as acted on |
@@ -670,9 +681,11 @@ A new `WorkspaceSwitcher.svelte` component:
 - Highlights the current workspace
 - Keyboard accessible (Arrow keys, Enter, Escape)
 
-### 6.6 Profile switcher
+### 6.6 Profile dropdown
 
-Reuses the same dropdown pattern as workspace switcher, but for profiles. Lives elsewhere (e.g., user avatar in sidebar footer). V8.3 implements the data layer; V8.X adds the UI.
+Lives in the sidebar footer (replacing the static user block in `Sidebar.svelte`). Reuses the `WorkspaceSwitcher` dropdown pattern (`clickOutside` action, `Escape`-to-close, capture-phase listener). In V8.3 the dropdown is a **single-item shell** showing the user's default profile + "View profile" / "Settings" links — there is no switcher behavior because there is only one profile per user. V8.X turns it into a real switcher when multi-profile creation lands.
+
+Sign-out is intentionally NOT in this dropdown; it lives in `Navbar.svelte` and is unaffected by V8.3.
 
 ---
 
@@ -733,27 +746,56 @@ Reuses the same dropdown pattern as workspace switcher, but for profiles. Lives 
 
 ### Phase V8.3 — Profile Data Model
 
-**Goal**: Add the `profile` table and "current profile" concept. UI is minimal — just the data layer and a placeholder switcher.
+**Goal**: Add the `profile` table for **person entities only**. V8.3 ships exactly one default profile per user, and surfaces it as a placeholder dropdown affordance in the sidebar footer. Multi-profile creation, activation, rate-limited renames, and verification mechanisms are deferred to V8.X — they have no observable behavior with one profile per user, and shipping them as scaffolding risks miswiring the design.
+
+**Design notes** (adopted during V8.3 planning, after design review):
+
+- **Person scope only.** Cooperatives already have `cooperative_profile`. The V8.3 `profile` table is created and populated only for `entity.type = 'person'`. The FK is to `entity(did)`; the type filter is enforced at the application layer.
+- **`entity_did`, not `user_did`.** The schema convention used elsewhere (e.g., `cooperative_profile.entity_did`) is followed.
+- **No `profile.handle` column in V8.3.** `entity.handle` is `UNIQUE` and routes by handle. Adding a nullable, non-unique `profile.handle` creates an ambiguity slot V8.X would need to migrate. V8.X (the multi-profile UI phase) will define profile-handle semantics — global uniqueness vs namespacing — with full design pressure.
+- **No "current profile" session state, no activation endpoint, no rename endpoint in V8.3.** With only one default profile per user, the "current profile" is always the default — sourced directly from the database. Session machinery is speculative scaffolding until multi-profile lands.
+- **Profile is inlined in `/api/v1/auth/me`**, not exposed via a separate `/api/v1/me/profiles` router. `apps/web/src/hooks.server.ts` already round-trips `/auth/me` per request to populate `event.locals.user`; extending `buildMeResponse` makes the profile available everywhere `user` is, with no new endpoint and no extra fetch.
+- **`MembershipService` is NOT updated to JOIN profile in V8.3.** Because backfill mirrors `entity.display_name → profile.display_name`, the JOIN produces zero observable change — pure risk for zero payoff. V8.X (when persona profiles exist) is the right time to introduce it, with a real test case.
+- **No `home_layout` re-key task.** V8.2 shipped hardcoded widgets and never created the `home_layout` table. When `home_layout` is eventually built, it should key on `profile_id` from day one.
+- **Verification semantics for V8.3.** All V8.3 default profiles are `verified=true` — backfilled rows on the assumption that any pre-V8.3 account is a "real" identity by definition, and new registrations because the default profile *is* the user's canonical identity. The verification mechanism (KYC / web-of-trust / etc.) and the full meaning of `verified=false` for persona profiles arrive in V8.X.
+- **`/me/profile` is read-only in V8.3.** Inline editing of profile attributes is V8.10/V8.11 (Entity Editing).
 
 **Tasks**:
-1. Add `profile` table (migration 059)
-2. Backfill: create one default profile per existing entity (verified=true for grandfathered users)
-3. Update entity creation flow to create a default profile alongside the entity
-4. Add `currentProfileId` to session state
-5. Implement `GET /api/v1/me/profiles` endpoint
-6. Implement `POST /api/v1/me/profiles/[id]/activate` endpoint
-7. Update `cooperative member display` to use the current profile's display attributes (with click-through to canonical DID)
-8. Add a simple profile dropdown in the sidebar footer (currently just shows the default profile; multi-profile UI deferred)
-9. Move `home_layout` from being keyed on `entity_did` to being keyed on `profile_id`
-10. Tests: profile creation, activation, current-profile state
+1. Add `profile` table (migration **058**) + safe backfill (active persons only, `NOT EXISTS` guard, transaction-wrapped)
+2. Add `ProfileTable` to `packages/db/src/schema.ts` and to the `Database` interface
+3. Implement `ProfileService` with `getDefaultProfile(did)` and `createDefaultProfile({...})`
+4. Wire `ProfileService` into the DI container; inject into `AuthService`
+5. Update `AuthService.register()` to create the default profile alongside the entity (wrap in `db.transaction()` for atomicity)
+6. Extend `buildMeResponse` in `apps/api/src/routes/auth.ts` to include `profile: { id, displayName, avatarCid, bio, verified } | null` inline
+7. Pre-existing fix: type `cooperativeDid` and `membershipId` as `string | null` in `buildMeResponse` and `AuthUser`
+8. Add `Profile` interface to `apps/web/src/lib/api/types.ts`; extend `AuthUser` with `profile`
+9. Build `ProfileDropdown.svelte` (single-item dropdown shell) mirroring `WorkspaceSwitcher` patterns
+10. Update `Sidebar.svelte` to mount `ProfileDropdown` in the footer (replacing the static user block)
+11. Update `/me/profile/+page.svelte` with a read-only Current Profile card and updated footer note
+12. Tests: profile-service unit, register-creates-profile, `/auth/me` returns profile, ProfileDropdown E2E, `/me/profile` E2E
+
+**Deferred to V8.X (multi-profile UI phase)**:
+- `currentProfileId` session state + activation endpoint
+- `PATCH /api/v1/me/profiles/[id]` with rate-limited rename
+- `POST /api/v1/me/profiles` (create) + multi-profile selection UI
+- `GET /api/v1/me/profiles` (list)
+- `MembershipService` LEFT JOIN to profile for member display
+- `profile.handle` column with uniqueness rule
+- `verified_via` column for distinguishing verification origins
+- Verification mechanism (KYC / social / web-of-trust)
 
 **Files**:
-- `packages/db/src/migrations/059_profile.ts` (new)
+- `packages/db/src/migrations/058_profile.ts` (new)
+- `packages/db/src/schema.ts` (add `ProfileTable`, add to `Database`)
 - `apps/api/src/services/profile-service.ts` (new)
-- `apps/api/src/routes/me-profiles.ts` (new)
-- `apps/api/src/services/auth-service.ts` (current profile in session)
-- `apps/web/src/lib/components/layout/Sidebar.svelte` (profile dropdown stub)
-- Various endpoints that return member/user data (use profile display attributes)
+- `apps/api/src/services/auth-service.ts` (`register()` creates default profile)
+- `apps/api/src/routes/auth.ts` (`buildMeResponse` + `cooperativeDid: string | null` fix)
+- `apps/api/src/container.ts` (register `profileService`)
+- `apps/web/src/lib/api/types.ts` (`Profile`, `AuthUser.profile`, `cooperativeDid: string | null`)
+- `apps/web/src/lib/components/layout/ProfileDropdown.svelte` (new)
+- `apps/web/src/lib/components/layout/Sidebar.svelte` (mount `ProfileDropdown`)
+- `apps/web/src/routes/(authed)/+layout.svelte` (pass `currentProfile` to Sidebar)
+- `apps/web/src/routes/(authed)/me/profile/+page.svelte` (Current Profile card)
 
 ### Phase V8.4 — Public Web (Landing + Anon Layout)
 

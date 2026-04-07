@@ -61,8 +61,8 @@ export function createAuthRoutes(
     did: string;
     displayName: string;
     roles: string[];
-    cooperativeDid: string;
-    membershipId: string;
+    cooperativeDid: string | null;
+    membershipId: string | null;
   }) {
     // Fetch email from auth_credential
     const cred = await container.db
@@ -80,6 +80,10 @@ export function createAuthRoutes(
       .select(['handle'])
       .executeTakeFirst();
 
+    // V8.3 — fetch the user's default profile inline so /auth/me carries it
+    // alongside identity. Avoids a second round-trip from hooks.server.ts.
+    const profile = await container.profileService.getDefaultProfile(did);
+
     return {
       did: actor.did,
       handle: entity?.handle ?? null,
@@ -88,6 +92,15 @@ export function createAuthRoutes(
       roles: actor.roles,
       cooperativeDid: actor.cooperativeDid,
       membershipId: actor.membershipId,
+      profile: profile
+        ? {
+            id: profile.id,
+            displayName: profile.displayName,
+            avatarCid: profile.avatarCid,
+            bio: profile.bio,
+            verified: profile.verified,
+          }
+        : null,
     };
   }
 
@@ -103,14 +116,19 @@ export function createAuthRoutes(
         req.session.save((err) => (err ? reject(err) : resolve()));
       });
 
-      // Fetch full actor context for the response
+      // Fetch full actor context for the response. If the user has no
+      // active membership (yet), synthesize a minimal actor so the response
+      // shape stays consistent with /auth/me. V8.3 fixes the pre-existing
+      // type hole by typing cooperativeDid/membershipId as string | null.
       const actor = await container.authService.getSessionActor(result.did);
-      if (!actor) {
-        res.json({ did: result.did, handle: null, displayName: result.displayName, email, roles: [], cooperativeDid: null, membershipId: null });
-        return;
-      }
-
-      res.json(await buildMeResponse(result.did, actor));
+      const responseActor = actor ?? {
+        did: result.did,
+        displayName: result.displayName,
+        roles: [] as string[],
+        cooperativeDid: null,
+        membershipId: null,
+      };
+      res.json(await buildMeResponse(result.did, responseActor));
     }),
   );
 
@@ -284,20 +302,31 @@ export function createAuthRoutes(
           .executeTakeFirst();
 
         if (!existingEntity) {
-          // New user — create entity from ATProto profile
+          // New user — create entity from ATProto profile.
+          // V8.3 — also create the default profile inside the same
+          // transaction so the V8.3 invariant (every active person entity
+          // has exactly one default profile) holds for OAuth users too.
           const now = new Date();
-          await container.db
-            .insertInto('entity')
-            .values({
-              did,
-              type: 'person',
-              handle: did,
-              display_name: did,
-              status: 'active',
-              created_at: now,
-              indexed_at: now,
-            })
-            .execute();
+          await container.db.transaction().execute(async (trx) => {
+            await trx
+              .insertInto('entity')
+              .values({
+                did,
+                type: 'person',
+                handle: did,
+                display_name: did,
+                status: 'active',
+                created_at: now,
+                indexed_at: now,
+              })
+              .execute();
+
+            await container.profileService.createDefaultProfile({
+              entityDid: did,
+              displayName: did,
+              db: trx,
+            });
+          });
         }
 
         // Generate a one-time token for the frontend to exchange
@@ -360,22 +389,19 @@ export function createAuthRoutes(
           req.session.save((err) => (err ? reject(err) : resolve()));
         });
 
-        // Return user info (same format as login endpoint)
+        // Return user info (same format as login endpoint). V8.3 — unify
+        // through buildMeResponse so the response shape (and the inlined
+        // profile) is consistent whether or not the user has an active
+        // membership.
         const actor = await container.authService.getSessionActor(did);
-        if (!actor) {
-          res.json({
-            did,
-            handle: null,
-            displayName: did,
-            email: null,
-            roles: [],
-            cooperativeDid: null,
-            membershipId: null,
-          });
-          return;
-        }
-
-        res.json(await buildMeResponse(did, actor));
+        const responseActor = actor ?? {
+          did,
+          displayName: did,
+          roles: [] as string[],
+          cooperativeDid: null,
+          membershipId: null,
+        };
+        res.json(await buildMeResponse(did, responseActor));
       }),
     );
   }
