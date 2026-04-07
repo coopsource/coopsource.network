@@ -11,6 +11,18 @@ export const load: LayoutServerLoad = async ({ params, fetch, request }) => {
     if (!cooperative.isNetwork) {
       error(404, 'Network not found');
     }
+
+    // V8.2 — Fetch myCoops for the workspace switcher dropdown.
+    let cooperatives: Awaited<ReturnType<typeof api.getMyMemberships>>['cooperatives'] = [];
+    let networks: typeof cooperatives = [];
+    try {
+      const result = await api.getMyMemberships();
+      cooperatives = result.cooperatives;
+      networks = result.networks;
+    } catch {
+      // empty arrays
+    }
+
     return {
       workspace: {
         // V8.1 — networks use the 'coop' workspace type now; the sidebar
@@ -21,6 +33,7 @@ export const load: LayoutServerLoad = async ({ params, fetch, request }) => {
         prefix: `/net/${params.handle}`,
         cooperative,
       },
+      myCoops: [...cooperatives, ...networks],
     };
   } catch {
     error(404, 'Network not found');

@@ -9,7 +9,7 @@ export const load: LayoutServerLoad = async ({ params, fetch, request, locals })
   try {
     const cooperative = await api.getCooperativeByHandle(params.handle);
 
-    // Fetch user's roles for THIS cooperative (not from locals.user which may be scoped to a different coop)
+    // V8.1 — Fetch user's roles for THIS cooperative (not from locals.user which may be scoped to a different coop)
     let userRoles: string[] = [];
     if (locals.user) {
       try {
@@ -20,6 +20,17 @@ export const load: LayoutServerLoad = async ({ params, fetch, request, locals })
       }
     }
 
+    // V8.2 — Fetch myCoops for the workspace switcher dropdown.
+    let cooperatives: Awaited<ReturnType<typeof api.getMyMemberships>>['cooperatives'] = [];
+    let networks: typeof cooperatives = [];
+    try {
+      const result = await api.getMyMemberships();
+      cooperatives = result.cooperatives;
+      networks = result.networks;
+    } catch {
+      // empty arrays
+    }
+
     return {
       workspace: {
         type: 'coop' as const,
@@ -28,6 +39,7 @@ export const load: LayoutServerLoad = async ({ params, fetch, request, locals })
         cooperative,
         userRoles,
       },
+      myCoops: [...cooperatives, ...networks],
     };
   } catch {
     error(404, 'Cooperative not found');

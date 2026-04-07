@@ -4,6 +4,6 @@
   let { data, children } = $props();
 </script>
 
-<AppShell user={data.user} workspace={data.workspace}>
+<AppShell user={data.user} workspace={data.workspace} myCoops={data.myCoops}>
   {@render children()}
 </AppShell>
