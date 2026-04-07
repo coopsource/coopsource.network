@@ -46,13 +46,35 @@ describe('V8.3 — profile inlining in /auth/me', () => {
   it('setup creates a default profile for the new admin', async () => {
     const { adminDid } = await setupAndLogin(testApp);
 
-    // The setup flow creates the admin via AuthService.register().
-    // V8.3 wires register() to also create a default profile.
+    // The setup flow creates the admin entity inside its own transaction
+    // and calls profileService.createDefaultProfile with the trx override.
     const profile = await testApp.container.profileService.getDefaultProfile(adminDid);
 
     expect(profile).not.toBeNull();
     expect(profile!.entityDid).toBe(adminDid);
     expect(profile!.displayName).toBe('Test Admin');
+    expect(profile!.verified).toBe(true);
+  });
+
+  it('AuthService.register() creates a default profile inside the transaction', async () => {
+    // First, set up a cooperative so register() has somewhere to attach a
+    // bilateral membership.
+    const { coopDid } = await setupAndLogin(testApp);
+
+    // Now register a NEW user via AuthService.register() directly. This
+    // exercises the V8.3 db.transaction() wrap around entity + profile +
+    // auth_credential.
+    const { did: newDid } = await testApp.container.authService.register({
+      email: 'newuser@test.com',
+      password: 'password123',
+      displayName: 'New Persona',
+      cooperativeDid: coopDid,
+    });
+
+    const profile = await testApp.container.profileService.getDefaultProfile(newDid);
+    expect(profile).not.toBeNull();
+    expect(profile!.entityDid).toBe(newDid);
+    expect(profile!.displayName).toBe('New Persona');
     expect(profile!.verified).toBe(true);
   });
 });

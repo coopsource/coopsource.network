@@ -302,20 +302,31 @@ export function createAuthRoutes(
           .executeTakeFirst();
 
         if (!existingEntity) {
-          // New user — create entity from ATProto profile
+          // New user — create entity from ATProto profile.
+          // V8.3 — also create the default profile inside the same
+          // transaction so the V8.3 invariant (every active person entity
+          // has exactly one default profile) holds for OAuth users too.
           const now = new Date();
-          await container.db
-            .insertInto('entity')
-            .values({
-              did,
-              type: 'person',
-              handle: did,
-              display_name: did,
-              status: 'active',
-              created_at: now,
-              indexed_at: now,
-            })
-            .execute();
+          await container.db.transaction().execute(async (trx) => {
+            await trx
+              .insertInto('entity')
+              .values({
+                did,
+                type: 'person',
+                handle: did,
+                display_name: did,
+                status: 'active',
+                created_at: now,
+                indexed_at: now,
+              })
+              .execute();
+
+            await container.profileService.createDefaultProfile({
+              entityDid: did,
+              displayName: did,
+              db: trx,
+            });
+          });
         }
 
         // Generate a one-time token for the frontend to exchange
@@ -378,22 +389,19 @@ export function createAuthRoutes(
           req.session.save((err) => (err ? reject(err) : resolve()));
         });
 
-        // Return user info (same format as login endpoint)
+        // Return user info (same format as login endpoint). V8.3 — unify
+        // through buildMeResponse so the response shape (and the inlined
+        // profile) is consistent whether or not the user has an active
+        // membership.
         const actor = await container.authService.getSessionActor(did);
-        if (!actor) {
-          res.json({
-            did,
-            handle: null,
-            displayName: did,
-            email: null,
-            roles: [],
-            cooperativeDid: null,
-            membershipId: null,
-          });
-          return;
-        }
-
-        res.json(await buildMeResponse(did, actor));
+        const responseActor = actor ?? {
+          did,
+          displayName: did,
+          roles: [] as string[],
+          cooperativeDid: null,
+          membershipId: null,
+        };
+        res.json(await buildMeResponse(did, responseActor));
       }),
     );
   }

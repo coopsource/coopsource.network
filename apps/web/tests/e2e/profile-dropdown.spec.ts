@@ -39,19 +39,23 @@ test.describe('V8.3 — Profile dropdown', () => {
   test('Escape closes the dropdown', async ({ page }) => {
     const trigger = page.getByTestId('profile-dropdown-trigger');
     await trigger.click();
-    await expect(page.getByTestId('profile-dropdown-menu')).toBeVisible();
+    // Use a menuitem (auto-waits) instead of the wrapper testid to avoid
+    // the Svelte 5 hydration race seen on direct toBeVisible checks.
+    const viewProfile = page.getByRole('menuitem', { name: 'View profile' });
+    await expect(viewProfile).toBeVisible();
 
     await page.keyboard.press('Escape');
-    await expect(page.getByTestId('profile-dropdown-menu')).not.toBeVisible();
+    await expect(viewProfile).not.toBeVisible();
   });
 
   test('clicking outside closes the dropdown', async ({ page }) => {
     await page.getByTestId('profile-dropdown-trigger').click();
-    await expect(page.getByTestId('profile-dropdown-menu')).toBeVisible();
+    const viewProfile = page.getByRole('menuitem', { name: 'View profile' });
+    await expect(viewProfile).toBeVisible();
 
     // Click on the main content area (anywhere outside the dropdown)
     await page.getByRole('main').click();
-    await expect(page.getByTestId('profile-dropdown-menu')).not.toBeVisible();
+    await expect(viewProfile).not.toBeVisible();
   });
 });
 

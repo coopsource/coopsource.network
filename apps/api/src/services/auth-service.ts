@@ -76,38 +76,43 @@ export class AuthService {
     // Hash password
     const secretHash = await hash(params.password, BCRYPT_ROUNDS);
 
-    // Insert entity
-    await this.db
-      .insertInto('entity')
-      .values({
-        did,
-        type: 'person',
-        display_name: params.displayName,
-        status: 'active',
-        created_at: now,
-        indexed_at: now,
-      })
-      .execute();
+    // V8.3 — entity, default profile, and auth_credential are written in a
+    // single transaction so the entity row never exists without its companion
+    // profile + credential. PDS writes below remain outside the transaction
+    // (they're network calls and not rollback-safe).
+    await this.db.transaction().execute(async (trx) => {
+      await trx
+        .insertInto('entity')
+        .values({
+          did,
+          type: 'person',
+          display_name: params.displayName,
+          status: 'active',
+          created_at: now,
+          indexed_at: now,
+        })
+        .execute();
 
-    // V8.3 — create default profile alongside the entity. Profile is the
-    // user's presentation layer; entity owns the DID. One default profile
-    // per person, verified=true (single-profile-per-user in V8.3).
-    await this.profileService.createDefaultProfile({
-      entityDid: did,
-      displayName: params.displayName,
+      // Default profile carries the user's presentation layer. Entity owns
+      // the DID; profile owns display name / avatar / bio. One default
+      // profile per person, verified=true in V8.3 (single profile per user).
+      await this.profileService.createDefaultProfile({
+        entityDid: did,
+        displayName: params.displayName,
+        db: trx,
+      });
+
+      await trx
+        .insertInto('auth_credential')
+        .values({
+          entity_did: did,
+          credential_type: 'password',
+          identifier: params.email,
+          secret_hash: secretHash,
+          created_at: now,
+        })
+        .execute();
     });
-
-    // Insert auth_credential
-    await this.db
-      .insertInto('auth_credential')
-      .values({
-        entity_did: did,
-        credential_type: 'password',
-        identifier: params.email,
-        secret_hash: secretHash,
-        created_at: now,
-      })
-      .execute();
 
     // Write actor.profile PDS record
     await this.pdsService.createRecord({

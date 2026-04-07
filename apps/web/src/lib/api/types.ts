@@ -13,7 +13,7 @@ export interface AuthUser {
   did: string;
   handle: string | null;
   displayName: string;
-  email: string;
+  email: string | null;
   roles: string[];
   profile: Profile | null;
 }

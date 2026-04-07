@@ -3,7 +3,6 @@
   import User from '@lucide/svelte/icons/user';
   import Settings from '@lucide/svelte/icons/settings';
   import BadgeCheck from '@lucide/svelte/icons/badge-check';
-  import { goto } from '$app/navigation';
   import { clickOutside } from '$lib/actions/click-outside.js';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import type { AuthUser, Profile } from '$lib/api/types.js';
@@ -34,11 +33,6 @@
 
   function close() {
     open = false;
-  }
-
-  function navigateTo(path: string) {
-    open = false;
-    goto(path);
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -105,25 +99,25 @@
 
       <div class="my-1 border-t border-[var(--cs-border)]"></div>
 
-      <button
-        type="button"
+      <a
+        href="/me/profile"
         role="menuitem"
-        onclick={() => navigateTo('/me/profile')}
+        onclick={close}
         class="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-[var(--cs-text)] hover:bg-[var(--cs-bg-inset)] cs-transition cursor-pointer"
       >
         <User class="h-4 w-4 shrink-0 text-[var(--cs-text-muted)]" />
         <span class="flex-1 text-left">View profile</span>
-      </button>
+      </a>
 
-      <button
-        type="button"
+      <a
+        href="/me/settings"
         role="menuitem"
-        onclick={() => navigateTo('/me/settings')}
+        onclick={close}
         class="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-[var(--cs-text)] hover:bg-[var(--cs-bg-inset)] cs-transition cursor-pointer"
       >
         <Settings class="h-4 w-4 shrink-0 text-[var(--cs-text-muted)]" />
         <span class="flex-1 text-left">Settings</span>
-      </button>
+      </a>
     </div>
   {/if}
 </div>
