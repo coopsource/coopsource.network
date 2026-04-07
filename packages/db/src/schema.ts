@@ -71,6 +71,8 @@ export interface CooperativeProfileTable {
   public_agreements: ColumnType<boolean, boolean | undefined, boolean>;
   public_campaigns: ColumnType<boolean, boolean | undefined, boolean>;
   governance_visibility: ColumnType<string, string | undefined, string>;
+  anon_discoverable: ColumnType<boolean, boolean | undefined, boolean>;
+  cross_coop_visible: ColumnType<boolean, boolean | undefined, boolean>;
   created_at: ColumnType<Date, Date | string | undefined, Date | string>;
   indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }

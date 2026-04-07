@@ -25,6 +25,7 @@ export function createExploreRoutes(container: Container): Router {
         .where('entity.type', '=', 'cooperative')
         .where('entity.status', '=', 'active')
         .where('cooperative_profile.is_network', '=', false)
+        .where('cooperative_profile.anon_discoverable', '=', true) // V8.1: opt-in public discoverability
         .groupBy([
           'entity.did',
           'entity.handle',
@@ -106,6 +107,7 @@ export function createExploreRoutes(container: Container): Router {
         .where('entity.type', '=', 'cooperative')
         .where('entity.status', '=', 'active')
         .where('cooperative_profile.is_network', '=', false)
+        .where('cooperative_profile.anon_discoverable', '=', true) // V8.1: opt-in public discoverability
         .where('entity.handle', '=', handle)
         .groupBy([
           'entity.did',
@@ -186,6 +188,7 @@ export function createExploreRoutes(container: Container): Router {
         .where('entity.type', '=', 'cooperative')
         .where('entity.status', '=', 'active')
         .where('cooperative_profile.is_network', '=', true)
+        .where('cooperative_profile.anon_discoverable', '=', true) // V8.1: opt-in public discoverability
         .groupBy([
           'entity.did',
           'entity.handle',

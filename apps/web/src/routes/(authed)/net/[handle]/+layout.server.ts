@@ -13,7 +13,10 @@ export const load: LayoutServerLoad = async ({ params, fetch, request }) => {
     }
     return {
       workspace: {
-        type: 'network' as const,
+        // V8.1 — networks use the 'coop' workspace type now; the sidebar
+        // reads `cooperative.isNetwork` to drive label variations
+        // (e.g., "Members" → "Cooperatives").
+        type: 'coop' as const,
         handle: params.handle,
         prefix: `/net/${params.handle}`,
         cooperative,

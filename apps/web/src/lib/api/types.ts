@@ -23,7 +23,7 @@ export interface CoopEntity {
 }
 
 export interface WorkspaceContext {
-  type: 'coop' | 'network';
+  type: 'coop';
   handle: string;
   prefix: string;
   cooperative: CoopEntity;

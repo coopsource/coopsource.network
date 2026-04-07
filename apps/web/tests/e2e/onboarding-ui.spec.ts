@@ -62,8 +62,9 @@ test.describe('Onboarding UI', () => {
     await expect(page.getByText('Updated successfully')).toBeVisible({ timeout: 10_000 });
   });
 
-  test('members page shows onboarding link', async ({ page }) => {
+  test('members page has Onboarding tab', async ({ page }) => {
+    // V8.1: Onboarding is now a tab on the Members page, not a separate page link.
     await page.goto(wp('/members'));
-    await expect(page.getByRole('link', { name: 'View onboarding progress' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: /^Onboarding/ })).toBeVisible();
   });
 });

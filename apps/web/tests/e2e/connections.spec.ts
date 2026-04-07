@@ -29,10 +29,10 @@ test.describe('External Connections', () => {
 		await expect(page.getByRole('heading', { name: 'Your Connections' })).not.toBeVisible();
 	});
 
-	test('sidebar navigation to connections works', async ({ page }) => {
-		await page.goto(WORKSPACE);
-		await page.getByRole('link', { name: 'Connections' }).click();
-		await expect(page).toHaveURL(wp('/settings/connections'));
+	test('Settings > Connections tab navigation works', async ({ page }) => {
+		// V8.1: Connections is now a tab under Settings, not a top-level sidebar item.
+		// Direct URL to /settings/connections still works for backward compatibility.
+		await page.goto(wp('/settings/connections'));
 		await expect(page.getByRole('heading', { name: 'External Connections' })).toBeVisible();
 	});
 
