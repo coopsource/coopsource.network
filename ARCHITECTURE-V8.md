@@ -797,29 +797,45 @@ Sign-out is intentionally NOT in this dropdown; it lives in `Navbar.svelte` and 
 - `apps/web/src/routes/(authed)/+layout.svelte` (pass `currentProfile` to Sidebar)
 - `apps/web/src/routes/(authed)/me/profile/+page.svelte` (Current Profile card)
 
-### Phase V8.4 — Public Web (Landing + Anon Layout)
+### Phase V8.4 — Public Web (Landing + Anon Layout) — _complete_
 
-**Goal**: Build the anonymous landing page and the `(public)` layout group. Co-op directory placeholder.
+**Goal**: Give Co-op Source a real public face — anonymous visitors land on a marketing page, browse a directory of publicly-discoverable cooperatives, read about the platform, and convert to sign-up.
 
-**Tasks**:
-1. Create `(public)` route group
-2. Create `(public)/+layout.svelte` with top nav, no sidebar
-3. Create `/` (root) marketing landing page
-4. Create `/about` static explainer page
-5. Create `/explore` co-op directory page (uses `GET /api/v1/explore/cooperatives`)
-6. Implement `GET /api/v1/explore/cooperatives` (anon-allowed, returns coops with `anonDiscoverable=true`)
-7. Update root route to redirect logged-in users to `/me`
-8. Tests: anon access works, logged-in users get redirected appropriately
+**Implementation note**: V8.4 planning discovered that **6 of the 7 originally-listed tasks were already scaffolded incrementally during V8.1-V8.3 work**. The actual V8.4 delta is small and structural: extract a shared `<PublicNav>` component, add `/about`, fix the root `/` → `/me` redirect (was a two-hop through `/dashboard`), and sweep ~30 stale `/dashboard` references that V8.2's reframing left behind. See the V8.4 plan file for the detailed scope.
+
+**Pre-existing scaffolding (already on main when V8.4 started)**:
+- `apps/web/src/routes/(public)/+layout.svelte` — public layout with top navbar (using inline `<nav>`)
+- `apps/web/src/routes/+page.svelte` — full-viewport marketing landing (with its own embedded nav)
+- `apps/web/src/routes/(public)/explore/+page.svelte` and `+page.server.ts` — co-op directory
+- `apps/web/src/routes/(public)/explore/[handle]/+page.svelte` — public coop profile
+- `apps/api/src/routes/explore.ts` — full GET /explore/cooperatives, /explore/cooperatives/[handle], /explore/networks (261 lines, mounted in app.ts)
+- `apps/api/tests/explore.test.ts` — 24 integration tests
+- `apps/web/src/routes/(authed)/dashboard/+page.server.ts` — V8.2 added a 301 → /me shim
+
+**V8.4 delta (the actual work)**:
+1. Extract `<PublicNav>` shared component (`apps/web/src/lib/components/layout/PublicNav.svelte`) — single source of truth for the anon navbar. Used by both the root landing (full-viewport) and the `(public)/+layout.svelte`. Avoids the hero-layout collision that would happen if the root `/` were moved into the `(public)` group.
+2. Standardize anon nav wording: "Sign in" everywhere (renames `(public)` layout's "Log in").
+3. Add `/about` static explainer at `apps/web/src/routes/(public)/about/+page.svelte` — three sections covering what Co-op Source is, the recursive cooperative model, and the ATProto federation story.
+4. Fix root `/+page.server.ts` to redirect authed users directly to `/me` (single hop, no `/dashboard` intermediate).
+5. Sweep stale `/dashboard` references introduced before V8.2's reframing was complete: `+error.svelte` text + link, **27 authed-side `+page.server.ts` no-coop fallbacks** (across `agreements`, `alignment`, `campaigns`, `invitations`, `members`, `networks`, `proposals`, `settings/connections`, `threads`), plus `setup`, `auth/oauth/complete`, and `invite/[token]`. **Keep** `(authed)/dashboard/+page.server.ts` as a 301 stale-bookmark catcher.
+6. Retarget the landing's "Create a Cooperative" CTA from `/join` (which redirects to `/login` on setup-complete instances — bait-and-switch) to `/register`.
+7. E2E tests in `apps/web/tests/e2e/public.spec.ts` covering anon and authed states of the navbar, the redirect chain, and the error page.
+
+**Deferred to V8.9 (Polish)**:
+- Moving `/login` and `/register` into `(public)/` (the arch doc §2.3 line 313 hedges with "possibly restyled"). Their centered-form layouts don't visually want the chrome.
+- Mobile navbar polish (overflow at very narrow widths).
+- `/dashboard` 301 shim removal — keep as a stale-bookmark catcher.
 
 **Files**:
-- `apps/web/src/routes/(public)/+layout.svelte` (new)
-- `apps/web/src/routes/(public)/+layout.server.ts` (new)
-- `apps/web/src/routes/(public)/+page.svelte` (new — landing)
+- `apps/web/src/lib/components/layout/PublicNav.svelte` (new — extracted nav)
 - `apps/web/src/routes/(public)/about/+page.svelte` (new)
-- `apps/web/src/routes/(public)/explore/+page.svelte` (new)
-- `apps/web/src/routes/(public)/explore/+page.server.ts` (new)
-- `apps/api/src/routes/explore.ts` (new)
-- `apps/web/src/routes/+page.server.ts` (logged-in redirect)
+- `apps/web/tests/e2e/public.spec.ts` (new)
+- `apps/web/src/routes/+page.svelte` (modify — use PublicNav, retarget hero CTA)
+- `apps/web/src/routes/+page.server.ts` (modify — direct redirect to /me)
+- `apps/web/src/routes/+error.svelte` (modify — text + link sweep)
+- `apps/web/src/routes/(public)/+layout.svelte` (modify — use PublicNav)
+- `apps/web/src/routes/(authed)/{agreements,alignment,campaigns,invitations,members,networks,proposals,settings/connections,threads}/**/+page.server.ts` (modify — 27 files swept)
+- `apps/web/src/routes/setup/+page.server.ts`, `auth/oauth/complete/+page.server.ts`, `invite/[token]/+page.server.ts` (modify — sweep)
 
 ### Phase V8.5 — Public Co-op Profile Pages
 

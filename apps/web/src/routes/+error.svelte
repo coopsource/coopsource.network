@@ -1,9 +1,10 @@
 <script lang="ts">
   import { page } from '$app/stores';
 
+  // V8.4 — authed users land on /me (was /dashboard before V8.2's reframing).
   const hasUser = $derived(!!$page.data?.user);
-  const homeLink = $derived(hasUser ? '/dashboard' : '/explore');
-  const homeLinkText = $derived(hasUser ? 'Go to Dashboard' : 'Go to Explore');
+  const homeLink = $derived(hasUser ? '/me' : '/explore');
+  const homeLinkText = $derived(hasUser ? 'Go to Home' : 'Go to Explore');
 </script>
 
 <svelte:head>
