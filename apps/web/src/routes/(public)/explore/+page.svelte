@@ -2,12 +2,14 @@
   import { Badge, EmptyState } from '$lib/components/ui';
   import Globe from '@lucide/svelte/icons/globe';
   import Users from '@lucide/svelte/icons/users';
+  import Search from '@lucide/svelte/icons/search';
 
   let { data } = $props();
 
   const cooperatives = $derived(data.cooperatives.cooperatives);
   const networks = $derived(data.networks.networks);
   const cursor = $derived(data.cooperatives.cursor);
+  const q = $derived(data.q);
 
   function coopTypeVariant(cooperativeType: string): 'default' | 'primary' | 'success' | 'warning' {
     switch (cooperativeType) {
@@ -32,8 +34,22 @@
     </p>
   </div>
 
-  <!-- Networks section -->
-  {#if networks.length > 0}
+  <!-- V8.6: Search input. Plain GET form so it works without JS. -->
+  <form method="GET" class="max-w-md">
+    <div class="relative">
+      <Search class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--cs-text-muted)] pointer-events-none" />
+      <input
+        type="search"
+        name="q"
+        value={q}
+        placeholder="Search cooperatives..."
+        class="w-full rounded-md border border-[var(--cs-border)] bg-[var(--cs-bg-card)] pl-9 pr-3 py-2 text-sm text-[var(--cs-text)] placeholder:text-[var(--cs-text-muted)] focus:border-[var(--cs-primary)] focus:outline-none"
+      />
+    </div>
+  </form>
+
+  <!-- Networks section — hidden in search mode for visual focus -->
+  {#if !q && networks.length > 0}
     <section>
       <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-[var(--cs-text-muted)]">
         Networks
@@ -66,15 +82,23 @@
   <!-- Cooperatives grid -->
   <section>
     <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-[var(--cs-text-muted)]">
-      Cooperatives
+      {q ? `Search results for "${q}"` : 'Cooperatives'}
     </h2>
 
     {#if cooperatives.length === 0}
-      <EmptyState
-        icon={Users}
-        title="No cooperatives yet"
-        description="No cooperatives have been registered on this platform yet."
-      />
+      {#if q}
+        <EmptyState
+          icon={Search}
+          title="No cooperatives match your search"
+          description={`Nothing found for "${q}". Try a different keyword.`}
+        />
+      {:else}
+        <EmptyState
+          icon={Users}
+          title="No cooperatives yet"
+          description="No cooperatives have been registered on this platform yet."
+        />
+      {/if}
     {:else}
       <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {#each cooperatives as coop}
@@ -104,11 +128,11 @@
       </div>
     {/if}
 
-    <!-- Pagination -->
+    <!-- Pagination — preserves the search query when present -->
     {#if cursor}
       <div class="flex justify-center pt-4">
         <a
-          href="?cursor={cursor}"
+          href={q ? `?q=${encodeURIComponent(q)}&cursor=${cursor}` : `?cursor=${cursor}`}
           class="rounded-md border border-[var(--cs-border)] px-4 py-2 text-sm font-medium text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)] cs-transition"
         >
           Load more

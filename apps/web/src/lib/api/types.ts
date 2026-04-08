@@ -521,6 +521,30 @@ export interface ExploreNetworksResponse {
   cursor: string | null;
 }
 
+// V8.6 — Search
+
+export interface SearchPostResult {
+  id: string;
+  threadId: string;
+  cooperativeDid: string;
+  cooperativeHandle: string | null;
+  cooperativeDisplayName: string;
+  threadTitle: string | null;
+  body: string;
+  authorDid: string;
+  createdAt: string;
+}
+
+export interface SearchCooperativesResponse {
+  cooperatives: ExploreCooperative[];
+  cursor: string | null;
+}
+
+export interface SearchPostsResponse {
+  posts: SearchPostResult[];
+  cursor: string | null;
+}
+
 // ─── Agents ──────────────────────────────────────────────────────────────────
 
 export interface ModelRoutingConfig {

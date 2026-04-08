@@ -87,3 +87,18 @@ make deploy-migrate
 ```
 
 This executes the migration runner inside the running API container. The API container must be up (`make deploy-up`) before running migrations.
+
+### Migrations that require a maintenance window
+
+Most migrations are safe to run online, but a few rewrite central tables and
+take an `ACCESS EXCLUSIVE` lock — they should be run during a scheduled
+maintenance window with the API offline (or at minimum, traffic drained).
+
+| Migration | Why |
+|---|---|
+| `059_search_indexes.ts` (V8.6) | Adds two `GENERATED ALWAYS AS ... STORED` `tsvector` columns to `entity` and `post`. The `ALTER TABLE entity ADD COLUMN ...` rewrites the table and takes `ACCESS EXCLUSIVE`; `entity` is the central FK target so this blocks all in-flight queries. Sub-second on small datasets, but unbounded on large production tables. |
+
+For future large-table migrations, prefer the safer pattern:
+1. Add a nullable column.
+2. Backfill in batches with throttled `UPDATE`s.
+3. Add `NOT NULL` and `CREATE INDEX CONCURRENTLY` afterward.

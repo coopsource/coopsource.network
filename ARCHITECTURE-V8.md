@@ -873,25 +873,45 @@ These are intentionally narrow positive lists. Closed-governance coops route pro
 - `apps/web/tests/e2e/helpers.ts` — `setExploreVisibility`, `createOpenProposal` helpers
 - `apps/api/tests/explore.test.ts` — V8.5 sections covering proposals/agreements/campaigns gating, the agreement `project_uri` regression test, and `anonDiscoverable` plumbing
 
-### Phase V8.6 — Search Service (Co-ops + Posts)
+### Phase V8.6 — Search Service (Co-ops + Posts) — ✅ Shipped
 
 **Goal**: Postgres FTS over coop profiles and posts. Search UI in `/explore` and `/me/explore`.
 
-**Tasks**:
-1. Add FTS columns and indexes (migration 060)
-2. Implement `SearchService` with `searchCooperatives()` and `searchPosts()`
-3. Visibility integration: tier-aware filtering at the query layer
-4. Implement `GET /api/v1/search/cooperatives` and `GET /api/v1/search/posts`
-5. Build search UI: input field, results list, filter chips
-6. Wire up search to both `/explore` (anon) and `/me/explore` (authed)
-7. Tests: search returns expected results, visibility is enforced
+**Tasks** (all complete):
+1. ✅ Generated `tsvector` columns + GIN indexes via migration **059** (the spec said 060 — was off by one; latest pre-V8.6 migration was 058_profile.ts).
+2. ✅ `SearchService` with `searchCooperatives()` (anon-safe) and `searchPosts()` (authed, scoped via `thread_member`).
+3. ✅ Visibility integration: cooperative search filters on `cooperative_profile.anon_discoverable=true`; post search joins on `thread_member.entity_did = viewerDid` (NOT `membership` — matches the existing read-access model so officer-only `'direct'` threads don't leak post bodies to regular coop members).
+4. ✅ `GET /api/v1/search/cooperatives` (anon) and `GET /api/v1/search/posts` (`requireAuth`).
+5. ✅ Search UI: input + results on `/explore`, plus full `/me/explore` page with All / Cooperatives / Posts filter chips.
+6. ✅ Wired into both `/explore` (anon, search via `?q=`) and `/me/explore` (authed, with chip filters).
+7. ✅ 18 API integration tests + 9 e2e tests, including a thread-member ACL regression test (locks in that a coop member who is NOT a thread_member of a `'direct'` thread cannot search its post bodies).
 
-**Files**:
-- `packages/db/src/migrations/060_search_indexes.ts` (new)
-- `apps/api/src/services/search-service.ts` (new)
-- `apps/api/src/routes/search.ts` (new)
-- `apps/web/src/routes/(public)/explore/+page.svelte` (search UI)
-- `apps/web/src/routes/(authed)/me/explore/+page.svelte` (new)
+**Design notes**:
+- **Post search is authed-only**, scoped via `thread_member` (NOT cooperative `membership`). The naive coop-membership scope would leak officer-only direct-thread post bodies.
+- **Status filter is `status != 'deleted'`**, NOT `status = 'active'`. The post status enum is `('active','edited','deleted')` per migration 006_posts.ts. The `'edited'` status is currently dead code (PostService.updatePost doesn't set it), but the filter is written to handle it correctly when V8.x adds an edit flow.
+- **v1 ranks by recency only** (`ORDER BY created_at DESC, id DESC`). `setweight()` is in the migration so a future `ts_rank_cd`-based ordering can prefer name/handle matches over description matches without another schema change.
+- **Snippet highlighting deferred**: v1 returns plain `body` field; the frontend computes a `body.slice(0, 200)` excerpt. `ts_headline` + HTML sanitization is a follow-up.
+- **`anonDiscoverable` master switch is the only opt-in path** — coops opt their public profile in via the V8.5 settings toggle, and search inherits that.
+- **Authed user with no active membership**: `requireAuth` middleware enforces an active membership, so `/api/v1/search/posts` returns 401 for newly-registered users between accepting an invitation and being approved. The `/me/explore` page server catches this and renders a "Post search requires an active cooperative membership" notice instead of failing the entire page load.
+- **Cross-workspace post search**: A user in coops A and B will see posts from BOTH coops' threads (where they're a `thread_member`) when searching, regardless of which coop is their currently selected workspace. This is the correct behavior for `/me/explore` (a personal home view).
+
+**Production runbook**: the 059 migration takes `ACCESS EXCLUSIVE` on the central `entity` table during the `ALTER TABLE ... ADD COLUMN GENERATED ALWAYS AS ... STORED` rewrite. **Not safe to run online against a populated production DB without a maintenance window.** See `docs/operations.md`.
+
+**Files** (final):
+- `packages/db/src/migrations/059_search_indexes.ts` — generated tsvector columns + GIN indexes
+- `apps/api/src/services/search-service.ts` — `searchCooperatives` + `searchPosts`
+- `apps/api/src/routes/search.ts` — two endpoints, `requireAuth` only on the posts route
+- `apps/api/src/container.ts` — register `SearchService`
+- `apps/api/src/index.ts` — mount `createSearchRoutes` after `createExploreRoutes`
+- `apps/api/tests/helpers/test-app.ts` — also mount in test container
+- `apps/api/tests/search.test.ts` — 18 integration tests
+- `apps/web/src/lib/api/types.ts` — `SearchPostResult` / `SearchCooperativesResponse` / `SearchPostsResponse`
+- `apps/web/src/lib/api/client.ts` — `searchCooperatives` / `searchPosts` client methods
+- `apps/web/src/routes/(public)/explore/+page.{server.ts,svelte}` — search input + branching load
+- `apps/web/src/routes/(authed)/me/explore/+page.{server.ts,svelte}` — new page with chips, posts-unavailable graceful degradation
+- `apps/web/src/lib/components/layout/sidebar-nav.ts` — add `Explore` entry to `homeNavSection` items
+- `apps/web/tests/e2e/search.spec.ts` — 9 e2e tests
+- `docs/operations.md` — migration runbook entry
 
 ### Phase V8.7 — Match Service & Matches UI
 

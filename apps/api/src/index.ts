@@ -41,6 +41,7 @@ import { createOutcomeRoutes } from './routes/alignment/outcomes.js';
 import { createMapRoutes } from './routes/alignment/map.js';
 import { createConnectionRoutes } from './routes/connections/connections.js';
 import { createExploreRoutes } from './routes/explore.js';
+import { createSearchRoutes } from './routes/search.js';
 import { createWellKnownRoutes } from './routes/well-known.js';
 import { createFederationRoutes } from './routes/federation.js';
 import { createAgentConfigRoutes } from './routes/agents/config.js';
@@ -166,6 +167,7 @@ async function start(): Promise<void> {
 
   // Public explore routes (no auth required)
   app.use(createExploreRoutes(container));
+  app.use(createSearchRoutes(container));
 
   // Setup routes (available before setup is complete)
   app.use(createSetupRoutes(container));
