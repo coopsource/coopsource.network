@@ -14,6 +14,7 @@ import { EntityService } from '../../src/services/entity-service.js';
 import { ProfileService } from '../../src/services/profile-service.js';
 import { MembershipService } from '../../src/services/membership-service.js';
 import { PostService } from '../../src/services/post-service.js';
+import { SearchService } from '../../src/services/search-service.js';
 import { ProposalService } from '../../src/services/proposal-service.js';
 import { AgreementService } from '../../src/services/agreement-service.js';
 import { NetworkService } from '../../src/services/network-service.js';
@@ -75,6 +76,7 @@ import { createMapRoutes } from '../../src/routes/alignment/map.js';
 import { createConnectionRoutes } from '../../src/routes/connections/connections.js';
 import { createAdminRoutes } from '../../src/routes/admin.js';
 import { createExploreRoutes } from '../../src/routes/explore.js';
+import { createSearchRoutes } from '../../src/routes/search.js';
 import { createBlobRoutes } from '../../src/routes/blobs.js';
 import { createFederationRoutes } from '../../src/routes/federation.js';
 import { createAgentConfigRoutes } from '../../src/routes/agents/config.js';
@@ -157,6 +159,7 @@ export function createTestApp(): TestApp {
   const labelSubscriptionManager = new LabelSubscriptionManager(db);
   const governanceLabeler = new GovernanceLabeler(db, labelSubscriptionManager);
   const postService = new PostService(db, clock);
+  const searchService = new SearchService(db);
   const proposalService = new ProposalService(db, pdsService, clock, memberWriteProxy, governanceLabeler);
   const agreementService = new AgreementService(db, pdsService, clock, memberWriteProxy);
   const agreementTemplateService = new AgreementTemplateService(db, clock);
@@ -217,6 +220,7 @@ export function createTestApp(): TestApp {
     entityService,
     membershipService,
     postService,
+    searchService,
     proposalService,
     agreementService,
     agreementTemplateService,
@@ -285,6 +289,7 @@ export function createTestApp(): TestApp {
 
   // Mount routes in the same order as production
   app.use(createExploreRoutes(container));
+  app.use(createSearchRoutes(container));
   app.use(createBlobRoutes(container));
   app.use(createSetupRoutes(container));
   app.use(createAuthRoutes(container, { frontendUrl: 'http://localhost:5173' }));

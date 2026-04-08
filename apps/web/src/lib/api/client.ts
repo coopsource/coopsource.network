@@ -45,6 +45,8 @@ import type {
   ExploreCooperativesResponse,
   ExploreCooperativeDetail,
   ExploreNetworksResponse,
+  SearchCooperativesResponse,
+  SearchPostsResponse,
   MyMembershipsResponse,
   AgentConfig,
   AgentsResponse,
@@ -817,6 +819,21 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string, apiBase?
 
     getExploreCooperative: (handle: string) =>
       request<ExploreCooperativeDetail>(`/explore/cooperatives/${encodeURIComponent(handle)}`),
+
+    // V8.6 — Search (public for cooperatives, authed for posts)
+    searchCooperatives: (q: string, params?: { limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams({ q });
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<SearchCooperativesResponse>(`/search/cooperatives?${qs}`);
+    },
+
+    searchPosts: (q: string, params?: { limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams({ q });
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<SearchPostsResponse>(`/search/posts?${qs}`);
+    },
 
     // ── Agents ──────────────────────────────────────────────────────────────
     getAgents: (cursor?: string) => {

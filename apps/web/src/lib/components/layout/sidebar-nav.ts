@@ -107,7 +107,7 @@ export function youNavSection(
   };
 }
 
-/** Compute the Home mode top nav section (Activity link). Empty for non-home workspaces. */
+/** Compute the Home mode top nav section (Activity + Explore). Empty for non-home workspaces. */
 export function homeNavSection(
   workspace: WorkspaceContext | null | undefined,
 ): NavSection {
@@ -116,6 +116,7 @@ export function homeNavSection(
     label: '',
     items: [
       { href: '/me', label: 'Activity', icon: LayoutDashboard },
+      { href: '/me/explore', label: 'Explore', icon: Compass },
     ],
   };
 }
