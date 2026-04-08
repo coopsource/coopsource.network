@@ -9,5 +9,5 @@ export const load: PageServerLoad = async ({ fetch, request }) => {
     const coop = await api.getCooperative();
     if (coop?.handle) redirect(301, `/coop/${coop.handle}/alignment`);
   } catch { /* fallthrough */ }
-  redirect(302, '/dashboard');
+  redirect(302, '/me');
 };

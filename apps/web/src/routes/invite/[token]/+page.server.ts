@@ -41,6 +41,6 @@ export const actions: Actions = {
 
     // Forward session cookie — the API logs the new member in on acceptance
     forwardSessionCookie(res, cookies);
-    redirect(302, '/dashboard');
+    redirect(302, '/me');
   },
 };

@@ -26,5 +26,5 @@ export const load: PageServerLoad = async ({ url, cookies, fetch }) => {
   // Forward the session cookie from the API response to the browser
   forwardSessionCookie(res, cookies);
 
-  redirect(302, '/dashboard');
+  redirect(302, '/me');
 };

@@ -52,6 +52,6 @@ export const actions: Actions = {
 
     // Forward session cookie so admin is logged in immediately after setup
     forwardSessionCookie(res, cookies);
-    redirect(302, '/dashboard');
+    redirect(302, '/me');
   },
 };
