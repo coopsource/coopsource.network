@@ -139,6 +139,57 @@ export class FundingService {
     return { items: slice, cursor };
   }
 
+  /**
+   * V8.5 — public-safe campaign listing for `/explore/[handle]` profile pages.
+   * Returns up to `limit` campaigns for the given coop that are not still being
+   * drafted and not cancelled. Includes `active`, `funded`, and `completed`.
+   */
+  async listPublicCampaigns(
+    cooperativeDid: string,
+    limit = 5,
+  ): Promise<
+    Array<{
+      uri: string;
+      title: string;
+      status: string;
+      goal_amount: number;
+      goal_currency: string;
+      amount_raised: number;
+      end_date: Date | null;
+      created_at: Date;
+    }>
+  > {
+    const rows = await this.db
+      .selectFrom('funding_campaign')
+      .where('did', '=', cooperativeDid)
+      .where('status', 'not in', ['draft', 'cancelled'])
+      .select([
+        'uri',
+        'title',
+        'status',
+        'goal_amount',
+        'goal_currency',
+        'amount_raised',
+        'end_date',
+        'created_at',
+      ])
+      .orderBy('created_at', 'desc')
+      .orderBy('uri', 'desc')
+      .limit(limit)
+      .execute();
+
+    return rows.map((r) => ({
+      uri: r.uri,
+      title: r.title,
+      status: r.status,
+      goal_amount: r.goal_amount,
+      goal_currency: r.goal_currency,
+      amount_raised: r.amount_raised,
+      end_date: r.end_date,
+      created_at: r.created_at,
+    }));
+  }
+
   async updateCampaign(
     uri: string,
     cooperativeDid: string,

@@ -50,9 +50,11 @@
                 {#if network.description}
                   <p class="mt-0.5 text-xs text-[var(--cs-text-secondary)] line-clamp-2">{network.description}</p>
                 {/if}
-                <p class="mt-1.5 text-xs text-[var(--cs-text-muted)]">
-                  {network.memberCount} member{network.memberCount !== 1 ? 's' : ''}
-                </p>
+                {#if network.memberCount !== null}
+                  <p class="mt-1.5 text-xs text-[var(--cs-text-muted)]">
+                    {network.memberCount} member{network.memberCount !== 1 ? 's' : ''}
+                  </p>
+                {/if}
               </div>
             </div>
           </div>
@@ -91,10 +93,12 @@
                 {coop.description}
               </p>
             {/if}
-            <div class="mt-3 flex items-center gap-1 text-xs text-[var(--cs-text-muted)]">
-              <Users class="h-3.5 w-3.5" />
-              {coop.memberCount} member{coop.memberCount !== 1 ? 's' : ''}
-            </div>
+            {#if coop.memberCount !== null}
+              <div class="mt-3 flex items-center gap-1 text-xs text-[var(--cs-text-muted)]">
+                <Users class="h-3.5 w-3.5" />
+                {coop.memberCount} member{coop.memberCount !== 1 ? 's' : ''}
+              </div>
+            {/if}
           </a>
         {/each}
       </div>

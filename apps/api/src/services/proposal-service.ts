@@ -95,6 +95,44 @@ export class ProposalService {
     return { items: slice, cursor };
   }
 
+  /**
+   * V8.5 — public-safe proposal listing for `/explore/[handle]` profile pages.
+   * Returns a narrow projection of up to `limit` non-draft, non-tombstoned
+   * proposals for the given coop. Closed-governance coops route proposals into
+   * `private_record` (Tier 2) so they're naturally excluded from this query.
+   */
+  async listPublicProposals(
+    cooperativeDid: string,
+    limit = 5,
+  ): Promise<
+    Array<{
+      id: string;
+      title: string;
+      status: string;
+      created_at: Date;
+      resolved_at: Date | null;
+    }>
+  > {
+    const rows = await this.db
+      .selectFrom('proposal')
+      .where('cooperative_did', '=', cooperativeDid)
+      .where('invalidated_at', 'is', null)
+      .where('status', 'in', ['open', 'closed', 'resolved'])
+      .select(['id', 'title', 'status', 'created_at', 'resolved_at'])
+      .orderBy('created_at', 'desc')
+      .orderBy('id', 'desc')
+      .limit(limit)
+      .execute();
+
+    return rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      status: r.status,
+      created_at: r.created_at,
+      resolved_at: r.resolved_at,
+    }));
+  }
+
   async getProposal(id: string): Promise<ProposalWithVotes | null> {
     const proposal = await this.db
       .selectFrom('proposal')

@@ -288,6 +288,7 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string, apiBase?
       displayName?: string;
       description?: string;
       website?: string;
+      anonDiscoverable?: boolean;
       publicDescription?: boolean;
       publicMembers?: boolean;
       publicActivity?: boolean;

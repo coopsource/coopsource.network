@@ -837,24 +837,41 @@ Sign-out is intentionally NOT in this dropdown; it lives in `Navbar.svelte` and 
 - `apps/web/src/routes/(authed)/{agreements,alignment,campaigns,invitations,members,networks,proposals,settings/connections,threads}/**/+page.server.ts` (modify — 27 files swept)
 - `apps/web/src/routes/setup/+page.server.ts`, `auth/oauth/complete/+page.server.ts`, `invite/[token]/+page.server.ts` (modify — sweep)
 
-### Phase V8.5 — Public Co-op Profile Pages
+### Phase V8.5 — Public Co-op Profile Pages — ✅ Shipped
 
 **Goal**: Each co-op gets a public profile page (when discoverable). Visibility enforcement is fully wired up.
 
-**Tasks**:
-1. Create `/explore/[handle]` route in `(public)`
-2. Implement `GET /api/v1/explore/cooperatives/[handle]` with full visibility enforcement
-3. Render: cooperative name, description, member count (if `publicMembers`), public proposals (if `publicActivity`), public agreements (if `publicAgreements`), public campaigns (if `publicCampaigns`)
-4. Add admin UI in coop settings to toggle `anonDiscoverable` and other flags
-5. Tests: anon viewer sees only public data; authed non-member sees the same; cross-coop member sees same; member sees full data
-6. Edge case: if `anonDiscoverable=false`, route returns 404 for anon
+**Tasks** (all complete):
+1. ✅ `/explore/[handle]` route in `(public)` (was scaffolded V8.1, completed V8.5)
+2. ✅ `GET /api/v1/explore/cooperatives/[handle]` reads all five visibility flags + the master `anon_discoverable` switch and returns gated proposals/agreements/campaigns
+3. ✅ Renders: name, description, member count (if `publicMembers`), networks + recent proposals (if `publicActivity`), agreements (if `publicAgreements`), campaigns (if `publicCampaigns`)
+4. ✅ Admin UI: master `anonDiscoverable` toggle added as the first/labeled control in the visibility form (was missing before V8.5 — only the 5 sub-flags existed)
+5. ✅ Tests: anon viewer (off → 404, on with no flags → header only, on with proposal seeded → proposal card visible), authed member (banner visible + click navigates into workspace). API integration tests (`apps/api/tests/explore.test.ts`) cover the visibility filter logic, agreement `project_uri` leak regression, the campaign status filter, and the `anonDiscoverable` plumbing. **Note**: the "authed non-member" e2e case from the original task list is structurally impossible to set up in single-instance e2e — every user registered via `/api/v1/auth/register` is auto-joined to the instance's cooperative (`auth-service.ts:127-186`). The non-member scenario maps to a multi-instance federation case, which the e2e suite doesn't exercise. The principle is verified by inspection of the page server's `isMember` check and by the API tests.
+6. ✅ `anonDiscoverable=false` → 404 for anon (and authed non-members)
 
-**Files**:
-- `apps/web/src/routes/(public)/explore/[handle]/+page.svelte` (new)
-- `apps/web/src/routes/(public)/explore/[handle]/+page.server.ts` (new)
-- `apps/api/src/routes/explore.ts` (extend with `[handle]` handler)
-- `apps/web/src/routes/(authed)/coop/[handle]/settings/+page.svelte` (visibility toggles UI)
-- `apps/api/src/routes/cooperatives.ts` (PATCH endpoint for visibility flags)
+**Design deviation from task 5** ("member sees full data"): the public profile page stays uniform for every viewer. When the viewer is authed AND an active member of the co-op, the page renders a "View as member →" banner linking to `/coop/[handle]` (the existing authed workspace, which already shows full data). This avoids duplicating the full-data render path and keeps the public profile coherent across all viewers. The "member sees full data" guarantee is preserved by the link destination, not by inline expansion.
+
+**Public-safe status filter convention** (locked in for V8.5):
+- `proposal.status IN ('open','closed','resolved') AND invalidated_at IS NULL`
+- `agreement.status IN ('active','amended','terminated')`
+- `funding_campaign.status NOT IN ('draft','cancelled')`
+
+These are intentionally narrow positive lists. Closed-governance coops route proposals into `private_record` (Tier 2) via `VisibilityRouter`, so they never appear in the `proposal` table — no extra `governance_visibility` check is needed in `listPublicProposals`. Agreements & campaigns do not flow through `VisibilityRouter`; coop admins must opt them in via the per-section `publicAgreements`/`publicCampaigns` flags.
+
+**Files** (final):
+- `apps/web/src/routes/(public)/explore/[handle]/+page.svelte` — header + member banner + 4 sections (networks, proposals, agreements, campaigns)
+- `apps/web/src/routes/(public)/explore/[handle]/+page.server.ts` — fetches profile + viewer membership (cookie-forwarded, gated on `locals.user`)
+- `apps/web/src/routes/(public)/explore/+page.svelte` — directory listing null-memberCount render bug fixed (same root cause)
+- `apps/api/src/routes/explore.ts` — `[handle]` handler extended with proposals/agreements/campaigns + the two missing visibility flag SELECTs
+- `apps/api/src/services/{proposal,agreement,funding}-service.ts` — `listPublic*` helpers
+- `apps/api/src/services/entity-service.ts` — `anon_discoverable` plumbed through `getCooperative`/`getCooperativeByHandle`/`updateCooperative`
+- `apps/api/src/routes/org/cooperatives.ts` — `formatCooperative`, by-handle response, and PUT body all carry `anonDiscoverable`
+- `apps/web/src/routes/(authed)/coop/[handle]/settings/{+page.svelte,+page.server.ts}` — master `anonDiscoverable` toggle wired through
+- `apps/web/src/lib/api/{types,client}.ts` — `PublicProposalSummary` / `PublicAgreementSummary` / `PublicCampaignSummary` types, extended `ExploreCooperativeDetail`, `anonDiscoverable` on `CoopEntity` and the `updateCooperative` body, `memberCount: number | null` corrected
+- `packages/common/src/validation.ts` — `UpdateCoopSchema` accepts `anonDiscoverable`
+- `apps/web/tests/e2e/coop-public-profile.spec.ts` (new) — six describe blocks for the four viewer states + 404 edge case + settings round-trip
+- `apps/web/tests/e2e/helpers.ts` — `setExploreVisibility`, `createOpenProposal` helpers
+- `apps/api/tests/explore.test.ts` — V8.5 sections covering proposals/agreements/campaigns gating, the agreement `project_uri` regression test, and `anonDiscoverable` plumbing
 
 ### Phase V8.6 — Search Service (Co-ops + Posts)
 

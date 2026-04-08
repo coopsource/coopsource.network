@@ -350,4 +350,385 @@ describe('Explore', () => {
       expect(res.body.cooperatives[0].handle).toBe('opt-in-coop');
     });
   });
+
+  // ─── V8.5 — Public profile sections (proposals/agreements/campaigns) ────
+
+  describe('V8.5 public profile sections', () => {
+    it('returns empty proposals/agreements/campaigns arrays when no data exists', async () => {
+      const testApp = createTestApp();
+      const { coopDid } = await setupWithHandle(testApp, 'empty-sections');
+      await makeDiscoverable(coopDid);
+
+      const res = await testApp.agent
+        .get('/api/v1/explore/cooperatives/empty-sections')
+        .expect(200);
+
+      expect(res.body.proposals).toEqual([]);
+      expect(res.body.agreements).toEqual([]);
+      expect(res.body.campaigns).toEqual([]);
+    });
+
+    it('returns open proposals when public_activity is true', async () => {
+      const testApp = createTestApp();
+      const { coopDid } = await setupWithHandle(testApp, 'props-coop');
+      await makeDiscoverable(coopDid);
+
+      const db = getTestDb();
+      await db
+        .updateTable('cooperative_profile')
+        .set({ public_activity: true })
+        .where('entity_did', '=', coopDid)
+        .execute();
+
+      // Seed a draft proposal then transition it to open
+      const createRes = await testApp.agent
+        .post('/api/v1/proposals')
+        .send({
+          title: 'Public Test Proposal',
+          body: 'Body',
+          bodyFormat: 'text/markdown',
+          votingType: 'binary',
+          quorumType: 'simpleMajority',
+        })
+        .expect(201);
+
+      await testApp.agent
+        .post(`/api/v1/proposals/${createRes.body.id}/open`)
+        .expect(200);
+
+      const res = await testApp.agent
+        .get('/api/v1/explore/cooperatives/props-coop')
+        .expect(200);
+
+      expect(res.body.proposals).toHaveLength(1);
+      expect(res.body.proposals[0].title).toBe('Public Test Proposal');
+      expect(res.body.proposals[0].status).toBe('open');
+      expect(res.body.proposals[0].id).toBeDefined();
+      expect(res.body.proposals[0].createdAt).toBeDefined();
+    });
+
+    it('hides proposals when public_activity is false even if they exist', async () => {
+      const testApp = createTestApp();
+      const { coopDid } = await setupWithHandle(testApp, 'hidden-props');
+      await makeDiscoverable(coopDid);
+
+      // public_activity defaults to false — leave it
+      const createRes = await testApp.agent
+        .post('/api/v1/proposals')
+        .send({
+          title: 'Hidden Proposal',
+          body: 'Body',
+          bodyFormat: 'text/markdown',
+          votingType: 'binary',
+          quorumType: 'simpleMajority',
+        })
+        .expect(201);
+
+      await testApp.agent
+        .post(`/api/v1/proposals/${createRes.body.id}/open`)
+        .expect(200);
+
+      const res = await testApp.agent
+        .get('/api/v1/explore/cooperatives/hidden-props')
+        .expect(200);
+
+      expect(res.body.proposals).toEqual([]);
+    });
+
+    it('hides draft and tombstoned proposals from listPublicProposals', async () => {
+      const testApp = createTestApp();
+      const { coopDid } = await setupWithHandle(testApp, 'filter-props');
+      await makeDiscoverable(coopDid);
+
+      const db = getTestDb();
+      await db
+        .updateTable('cooperative_profile')
+        .set({ public_activity: true })
+        .where('entity_did', '=', coopDid)
+        .execute();
+
+      // Draft proposal — should be hidden
+      await testApp.agent
+        .post('/api/v1/proposals')
+        .send({
+          title: 'Still Draft',
+          body: 'Body',
+          bodyFormat: 'text/markdown',
+          votingType: 'binary',
+          quorumType: 'simpleMajority',
+        })
+        .expect(201);
+
+      // Tombstoned proposal — direct DB insert with invalidated_at set
+      await db
+        .insertInto('proposal')
+        .values({
+          uri: null,
+          cid: null,
+          cooperative_did: coopDid,
+          author_did: coopDid,
+          title: 'Tombstoned',
+          body: 'B',
+          body_format: 'text/markdown',
+          voting_type: 'binary',
+          options: null,
+          quorum_type: 'simpleMajority',
+          quorum_basis: 'votesCast',
+          quorum_threshold: null,
+          status: 'open',
+          outcome: null,
+          opens_at: null,
+          closes_at: null,
+          resolved_at: null,
+          class_quorum_rules: null,
+          tags: [],
+          created_by: coopDid,
+          invalidated_at: new Date(),
+          invalidated_by: coopDid,
+        })
+        .execute();
+
+      const res = await testApp.agent
+        .get('/api/v1/explore/cooperatives/filter-props')
+        .expect(200);
+
+      expect(res.body.proposals).toEqual([]);
+    });
+
+    it('lists active agreements when public_agreements is true', async () => {
+      const testApp = createTestApp();
+      const { coopDid } = await setupWithHandle(testApp, 'agree-coop');
+      await makeDiscoverable(coopDid);
+
+      const db = getTestDb();
+      await db
+        .updateTable('cooperative_profile')
+        .set({ public_agreements: true })
+        .where('entity_did', '=', coopDid)
+        .execute();
+
+      // Seed an active agreement directly (the create→activate flow is heavy
+      // and not the focus of this test).
+      const now = new Date();
+      await db
+        .insertInto('agreement')
+        .values({
+          uri: 'at://test/network.coopsource.agreement.master/abc',
+          did: coopDid,
+          rkey: 'abc',
+          project_uri: coopDid,
+          title: 'Public Agreement',
+          version: 1,
+          purpose: null,
+          scope: null,
+          agreement_type: 'master',
+          body: null,
+          body_format: 'text/markdown',
+          created_by: coopDid,
+          governance_framework: null,
+          dispute_resolution: null,
+          amendment_process: null,
+          termination_conditions: null,
+          status: 'active',
+          effective_date: now,
+          created_at: now,
+          updated_at: now,
+        })
+        .execute();
+
+      const res = await testApp.agent
+        .get('/api/v1/explore/cooperatives/agree-coop')
+        .expect(200);
+
+      expect(res.body.agreements).toHaveLength(1);
+      expect(res.body.agreements[0].title).toBe('Public Agreement');
+      expect(res.body.agreements[0].status).toBe('active');
+    });
+
+    it('does NOT leak agreements where project_uri points to a different coop (regression)', async () => {
+      const testApp = createTestApp();
+      const { coopDid } = await setupWithHandle(testApp, 'leak-test');
+      await makeDiscoverable(coopDid);
+
+      const db = getTestDb();
+      await db
+        .updateTable('cooperative_profile')
+        .set({ public_agreements: true })
+        .where('entity_did', '=', coopDid)
+        .execute();
+
+      // Insert an agreement that lives on a DIFFERENT coop (project_uri ≠ coopDid).
+      // listPublicAgreements filters by project_uri, so this must NOT surface.
+      const now = new Date();
+      await db
+        .insertInto('agreement')
+        .values({
+          uri: 'at://other/network.coopsource.agreement.master/xyz',
+          did: 'did:web:other-coop.example',
+          rkey: 'xyz',
+          project_uri: 'did:web:other-coop.example',
+          title: 'Other Coop Agreement',
+          version: 1,
+          purpose: null,
+          scope: null,
+          agreement_type: 'master',
+          body: null,
+          body_format: 'text/markdown',
+          created_by: 'did:web:other-coop.example',
+          governance_framework: null,
+          dispute_resolution: null,
+          amendment_process: null,
+          termination_conditions: null,
+          status: 'active',
+          effective_date: now,
+          created_at: now,
+          updated_at: now,
+        })
+        .execute();
+
+      const res = await testApp.agent
+        .get('/api/v1/explore/cooperatives/leak-test')
+        .expect(200);
+
+      expect(res.body.agreements).toEqual([]);
+    });
+
+    it('lists active campaigns when public_campaigns is true', async () => {
+      const testApp = createTestApp();
+      const { coopDid } = await setupWithHandle(testApp, 'camp-coop');
+      await makeDiscoverable(coopDid);
+
+      const db = getTestDb();
+      await db
+        .updateTable('cooperative_profile')
+        .set({ public_campaigns: true })
+        .where('entity_did', '=', coopDid)
+        .execute();
+
+      const now = new Date();
+      await db
+        .insertInto('funding_campaign')
+        .values({
+          uri: 'at://test/network.coopsource.funding.campaign/c1',
+          did: coopDid,
+          rkey: 'c1',
+          beneficiary_uri: coopDid,
+          title: 'Public Campaign',
+          description: null,
+          tier: 'general',
+          campaign_type: 'donation',
+          goal_amount: 1000,
+          goal_currency: 'USD',
+          amount_raised: 250,
+          backer_count: 0,
+          funding_model: 'donation',
+          status: 'active',
+          start_date: now,
+          end_date: null,
+          metadata: null,
+          created_at: now,
+        })
+        .execute();
+
+      const res = await testApp.agent
+        .get('/api/v1/explore/cooperatives/camp-coop')
+        .expect(200);
+
+      expect(res.body.campaigns).toHaveLength(1);
+      expect(res.body.campaigns[0].title).toBe('Public Campaign');
+      expect(res.body.campaigns[0].status).toBe('active');
+      expect(res.body.campaigns[0].goalAmount).toBe(1000);
+      expect(res.body.campaigns[0].amountRaised).toBe(250);
+    });
+
+    it('hides cancelled campaigns', async () => {
+      const testApp = createTestApp();
+      const { coopDid } = await setupWithHandle(testApp, 'cancel-coop');
+      await makeDiscoverable(coopDid);
+
+      const db = getTestDb();
+      await db
+        .updateTable('cooperative_profile')
+        .set({ public_campaigns: true })
+        .where('entity_did', '=', coopDid)
+        .execute();
+
+      const now = new Date();
+      await db
+        .insertInto('funding_campaign')
+        .values({
+          uri: 'at://test/network.coopsource.funding.campaign/c2',
+          did: coopDid,
+          rkey: 'c2',
+          beneficiary_uri: coopDid,
+          title: 'Cancelled Campaign',
+          description: null,
+          tier: 'general',
+          campaign_type: 'donation',
+          goal_amount: 1000,
+          goal_currency: 'USD',
+          amount_raised: 0,
+          backer_count: 0,
+          funding_model: 'donation',
+          status: 'cancelled',
+          start_date: now,
+          end_date: null,
+          metadata: null,
+          created_at: now,
+        })
+        .execute();
+
+      const res = await testApp.agent
+        .get('/api/v1/explore/cooperatives/cancel-coop')
+        .expect(200);
+
+      expect(res.body.campaigns).toEqual([]);
+    });
+  });
+
+  // ─── V8.5 — anonDiscoverable plumbing ───────────────────────────────
+
+  describe('V8.5 anonDiscoverable in cooperative endpoints', () => {
+    it('GET /api/v1/cooperative includes anonDiscoverable (default false)', async () => {
+      const testApp = createTestApp();
+      await setupWithHandle(testApp, 'anon-get');
+
+      const res = await testApp.agent.get('/api/v1/cooperative').expect(200);
+      expect(res.body.anonDiscoverable).toBe(false);
+    });
+
+    it('PUT /api/v1/cooperative accepts anonDiscoverable and returns it', async () => {
+      const testApp = createTestApp();
+      await setupWithHandle(testApp, 'anon-put');
+
+      const res = await testApp.agent
+        .put('/api/v1/cooperative')
+        .send({ anonDiscoverable: true })
+        .expect(200);
+
+      expect(res.body.anonDiscoverable).toBe(true);
+    });
+
+    it('toggling anonDiscoverable off hides the coop from /explore/[handle]', async () => {
+      const testApp = createTestApp();
+      const { coopDid } = await setupWithHandle(testApp, 'anon-toggle');
+      await makeDiscoverable(coopDid);
+
+      // Visible
+      await testApp.agent
+        .get('/api/v1/explore/cooperatives/anon-toggle')
+        .expect(200);
+
+      // Toggle off via PUT
+      await testApp.agent
+        .put('/api/v1/cooperative')
+        .send({ anonDiscoverable: false })
+        .expect(200);
+
+      // Now 404
+      await testApp.agent
+        .get('/api/v1/explore/cooperatives/anon-toggle')
+        .expect(404);
+    });
+  });
 });

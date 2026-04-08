@@ -119,6 +119,8 @@ export function createExploreRoutes(container: Container): Router {
           'cooperative_profile.public_description',
           'cooperative_profile.public_members',
           'cooperative_profile.public_activity',
+          'cooperative_profile.public_agreements',
+          'cooperative_profile.public_campaigns',
         ])
         .select([
           'entity.did',
@@ -130,6 +132,8 @@ export function createExploreRoutes(container: Container): Router {
           'cooperative_profile.public_description as publicDescription',
           'cooperative_profile.public_members as publicMembers',
           'cooperative_profile.public_activity as publicActivity',
+          'cooperative_profile.public_agreements as publicAgreements',
+          'cooperative_profile.public_campaigns as publicCampaigns',
           sql<number>`count(membership.id)::int`.as('memberCount'),
         ])
         .executeTakeFirst();
@@ -158,6 +162,48 @@ export function createExploreRoutes(container: Container): Router {
         networks = networkRows.map((n) => ({ did: n.did, displayName: n.displayName }));
       }
 
+      // V8.5 — fetch public-safe proposals/agreements/campaigns in parallel,
+      // gated on each section's visibility flag.
+      const [proposalRows, agreementRows, campaignRows] = await Promise.all([
+        row.publicActivity
+          ? container.proposalService.listPublicProposals(row.did, 5)
+          : Promise.resolve([]),
+        row.publicAgreements
+          ? container.agreementService.listPublicAgreements(row.did, 5)
+          : Promise.resolve([]),
+        row.publicCampaigns
+          ? container.fundingService.listPublicCampaigns(row.did, 5)
+          : Promise.resolve([]),
+      ]);
+
+      const proposals = proposalRows.map((p) => ({
+        id: p.id,
+        title: p.title,
+        status: p.status,
+        createdAt: p.created_at.toISOString(),
+        resolvedAt: p.resolved_at ? p.resolved_at.toISOString() : null,
+      }));
+
+      const agreements = agreementRows.map((a) => ({
+        uri: a.uri,
+        title: a.title,
+        status: a.status,
+        agreementType: a.agreement_type,
+        effectiveDate: a.effective_date ? a.effective_date.toISOString() : null,
+        createdAt: a.created_at.toISOString(),
+      }));
+
+      const campaigns = campaignRows.map((c) => ({
+        uri: c.uri,
+        title: c.title,
+        status: c.status,
+        goalAmount: c.goal_amount,
+        goalCurrency: c.goal_currency,
+        amountRaised: c.amount_raised,
+        endDate: c.end_date ? c.end_date.toISOString() : null,
+        createdAt: c.created_at.toISOString(),
+      }));
+
       res.json({
         did: row.did,
         handle: row.handle,
@@ -167,6 +213,9 @@ export function createExploreRoutes(container: Container): Router {
         memberCount: row.publicMembers ? row.memberCount : null,
         website: row.website,
         networks,
+        proposals,
+        agreements,
+        campaigns,
       });
     }),
   );
