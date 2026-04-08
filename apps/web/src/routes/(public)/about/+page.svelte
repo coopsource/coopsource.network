@@ -2,7 +2,7 @@
   <title>About — Co-op Source</title>
 </svelte:head>
 
-<article class="mx-auto max-w-3xl space-y-12 py-8">
+<article class="mx-auto max-w-3xl space-y-12">
   <header>
     <h1 class="text-3xl font-bold tracking-tight text-[var(--cs-text)]">About Co-op Source</h1>
     <p class="mt-2 text-[var(--cs-text-secondary)]">
@@ -30,12 +30,19 @@
   </section>
 
   <section class="space-y-3">
-    <h2 class="text-xl font-semibold text-[var(--cs-text)]">Built on ATProto</h2>
+    <h2 class="text-xl font-semibold text-[var(--cs-text)]">What we're building toward</h2>
     <p class="text-[var(--cs-text-secondary)]">
-      Cooperatives are real ATProto accounts. Members bring their existing Bluesky
-      identities. Governance records flow through the same relay network that carries
-      Bluesky posts, Tangled commits, and Smoke Signal RSVPs. Your data lives in your
-      own PDS — you can take it with you.
+      Cooperative software shouldn't lock co-ops into a vendor or hide their
+      governance behind a closed silo. Co-op Source is built so cooperatives can
+      collaborate across instances, discover each other in a public commons, and
+      take their data with them if they ever choose to leave.
+    </p>
+    <p class="text-[var(--cs-text-secondary)]">
+      We do this by building on ATProto — the same federated protocol behind
+      Bluesky. Cooperatives are real ATProto accounts; members bring their
+      existing identities; governance records flow through the same relay
+      network that carries Bluesky posts and other federated content. Your
+      data lives in your own PDS, not ours.
     </p>
   </section>
 

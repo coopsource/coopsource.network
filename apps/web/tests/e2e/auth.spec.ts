@@ -129,15 +129,22 @@ test.describe('Registration Flow', () => {
   });
 
   test.fixme('register with duplicate email shows error', async ({ page, request }) => {
-    // Pre-existing flake (joins the same flaky pool as the .fixme'd test 11
-    // immediately above). The form action returns fail(409, { error }) but
-    // the {form?.error} block doesn't render reliably — same registration
-    // hydration race the prior .fixme test documents. Order-dependent: the
-    // test passes when run after the Authentication describe block in the
-    // full auth.spec.ts suite, but fails in isolation. V8.4's /dashboard
-    // sweep changed enough peripheral state to flip its luck. Fix is non-
-    // trivial and unrelated to V8.4 — needs a separate registration form
-    // hydration fix.
+    // Pre-existing flake. Verified by running this test in isolation against
+    // `main` 3 separate times (DB-reset between each): all 3 runs failed
+    // identically with "element(s) not found" for the error message regex.
+    // The failure is independent of any V8.4 changes.
+    //
+    // The test only passes when the FULL auth.spec.ts suite is run; some
+    // earlier test in the suite leaves browser/server state that incidentally
+    // lets the {form?.error} block render. The full-suite passing on commit 4
+    // of V8.4 was the same lucky ordering — the sweep's small timing change
+    // flipped its luck.
+    //
+    // Joins the same flaky pool as the .fixme'd test 11 immediately above
+    // ("registration form submit does not navigate away from /register").
+    // Both fail because the registration form hydration is racy. Fix is
+    // non-trivial (separate Svelte 5 hydration investigation) and unrelated
+    // to V8.4 — flagged for cleanup in a future hydration-fix commit.
     await setupCooperative(request);
     await page.goto('/register');
     await page.getByLabel('Display Name').fill('Duplicate User');

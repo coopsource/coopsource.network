@@ -801,7 +801,7 @@ Sign-out is intentionally NOT in this dropdown; it lives in `Navbar.svelte` and 
 
 **Goal**: Give Co-op Source a real public face — anonymous visitors land on a marketing page, browse a directory of publicly-discoverable cooperatives, read about the platform, and convert to sign-up.
 
-**Implementation note**: V8.4 planning discovered that **6 of the 7 originally-listed tasks were already scaffolded incrementally during V8.1-V8.3 work**. The actual V8.4 delta is small and structural: extract a shared `<PublicNav>` component, add `/about`, fix the root `/` → `/me` redirect (was a two-hop through `/dashboard`), and sweep ~13 stale `/dashboard` references that V8.2's reframing left behind. See the V8.4 plan file for the detailed scope.
+**Implementation note**: V8.4 planning discovered that **6 of the 7 originally-listed tasks were already scaffolded incrementally during V8.1-V8.3 work**. The actual V8.4 delta is small and structural: extract a shared `<PublicNav>` component, add `/about`, fix the root `/` → `/me` redirect (was a two-hop through `/dashboard`), and sweep ~30 stale `/dashboard` references that V8.2's reframing left behind. See the V8.4 plan file for the detailed scope.
 
 **Pre-existing scaffolding (already on main when V8.4 started)**:
 - `apps/web/src/routes/(public)/+layout.svelte` — public layout with top navbar (using inline `<nav>`)
@@ -817,7 +817,7 @@ Sign-out is intentionally NOT in this dropdown; it lives in `Navbar.svelte` and 
 2. Standardize anon nav wording: "Sign in" everywhere (renames `(public)` layout's "Log in").
 3. Add `/about` static explainer at `apps/web/src/routes/(public)/about/+page.svelte` — three sections covering what Co-op Source is, the recursive cooperative model, and the ATProto federation story.
 4. Fix root `/+page.server.ts` to redirect authed users directly to `/me` (single hop, no `/dashboard` intermediate).
-5. Sweep stale `/dashboard` references introduced before V8.2's reframing was complete: `+error.svelte` text + link, ~12 authed-side `+page.server.ts` no-coop fallbacks, and any other server files. **Keep** `(authed)/dashboard/+page.server.ts` as a 301 stale-bookmark catcher.
+5. Sweep stale `/dashboard` references introduced before V8.2's reframing was complete: `+error.svelte` text + link, **27 authed-side `+page.server.ts` no-coop fallbacks** (across `agreements`, `alignment`, `campaigns`, `invitations`, `members`, `networks`, `proposals`, `settings/connections`, `threads`), plus `setup`, `auth/oauth/complete`, and `invite/[token]`. **Keep** `(authed)/dashboard/+page.server.ts` as a 301 stale-bookmark catcher.
 6. Retarget the landing's "Create a Cooperative" CTA from `/join` (which redirects to `/login` on setup-complete instances — bait-and-switch) to `/register`.
 7. E2E tests in `apps/web/tests/e2e/public.spec.ts` covering anon and authed states of the navbar, the redirect chain, and the error page.
 
@@ -834,8 +834,8 @@ Sign-out is intentionally NOT in this dropdown; it lives in `Navbar.svelte` and 
 - `apps/web/src/routes/+page.server.ts` (modify — direct redirect to /me)
 - `apps/web/src/routes/+error.svelte` (modify — text + link sweep)
 - `apps/web/src/routes/(public)/+layout.svelte` (modify — use PublicNav)
-- `apps/web/src/routes/(authed)/{agreements,networks,threads,alignment,members,campaigns,proposals,invitations}/+page.server.ts` (modify — sweep)
-- `apps/web/src/routes/setup/+page.server.ts`, `invite/[token]/+page.server.ts` (modify — sweep, verify each)
+- `apps/web/src/routes/(authed)/{agreements,alignment,campaigns,invitations,members,networks,proposals,settings/connections,threads}/**/+page.server.ts` (modify — 27 files swept)
+- `apps/web/src/routes/setup/+page.server.ts`, `auth/oauth/complete/+page.server.ts`, `invite/[token]/+page.server.ts` (modify — sweep)
 
 ### Phase V8.5 — Public Co-op Profile Pages
 

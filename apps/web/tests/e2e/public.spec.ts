@@ -57,18 +57,18 @@ test.describe('V8.4 — Public web (anon)', () => {
       page.getByRole('heading', { name: 'The recursive cooperative model' }),
     ).toBeVisible();
     await expect(
-      page.getByRole('heading', { name: 'Built on ATProto' }),
+      page.getByRole('heading', { name: "What we're building toward" }),
     ).toBeVisible();
   });
 
   test('/about footer CTAs link to /explore and /register', async ({ page }) => {
     await page.goto('/about');
-    await expect(
-      page.getByRole('link', { name: 'Explore cooperatives' }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole('link', { name: 'Get started' }),
-    ).toBeVisible();
+    const exploreLink = page.getByRole('link', { name: 'Explore cooperatives' });
+    const getStartedLink = page.getByRole('link', { name: 'Get started' });
+    await expect(exploreLink).toBeVisible();
+    await expect(exploreLink).toHaveAttribute('href', '/explore');
+    await expect(getStartedLink).toBeVisible();
+    await expect(getStartedLink).toHaveAttribute('href', '/register');
   });
 
   test('/explore loads with the PublicNav (regression after refactor)', async ({ page }) => {
@@ -102,10 +102,36 @@ test.describe('V8.4 — Public web (authed)', () => {
     await expect(page).toHaveURL('/me');
   });
 
-  test('authed user visiting / redirects to /me', async ({ page }) => {
-    // Single-hop redirect from / → /me (V8.4 fix; was /→/dashboard→301→/me).
-    await page.goto('/');
+  test('authed user visiting / redirects directly to /me (no /dashboard hop)', async ({ page }) => {
+    // V8.4 fix: previously / → /dashboard → 301 → /me (two hops). Now / → /me.
+    // Verify the redirect chain does NOT include /dashboard. We capture every
+    // request URL the browser sees during page.goto via the framenavigated +
+    // request listeners — Playwright's request.redirectedFrom() chain only
+    // exposes server-side redirect chains, not client navigations, so we
+    // capture both.
+    const visitedUrls: string[] = [];
+    page.on('request', (req) => {
+      if (req.isNavigationRequest()) {
+        visitedUrls.push(req.url());
+      }
+    });
+
+    const response = await page.goto('/');
     await expect(page).toHaveURL('/me');
+
+    // Walk the response's server-side redirect chain too (covers same-server
+    // hops that don't surface as separate requests).
+    let req = response?.request() ?? null;
+    while (req) {
+      visitedUrls.push(req.url());
+      req = req.redirectedFrom();
+    }
+
+    // Forbid any /dashboard intermediate. Acceptable shapes:
+    //   ['http://.../', 'http://.../me']  ← single 302 hop (V8.4 happy path)
+    // Forbidden:
+    //   chain containing '/dashboard'      ← V8.2-era two-hop
+    expect(visitedUrls.some((u) => /\/dashboard(\/|$|\?)/.test(u))).toBe(false);
   });
 
   test('+error.svelte shows "Go to Home" → /me for authed users', async ({ page }) => {
