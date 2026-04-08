@@ -797,7 +797,7 @@ Sign-out is intentionally NOT in this dropdown; it lives in `Navbar.svelte` and 
 - `apps/web/src/routes/(authed)/+layout.svelte` (pass `currentProfile` to Sidebar)
 - `apps/web/src/routes/(authed)/me/profile/+page.svelte` (Current Profile card)
 
-### Phase V8.4 — Public Web (Landing + Anon Layout) — _in progress_
+### Phase V8.4 — Public Web (Landing + Anon Layout) — _complete_
 
 **Goal**: Give Co-op Source a real public face — anonymous visitors land on a marketing page, browse a directory of publicly-discoverable cooperatives, read about the platform, and convert to sign-up.
 
