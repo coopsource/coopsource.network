@@ -212,6 +212,17 @@
       <p class="mt-1 text-sm text-[var(--cs-text-muted)]">Control what's visible on your public profile at /explore.</p>
 
       <form method="POST" action="?/updateVisibility" use:enhance={() => { savingVisibility = true; return async ({ update }) => { savingVisibility = false; await update(); }; }} class="mt-4 space-y-3">
+        <!-- Master switch — controls whether the public profile resolves at all -->
+        <label class="flex items-start justify-between gap-3 border-b border-[var(--cs-border)] pb-3">
+          <div>
+            <span class="text-sm font-semibold text-[var(--cs-text)]">Anonymous discovery</span>
+            <span class="block text-xs text-[var(--cs-text-muted)]">
+              When off, your co-op profile is invisible at /explore/{coop.handle ?? '[handle]'} (returns 404). The settings below have no effect.
+            </span>
+          </div>
+          <input type="checkbox" name="anonDiscoverable" checked={coop.anonDiscoverable} class="mt-0.5 h-4 w-4 rounded border-[var(--cs-input-border)] text-[var(--cs-primary)] focus:ring-[var(--cs-ring)]" />
+        </label>
+
         <label class="flex items-center justify-between gap-3 py-1">
           <div>
             <span class="text-sm font-medium text-[var(--cs-text)]">Description</span>
@@ -231,7 +242,7 @@
         <label class="flex items-center justify-between gap-3 py-1">
           <div>
             <span class="text-sm font-medium text-[var(--cs-text)]">Activity</span>
-            <span class="block text-xs text-[var(--cs-text-muted)]">Show which networks you belong to</span>
+            <span class="block text-xs text-[var(--cs-text-muted)]">Show which networks you belong to and recent proposals</span>
           </div>
           <input type="checkbox" name="publicActivity" checked={coop.publicActivity} class="h-4 w-4 rounded border-[var(--cs-input-border)] text-[var(--cs-primary)] focus:ring-[var(--cs-ring)]" />
         </label>

@@ -126,6 +126,67 @@ export async function createMemberViaInvitation(
 }
 
 /**
+ * V8.5 — Update the test cooperative's public-profile visibility flags
+ * via the API. The test setup defaults to anon_discoverable=false, so
+ * tests that exercise /explore/[handle] must opt in here first.
+ */
+export async function setExploreVisibility(
+  request: APIRequestContext,
+  cookie: string,
+  flags: {
+    anonDiscoverable?: boolean;
+    publicDescription?: boolean;
+    publicMembers?: boolean;
+    publicActivity?: boolean;
+    publicAgreements?: boolean;
+    publicCampaigns?: boolean;
+  },
+): Promise<void> {
+  const res = await request.put('http://localhost:3002/api/v1/cooperative', {
+    headers: { Cookie: cookie },
+    data: flags,
+  });
+  if (!res.ok()) {
+    throw new Error(`setExploreVisibility failed (${res.status()}): ${await res.text()}`);
+  }
+}
+
+/**
+ * V8.5 — Seed an open proposal so /explore/[handle] has something to render
+ * in the proposals section. Two-step: create draft → open.
+ */
+export async function createOpenProposal(
+  request: APIRequestContext,
+  cookie: string,
+  data: { title: string; body: string },
+): Promise<{ id: string }> {
+  const createRes = await request.post('http://localhost:3002/api/v1/proposals', {
+    headers: { Cookie: cookie },
+    data: {
+      title: data.title,
+      body: data.body,
+      bodyFormat: 'text/markdown',
+      votingType: 'binary',
+      quorumType: 'simpleMajority',
+    },
+  });
+  if (!createRes.ok()) {
+    throw new Error(`Create proposal failed (${createRes.status()}): ${await createRes.text()}`);
+  }
+  const proposal = await createRes.json();
+
+  const openRes = await request.post(
+    `http://localhost:3002/api/v1/proposals/${proposal.id}/open`,
+    { headers: { Cookie: cookie } },
+  );
+  if (!openRes.ok()) {
+    throw new Error(`Open proposal failed (${openRes.status()}): ${await openRes.text()}`);
+  }
+
+  return { id: proposal.id };
+}
+
+/**
  * Register a new account via the UI register page.
  * Expects a cooperative to already be set up.
  */
@@ -141,3 +202,4 @@ export async function registerAs(
   await page.getByRole('button', { name: 'Create account' }).click();
   await page.waitForURL('/me');
 }
+

@@ -25,6 +25,7 @@ export class EntityService {
       location: string | null;
       website: string | null;
       founded_date: string | null;
+      anon_discoverable: boolean;
       public_description: boolean;
       public_members: boolean;
       public_activity: boolean;
@@ -55,6 +56,7 @@ export class EntityService {
         'cooperative_profile.location',
         'cooperative_profile.website',
         'cooperative_profile.founded_date',
+        'cooperative_profile.anon_discoverable',
         'cooperative_profile.public_description',
         'cooperative_profile.public_members',
         'cooperative_profile.public_activity',
@@ -82,6 +84,7 @@ export class EntityService {
         location: row.location,
         website: row.website,
         founded_date: row.founded_date,
+        anon_discoverable: row.anon_discoverable,
         public_description: row.public_description,
         public_members: row.public_members,
         public_activity: row.public_activity,
@@ -110,6 +113,7 @@ export class EntityService {
       website: string | null;
       founded_date: string | null;
       is_network: boolean;
+      anon_discoverable: boolean;
       public_description: boolean;
       public_members: boolean;
       public_activity: boolean;
@@ -143,6 +147,7 @@ export class EntityService {
         'cooperative_profile.website',
         'cooperative_profile.founded_date',
         'cooperative_profile.is_network',
+        'cooperative_profile.anon_discoverable',
         'cooperative_profile.public_description',
         'cooperative_profile.public_members',
         'cooperative_profile.public_activity',
@@ -172,6 +177,7 @@ export class EntityService {
         website: row.website,
         founded_date: row.founded_date,
         is_network: row.is_network,
+        anon_discoverable: row.anon_discoverable,
         public_description: row.public_description,
         public_members: row.public_members,
         public_activity: row.public_activity,
@@ -188,6 +194,7 @@ export class EntityService {
       displayName?: string;
       description?: string;
       website?: string;
+      anonDiscoverable?: boolean;
       publicDescription?: boolean;
       publicMembers?: boolean;
       publicActivity?: boolean;
@@ -223,6 +230,7 @@ export class EntityService {
 
     const profileUpdates: Record<string, unknown> = {};
     if (updates.website) profileUpdates.website = updates.website;
+    if (updates.anonDiscoverable !== undefined) profileUpdates.anon_discoverable = updates.anonDiscoverable;
     if (updates.publicDescription !== undefined) profileUpdates.public_description = updates.publicDescription;
     if (updates.publicMembers !== undefined) profileUpdates.public_members = updates.publicMembers;
     if (updates.publicActivity !== undefined) profileUpdates.public_activity = updates.publicActivity;

@@ -60,6 +60,7 @@ export const actions: Actions = {
     const api = createApiClient(fetch, cookie);
     try {
       const cooperative = await api.updateCooperative({
+        anonDiscoverable: data.get('anonDiscoverable') === 'on',
         publicDescription: data.get('publicDescription') === 'on',
         publicMembers: data.get('publicMembers') === 'on',
         publicActivity: data.get('publicActivity') === 'on',

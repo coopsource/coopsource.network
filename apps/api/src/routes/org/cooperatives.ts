@@ -20,6 +20,7 @@ export function createCooperativeRoutes(container: Container): Router {
       website: result.profile.website,
       status: result.entity.status,
       createdAt: null,
+      anonDiscoverable: result.profile.anon_discoverable,
       publicDescription: result.profile.public_description,
       publicMembers: result.profile.public_members,
       publicActivity: result.profile.public_activity,
@@ -68,6 +69,7 @@ export function createCooperativeRoutes(container: Container): Router {
         isNetwork: result.profile.is_network,
         status: result.entity.status,
         createdAt: null,
+        anonDiscoverable: result.profile.anon_discoverable,
         publicDescription: result.profile.public_description,
         publicMembers: result.profile.public_members,
         publicActivity: result.profile.public_activity,
@@ -84,11 +86,11 @@ export function createCooperativeRoutes(container: Container): Router {
     requireAuth,
     requirePermission('coop.settings.edit'),
     asyncHandler(async (req, res) => {
-      const { displayName, description, website, publicDescription, publicMembers, publicActivity, publicAgreements, publicCampaigns, governanceVisibility } = UpdateCoopSchema.parse(req.body);
+      const { displayName, description, website, anonDiscoverable, publicDescription, publicMembers, publicActivity, publicAgreements, publicCampaigns, governanceVisibility } = UpdateCoopSchema.parse(req.body);
 
       await container.entityService.updateCooperative(
         req.actor!.cooperativeDid,
-        { displayName, description, website, publicDescription, publicMembers, publicActivity, publicAgreements, publicCampaigns, governanceVisibility },
+        { displayName, description, website, anonDiscoverable, publicDescription, publicMembers, publicActivity, publicAgreements, publicCampaigns, governanceVisibility },
       );
 
       const updated = await container.entityService.getCooperative();

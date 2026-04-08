@@ -27,6 +27,7 @@ export interface CoopEntity {
   isNetwork?: boolean;
   status: string;
   createdAt: string;
+  anonDiscoverable?: boolean;
   publicDescription?: boolean;
   publicMembers?: boolean;
   publicActivity?: boolean;
@@ -191,7 +192,9 @@ export interface Network {
   description: string | null;
   cooperativeType: string;
   membershipPolicy: string;
-  memberCount: number;
+  // V8.5: Anon endpoint /api/v1/explore/networks returns null when the network's
+  // public_members flag is false. Authed /api/v1/networks always returns a number.
+  memberCount: number | null;
   website?: string | null;
   createdAt?: string;
 }
@@ -469,12 +472,43 @@ export interface ExploreCooperative {
   displayName: string;
   description: string | null;
   cooperativeType: string;
-  memberCount: number;
+  memberCount: number | null;
   website: string | null;
+}
+
+export interface PublicProposalSummary {
+  id: string;
+  title: string;
+  status: string;
+  createdAt: string;
+  resolvedAt: string | null;
+}
+
+export interface PublicAgreementSummary {
+  uri: string;
+  title: string;
+  status: string;
+  agreementType: string;
+  effectiveDate: string | null;
+  createdAt: string;
+}
+
+export interface PublicCampaignSummary {
+  uri: string;
+  title: string;
+  status: string;
+  goalAmount: number;
+  goalCurrency: string;
+  amountRaised: number;
+  endDate: string | null;
+  createdAt: string;
 }
 
 export interface ExploreCooperativeDetail extends ExploreCooperative {
   networks: Array<{ did: string; displayName: string }>;
+  proposals: PublicProposalSummary[];
+  agreements: PublicAgreementSummary[];
+  campaigns: PublicCampaignSummary[];
 }
 
 export interface ExploreCooperativesResponse {

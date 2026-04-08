@@ -668,6 +668,7 @@ export const UpdateCoopSchema = z.object({
   displayName: z.string().min(1).max(255).optional(),
   description: z.string().max(2000).optional(),
   website: z.string().url().optional(),
+  anonDiscoverable: z.boolean().optional(),
   publicDescription: z.boolean().optional(),
   publicMembers: z.boolean().optional(),
   publicActivity: z.boolean().optional(),

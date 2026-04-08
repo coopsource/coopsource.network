@@ -262,6 +262,53 @@ export class AgreementService {
     return { items: slice, cursor };
   }
 
+  /**
+   * V8.5 — public-safe agreement listing for `/explore/[handle]` profile pages.
+   * Returns up to `limit` agreements for the given coop in the live phase of
+   * the lifecycle (`active`, `amended`, `terminated`). Excludes drafts, in-flight
+   * negotiations (`open`), and voided agreements. Inherits the `project_uri = coopDid`
+   * filter from `listAgreements` for the coop-vs-project leak guarantee.
+   */
+  async listPublicAgreements(
+    cooperativeDid: string,
+    limit = 5,
+  ): Promise<
+    Array<{
+      uri: string;
+      title: string;
+      status: string;
+      agreement_type: string;
+      effective_date: Date | null;
+      created_at: Date;
+    }>
+  > {
+    const rows = await this.db
+      .selectFrom('agreement')
+      .where('project_uri', '=', cooperativeDid)
+      .where('status', 'in', ['active', 'amended', 'terminated'])
+      .select([
+        'uri',
+        'title',
+        'status',
+        'agreement_type',
+        'effective_date',
+        'created_at',
+      ])
+      .orderBy('created_at', 'desc')
+      .orderBy('uri', 'desc')
+      .limit(limit)
+      .execute();
+
+    return rows.map((r) => ({
+      uri: r.uri,
+      title: r.title,
+      status: r.status,
+      agreement_type: r.agreement_type,
+      effective_date: r.effective_date,
+      created_at: r.created_at,
+    }));
+  }
+
   async updateAgreement(
     uri: string,
     actorDid: string,
