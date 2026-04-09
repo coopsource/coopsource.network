@@ -2,16 +2,19 @@
   import { enhance } from '$app/forms';
   import { Badge, EmptyState, Modal } from '$lib/components/ui';
   import { workspacePrefix } from '$lib/utils/workspace.js';
+  import { canEditCommerceListing } from '$lib/utils/entity-permissions.js';
   import type { CommerceListing } from '$lib/api/types.js';
 
   let { data, form } = $props();
 
   let showCreateForm = $state(false);
+  let editingListing = $state<CommerceListing | null>(null);
   let submitting = $state(false);
 
   $effect(() => {
     if (form?.success) {
       showCreateForm = false;
+      editingListing = null;
     }
   });
 
@@ -105,7 +108,7 @@
   {:else}
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {#each data.listings as listing (listing.id)}
-        <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-4 hover:border-[var(--cs-border-hover)] hover:shadow-sm transition-shadow">
+        <div class="group relative rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-4 hover:border-[var(--cs-border-hover)] hover:shadow-sm transition-shadow">
           <div class="flex items-start justify-between gap-2">
             <h3 class="font-medium text-[var(--cs-text)] truncate">{listing.title}</h3>
             <Badge variant={availabilityVariant(listing.availability)}>{listing.availability}</Badge>
@@ -125,10 +128,19 @@
             {:else}
               <span></span>
             {/if}
-            <form method="POST" action="?/deleteListing" use:enhance class="inline">
-              <input type="hidden" name="id" value={listing.id} />
-              <button type="submit" class="text-xs text-red-600 hover:underline">Remove</button>
-            </form>
+            <div class="flex items-center gap-2">
+              {#if canEditCommerceListing(listing)}
+                <button
+                  type="button"
+                  onclick={() => { editingListing = listing; }}
+                  class="text-xs text-[var(--cs-primary)] hover:underline"
+                >Edit</button>
+              {/if}
+              <form method="POST" action="?/deleteListing" use:enhance class="inline">
+                <input type="hidden" name="id" value={listing.id} />
+                <button type="submit" class="text-xs text-red-600 hover:underline">Remove</button>
+              </form>
+            </div>
           </div>
         </div>
       {/each}
@@ -146,11 +158,12 @@
   {/if}
 </div>
 
-<!-- Create Listing Modal -->
-<Modal open={showCreateForm} title="New Listing" onclose={() => (showCreateForm = false)}>
+<!-- Create / Edit Listing Modal -->
+<Modal open={showCreateForm || editingListing !== null} title={editingListing ? 'Edit Listing' : 'New Listing'} onclose={() => { showCreateForm = false; editingListing = null; }}>
+  {#key editingListing?.id ?? 'create'}
   <form
     method="POST"
-    action="?/createListing"
+    action={editingListing ? '?/updateListing' : '?/createListing'}
     use:enhance={() => {
       submitting = true;
       return async ({ update }) => {
@@ -160,6 +173,8 @@
     }}
     class="space-y-4"
   >
+    {#if editingListing}<input type="hidden" name="id" value={editingListing.id} />{/if}
+
     <div>
       <label for="listing-title" class="block text-sm font-medium text-[var(--cs-text-secondary)]">Title</label>
       <input
@@ -167,6 +182,7 @@
         name="title"
         type="text"
         required
+        value={editingListing?.title ?? ''}
         placeholder="What are you offering?"
         class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] placeholder:text-[var(--cs-text-muted)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
       />
@@ -180,7 +196,7 @@
         rows="3"
         placeholder="Describe the product or service..."
         class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] placeholder:text-[var(--cs-text-muted)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
-      ></textarea>
+      >{editingListing?.description ?? ''}</textarea>
     </div>
 
     <div class="grid grid-cols-2 gap-4">
@@ -190,6 +206,7 @@
           id="listing-category"
           name="category"
           required
+          value={editingListing?.category ?? 'goods'}
           class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
         >
           <option value="goods">Goods</option>
@@ -203,6 +220,7 @@
         <select
           id="listing-availability"
           name="availability"
+          value={editingListing?.availability ?? 'available'}
           class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
         >
           <option value="available">Available</option>
@@ -218,6 +236,7 @@
         id="listing-location"
         name="location"
         type="text"
+        value={editingListing?.location ?? ''}
         placeholder="City or region (optional)"
         class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] placeholder:text-[var(--cs-text-muted)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
       />
@@ -229,6 +248,7 @@
         id="listing-tags"
         name="tags"
         type="text"
+        value={editingListing?.tags?.join(', ') ?? ''}
         placeholder="Comma-separated tags (optional)"
         class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] placeholder:text-[var(--cs-text-muted)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
       />
@@ -237,14 +257,15 @@
     <div class="flex justify-end gap-3">
       <button
         type="button"
-        onclick={() => (showCreateForm = false)}
+        onclick={() => { showCreateForm = false; editingListing = null; }}
         class="rounded-md border border-[var(--cs-border)] px-3 py-1.5 text-sm text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)]"
       >Cancel</button>
       <button
         type="submit"
         disabled={submitting}
         class="rounded-md bg-[var(--cs-primary)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)] disabled:opacity-50"
-      >{submitting ? 'Creating...' : 'Create Listing'}</button>
+      >{submitting ? 'Saving...' : editingListing ? 'Save changes' : 'Create Listing'}</button>
     </div>
   </form>
+  {/key}
 </Modal>
