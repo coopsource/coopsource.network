@@ -1,8 +1,8 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import { Badge, EmptyState, Modal } from '$lib/components/ui';
+  import { Badge, ConfirmDialog, EmptyState, Modal } from '$lib/components/ui';
   import { workspacePrefix } from '$lib/utils/workspace.js';
-  import { canEditTask } from '$lib/utils/entity-permissions.js';
+  import { canEditTask, canDeleteTask } from '$lib/utils/entity-permissions.js';
   import type { Task, TaskLabel } from '$lib/api/types.js';
 
   let { data, form } = $props();
@@ -11,11 +11,13 @@
   let editingTask = $state<Task | null>(null);
   let submitting = $state(false);
   let viewMode = $state<'board' | 'list'>('board');
+  let confirmDeleteId = $state<string | null>(null);
 
   $effect(() => {
     if (form?.success) {
       showCreateForm = false;
       editingTask = null;
+      confirmDeleteId = null;
     }
   });
 
@@ -150,16 +152,28 @@
                   <div class="flex items-start justify-between gap-2">
                     <h4 class="text-sm font-medium text-[var(--cs-text)] leading-snug">{task.title}</h4>
                   </div>
-                  {#if canEditTask(task)}
-                    <button
-                      type="button"
-                      onclick={(e) => { e.stopPropagation(); editingTask = task; }}
-                      class="absolute top-2 right-2 hidden group-hover:block rounded p-0.5 text-[var(--cs-text-muted)] hover:text-[var(--cs-text)] hover:bg-[var(--cs-bg-inset)]"
-                      aria-label="Edit task"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
-                    </button>
-                  {/if}
+                  <div class="absolute top-2 right-2 hidden group-hover:flex items-center gap-1">
+                    {#if canEditTask(task)}
+                      <button
+                        type="button"
+                        onclick={(e) => { e.stopPropagation(); editingTask = task; }}
+                        class="rounded p-0.5 text-[var(--cs-text-muted)] hover:text-[var(--cs-text)] hover:bg-[var(--cs-bg-inset)]"
+                        aria-label="Edit task"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                      </button>
+                    {/if}
+                    {#if canDeleteTask(task)}
+                      <button
+                        type="button"
+                        onclick={(e) => { e.stopPropagation(); confirmDeleteId = task.id; }}
+                        class="rounded p-0.5 text-[var(--cs-text-muted)] hover:text-red-600 hover:bg-red-50"
+                        aria-label="Delete task"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                      </button>
+                    {/if}
+                  </div>
                   {#if task.description}
                     <p class="mt-1 text-xs text-[var(--cs-text-muted)] line-clamp-2">{task.description}</p>
                   {/if}
@@ -241,16 +255,21 @@
                   </div>
                 </td>
                 <td class="px-4 py-3 text-right">
-                  {#if canEditTask(task)}
-                    <button type="button" onclick={() => { editingTask = task; }} class="text-xs text-[var(--cs-primary)] hover:underline mr-2">Edit</button>
-                  {/if}
-                  <form method="POST" action="?/updateStatus" use:enhance class="inline">
-                    <input type="hidden" name="id" value={task.id} />
-                    {#if task.status !== 'done'}
-                      <input type="hidden" name="status" value="done" />
-                      <button type="submit" class="text-xs text-[var(--cs-primary)] hover:underline">Complete</button>
+                  <div class="flex items-center justify-end gap-2">
+                    {#if canEditTask(task)}
+                      <button type="button" onclick={() => { editingTask = task; }} class="text-xs text-[var(--cs-primary)] hover:underline">Edit</button>
                     {/if}
-                  </form>
+                    {#if canDeleteTask(task)}
+                      <button type="button" onclick={() => (confirmDeleteId = task.id)} class="text-xs text-red-600 hover:underline">Delete</button>
+                    {/if}
+                    <form method="POST" action="?/updateStatus" use:enhance class="inline">
+                      <input type="hidden" name="id" value={task.id} />
+                      {#if task.status !== 'done'}
+                        <input type="hidden" name="status" value="done" />
+                        <button type="submit" class="text-xs text-[var(--cs-primary)] hover:underline">Complete</button>
+                      {/if}
+                    </form>
+                  </div>
                 </td>
               </tr>
             {/each}
@@ -359,3 +378,21 @@
   </form>
   {/key}
 </Modal>
+
+<!-- Confirm Delete Task -->
+<ConfirmDialog
+  open={confirmDeleteId !== null}
+  title="Delete Task"
+  message="This will permanently delete this task and its checklist items. This cannot be undone."
+  confirmLabel="Delete"
+  variant="danger"
+  onconfirm={() => {
+    const form = document.getElementById('delete-task-form') as HTMLFormElement | null;
+    form?.requestSubmit();
+  }}
+  oncancel={() => (confirmDeleteId = null)}
+/>
+
+<form id="delete-task-form" method="POST" action="?/deleteTask" use:enhance class="hidden">
+  <input type="hidden" name="id" value={confirmDeleteId ?? ''} />
+</form>

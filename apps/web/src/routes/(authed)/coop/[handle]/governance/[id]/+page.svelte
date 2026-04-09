@@ -1,10 +1,11 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import { Badge } from '$lib/components/ui';
-  import { canEditProposal } from '$lib/utils/entity-permissions.js';
+  import { Badge, ConfirmDialog } from '$lib/components/ui';
+  import { canEditProposal, canDeleteProposal } from '$lib/utils/entity-permissions.js';
   import { workspacePrefix } from '$lib/utils/workspace.js';
 
   let { data, form } = $props();
+  let confirmDeleteId = $state<string | null>(null);
 
   function statusToVariant(status: string): 'success' | 'warning' | 'danger' | 'default' {
     switch (status) {
@@ -100,6 +101,11 @@
           <a href="{$workspacePrefix}/governance/{proposal.id}/edit" class="rounded-md border border-[var(--cs-border)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)]">
             Edit
           </a>
+        {/if}
+        {#if canDeleteProposal(proposal, data.user?.did)}
+          <button type="button" onclick={() => (confirmDeleteId = proposal.id)} class="rounded-md border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50">
+            Delete
+          </button>
         {/if}
         <form method="POST" action="?/open" use:enhance>
           <button
@@ -289,3 +295,21 @@
     </div>
   {/if}
 </div>
+
+<!-- Confirm Delete Proposal -->
+<ConfirmDialog
+  open={confirmDeleteId !== null}
+  title="Delete Proposal"
+  message="This will permanently remove this draft proposal."
+  confirmLabel="Delete"
+  variant="danger"
+  onconfirm={() => {
+    const form = document.getElementById('delete-proposal-form') as HTMLFormElement | null;
+    form?.requestSubmit();
+  }}
+  oncancel={() => (confirmDeleteId = null)}
+/>
+
+<form id="delete-proposal-form" method="POST" action="?/deleteProposal" use:enhance class="hidden">
+  <input type="hidden" name="id" value={confirmDeleteId ?? ''} />
+</form>

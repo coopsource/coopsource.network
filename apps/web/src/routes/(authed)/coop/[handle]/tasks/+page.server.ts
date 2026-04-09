@@ -102,4 +102,20 @@ export const actions: Actions = {
       return fail(500, { error: 'Failed to update task status.' });
     }
   },
+
+  deleteTask: async ({ request, fetch }) => {
+    const formData = await request.formData();
+    const id = String(formData.get('id') ?? '').trim();
+    if (!id) return fail(400, { error: 'Task ID is required.' });
+
+    const cookie = request.headers.get('cookie') ?? undefined;
+    const api = createApiClient(fetch, cookie);
+    try {
+      await api.deleteTask(id);
+      return { success: true };
+    } catch (err) {
+      if (err instanceof ApiError) return fail(err.status, { error: err.message });
+      return fail(500, { error: 'Failed to delete task.' });
+    }
+  },
 };

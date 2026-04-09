@@ -1,4 +1,4 @@
-import { error, fail } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types.js';
 import { createApiClient, ApiError } from '$lib/api/client.js';
 
@@ -97,5 +97,21 @@ export const actions: Actions = {
       }
       return fail(500, { actionError: 'Failed to resolve proposal.' });
     }
+  },
+
+  deleteProposal: async ({ request, fetch, params }) => {
+    const formData = await request.formData();
+    const id = String(formData.get('id') ?? '').trim();
+    if (!id) return fail(400, { actionError: 'Proposal ID is required.' });
+
+    const cookie = request.headers.get('cookie') ?? undefined;
+    const api = createApiClient(fetch, cookie);
+    try {
+      await api.deleteProposal(id);
+    } catch (err) {
+      if (err instanceof ApiError) return fail(err.status, { actionError: err.message });
+      return fail(500, { actionError: 'Failed to delete proposal.' });
+    }
+    redirect(303, `/coop/${params.handle}/governance`);
   },
 };

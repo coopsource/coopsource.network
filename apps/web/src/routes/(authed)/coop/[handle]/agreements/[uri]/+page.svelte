@@ -1,7 +1,7 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import { Badge, Modal } from '$lib/components/ui';
-  import { canEditAgreement } from '$lib/utils/entity-permissions.js';
+  import { Badge, ConfirmDialog, Modal } from '$lib/components/ui';
+  import { canEditAgreement, canDeleteAgreement } from '$lib/utils/entity-permissions.js';
   import { workspacePrefix } from '$lib/utils/workspace.js';
 
   let { data, form } = $props();
@@ -9,6 +9,7 @@
   let submitting = $state(false);
   let confirmSign = $state(false);
   let confirmVoid = $state(false);
+  let confirmDeleteUri = $state<string | null>(null);
 
   function statusToVariant(status: string): 'success' | 'warning' | 'danger' | 'default' {
     switch (status) {
@@ -100,6 +101,11 @@
           <a href="{$workspacePrefix}/agreements/{encodeURIComponent(data.agreement.uri)}/edit" class="rounded-md border border-[var(--cs-border)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)]">
             Edit
           </a>
+        {/if}
+        {#if canDeleteAgreement(data.agreement, data.user?.did)}
+          <button type="button" onclick={() => (confirmDeleteUri = data.agreement.uri)} class="rounded-md border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50">
+            Delete
+          </button>
         {/if}
         <form method="POST" action="?/open" use:enhance={() => { submitting = true; return async ({ update }) => { submitting = false; await update(); }; }}>
           <button type="submit" disabled={submitting} class="rounded-md bg-[var(--cs-primary)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)] disabled:opacity-50">
@@ -310,3 +316,21 @@
     </div>
   </form>
 </Modal>
+
+<!-- Confirm Delete Agreement -->
+<ConfirmDialog
+  open={confirmDeleteUri !== null}
+  title="Delete Agreement"
+  message="This will permanently remove this draft agreement."
+  confirmLabel="Delete"
+  variant="danger"
+  onconfirm={() => {
+    const form = document.getElementById('delete-agreement-form') as HTMLFormElement | null;
+    form?.requestSubmit();
+  }}
+  oncancel={() => (confirmDeleteUri = null)}
+/>
+
+<form id="delete-agreement-form" method="POST" action="?/deleteAgreement" use:enhance class="hidden">
+  <input type="hidden" name="uri" value={confirmDeleteUri ?? ''} />
+</form>

@@ -1,6 +1,6 @@
-import { fail } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types.js';
-import { createApiClient } from '$lib/api/client.js';
+import { createApiClient, ApiError } from '$lib/api/client.js';
 
 export const load: PageServerLoad = async ({ params, fetch, request }) => {
   const cookie = request.headers.get('cookie') ?? undefined;
@@ -77,5 +77,21 @@ export const actions: Actions = {
     } catch (err) {
       return fail(400, { pledgeError: err instanceof Error ? err.message : 'Failed' });
     }
+  },
+
+  deleteCampaign: async ({ request, fetch, params }) => {
+    const formData = await request.formData();
+    const uri = String(formData.get('uri') ?? '').trim();
+    if (!uri) return fail(400, { error: 'Campaign URI is required.' });
+
+    const cookie = request.headers.get('cookie') ?? undefined;
+    const api = createApiClient(fetch, cookie);
+    try {
+      await api.deleteCampaign(uri);
+    } catch (err) {
+      if (err instanceof ApiError) return fail(err.status, { error: err.message });
+      return fail(500, { error: 'Failed to delete campaign.' });
+    }
+    redirect(303, `/coop/${params.handle}/campaigns`);
   },
 };

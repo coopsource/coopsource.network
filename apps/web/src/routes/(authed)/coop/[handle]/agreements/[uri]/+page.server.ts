@@ -1,4 +1,4 @@
-import { error, fail } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types.js';
 import { createApiClient, ApiError } from '$lib/api/client.js';
 
@@ -158,5 +158,21 @@ export const actions: Actions = {
       }
       return fail(500, { actionError: 'Failed to remove stakeholder terms.' });
     }
+  },
+
+  deleteAgreement: async ({ request, fetch, params }) => {
+    const formData = await request.formData();
+    const uri = String(formData.get('uri') ?? '').trim();
+    if (!uri) return fail(400, { actionError: 'Agreement URI is required.' });
+
+    const cookie = request.headers.get('cookie') ?? undefined;
+    const api = createApiClient(fetch, cookie);
+    try {
+      await api.deleteAgreement(uri);
+    } catch (err) {
+      if (err instanceof ApiError) return fail(err.status, { actionError: err.message });
+      return fail(500, { actionError: 'Failed to delete agreement.' });
+    }
+    redirect(303, `/coop/${params.handle}/agreements`);
   },
 };

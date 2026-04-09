@@ -1,12 +1,14 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { page } from '$app/stores';
+  import { ConfirmDialog } from '$lib/components/ui';
   import { workspacePrefix } from '$lib/utils/workspace.js';
-  import { canEditCampaign } from '$lib/utils/entity-permissions.js';
+  import { canEditCampaign, canDeleteCampaign } from '$lib/utils/entity-permissions.js';
 
   let { data, form } = $props();
   let pledging = $state(false);
   let statusUpdating = $state(false);
+  let confirmDeleteUri = $state<string | null>(null);
 
   function formatCurrency(cents: number, currency: string): string {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency, minimumFractionDigits: 0 }).format(cents / 100);
@@ -92,6 +94,11 @@
         <a href="{$workspacePrefix}/campaigns/{encodeURIComponent(c.uri)}/edit" class="rounded-md border border-[var(--cs-border)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)]">
           Edit
         </a>
+      {/if}
+      {#if canDeleteCampaign(c)}
+        <button type="button" onclick={() => (confirmDeleteUri = c.uri)} class="rounded-md border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50">
+          Delete
+        </button>
       {/if}
       <form method="POST" action="?/updateStatus" use:enhance={() => { statusUpdating = true; return async ({ update }) => { statusUpdating = false; await update(); }; }}>
         <input type="hidden" name="status" value="active" />
@@ -181,3 +188,21 @@
     </div>
   {/if}
 </div>
+
+<!-- Confirm Delete Campaign -->
+<ConfirmDialog
+  open={confirmDeleteUri !== null}
+  title="Delete Campaign"
+  message="This will permanently delete this draft campaign. This cannot be undone."
+  confirmLabel="Delete"
+  variant="danger"
+  onconfirm={() => {
+    const form = document.getElementById('delete-campaign-form') as HTMLFormElement | null;
+    form?.requestSubmit();
+  }}
+  oncancel={() => (confirmDeleteUri = null)}
+/>
+
+<form id="delete-campaign-form" method="POST" action="?/deleteCampaign" use:enhance class="hidden">
+  <input type="hidden" name="uri" value={confirmDeleteUri ?? ''} />
+</form>
