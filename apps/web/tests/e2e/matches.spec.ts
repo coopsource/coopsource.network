@@ -126,11 +126,10 @@ test.describe('V8.7 — /me/matches full page', () => {
     await expect(page.getByText('Dismissed', { exact: true })).toBeVisible();
   });
 
-  // V8.8 — Person matches. The matchmaking service now scores discoverable
-  // person candidates alongside cooperatives, and the page renders them with
-  // a distinguishing User icon and NO "View" link (V8.8 doesn't ship a public
-  // person profile page yet — see V8.9 TODO in matches/+page.svelte).
-  test('renders a seeded discoverable person as a match (no View link)', async ({
+  // V8.8→V8.9 — Person matches. The matchmaking service scores discoverable
+  // person candidates alongside cooperatives. V8.9 added person profile pages
+  // at /profiles/[handle], so person matches now get a "View" link.
+  test('renders a seeded discoverable person as a match with View link', async ({
     page,
     request,
   }) => {
@@ -152,12 +151,11 @@ test.describe('V8.7 — /me/matches full page', () => {
     });
     await expect(personHeading).toBeVisible();
 
-    // Person matches do NOT get a "View" link (V8.8 ships without person
-    // profile pages). Scope the assertion to the article that contains the
-    // person heading so we don't accidentally match a coop card's "View" link
-    // if both kinds of candidates were seeded in the same run.
+    // V8.9: person matches now link to /profiles/[handle].
     const personCard = page.locator('article').filter({ hasText: 'Test Person Match' });
     await expect(personCard).toBeVisible();
-    await expect(personCard.getByRole('link', { name: /View/ })).toHaveCount(0);
+    const viewLink = personCard.getByRole('link', { name: /View/ });
+    await expect(viewLink).toBeVisible();
+    await expect(viewLink).toHaveAttribute('href', '/profiles/test-person-match');
   });
 });
