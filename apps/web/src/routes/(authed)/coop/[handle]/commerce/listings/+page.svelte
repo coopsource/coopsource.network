@@ -1,14 +1,15 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import { Badge, EmptyState, Modal } from '$lib/components/ui';
+  import { Badge, ConfirmDialog, EmptyState, Modal } from '$lib/components/ui';
   import { workspacePrefix } from '$lib/utils/workspace.js';
-  import { canEditCommerceListing } from '$lib/utils/entity-permissions.js';
+  import { canEditCommerceListing, canDeleteCommerceListing } from '$lib/utils/entity-permissions.js';
   import type { CommerceListing } from '$lib/api/types.js';
 
   let { data, form } = $props();
 
   let showCreateForm = $state(false);
   let editingListing = $state<CommerceListing | null>(null);
+  let confirmDeleteId = $state<string | null>(null);
   let submitting = $state(false);
 
   $effect(() => {
@@ -136,10 +137,9 @@
                   class="text-xs text-[var(--cs-primary)] hover:underline"
                 >Edit</button>
               {/if}
-              <form method="POST" action="?/deleteListing" use:enhance class="inline">
-                <input type="hidden" name="id" value={listing.id} />
-                <button type="submit" class="text-xs text-red-600 hover:underline">Remove</button>
-              </form>
+              {#if canDeleteCommerceListing(listing)}
+                <button type="button" onclick={() => (confirmDeleteId = listing.id)} class="text-xs text-red-600 hover:underline">Remove</button>
+              {/if}
             </div>
           </div>
         </div>
@@ -269,3 +269,17 @@
   </form>
   {/key}
 </Modal>
+
+<!-- Delete Listing Confirmation -->
+<ConfirmDialog
+  open={confirmDeleteId !== null}
+  title="Remove Listing"
+  message="This will archive this listing. It will no longer appear in search results."
+  confirmLabel="Remove"
+  variant="danger"
+  onconfirm={() => { (document.getElementById('delete-listing-form') as HTMLFormElement)?.requestSubmit(); }}
+  oncancel={() => (confirmDeleteId = null)}
+/>
+<form id="delete-listing-form" method="POST" action="?/deleteListing" use:enhance class="hidden">
+  <input type="hidden" name="id" value={confirmDeleteId ?? ''} />
+</form>

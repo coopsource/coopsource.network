@@ -1,14 +1,15 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import { Badge, EmptyState, Modal } from '$lib/components/ui';
+  import { Badge, ConfirmDialog, EmptyState, Modal } from '$lib/components/ui';
   import { workspacePrefix } from '$lib/utils/workspace.js';
-  import { canEditCommerceNeed } from '$lib/utils/entity-permissions.js';
+  import { canEditCommerceNeed, canDeleteCommerceNeed } from '$lib/utils/entity-permissions.js';
   import type { CommerceNeed } from '$lib/api/types.js';
 
   let { data, form } = $props();
 
   let showCreateForm = $state(false);
   let editingNeed = $state<CommerceNeed | null>(null);
+  let confirmDeleteId = $state<string | null>(null);
   let submitting = $state(false);
 
   $effect(() => {
@@ -132,10 +133,9 @@
                   class="text-xs text-[var(--cs-primary)] hover:underline"
                 >Edit</button>
               {/if}
-              <form method="POST" action="?/deleteNeed" use:enhance class="inline">
-                <input type="hidden" name="id" value={need.id} />
-                <button type="submit" class="text-xs text-red-600 hover:underline">Delete</button>
-              </form>
+              {#if canDeleteCommerceNeed(need)}
+                <button type="button" onclick={() => (confirmDeleteId = need.id)} class="text-xs text-red-600 hover:underline">Delete</button>
+              {/if}
             </div>
           </div>
         </div>
@@ -266,3 +266,17 @@
   </form>
   {/key}
 </Modal>
+
+<!-- Delete Need Confirmation -->
+<ConfirmDialog
+  open={confirmDeleteId !== null}
+  title="Cancel Need"
+  message="This will cancel this need. It will no longer appear in search results."
+  confirmLabel="Cancel Need"
+  variant="danger"
+  onconfirm={() => { (document.getElementById('delete-need-form') as HTMLFormElement)?.requestSubmit(); }}
+  oncancel={() => (confirmDeleteId = null)}
+/>
+<form id="delete-need-form" method="POST" action="?/deleteNeed" use:enhance class="hidden">
+  <input type="hidden" name="id" value={confirmDeleteId ?? ''} />
+</form>

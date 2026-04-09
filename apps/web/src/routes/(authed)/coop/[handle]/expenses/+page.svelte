@@ -1,14 +1,15 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import { Badge, EmptyState, Modal } from '$lib/components/ui';
+  import { Badge, ConfirmDialog, EmptyState, Modal } from '$lib/components/ui';
   import { workspacePrefix } from '$lib/utils/workspace.js';
-  import { canEditExpense } from '$lib/utils/entity-permissions.js';
+  import { canEditExpense, canDeleteExpense } from '$lib/utils/entity-permissions.js';
   import type { Expense, ExpenseCategory } from '$lib/api/types.js';
 
   let { data, form } = $props();
 
   let showCreateForm = $state(false);
   let editingExpense = $state<Expense | null>(null);
+  let confirmDeleteId = $state<string | null>(null);
   let submitting = $state(false);
 
   $effect(() => {
@@ -175,11 +176,8 @@
                 {#if canEditExpense(expense, data.user?.did)}
                   <button type="button" onclick={() => { editingExpense = expense; }} class="text-xs text-[var(--cs-primary)] hover:underline mr-2">Edit</button>
                 {/if}
-                {#if expense.status === 'submitted'}
-                  <form method="POST" action="?/deleteExpense" use:enhance class="inline">
-                    <input type="hidden" name="id" value={expense.id} />
-                    <button type="submit" class="text-xs text-red-600 hover:underline">Delete</button>
-                  </form>
+                {#if canDeleteExpense(expense, data.user?.did)}
+                  <button type="button" onclick={() => (confirmDeleteId = expense.id)} class="text-xs text-red-600 hover:underline">Delete</button>
                 {/if}
               </td>
             </tr>
@@ -278,3 +276,17 @@
   </form>
   {/key}
 </Modal>
+
+<!-- Delete Expense Confirmation -->
+<ConfirmDialog
+  open={confirmDeleteId !== null}
+  title="Delete Expense"
+  message="This will permanently delete this expense. This cannot be undone."
+  confirmLabel="Delete"
+  variant="danger"
+  onconfirm={() => { (document.getElementById('delete-expense-form') as HTMLFormElement)?.requestSubmit(); }}
+  oncancel={() => (confirmDeleteId = null)}
+/>
+<form id="delete-expense-form" method="POST" action="?/deleteExpense" use:enhance class="hidden">
+  <input type="hidden" name="id" value={confirmDeleteId ?? ''} />
+</form>

@@ -1,7 +1,8 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import { Badge } from '$lib/components/ui';
+  import { Badge, ConfirmDialog } from '$lib/components/ui';
   import { workspacePrefix } from '$lib/utils/workspace.js';
+  import { canDeletePost } from '$lib/utils/entity-permissions.js';
 
   let { data, form } = $props();
 
@@ -10,6 +11,7 @@
   const userDid = $derived(data.user?.did);
 
   let postBody = $state('');
+  let confirmDeleteId = $state<string | null>(null);
   let submitting = $state(false);
 
   function truncateDid(did: string): string {
@@ -80,11 +82,8 @@
                 </div>
                 <div class="whitespace-pre-wrap text-sm text-[var(--cs-text-secondary)]">{post.body}</div>
               </div>
-              {#if post.authorDid === userDid}
-                <form method="POST" action="?/deletePost" use:enhance>
-                  <input type="hidden" name="postId" value={post.id} />
-                  <button type="submit" class="shrink-0 rounded-md px-2 py-1 text-xs text-red-600 hover:bg-red-50" title="Delete post">Delete</button>
-                </form>
+              {#if canDeletePost(post, userDid)}
+                <button type="button" onclick={() => (confirmDeleteId = post.id)} class="shrink-0 rounded-md px-2 py-1 text-xs text-red-600 hover:bg-red-50" title="Delete post">Delete</button>
               {/if}
             </div>
           </li>
@@ -106,3 +105,17 @@
     </form>
   </div>
 </div>
+
+<!-- Delete Post Confirmation -->
+<ConfirmDialog
+  open={confirmDeleteId !== null}
+  title="Delete Post"
+  message="This will remove your post from the thread."
+  confirmLabel="Delete"
+  variant="danger"
+  onconfirm={() => { (document.getElementById('delete-post-form') as HTMLFormElement)?.requestSubmit(); }}
+  oncancel={() => (confirmDeleteId = null)}
+/>
+<form id="delete-post-form" method="POST" action="?/deletePost" use:enhance class="hidden">
+  <input type="hidden" name="postId" value={confirmDeleteId ?? ''} />
+</form>
