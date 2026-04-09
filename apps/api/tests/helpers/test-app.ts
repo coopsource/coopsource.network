@@ -15,6 +15,7 @@ import { ProfileService } from '../../src/services/profile-service.js';
 import { MembershipService } from '../../src/services/membership-service.js';
 import { PostService } from '../../src/services/post-service.js';
 import { SearchService } from '../../src/services/search-service.js';
+import { MatchmakingService } from '../../src/services/matchmaking-service.js';
 import { ProposalService } from '../../src/services/proposal-service.js';
 import { AgreementService } from '../../src/services/agreement-service.js';
 import { NetworkService } from '../../src/services/network-service.js';
@@ -85,6 +86,7 @@ import { createAgentTriggerRoutes } from '../../src/routes/agents/triggers.js';
 import { createApiTokenRoutes } from '../../src/routes/agents/tokens.js';
 import { createModelConfigRoutes } from '../../src/routes/agents/model-config.js';
 import { createNotificationRoutes } from '../../src/routes/notifications.js';
+import { createMeMatchesRoutes } from '../../src/routes/me-matches.js';
 import { createLabelRoutes } from '../../src/routes/labels.js';
 import { createLegalDocumentRoutes } from '../../src/routes/legal/documents.js';
 import { createMeetingRoutes } from '../../src/routes/legal/meetings.js';
@@ -160,6 +162,7 @@ export function createTestApp(): TestApp {
   const governanceLabeler = new GovernanceLabeler(db, labelSubscriptionManager);
   const postService = new PostService(db, clock);
   const searchService = new SearchService(db);
+  const matchmakingService = new MatchmakingService(db, clock);
   const proposalService = new ProposalService(db, pdsService, clock, memberWriteProxy, governanceLabeler);
   const agreementService = new AgreementService(db, pdsService, clock, memberWriteProxy);
   const agreementTemplateService = new AgreementTemplateService(db, clock);
@@ -221,6 +224,7 @@ export function createTestApp(): TestApp {
     membershipService,
     postService,
     searchService,
+    matchmakingService,
     proposalService,
     agreementService,
     agreementTemplateService,
@@ -314,6 +318,7 @@ export function createTestApp(): TestApp {
   app.use(createApiTokenRoutes(container));
   app.use(createModelConfigRoutes(container));
   app.use(createNotificationRoutes(container));
+  app.use(createMeMatchesRoutes(container));
   app.use(createLabelRoutes(governanceLabeler));
   app.use(createLegalDocumentRoutes(container));
   app.use(createMeetingRoutes(container));

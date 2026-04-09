@@ -45,6 +45,9 @@ export type {
   AgentTriggerTable,
   TriggerExecutionLogTable,
   NotificationTable,
+  // V8.7 match suggestions (060)
+  MatchSuggestionTable,
+  MatchReason,
   DelegationTable,
   // V5 tables (030)
   PrivateRecordTable,

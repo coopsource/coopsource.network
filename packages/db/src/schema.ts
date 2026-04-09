@@ -707,6 +707,39 @@ export interface NotificationTable {
 }
 
 // ──────────────────────────────────────────────
+// V8.7 Match suggestions
+// ──────────────────────────────────────────────
+
+/**
+ * Service-layer shape for the `reason` JSONB column. The DB column itself
+ * is typed as `Record<string, unknown>` (the codebase convention for JSONB
+ * columns); the service casts to `MatchReason` at the boundary.
+ */
+export interface MatchReason {
+  signals: { recency: number; diversity: number; ageDays: number };
+  version: number;
+}
+
+export interface MatchSuggestionTable {
+  id: Generated<string>;
+  user_did: string;
+  target_did: string;
+  match_type: ColumnType<string, string | undefined, string>;
+  // Postgres `numeric` is returned as string by node-pg.
+  score: ColumnType<string, string | number, string | number>;
+  // Strongly-typed MatchReason lives at the service boundary, not in the
+  // DB layer. Every JSONB column in this file uses Record<string, unknown>.
+  reason: ColumnType<
+    Record<string, unknown>,
+    string | Record<string, unknown>,
+    string | Record<string, unknown>
+  >;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  dismissed_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  acted_on_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+}
+
+// ──────────────────────────────────────────────
 // Delegation voting
 // ──────────────────────────────────────────────
 
@@ -955,6 +988,9 @@ export interface Database {
   // Notifications & trigger execution
   trigger_execution_log: TriggerExecutionLogTable;
   notification: NotificationTable;
+
+  // V8.7 Match suggestions
+  match_suggestion: MatchSuggestionTable;
 
   // Delegation voting
   delegation: DelegationTable;

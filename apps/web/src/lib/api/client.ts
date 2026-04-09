@@ -47,6 +47,8 @@ import type {
   ExploreNetworksResponse,
   SearchCooperativesResponse,
   SearchPostsResponse,
+  GetMatchesResponse,
+  MatchActionResponse,
   MyMembershipsResponse,
   AgentConfig,
   AgentsResponse,
@@ -834,6 +836,25 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string, apiBase?
       if (params?.cursor) qs.set('cursor', params.cursor);
       return request<SearchPostsResponse>(`/search/posts?${qs}`);
     },
+
+    // V8.7 — Match suggestions
+    getMyMatches: (params?: { limit?: number; include?: 'active' | 'all' }) => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.include) qs.set('include', params.include);
+      const suffix = qs.toString() ? `?${qs}` : '';
+      return request<GetMatchesResponse>(`/me/matches${suffix}`);
+    },
+
+    dismissMatch: (id: string) =>
+      request<MatchActionResponse>(`/me/matches/${encodeURIComponent(id)}/dismiss`, {
+        method: 'POST',
+      }),
+
+    actOnMatch: (id: string) =>
+      request<MatchActionResponse>(`/me/matches/${encodeURIComponent(id)}/act`, {
+        method: 'POST',
+      }),
 
     // ── Agents ──────────────────────────────────────────────────────────────
     getAgents: (cursor?: string) => {

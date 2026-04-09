@@ -3,6 +3,7 @@ import Users from '@lucide/svelte/icons/users';
 import Vote from '@lucide/svelte/icons/vote';
 import MessageSquare from '@lucide/svelte/icons/message-square';
 import Compass from '@lucide/svelte/icons/compass';
+import Sparkles from '@lucide/svelte/icons/sparkles';
 import Banknote from '@lucide/svelte/icons/banknote';
 import Globe from '@lucide/svelte/icons/globe';
 import Shield from '@lucide/svelte/icons/shield';
@@ -117,6 +118,7 @@ export function homeNavSection(
     items: [
       { href: '/me', label: 'Activity', icon: LayoutDashboard },
       { href: '/me/explore', label: 'Explore', icon: Compass },
+      { href: '/me/matches', label: 'Matches', icon: Sparkles },
     ],
   };
 }
