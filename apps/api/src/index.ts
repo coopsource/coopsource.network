@@ -51,6 +51,7 @@ import { createApiTokenRoutes } from './routes/agents/tokens.js';
 import { createModelConfigRoutes } from './routes/agents/model-config.js';
 import { createNotificationRoutes } from './routes/notifications.js';
 import { createMeMatchesRoutes } from './routes/me-matches.js';
+import { createMeProfileRoutes } from './routes/me-profile.js';
 import { createOnboardingRoutes } from './routes/onboarding/config.js';
 import { createDelegationRoutes } from './routes/governance/delegations.js';
 import { createGovernanceFeedRoutes } from './routes/governance/feed.js';
@@ -245,6 +246,9 @@ async function start(): Promise<void> {
 
   // V8.7 — Match suggestion routes (authed; web /me handles 401 gracefully)
   app.use(createMeMatchesRoutes(container));
+
+  // V8.8 — Current user's profile (GET + PATCH discoverable toggle)
+  app.use(createMeProfileRoutes(container));
 
   // Legal & Administrative routes (Phase 4)
   app.use(createLegalDocumentRoutes(container));

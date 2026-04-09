@@ -2,6 +2,7 @@
   import { Badge, EmptyState } from '$lib/components/ui';
   import Search from '@lucide/svelte/icons/search';
   import Users from '@lucide/svelte/icons/users';
+  import User from '@lucide/svelte/icons/user';
   import MessageSquare from '@lucide/svelte/icons/message-square';
   import Info from '@lucide/svelte/icons/info';
 
@@ -12,20 +13,31 @@
   const cooperatives = $derived(data.cooperatives);
   const posts = $derived(data.posts);
   const postsUnavailable = $derived(data.postsUnavailable);
+  const people = $derived(data.people);
+  const peopleUnavailable = $derived(data.peopleUnavailable);
 
   const showCoops = $derived(type === 'all' || type === 'cooperatives');
+  const showPeople = $derived(type === 'all' || type === 'people');
   const showPosts = $derived(type === 'all' || type === 'posts');
-  const totalResults = $derived(cooperatives.length + posts.length);
+  const totalResults = $derived(cooperatives.length + posts.length + people.length);
   // Hide per-section "no results" messages when the global empty state shows,
   // so we don't double-render empty states. The global empty state only fires
-  // under type === 'all' with both sections empty.
+  // under type === 'all' with all sections empty.
   const showGlobalEmpty = $derived(
-    !!q && totalResults === 0 && !postsUnavailable && type === 'all',
+    !!q &&
+      totalResults === 0 &&
+      !postsUnavailable &&
+      !peopleUnavailable &&
+      type === 'all',
   );
 
-  const chips: Array<{ value: 'all' | 'cooperatives' | 'posts'; label: string }> = [
+  const chips: Array<{
+    value: 'all' | 'cooperatives' | 'people' | 'posts';
+    label: string;
+  }> = [
     { value: 'all', label: 'All' },
     { value: 'cooperatives', label: 'Cooperatives' },
+    { value: 'people', label: 'People' },
     { value: 'posts', label: 'Posts' },
   ];
 
@@ -62,7 +74,7 @@
   <div>
     <h1 class="text-2xl font-semibold text-[var(--cs-text)]">Explore</h1>
     <p class="mt-1 text-sm text-[var(--cs-text-secondary)]">
-      Search across cooperatives and your conversations.
+      Search across cooperatives, people, and your conversations.
     </p>
   </div>
 
@@ -75,7 +87,7 @@
         type="search"
         name="q"
         value={q}
-        placeholder="Search cooperatives and posts..."
+        placeholder="Search cooperatives, people, and posts..."
         class="w-full rounded-md border border-[var(--cs-border)] bg-[var(--cs-bg-card)] pl-9 pr-3 py-2 text-sm text-[var(--cs-text)] placeholder:text-[var(--cs-text-muted)] focus:border-[var(--cs-primary)] focus:outline-none"
       />
     </div>
@@ -102,7 +114,7 @@
     <EmptyState
       icon={Search}
       title="Start searching"
-      description="Type a query above to find cooperatives or posts in conversations you're a member of."
+      description="Type a query above to find cooperatives, people, or posts in conversations you're a member of."
     />
   {:else}
     <!-- Cooperatives section -->
@@ -138,6 +150,57 @@
                   </div>
                 {/if}
               </a>
+            {/each}
+          </div>
+        {/if}
+      </section>
+    {/if}
+
+    <!-- People section -->
+    {#if showPeople && !showGlobalEmpty}
+      <section>
+        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-[var(--cs-text-muted)]">
+          People
+        </h2>
+
+        {#if peopleUnavailable}
+          <div class="flex items-start gap-3 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-4">
+            <Info class="h-4 w-4 mt-0.5 text-[var(--cs-text-muted)] shrink-0" />
+            <div class="text-sm text-[var(--cs-text-secondary)]">
+              People search requires an active cooperative membership.
+            </div>
+          </div>
+        {:else if people.length === 0}
+          <p class="text-sm text-[var(--cs-text-muted)]">No people match your search.</p>
+        {:else}
+          <div class="space-y-2">
+            {#each people as person (person.did)}
+              <div class="flex items-start gap-3 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-3">
+                <div class="rounded-md bg-[var(--cs-primary-soft)] p-1.5">
+                  <User class="h-4 w-4 text-[var(--cs-primary)]" />
+                </div>
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-2">
+                    <span class="text-sm font-medium text-[var(--cs-text)] truncate">
+                      {person.displayName}
+                    </span>
+                    {#if person.handle}
+                      <span class="text-xs text-[var(--cs-text-muted)] truncate">
+                        @{person.handle}
+                      </span>
+                    {/if}
+                  </div>
+                  {#if person.bio}
+                    <p class="mt-1 text-sm text-[var(--cs-text-secondary)] line-clamp-2">
+                      {person.bio}
+                    </p>
+                  {/if}
+                  <div class="mt-1.5 flex items-center gap-1 text-xs text-[var(--cs-text-muted)]">
+                    <Users class="h-3.5 w-3.5" />
+                    Member of {person.membershipCount} co-op{person.membershipCount !== 1 ? 's' : ''}
+                  </div>
+                </div>
+              </div>
             {/each}
           </div>
         {/if}

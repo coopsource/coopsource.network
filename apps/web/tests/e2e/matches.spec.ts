@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ADMIN, setupCooperative, loginAs } from './helpers.js';
+import { ADMIN, setupCooperative, loginAs, seedCandidatePerson } from './helpers.js';
 
 const API_URL = 'http://localhost:3002';
 
@@ -124,5 +124,40 @@ test.describe('V8.7 — /me/matches full page', () => {
     await page.getByRole('tab', { name: /All/ }).click();
     await expect(page.getByRole('heading', { level: 3, name: 'Test Match Two' })).toBeVisible();
     await expect(page.getByText('Dismissed', { exact: true })).toBeVisible();
+  });
+
+  // V8.8 — Person matches. The matchmaking service now scores discoverable
+  // person candidates alongside cooperatives, and the page renders them with
+  // a distinguishing User icon and NO "View" link (V8.8 doesn't ship a public
+  // person profile page yet — see V8.9 TODO in matches/+page.svelte).
+  test('renders a seeded discoverable person as a match (no View link)', async ({
+    page,
+    request,
+  }) => {
+    await seedCandidatePerson(
+      request,
+      'did:web:test-person-match.example',
+      'test-person-match',
+      'Test Person Match',
+    );
+    await runMatchmaking(request);
+
+    await loginAs(page, ADMIN.email, ADMIN.password);
+    await page.goto('/me/matches');
+
+    // The person card renders with the seeded display name as an h3.
+    const personHeading = page.getByRole('heading', {
+      level: 3,
+      name: 'Test Person Match',
+    });
+    await expect(personHeading).toBeVisible();
+
+    // Person matches do NOT get a "View" link (V8.8 ships without person
+    // profile pages). Scope the assertion to the article that contains the
+    // person heading so we don't accidentally match a coop card's "View" link
+    // if both kinds of candidates were seeded in the same run.
+    const personCard = page.locator('article').filter({ hasText: 'Test Person Match' });
+    await expect(personCard).toBeVisible();
+    await expect(personCard.getByRole('link', { name: /View/ })).toHaveCount(0);
   });
 });

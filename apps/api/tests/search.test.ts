@@ -50,13 +50,157 @@ async function makeDiscoverable(coopDid: string): Promise<void> {
 
 async function setEntityFields(
   did: string,
-  fields: { display_name?: string; description?: string | null },
+  fields: { display_name?: string; description?: string | null; handle?: string | null },
 ): Promise<void> {
   const db = getTestDb();
   await db
     .updateTable('entity')
     .set(fields)
     .where('did', '=', did)
+    .execute();
+}
+
+/**
+ * V8.8 — Seed a candidate PERSON entity (optionally with a bio and/or
+ * alignment interests) for people-search tests. Exercises the D1 hybrid
+ * predicate in `SearchService.searchPeople`: a person is surfaced iff
+ * `profile.discoverable = true` OR at least one `stakeholder_interest` row
+ * exists for them.
+ *
+ * Duplicated (not shared) with me-matches.test.ts's helper because vitest
+ * test files don't share module state cleanly across runs with
+ * `isolate: false`, and the me-matches helper is private-to-file in the
+ * V8.7 style. See explore.test.ts / search.test.ts existing precedent for
+ * duplicating local fixture helpers.
+ */
+async function seedPerson(
+  did: string,
+  opts: {
+    handle?: string | null;
+    displayName?: string;
+    bio?: string | null;
+    discoverable?: boolean;
+    interests?: Array<{ category: string; description?: string; priority?: number }>;
+    createdAt?: Date;
+  } = {},
+): Promise<void> {
+  const db = getTestDb();
+  const displayName = opts.displayName ?? `Person ${did.slice(-4)}`;
+  await db
+    .insertInto('entity')
+    .values({
+      did,
+      type: 'person',
+      handle: opts.handle ?? null,
+      display_name: displayName,
+      status: 'active',
+      created_at: opts.createdAt ?? new Date(),
+    })
+    .execute();
+  await db
+    .insertInto('profile')
+    .values({
+      entity_did: did,
+      is_default: true,
+      display_name: displayName,
+      bio: opts.bio ?? null,
+      verified: true,
+      discoverable: opts.discoverable ?? false,
+    })
+    .execute();
+  if (opts.interests && opts.interests.length > 0) {
+    const rkey = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    await db
+      .insertInto('stakeholder_interest')
+      .values({
+        uri: `at://${did}/network.coopsource.alignment.interest/${rkey}`,
+        did,
+        rkey,
+        project_uri: did,
+        interests: JSON.stringify(opts.interests),
+        contributions: '[]',
+        constraints: '[]',
+        red_lines: '[]',
+        preferences: '{}',
+        created_at: new Date(),
+        updated_at: new Date(),
+        indexed_at: new Date(),
+      })
+      .execute();
+  }
+}
+
+/**
+ * V8.8 — Seed a desired_outcome row directly against the schema. Alignment
+ * tests use this to drop outcomes into the CTE that backs
+ * `SearchService.searchAlignment`'s outcome_matches path without going
+ * through the alignment-service (which would require PDS write ceremony
+ * we don't want for a search-layer integration test).
+ */
+async function seedDesiredOutcome(
+  coopDid: string,
+  opts: {
+    title: string;
+    description?: string | null;
+    category?: string;
+    authorDid?: string;
+  },
+): Promise<void> {
+  const db = getTestDb();
+  const now = Date.now();
+  const rkey = `test-${now}-${Math.random().toString(36).slice(2, 8)}`;
+  const authorDid = opts.authorDid ?? coopDid;
+  await db
+    .insertInto('desired_outcome')
+    .values({
+      uri: `at://${coopDid}/network.coopsource.alignment.outcome/${rkey}`,
+      did: authorDid,
+      rkey,
+      project_uri: coopDid,
+      title: opts.title,
+      description: opts.description ?? null,
+      category: opts.category ?? 'environmental',
+      success_criteria: '[]',
+      stakeholder_support: '[]',
+      status: 'proposed',
+      created_at: new Date(),
+      indexed_at: new Date(),
+    })
+    .execute();
+}
+
+/**
+ * V8.8 — Seed a `stakeholder_interest` row against a cooperative DID,
+ * targeted as `project_uri = coopDid`. That's how `searchAlignment`
+ * associates interest categories with the discoverable cooperative for
+ * the interest_matches CTE — it groups stakeholder_interest rows by
+ * project_uri and counts distinct categories that match the caller's
+ * `?interests=` tag list.
+ */
+async function seedCoopInterests(
+  coopDid: string,
+  interests: Array<{ category: string; description?: string; priority?: number }>,
+  opts: { authorDid?: string } = {},
+): Promise<void> {
+  const db = getTestDb();
+  const authorDid = opts.authorDid ?? coopDid;
+  const rkey = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  await db
+    .insertInto('stakeholder_interest')
+    .values({
+      uri: `at://${authorDid}/network.coopsource.alignment.interest/${rkey}`,
+      did: authorDid,
+      rkey,
+      project_uri: coopDid,
+      interests: JSON.stringify(interests),
+      contributions: '[]',
+      constraints: '[]',
+      red_lines: '[]',
+      preferences: '{}',
+      created_at: new Date(),
+      updated_at: new Date(),
+      indexed_at: new Date(),
+    })
     .execute();
 }
 
@@ -524,6 +668,517 @@ describe('Search', () => {
       const page2Ids = new Set(page2.body.posts.map((p: { id: string }) => p.id));
       const overlap = [...page2Ids].filter((id) => page1Ids.has(id as string));
       expect(overlap).toEqual([]);
+    });
+  });
+
+  // ─── V8.8 — People search (authed, D1 hybrid) ─────────────────────
+  //
+  // `searchPeople` enforces the discoverability rule in SQL:
+  //   profile.discoverable = true
+  //   OR EXISTS (stakeholder_interest record for this person)
+  //
+  // The load-bearing test here is the PRIVACY REGRESSION: a lurker
+  // (no discoverable flag, no alignment data) must NEVER surface in
+  // any authenticated user's people search. Breaking that assertion
+  // would leak every account's existence.
+  describe('GET /api/v1/search/people', () => {
+    it('returns 401 for unauthenticated request', async () => {
+      const testApp = createTestApp();
+      await testApp.agent.get('/api/v1/search/people?q=anything').expect(401);
+    });
+
+    it('returns 200 with empty list for empty query when authed', async () => {
+      const testApp = createTestApp();
+      await setupWithHandle(testApp, 'people-empty');
+
+      const res = await testApp.agent
+        .get('/api/v1/search/people?q=')
+        .expect(200);
+
+      expect(res.body.people).toEqual([]);
+      expect(res.body.cursor).toBeNull();
+    });
+
+    it('returns 200 with empty list for whitespace-only query', async () => {
+      const testApp = createTestApp();
+      await setupWithHandle(testApp, 'people-ws');
+
+      const res = await testApp.agent
+        .get('/api/v1/search/people?q=%20%20')
+        .expect(200);
+
+      expect(res.body.people).toEqual([]);
+    });
+
+    it('returns discoverable persons', async () => {
+      const testApp = createTestApp();
+      await setupWithHandle(testApp, 'people-disc');
+
+      await seedPerson('did:web:findable.example', {
+        displayName: 'Findable Alice',
+        discoverable: true,
+      });
+
+      const res = await testApp.agent
+        .get('/api/v1/search/people?q=findable')
+        .expect(200);
+
+      expect(res.body.people).toHaveLength(1);
+      expect(res.body.people[0].did).toBe('did:web:findable.example');
+      expect(res.body.people[0].displayName).toBe('Findable Alice');
+    });
+
+    it('returns persons with alignment data even if discoverable=false (D1 hybrid)', async () => {
+      const testApp = createTestApp();
+      await setupWithHandle(testApp, 'people-hybrid');
+
+      await seedPerson('did:web:aligned-hidden.example', {
+        displayName: 'Hybrid Bob',
+        discoverable: false,
+        interests: [{ category: 'climate', priority: 3 }],
+      });
+
+      const res = await testApp.agent
+        .get('/api/v1/search/people?q=hybrid')
+        .expect(200);
+
+      expect(res.body.people).toHaveLength(1);
+      expect(res.body.people[0].did).toBe('did:web:aligned-hidden.example');
+    });
+
+    it('PRIVACY REGRESSION: excludes persons with discoverable=false AND no alignment data', async () => {
+      // This is the most important assertion in the people-search suite.
+      // A lurker — no discoverable flag, no alignment data — must never
+      // surface in a search result, even when their display_name exactly
+      // matches the query.
+      const testApp = createTestApp();
+      await setupWithHandle(testApp, 'people-lurker');
+
+      await seedPerson('did:web:lurker-search.example', {
+        displayName: 'Lurker Carla',
+        discoverable: false,
+        // No interests.
+      });
+
+      const res = await testApp.agent
+        .get('/api/v1/search/people?q=lurker')
+        .expect(200);
+
+      expect(res.body.people).toEqual([]);
+    });
+
+    it('matches by display_name', async () => {
+      const testApp = createTestApp();
+      await setupWithHandle(testApp, 'people-name');
+
+      await seedPerson('did:web:named.example', {
+        displayName: 'Quinoa Fanatic',
+        discoverable: true,
+      });
+
+      const res = await testApp.agent
+        .get('/api/v1/search/people?q=quinoa')
+        .expect(200);
+
+      expect(res.body.people).toHaveLength(1);
+      expect(res.body.people[0].displayName).toBe('Quinoa Fanatic');
+    });
+
+    it('matches by handle', async () => {
+      const testApp = createTestApp();
+      await setupWithHandle(testApp, 'people-handle');
+
+      await seedPerson('did:web:handled.example', {
+        handle: 'artichoke-fan',
+        displayName: 'Some Name',
+        discoverable: true,
+      });
+
+      const res = await testApp.agent
+        .get('/api/v1/search/people?q=artichoke')
+        .expect(200);
+
+      expect(res.body.people).toHaveLength(1);
+      expect(res.body.people[0].handle).toBe('artichoke-fan');
+    });
+
+    it('matches by bio (via profile_bio_tsv)', async () => {
+      // The display_name / description path is indexed by the V8.6
+      // `entity_search_tsv`; the bio path is V8.8's new
+      // `profile.profile_bio_tsv`. The route OR-ands the two tsvectors
+      // so a query that only matches the bio must still surface the
+      // person.
+      const testApp = createTestApp();
+      await setupWithHandle(testApp, 'people-bio');
+
+      await seedPerson('did:web:bio-match.example', {
+        displayName: 'Plain Name',
+        bio: 'Passionate about tangerine cultivation in arid regions',
+        discoverable: true,
+      });
+
+      const res = await testApp.agent
+        .get('/api/v1/search/people?q=tangerine')
+        .expect(200);
+
+      expect(res.body.people).toHaveLength(1);
+      expect(res.body.people[0].did).toBe('did:web:bio-match.example');
+    });
+
+    it('excludes self from search results', async () => {
+      const testApp = createTestApp();
+      const { adminDid } = await setupWithHandle(testApp, 'people-self');
+
+      // Flip the admin's own profile to discoverable AND rename them so
+      // their display_name matches the query term. The SearchService
+      // must still exclude them via the `entity.did != viewerDid` filter.
+      const db = getTestDb();
+      await db
+        .updateTable('entity')
+        .set({ display_name: 'Selfie McTestface' })
+        .where('did', '=', adminDid)
+        .execute();
+      await db
+        .updateTable('profile')
+        .set({ discoverable: true, display_name: 'Selfie McTestface' })
+        .where('entity_did', '=', adminDid)
+        .execute();
+
+      const res = await testApp.agent
+        .get('/api/v1/search/people?q=selfie')
+        .expect(200);
+
+      expect(res.body.people.find((p: { did: string }) => p.did === adminDid)).toBeUndefined();
+    });
+
+    it('paginates with cursor across multiple matching people', async () => {
+      const testApp = createTestApp();
+      await setupWithHandle(testApp, 'people-page');
+
+      // Seed 15 matching discoverable people. Vary created_at explicitly
+      // because the cursor encodes (created_at, did) — identical
+      // timestamps would collapse under the DESC ordering.
+      const base = Date.now();
+      for (let i = 0; i < 15; i++) {
+        await seedPerson(`did:web:paged-${String(i).padStart(2, '0')}.example`, {
+          displayName: `Paginated Dragon ${i}`,
+          discoverable: true,
+          createdAt: new Date(base - i * 1000),
+        });
+      }
+
+      const page1 = await testApp.agent
+        .get('/api/v1/search/people?q=dragon&limit=10')
+        .expect(200);
+
+      expect(page1.body.people).toHaveLength(10);
+      expect(page1.body.cursor).toBeTruthy();
+
+      const page2 = await testApp.agent
+        .get(
+          `/api/v1/search/people?q=dragon&limit=10&cursor=${encodeURIComponent(
+            page1.body.cursor,
+          )}`,
+        )
+        .expect(200);
+
+      expect(page2.body.people).toHaveLength(5);
+      const page1Dids = new Set(
+        page1.body.people.map((p: { did: string }) => p.did),
+      );
+      const page2Dids = new Set(
+        page2.body.people.map((p: { did: string }) => p.did),
+      );
+      const overlap = [...page2Dids].filter((d) => page1Dids.has(d as string));
+      expect(overlap).toEqual([]);
+    });
+  });
+
+  // ─── V8.8 — Alignment search (authed) ─────────────────────────────
+  //
+  // `searchAlignment` combines two CTE sources:
+  //   - outcome_matches: FTS over desired_outcome.outcome_search_tsv
+  //   - interest_matches: tag overlap via jsonb_array_elements on
+  //     stakeholder_interest.interests
+  //
+  // Both are OR-combined; empty/whitespace q AND empty interests short-
+  // circuit to an empty result. Cooperatives surface only when
+  // `anon_discoverable = true` (belt-and-braces leak protection) and
+  // only when the viewer is NOT already an active member.
+  describe('GET /api/v1/search/alignment', () => {
+    it('returns 401 for unauthenticated request', async () => {
+      const testApp = createTestApp();
+      await testApp.agent
+        .get('/api/v1/search/alignment?q=anything')
+        .expect(401);
+    });
+
+    it('returns 200 with empty list when neither q nor interests provided', async () => {
+      const testApp = createTestApp();
+      await setupWithHandle(testApp, 'align-empty');
+
+      const res = await testApp.agent
+        .get('/api/v1/search/alignment')
+        .expect(200);
+
+      expect(res.body.cooperatives).toEqual([]);
+      expect(res.body.cursor).toBeNull();
+    });
+
+    it('returns 200 with empty list when only empty interests are supplied', async () => {
+      const testApp = createTestApp();
+      await setupWithHandle(testApp, 'align-ws');
+
+      const res = await testApp.agent
+        .get('/api/v1/search/alignment?interests=')
+        .expect(200);
+
+      expect(res.body.cooperatives).toEqual([]);
+    });
+
+    it("with q='climate resilience' returns coops whose desired_outcome matches", async () => {
+      const testApp = createTestApp();
+      await setupWithHandle(testApp, 'align-q-coop');
+
+      // Discoverable candidate coop (NOT the viewer's coop — that would
+      // be filtered by the viewer-is-member exclusion).
+      const targetCoop = 'did:web:align-target.example';
+      const db = getTestDb();
+      await db
+        .insertInto('entity')
+        .values({
+          did: targetCoop,
+          type: 'cooperative',
+          display_name: 'Align Target Coop',
+          status: 'active',
+          created_at: new Date(),
+        })
+        .execute();
+      await db
+        .insertInto('cooperative_profile')
+        .values({
+          entity_did: targetCoop,
+          cooperative_type: 'worker',
+          membership_policy: 'open',
+          is_network: false,
+          anon_discoverable: true,
+        })
+        .execute();
+      await seedDesiredOutcome(targetCoop, {
+        title: 'Climate resilience planning',
+        description: 'Our coop wants to help members prepare for climate change',
+      });
+
+      const res = await testApp.agent
+        .get('/api/v1/search/alignment?q=' + encodeURIComponent('climate resilience'))
+        .expect(200);
+
+      expect(res.body.cooperatives).toHaveLength(1);
+      expect(res.body.cooperatives[0].did).toBe(targetCoop);
+      expect(res.body.cooperatives[0].matchedOutcomes).toBeGreaterThanOrEqual(1);
+    });
+
+    it('with interests=climate,food returns coops whose stakeholders mention those categories', async () => {
+      const testApp = createTestApp();
+      await setupWithHandle(testApp, 'align-interests');
+
+      const targetCoop = 'did:web:align-interest-target.example';
+      const db = getTestDb();
+      await db
+        .insertInto('entity')
+        .values({
+          did: targetCoop,
+          type: 'cooperative',
+          display_name: 'Interest Target Coop',
+          status: 'active',
+          created_at: new Date(),
+        })
+        .execute();
+      await db
+        .insertInto('cooperative_profile')
+        .values({
+          entity_did: targetCoop,
+          cooperative_type: 'worker',
+          membership_policy: 'open',
+          is_network: false,
+          anon_discoverable: true,
+        })
+        .execute();
+      await seedCoopInterests(targetCoop, [
+        { category: 'climate', priority: 3 },
+        { category: 'food', priority: 2 },
+      ]);
+
+      const res = await testApp.agent
+        .get('/api/v1/search/alignment?interests=climate,food')
+        .expect(200);
+
+      expect(res.body.cooperatives).toHaveLength(1);
+      expect(res.body.cooperatives[0].did).toBe(targetCoop);
+      expect(res.body.cooperatives[0].matchedInterests).toBeGreaterThanOrEqual(1);
+    });
+
+    it('combined q + interests blends both signals', async () => {
+      // Two candidate coops: A with an outcome matching q, B with
+      // interests matching the tag list. The combined query should
+      // return both, ordered by alignment_score DESC (the coop that
+      // scores on BOTH paths wins if one exists, but here neither does;
+      // we just verify both appear).
+      const testApp = createTestApp();
+      await setupWithHandle(testApp, 'align-combined');
+
+      const db = getTestDb();
+      for (const did of [
+        'did:web:combined-a.example',
+        'did:web:combined-b.example',
+      ]) {
+        await db
+          .insertInto('entity')
+          .values({
+            did,
+            type: 'cooperative',
+            display_name: `Combined ${did.slice(-10)}`,
+            status: 'active',
+            created_at: new Date(),
+          })
+          .execute();
+        await db
+          .insertInto('cooperative_profile')
+          .values({
+            entity_did: did,
+            cooperative_type: 'worker',
+            membership_policy: 'open',
+            is_network: false,
+            anon_discoverable: true,
+          })
+          .execute();
+      }
+      await seedDesiredOutcome('did:web:combined-a.example', {
+        title: 'Mycelium research lab',
+      });
+      await seedCoopInterests('did:web:combined-b.example', [
+        { category: 'climate', priority: 3 },
+      ]);
+
+      const res = await testApp.agent
+        .get(
+          '/api/v1/search/alignment?q=' +
+            encodeURIComponent('mycelium') +
+            '&interests=climate',
+        )
+        .expect(200);
+
+      const dids = new Set(
+        res.body.cooperatives.map((c: { did: string }) => c.did),
+      );
+      expect(dids.has('did:web:combined-a.example')).toBe(true);
+      expect(dids.has('did:web:combined-b.example')).toBe(true);
+    });
+
+    it('PRIVACY REGRESSION: excludes non-anon_discoverable coops', async () => {
+      // The route is auth-gated but the SQL still filters
+      // `anon_discoverable = true` as belt-and-braces leak protection —
+      // if a future product decision exposes an anon variant of this
+      // endpoint, no schema change is required.
+      const testApp = createTestApp();
+      await setupWithHandle(testApp, 'align-hidden');
+
+      const hiddenCoop = 'did:web:align-hidden-target.example';
+      const db = getTestDb();
+      await db
+        .insertInto('entity')
+        .values({
+          did: hiddenCoop,
+          type: 'cooperative',
+          display_name: 'Hidden Target Coop',
+          status: 'active',
+          created_at: new Date(),
+        })
+        .execute();
+      await db
+        .insertInto('cooperative_profile')
+        .values({
+          entity_did: hiddenCoop,
+          cooperative_type: 'worker',
+          membership_policy: 'open',
+          is_network: false,
+          anon_discoverable: false, // hidden
+        })
+        .execute();
+      await seedDesiredOutcome(hiddenCoop, {
+        title: 'Strawberry preservation workshop',
+      });
+
+      const res = await testApp.agent
+        .get('/api/v1/search/alignment?q=strawberry')
+        .expect(200);
+
+      expect(res.body.cooperatives).toEqual([]);
+    });
+
+    it('excludes coops the viewer is already an active member of', async () => {
+      // Seed an outcome on the viewer's OWN coop (the one
+      // setupWithHandle created and made the admin a member of). The
+      // viewer-is-member exclusion in searchAlignment should suppress
+      // it even though the outcome FTS would otherwise match.
+      const testApp = createTestApp();
+      const { coopDid } = await setupWithHandle(testApp, 'align-self-member');
+
+      // Make the viewer's coop discoverable so the belt-and-braces
+      // anon_discoverable filter would otherwise let it through.
+      await makeDiscoverable(coopDid);
+      await seedDesiredOutcome(coopDid, {
+        title: 'Pineapple fermentation techniques',
+      });
+
+      const res = await testApp.agent
+        .get('/api/v1/search/alignment?q=pineapple')
+        .expect(200);
+
+      expect(
+        res.body.cooperatives.find((c: { did: string }) => c.did === coopDid),
+      ).toBeUndefined();
+    });
+
+    it('interests parameter is case-insensitive', async () => {
+      // The route lowercases the tag list on input and the CTE
+      // lowercases the jsonb values. A stakeholder_interest row with
+      // `{category: "Climate"}` must still match `?interests=climate`.
+      const testApp = createTestApp();
+      await setupWithHandle(testApp, 'align-case');
+
+      const targetCoop = 'did:web:align-case-target.example';
+      const db = getTestDb();
+      await db
+        .insertInto('entity')
+        .values({
+          did: targetCoop,
+          type: 'cooperative',
+          display_name: 'Case Target Coop',
+          status: 'active',
+          created_at: new Date(),
+        })
+        .execute();
+      await db
+        .insertInto('cooperative_profile')
+        .values({
+          entity_did: targetCoop,
+          cooperative_type: 'worker',
+          membership_policy: 'open',
+          is_network: false,
+          anon_discoverable: true,
+        })
+        .execute();
+      await seedCoopInterests(targetCoop, [
+        { category: 'Climate', priority: 3 }, // mixed case
+      ]);
+
+      const res = await testApp.agent
+        .get('/api/v1/search/alignment?interests=climate')
+        .expect(200);
+
+      expect(res.body.cooperatives).toHaveLength(1);
+      expect(res.body.cooperatives[0].did).toBe(targetCoop);
     });
   });
 });

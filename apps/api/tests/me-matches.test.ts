@@ -3,15 +3,19 @@ import { truncateAllTables, getTestDb } from './helpers/test-db.js';
 import { createTestApp, setupAndLogin } from './helpers/test-app.js';
 import type { TestApp } from './helpers/test-app.js';
 import { resetSetupCache } from '../src/auth/middleware.js';
-import { scoreCandidate, SCORING_VERSION } from '../src/services/matchmaking/score.js';
+import { SCORING_VERSION } from '../src/services/matchmaking/score.js';
 
 /**
- * V8.7 — Match Service integration tests.
+ * V8.7 / V8.8 — Match Service integration tests.
  *
- * The pure scoring tests (cases 1-3) hit `score.ts` directly with no DB.
- * The runMatchmakingForUser cases seed candidate coops via direct DB
- * inserts (the public coop-creation flow goes through `/setup` and is
- * single-shot per test app). The route cases hit the agent.
+ * Pure scoring tests live in `src/services/matchmaking/score.test.ts` and
+ * hit the function directly with no DB — they cover every branch of the
+ * V8.8 composition formula (alignment/fallback/suppression) and the
+ * weighted Jaccard, including person-candidate shapes. This file focuses
+ * on the *service-layer* integration: candidate discovery queries, the
+ * DELETE+INSERT transaction, the tombstone path, the
+ * `getMatchesForUser` LEFT JOIN (exercising cooperative_type null for
+ * person rows), and the HTTP routes.
  */
 
 async function seedCandidateCoop(
@@ -69,68 +73,123 @@ async function seedMatchRow(
   return row.id;
 }
 
+/**
+ * V8.8 — Seed a candidate PERSON entity (optionally with alignment interests)
+ * for matchmaking tests. Exercises the D1 hybrid predicate in
+ * `fetchPersonCandidates`: a person is included iff
+ * `profile.discoverable = true` OR they have any `stakeholder_interest` row.
+ *
+ * The `projectUri` option lets a test route the candidate's interest record
+ * at a specific cooperative DID so the `sharedCoopCount` signal can be
+ * exercised; it defaults to the candidate's own DID which keeps shared-coop
+ * counting at 0 (harmless for the common case).
+ *
+ * Uses a short random suffix on the stakeholder_interest rkey/uri because
+ * a single test may seed multiple candidates within the same millisecond;
+ * Date.now() alone is not unique enough.
+ */
+async function seedCandidatePerson(
+  did: string,
+  opts: {
+    handle?: string;
+    displayName?: string;
+    discoverable?: boolean;
+    interests?: Array<{ category: string; description?: string; priority?: number }>;
+    projectUri?: string;
+  } = {},
+): Promise<void> {
+  const db = getTestDb();
+  const displayName = opts.displayName ?? `Person ${did.slice(-4)}`;
+  await db
+    .insertInto('entity')
+    .values({
+      did,
+      type: 'person',
+      handle: opts.handle ?? null,
+      display_name: displayName,
+      status: 'active',
+      created_at: new Date(),
+    })
+    .execute();
+  await db
+    .insertInto('profile')
+    .values({
+      entity_did: did,
+      is_default: true,
+      display_name: displayName,
+      verified: true,
+      discoverable: opts.discoverable ?? false,
+    })
+    .execute();
+  if (opts.interests && opts.interests.length > 0) {
+    const projectUri = opts.projectUri ?? did;
+    const rkey = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    await db
+      .insertInto('stakeholder_interest')
+      .values({
+        uri: `at://${did}/network.coopsource.alignment.interest/${rkey}`,
+        did,
+        rkey,
+        project_uri: projectUri,
+        interests: JSON.stringify(opts.interests),
+        contributions: '[]',
+        constraints: '[]',
+        red_lines: '[]',
+        preferences: '{}',
+        created_at: new Date(),
+        updated_at: new Date(),
+        indexed_at: new Date(),
+      })
+      .execute();
+  }
+}
+
+/**
+ * V8.8 — Attach a `stakeholder_interest` row to ANY existing entity (a
+ * person OR a cooperative). Used by the person-match tests to give the
+ * viewer alignment data so the scoring function follows the alignment
+ * branch instead of the V8.7 fallback, and also used to attach alignment
+ * data to candidate cooperatives (matching how alignment-service.ts stores
+ * them, scoped to a coop DID via project_uri). `projectUri` defaults to
+ * the entity's own DID.
+ */
+async function seedInterestsFor(
+  did: string,
+  interests: Array<{ category: string; description?: string; priority?: number }>,
+  opts: { projectUri?: string } = {},
+): Promise<void> {
+  const db = getTestDb();
+  const projectUri = opts.projectUri ?? did;
+  const rkey = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  await db
+    .insertInto('stakeholder_interest')
+    .values({
+      uri: `at://${did}/network.coopsource.alignment.interest/${rkey}`,
+      did,
+      rkey,
+      project_uri: projectUri,
+      interests: JSON.stringify(interests),
+      contributions: '[]',
+      constraints: '[]',
+      red_lines: '[]',
+      preferences: '{}',
+      created_at: new Date(),
+      updated_at: new Date(),
+      indexed_at: new Date(),
+    })
+    .execute();
+}
+
 describe('V8.7 — Match Service', () => {
   beforeEach(async () => {
     await truncateAllTables();
     resetSetupCache();
   });
 
-  // ─── Pure scoring (no service/DB needed) ──────────────────────────
-
-  describe('scoreCandidate', () => {
-    it('is deterministic for identical inputs', () => {
-      const input = {
-        candidate: {
-          did: 'did:web:a',
-          cooperativeType: 'worker',
-          createdAt: new Date('2026-04-01T00:00:00Z'),
-        },
-        ctx: { userCoopTypes: new Set<string>() },
-        now: new Date('2026-04-08T00:00:00Z'),
-      };
-      const a = scoreCandidate(input);
-      const b = scoreCandidate(input);
-      expect(a).toEqual(b);
-    });
-
-    it('favors newer cooperatives', () => {
-      const ctx = { userCoopTypes: new Set<string>() };
-      const now = new Date('2026-04-08T00:00:00Z');
-      const newer = scoreCandidate({
-        candidate: { did: 'a', cooperativeType: 'worker', createdAt: new Date('2026-04-01T00:00:00Z') },
-        ctx,
-        now,
-      });
-      const older = scoreCandidate({
-        candidate: { did: 'b', cooperativeType: 'worker', createdAt: new Date('2025-04-01T00:00:00Z') },
-        ctx,
-        now,
-      });
-      expect(newer.score).toBeGreaterThan(older.score);
-    });
-
-    it('applies a 0.5 diversity bonus for cooperative types the user already has', () => {
-      const now = new Date('2026-04-08T00:00:00Z');
-      const candidate = {
-        did: 'a',
-        cooperativeType: 'worker',
-        createdAt: new Date('2026-04-08T00:00:00Z'),
-      };
-      const same = scoreCandidate({
-        candidate,
-        ctx: { userCoopTypes: new Set(['worker']) },
-        now,
-      });
-      const different = scoreCandidate({
-        candidate,
-        ctx: { userCoopTypes: new Set(['consumer']) },
-        now,
-      });
-      expect(same.signals.diversity).toBe(0.5);
-      expect(different.signals.diversity).toBe(1.0);
-      expect(same.score).toBeLessThan(different.score);
-    });
-  });
+  // Pure scoring tests moved to src/services/matchmaking/score.test.ts in
+  // V8.8 (Task 2). That module covers every composition branch including
+  // person candidates, so the three V8.7 cases that lived here (determinism,
+  // recency ordering, diversity bonus) are subsumed — see score.test.ts.
 
   // ─── runMatchmakingForUser ────────────────────────────────────────
 
@@ -280,6 +339,322 @@ describe('V8.7 — Match Service', () => {
       // We don't have 50 rows seeded; the assertion is that the route accepts
       // the request (no 400) and returns at most 50 entries.
       expect(res.body.matches.length).toBeLessThanOrEqual(50);
+    });
+  });
+
+  // ─── V8.8 — Person candidates ─────────────────────────────────────
+  //
+  // Exercises `fetchPersonCandidates` (D1 hybrid discoverability), the
+  // single TOP_N cap across the cooperative + person pools, and the
+  // `getMatchesForUser` LEFT JOIN which must leave `cooperativeType`
+  // / `memberCount` null for person rows and populate
+  // `sharedInterestCount` / `sharedCoopCount` from the persisted
+  // `reason.signals` JSONB.
+  //
+  // The most load-bearing case here is the PRIVACY REGRESSION: a person
+  // with `discoverable = false` AND no alignment data MUST NOT appear in
+  // any other user's matches. See ARCHITECTURE-V8.md §V8.8 decision D1.
+  describe('MatchmakingService person matches', () => {
+    let testApp: TestApp;
+    let adminDid: string;
+
+    beforeEach(async () => {
+      testApp = createTestApp();
+      const setup = await setupAndLogin(testApp);
+      adminDid = setup.adminDid;
+    });
+
+    it('discoverable person appears in matches', async () => {
+      await seedCandidatePerson('did:web:disc-person.example', {
+        displayName: 'Discoverable Person',
+        discoverable: true,
+      });
+
+      await testApp.container.matchmakingService.runMatchmakingForUser(adminDid);
+
+      const matches = await testApp.container.matchmakingService.getMatchesForUser(
+        adminDid,
+        {},
+      );
+      const person = matches.find(
+        (m) => m.targetDid === 'did:web:disc-person.example',
+      );
+      expect(person).toBeDefined();
+      expect(person!.matchType).toBe('person');
+      expect(person!.cooperativeType).toBeNull();
+      expect(person!.memberCount).toBeNull();
+      // Person has no interests, admin has no interests → fallback branch
+      // → sharedCategoryCount=0.
+      expect(person!.sharedInterestCount).toBe(0);
+      expect(person!.sharedCoopCount).toBe(0);
+    });
+
+    it('person with alignment data but discoverable=false appears in matches (D1 hybrid)', async () => {
+      // Seed admin alignment data so the alignment branch of the scoring
+      // function fires — otherwise a no-overlap person with no
+      // discoverable flag could pass for the wrong reason (the user-has-
+      // no-alignment fallback). This test locks in that alignment data is
+      // itself the opt-in signal.
+      await seedInterestsFor(adminDid, [
+        { category: 'climate', priority: 3 },
+      ]);
+      await seedCandidatePerson('did:web:hidden-aligned.example', {
+        displayName: 'Hidden but Aligned',
+        discoverable: false,
+        interests: [{ category: 'climate', priority: 3 }],
+      });
+
+      await testApp.container.matchmakingService.runMatchmakingForUser(adminDid);
+
+      const matches = await testApp.container.matchmakingService.getMatchesForUser(
+        adminDid,
+        {},
+      );
+      const person = matches.find(
+        (m) => m.targetDid === 'did:web:hidden-aligned.example',
+      );
+      expect(person).toBeDefined();
+      expect(person!.matchType).toBe('person');
+      // Alignment branch fired → shared category count 1.
+      expect(person!.sharedInterestCount).toBe(1);
+    });
+
+    it('PRIVACY REGRESSION: person with discoverable=false and no alignment data is excluded', async () => {
+      // This is the most important assertion in the person-match suite.
+      // A lurker — someone who has a profile but has neither opted in via
+      // the discoverable flag nor participated in alignment data — must
+      // NEVER surface on another user's matches list. Breaking this would
+      // leak the mere existence of every platform account to every other
+      // user.
+      await seedCandidatePerson('did:web:lurker.example', {
+        displayName: 'Lurker',
+        discoverable: false,
+      });
+
+      await testApp.container.matchmakingService.runMatchmakingForUser(adminDid);
+
+      const matches = await testApp.container.matchmakingService.getMatchesForUser(
+        adminDid,
+        { include: 'all' },
+      );
+      expect(
+        matches.find((m) => m.targetDid === 'did:web:lurker.example'),
+      ).toBeUndefined();
+    });
+
+    it('person matching excludes self', async () => {
+      // Flip the admin's own profile to discoverable + seed alignment
+      // data. Running matchmaking must not suggest the admin to
+      // themselves (even though their profile/alignment now matches the
+      // D1 hybrid predicate).
+      const db = getTestDb();
+      await db
+        .updateTable('profile')
+        .set({ discoverable: true })
+        .where('entity_did', '=', adminDid)
+        .execute();
+      await seedInterestsFor(adminDid, [{ category: 'food', priority: 4 }]);
+
+      await testApp.container.matchmakingService.runMatchmakingForUser(adminDid);
+
+      const matches = await testApp.container.matchmakingService.getMatchesForUser(
+        adminDid,
+        { include: 'all' },
+      );
+      expect(matches.find((m) => m.targetDid === adminDid)).toBeUndefined();
+    });
+
+    it('person matching excludes tombstones (dismiss + act)', async () => {
+      await seedCandidatePerson('did:web:tomb-dismiss.example', {
+        displayName: 'To Dismiss',
+        discoverable: true,
+      });
+      await seedCandidatePerson('did:web:tomb-act.example', {
+        displayName: 'To Act',
+        discoverable: true,
+      });
+
+      // Initial run inserts both.
+      await testApp.container.matchmakingService.runMatchmakingForUser(adminDid);
+      const initial = await testApp.container.matchmakingService.getMatchesForUser(
+        adminDid,
+        {},
+      );
+      const dismissRow = initial.find(
+        (m) => m.targetDid === 'did:web:tomb-dismiss.example',
+      );
+      const actRow = initial.find(
+        (m) => m.targetDid === 'did:web:tomb-act.example',
+      );
+      expect(dismissRow).toBeDefined();
+      expect(actRow).toBeDefined();
+
+      // Dismiss one, act on the other.
+      await testApp.container.matchmakingService.dismissMatch(
+        dismissRow!.id,
+        adminDid,
+      );
+      await testApp.container.matchmakingService.markActedOn(
+        actRow!.id,
+        adminDid,
+      );
+
+      // Re-run — both persons should be filtered from the active set
+      // by the tombstone NOT IN subquery in `fetchPersonCandidates`.
+      await testApp.container.matchmakingService.runMatchmakingForUser(adminDid);
+      const afterRerun =
+        await testApp.container.matchmakingService.getMatchesForUser(adminDid, {});
+      expect(
+        afterRerun.find((m) => m.targetDid === 'did:web:tomb-dismiss.example'),
+      ).toBeUndefined();
+      expect(
+        afterRerun.find((m) => m.targetDid === 'did:web:tomb-act.example'),
+      ).toBeUndefined();
+    });
+
+    it('getMatchesForUser returns mixed cooperative and person rows with correct shape', async () => {
+      // Give admin alignment data so the scoring branch is deterministic.
+      await seedInterestsFor(adminDid, [
+        { category: 'climate', priority: 3 },
+      ]);
+      // Person with matching alignment.
+      await seedCandidatePerson('did:web:person-mix.example', {
+        displayName: 'Aligned Person',
+        discoverable: true,
+        interests: [{ category: 'climate', priority: 3 }],
+      });
+      // Cooperative with matching alignment — seeded directly so we can
+      // also attach a stakeholder_interest row scoped to the coop DID via
+      // project_uri (matches how alignment-service.ts stores them).
+      await seedCandidateCoop('did:web:coop-mix.example', 'worker');
+      await seedInterestsFor('did:web:coop-mix.example', [
+        { category: 'climate', priority: 3 },
+      ]);
+
+      await testApp.container.matchmakingService.runMatchmakingForUser(adminDid);
+
+      const matches = await testApp.container.matchmakingService.getMatchesForUser(
+        adminDid,
+        {},
+      );
+      const person = matches.find(
+        (m) => m.targetDid === 'did:web:person-mix.example',
+      );
+      const coop = matches.find((m) => m.targetDid === 'did:web:coop-mix.example');
+
+      expect(person).toBeDefined();
+      expect(person!.matchType).toBe('person');
+      expect(person!.cooperativeType).toBeNull();
+      expect(person!.memberCount).toBeNull();
+      expect(person!.sharedInterestCount).toBe(1);
+
+      expect(coop).toBeDefined();
+      expect(coop!.matchType).toBe('cooperative');
+      expect(coop!.cooperativeType).toBe('worker');
+      expect(coop!.sharedInterestCount).toBeNull();
+      expect(coop!.sharedCoopCount).toBeNull();
+    });
+
+    it('mixed TOP_N: highest 20 win regardless of type', async () => {
+      // 15 coops + 15 persons, all discoverable. TOP_N = 20 means 10 of
+      // the 30 candidates are dropped. The assertion is just that the
+      // table ends up with exactly 20 rows — the scoring order is not
+      // deterministic when all candidates have identical signals, and
+      // locking in a specific split would couple the test to the tie-
+      // breaker rules in score.ts. Count is the load-bearing invariant.
+      for (let i = 0; i < 15; i++) {
+        await seedCandidateCoop(`did:web:topn-coop-${i}.example`, 'worker');
+      }
+      for (let i = 0; i < 15; i++) {
+        await seedCandidatePerson(`did:web:topn-person-${i}.example`, {
+          displayName: `TopN Person ${i}`,
+          discoverable: true,
+        });
+      }
+
+      const result = await testApp.container.matchmakingService.runMatchmakingForUser(
+        adminDid,
+      );
+      expect(result.inserted).toBe(20);
+
+      const db = getTestDb();
+      const rows = await db
+        .selectFrom('match_suggestion')
+        .where('user_did', '=', adminDid)
+        .selectAll()
+        .execute();
+      expect(rows).toHaveLength(20);
+
+      // Sanity: the winning 20 must include BOTH match types. This catches
+      // a future refactor that accidentally treats one type as always
+      // score-0 and silently excludes it from the TOP_N.
+      const rowsByType = rows.reduce(
+        (acc, r) => {
+          acc[r.match_type] = (acc[r.match_type] ?? 0) + 1;
+          return acc;
+        },
+        {} as Record<string, number>,
+      );
+      expect(rowsByType.cooperative ?? 0).toBeGreaterThan(0);
+      expect(rowsByType.person ?? 0).toBeGreaterThan(0);
+    });
+
+    it('backward compat: empty user interests + empty candidate interests falls back to V8.7 formula', async () => {
+      // Admin has NO stakeholder_interest rows. A fresh coop candidate
+      // with no interests should still appear via the V8.7 fallback
+      // branch (`recency * diversity`) — new accounts must not see an
+      // empty matches list just because the alignment layer hasn't been
+      // populated yet.
+      await seedCandidateCoop('did:web:fallback-coop.example', 'worker');
+
+      await testApp.container.matchmakingService.runMatchmakingForUser(adminDid);
+
+      const matches = await testApp.container.matchmakingService.getMatchesForUser(
+        adminDid,
+        {},
+      );
+      expect(
+        matches.find((m) => m.targetDid === 'did:web:fallback-coop.example'),
+      ).toBeDefined();
+    });
+
+    it('SUPPRESSION: candidate with no alignment gets score 0 and ranks below scored candidates', async () => {
+      // Viewer has alignment data.
+      await seedInterestsFor(adminDid, [
+        { category: 'climate', priority: 3 },
+      ]);
+      // Candidate A: matching alignment → scored > 0 via alignment branch.
+      await seedCandidateCoop('did:web:aligned-coop.example', 'worker');
+      await seedInterestsFor('did:web:aligned-coop.example', [
+        { category: 'climate', priority: 3 },
+      ]);
+      // Candidate B: no alignment → score.ts routes to the suppression
+      // branch (user has alignment data, candidate doesn't) → score = 0.
+      await seedCandidateCoop('did:web:no-align-coop.example', 'consumer');
+
+      await testApp.container.matchmakingService.runMatchmakingForUser(adminDid);
+
+      // Both are technically within TOP_N=20, so BOTH get inserted — the
+      // suppression is about ranking, not hard exclusion. What we lock
+      // in here is that the aligned one outranks the no-alignment one
+      // and that the no-alignment row records score=0 in its persisted
+      // signals (via reason.signals.alignment === 0).
+      const matches = await testApp.container.matchmakingService.getMatchesForUser(
+        adminDid,
+        {},
+      );
+      const aligned = matches.find(
+        (m) => m.targetDid === 'did:web:aligned-coop.example',
+      );
+      const unaligned = matches.find(
+        (m) => m.targetDid === 'did:web:no-align-coop.example',
+      );
+      expect(aligned).toBeDefined();
+      expect(unaligned).toBeDefined();
+      // Aligned candidate scores strictly higher than the suppressed one.
+      expect(Number(aligned!.score)).toBeGreaterThan(Number(unaligned!.score));
+      // The suppressed candidate's raw score is 0.0000.
+      expect(Number(unaligned!.score)).toBe(0);
     });
   });
 

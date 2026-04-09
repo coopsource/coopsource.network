@@ -187,6 +187,33 @@ export async function createOpenProposal(
 }
 
 /**
+ * V8.8 — Seed a discoverable person entity + default profile for people-search
+ * and person-match E2E tests. The person has no alignment data by default; the
+ * V8.7 fallback branch in score.ts (recency * diversity) means they still
+ * surface as a match candidate for viewers with no alignment data of their own.
+ *
+ * Throws on a non-OK response so that upstream test failures surface as a
+ * specific "seedCandidatePerson failed: NNN ..." error rather than a
+ * misleading locator miss later in the test.
+ */
+export async function seedCandidatePerson(
+  request: APIRequestContext,
+  did: string,
+  handle: string,
+  displayName: string,
+): Promise<void> {
+  const res = await request.post(
+    'http://localhost:3002/api/v1/admin/test-seed-candidate-person',
+    {
+      data: { did, handle, displayName, discoverable: true },
+    },
+  );
+  if (!res.ok()) {
+    throw new Error(`seedCandidatePerson failed: ${res.status()} ${await res.text()}`);
+  }
+}
+
+/**
  * Register a new account via the UI register page.
  * Expects a cooperative to already be set up.
  */

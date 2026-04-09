@@ -165,6 +165,7 @@ export function createAdminRoutes(container: Container): Router {
       }),
     );
 
+    // dev/test only
     // POST /api/v1/admin/test-seed-candidate-coop — create a discoverable
     // candidate cooperative for E2E matchmaking tests. The admin's own coop
     // is excluded from their own match results (can't suggest a coop you
@@ -199,6 +200,84 @@ export function createAdminRoutes(container: Container): Router {
             anon_discoverable: true,
           })
           .execute();
+        res.json({ ok: true, did: body.did });
+      }),
+    );
+
+    // dev/test only
+    // POST /api/v1/admin/test-seed-candidate-person — create a candidate
+    // person entity with a default profile (and optional alignment interests)
+    // for V8.8 people-search / alignment-matchmaking E2E tests. Mirrors the
+    // cooperative seeder above but writes the person branch: `entity` row
+    // with type='person', a default `profile` row carrying the `discoverable`
+    // flag, and — when an `interests` array is supplied — a single
+    // `stakeholder_interest` row scoped to a caller-supplied (or
+    // self-referential) project_uri. Wrapped in a single transaction so a
+    // partial failure can't leave a half-seeded candidate behind.
+    router.post(
+      '/api/v1/admin/test-seed-candidate-person',
+      asyncHandler(async (req, res) => {
+        const body = req.body as {
+          did: string;
+          handle?: string;
+          displayName: string;
+          discoverable?: boolean;
+          interests?: Array<{
+            category: string;
+            description?: string;
+            priority?: number;
+          }>;
+          projectUri?: string;
+        };
+        await container.db.transaction().execute(async (trx) => {
+          await trx
+            .insertInto('entity')
+            .values({
+              did: body.did,
+              type: 'person',
+              handle: body.handle ?? null,
+              display_name: body.displayName,
+              status: 'active',
+              created_at: new Date(),
+            })
+            .execute();
+          await trx
+            .insertInto('profile')
+            .values({
+              entity_did: body.did,
+              is_default: true,
+              display_name: body.displayName,
+              verified: true,
+              discoverable: Boolean(body.discoverable),
+            })
+            .execute();
+          if (Array.isArray(body.interests) && body.interests.length > 0) {
+            const projectUri =
+              typeof body.projectUri === 'string' ? body.projectUri : body.did;
+            const now = new Date();
+            // Match the pattern used by the in-file helper at
+            // me-matches.test.ts:126 — Date.now() alone collides when two
+            // requests land in the same millisecond.
+            const rkey = `test-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+            await trx
+              .insertInto('stakeholder_interest')
+              .values({
+                uri: `at://${body.did}/network.coopsource.alignment.interest/${rkey}`,
+                did: body.did,
+                rkey,
+                project_uri: projectUri,
+                interests: JSON.stringify(body.interests),
+                contributions: '[]',
+                constraints: '[]',
+                red_lines: '[]',
+                preferences: '{}',
+                created_at: now,
+                updated_at: now,
+                indexed_at: now,
+              })
+              .execute();
+          }
+        });
         res.json({ ok: true, did: body.did });
       }),
     );

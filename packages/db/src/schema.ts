@@ -65,6 +65,9 @@ export interface ProfileTable {
   avatar_cid: string | null;
   bio: string | null;
   verified: ColumnType<boolean, boolean | undefined, boolean>;
+  // V8.8 — opt-in person discoverability flag (D1 hybrid: this OR has
+  // alignment data). Added in migration 061.
+  discoverable: ColumnType<boolean, boolean | undefined, boolean>;
   last_renamed_at: ColumnType<
     Date | null,
     Date | string | null | undefined,
@@ -716,7 +719,14 @@ export interface NotificationTable {
  * columns); the service casts to `MatchReason` at the boundary.
  */
 export interface MatchReason {
-  signals: { recency: number; diversity: number; ageDays: number };
+  signals: {
+    alignment: number;
+    recency: number;
+    diversity: number;
+    ageDays: number;
+    sharedCategoryCount: number;
+    sharedCoopCount: number;
+  };
   version: number;
 }
 
