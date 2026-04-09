@@ -3,15 +3,19 @@ import { truncateAllTables, getTestDb } from './helpers/test-db.js';
 import { createTestApp, setupAndLogin } from './helpers/test-app.js';
 import type { TestApp } from './helpers/test-app.js';
 import { resetSetupCache } from '../src/auth/middleware.js';
-import { scoreCandidate, SCORING_VERSION } from '../src/services/matchmaking/score.js';
+import { SCORING_VERSION } from '../src/services/matchmaking/score.js';
 
 /**
- * V8.7 — Match Service integration tests.
+ * V8.7 / V8.8 — Match Service integration tests.
  *
- * The pure scoring tests (cases 1-3) hit `score.ts` directly with no DB.
- * The runMatchmakingForUser cases seed candidate coops via direct DB
- * inserts (the public coop-creation flow goes through `/setup` and is
- * single-shot per test app). The route cases hit the agent.
+ * Pure scoring tests live in `src/services/matchmaking/score.test.ts` and
+ * hit the function directly with no DB — they cover every branch of the
+ * V8.8 composition formula (alignment/fallback/suppression) and the
+ * weighted Jaccard, including person-candidate shapes. This file focuses
+ * on the *service-layer* integration: candidate discovery queries, the
+ * DELETE+INSERT transaction, the tombstone path, the
+ * `getMatchesForUser` LEFT JOIN (exercising cooperative_type null for
+ * person rows), and the HTTP routes.
  */
 
 async function seedCandidateCoop(
@@ -75,62 +79,10 @@ describe('V8.7 — Match Service', () => {
     resetSetupCache();
   });
 
-  // ─── Pure scoring (no service/DB needed) ──────────────────────────
-
-  describe('scoreCandidate', () => {
-    it('is deterministic for identical inputs', () => {
-      const input = {
-        candidate: {
-          did: 'did:web:a',
-          cooperativeType: 'worker',
-          createdAt: new Date('2026-04-01T00:00:00Z'),
-        },
-        ctx: { userCoopTypes: new Set<string>() },
-        now: new Date('2026-04-08T00:00:00Z'),
-      };
-      const a = scoreCandidate(input);
-      const b = scoreCandidate(input);
-      expect(a).toEqual(b);
-    });
-
-    it('favors newer cooperatives', () => {
-      const ctx = { userCoopTypes: new Set<string>() };
-      const now = new Date('2026-04-08T00:00:00Z');
-      const newer = scoreCandidate({
-        candidate: { did: 'a', cooperativeType: 'worker', createdAt: new Date('2026-04-01T00:00:00Z') },
-        ctx,
-        now,
-      });
-      const older = scoreCandidate({
-        candidate: { did: 'b', cooperativeType: 'worker', createdAt: new Date('2025-04-01T00:00:00Z') },
-        ctx,
-        now,
-      });
-      expect(newer.score).toBeGreaterThan(older.score);
-    });
-
-    it('applies a 0.5 diversity bonus for cooperative types the user already has', () => {
-      const now = new Date('2026-04-08T00:00:00Z');
-      const candidate = {
-        did: 'a',
-        cooperativeType: 'worker',
-        createdAt: new Date('2026-04-08T00:00:00Z'),
-      };
-      const same = scoreCandidate({
-        candidate,
-        ctx: { userCoopTypes: new Set(['worker']) },
-        now,
-      });
-      const different = scoreCandidate({
-        candidate,
-        ctx: { userCoopTypes: new Set(['consumer']) },
-        now,
-      });
-      expect(same.signals.diversity).toBe(0.5);
-      expect(different.signals.diversity).toBe(1.0);
-      expect(same.score).toBeLessThan(different.score);
-    });
-  });
+  // Pure scoring tests moved to src/services/matchmaking/score.test.ts in
+  // V8.8 (Task 2). That module covers every composition branch including
+  // person candidates, so the three V8.7 cases that lived here (determinism,
+  // recency ordering, diversity bonus) are subsumed — see score.test.ts.
 
   // ─── runMatchmakingForUser ────────────────────────────────────────
 
