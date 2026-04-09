@@ -99,6 +99,72 @@ test.describe('Admin — Compliance Tab', () => {
   });
 });
 
+test.describe('Admin — Officer Edit', () => {
+  test.beforeEach(async ({ page, request }) => {
+    await setupCooperative(request);
+    await loginAs(page, ADMIN.email, ADMIN.password);
+  });
+
+  test('edit active officer title', async ({ page, request }) => {
+    const setup = await setupCooperative(request);
+    await loginAs(page, ADMIN.email, ADMIN.password);
+
+    // Create officer via API
+    await post(request, setup.cookie, '/admin/officers', {
+      officerDid: setup.adminDid,
+      title: 'secretary',
+      appointedAt: '2026-01-01T00:00:00.000Z',
+      appointmentType: 'elected',
+    });
+
+    await page.goto(wp('/admin'));
+    await expect(page.getByText('secretary')).toBeVisible({ timeout: 10_000 });
+
+    // Click Edit button
+    await page.getByRole('button', { name: 'Edit' }).first().click();
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 10_000 });
+
+    // Change title
+    await page.locator('#officerTitle').selectOption('treasurer');
+    await page.getByRole('button', { name: 'Save changes' }).click();
+
+    // Verify updated
+    await expect(page.getByText('treasurer')).toBeVisible({ timeout: 10_000 });
+  });
+});
+
+test.describe('Admin — Compliance Edit', () => {
+  test.beforeEach(async ({ page, request }) => {
+    await setupCooperative(request);
+    await loginAs(page, ADMIN.email, ADMIN.password);
+  });
+
+  test('edit pending compliance item', async ({ page }) => {
+    await page.goto(wp('/admin'));
+    await page.getByRole('tab', { name: /Compliance/ }).click();
+
+    // Create compliance item
+    await page.getByRole('button', { name: 'New compliance item' }).click();
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 10_000 });
+    await page.locator('#compTitle').fill('Original Filing');
+    await page.locator('#dueDate').fill('2026-06-30');
+    await page.locator('#filingType').selectOption('annual_report');
+    await page.getByRole('button', { name: 'Create' }).click();
+    await expect(page.getByText('Original Filing')).toBeVisible({ timeout: 10_000 });
+
+    // Click Edit
+    await page.getByRole('button', { name: 'Edit' }).first().click();
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 10_000 });
+
+    // Change title
+    await page.locator('#compTitle').fill('Updated Filing');
+    await page.getByRole('button', { name: 'Save changes' }).click();
+
+    // Verify updated
+    await expect(page.getByText('Updated Filing')).toBeVisible({ timeout: 10_000 });
+  });
+});
+
 test.describe('Admin — Notices Tab', () => {
   test.beforeEach(async ({ page, request }) => {
     await setupCooperative(request);

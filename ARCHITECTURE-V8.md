@@ -1140,9 +1140,21 @@ The Edit button is conditionally rendered based on this helper. Backend also enf
 
 **Out of scope for V8.10**: Status transitions (already implemented), entity deletion (separate concern — see Future Work), auto-save / draft management.
 
-### Phase V8.11 — Entity Editing Extended
+### Phase V8.11 — Entity Editing Extended — ✅ Shipped
 
-**Goal**: Apply the V8.10 patterns to the remaining 8 entities that need edit support.
+**Goal**: Apply the V8.10 patterns to the remaining entities that need edit support.
+
+**What shipped**:
+1. ✅ Admin page refactored: extracted `OfficersTab.svelte`, `ComplianceTab.svelte`, `FiscalPeriodsTab.svelte` (admin page: 554 → 202 lines)
+2. ✅ 3 new PUT endpoints: `/admin/officers/:id`, `/admin/compliance/:id`, `/admin/fiscal-periods/:id` + Zod update schemas + service methods with status guards
+3. ✅ 3 admin tab edit modals: Officer (editable fields: title, termEndsAt, responsibilities), Compliance (title, description, dueDate, filingType), Fiscal Period (label, startsAt, endsAt)
+4. ✅ 2 commerce edit modals: Commerce Listing + Commerce Need with backend status guards (archived/fulfilled/cancelled rejected)
+5. ✅ Inline role picker on members table (checkbox form, 4 built-in roles)
+6. ✅ 5 new canEdit helpers + 14 unit tests (29 total in entity-permissions.ts)
+7. ✅ Missing `updateCommerceNeed` client method added
+8. ✅ E2E tests for officer edit, compliance edit, commerce listing edit, member role edit
+
+**Skipped** (by design): Alignment Outcomes (immutable — only status transitions exist), Member Notices (fire-and-forget — `create()` immediately sets `sent_at`, no draft state)
 
 **Entities covered**:
 
