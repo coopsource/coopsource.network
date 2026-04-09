@@ -1,21 +1,19 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import { Badge, EmptyState, Modal, Tabs, MemberSelect } from '$lib/components/ui';
+  import { Badge, EmptyState, Modal, Tabs } from '$lib/components/ui';
+  import OfficersTab from '$lib/components/admin/OfficersTab.svelte';
   import Bot from '@lucide/svelte/icons/bot';
   import { workspacePrefix } from '$lib/utils/workspace.js';
 
   let { data, form } = $props();
 
   let activeTab = $state('officers');
-  let officerModalOpen = $state(false);
   let complianceModalOpen = $state(false);
   let noticeModalOpen = $state(false);
   let fiscalModalOpen = $state(false);
   let submitting = $state(false);
-  let confirmEndTermId = $state<string | null>(null);
   let confirmCompleteId = $state<string | null>(null);
   let confirmCloseFiscalId = $state<string | null>(null);
-  let selectedOfficerDid = $state('');
 
   const tabs = [
     { id: 'officers', label: 'Officers', count: data.officers.length },
@@ -27,11 +25,9 @@
 
   $effect(() => {
     if (form?.success) {
-      officerModalOpen = false;
       complianceModalOpen = false;
       noticeModalOpen = false;
       fiscalModalOpen = false;
-      confirmEndTermId = null;
       confirmCompleteId = null;
       confirmCloseFiscalId = null;
       if (form.tab) activeTab = form.tab as string;
@@ -56,12 +52,7 @@
   <div class="flex items-center justify-between">
     <h1 class="text-xl font-semibold text-[var(--cs-text)]">Administration</h1>
     <div>
-      {#if activeTab === 'officers'}
-        <button type="button" onclick={() => (officerModalOpen = true)}
-          class="rounded-md bg-[var(--cs-primary)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)]">
-          Appoint officer
-        </button>
-      {:else if activeTab === 'compliance'}
+      {#if activeTab === 'compliance'}
         <button type="button" onclick={() => (complianceModalOpen = true)}
           class="rounded-md bg-[var(--cs-primary)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)]">
           New compliance item
@@ -93,57 +84,12 @@
 
   <!-- Officers Tab -->
   {#if activeTab === 'officers'}
-    {#if data.officers.length === 0}
-      <EmptyState title="No officers" description="Appoint your first officer to get started." />
-    {:else}
-      <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)]">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="border-b border-[var(--cs-border)] text-left">
-              <th class="px-4 py-3 font-medium text-[var(--cs-text-secondary)]">Title</th>
-              <th class="px-4 py-3 font-medium text-[var(--cs-text-secondary)]">Officer</th>
-              <th class="px-4 py-3 font-medium text-[var(--cs-text-secondary)]">Type</th>
-              <th class="px-4 py-3 font-medium text-[var(--cs-text-secondary)]">Appointed</th>
-              <th class="px-4 py-3 font-medium text-[var(--cs-text-secondary)]">Status</th>
-              <th class="px-4 py-3"></th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-[var(--cs-border)]">
-            {#each data.officers as officer}
-              {@const member = data.members.find((m) => m.did === officer.officerDid)}
-              <tr>
-                <td class="px-4 py-3 font-medium text-[var(--cs-text)]">{officer.title}</td>
-                <td class="px-4 py-3 text-[var(--cs-text-secondary)]">
-                  {member?.displayName ?? officer.officerDid}
-                </td>
-                <td class="px-4 py-3">
-                  <span class="rounded bg-[var(--cs-bg-inset)] px-1.5 py-0.5 text-xs text-[var(--cs-text-secondary)]">
-                    {officer.appointmentType}
-                  </span>
-                </td>
-                <td class="px-4 py-3 text-[var(--cs-text-muted)]">
-                  {new Date(officer.appointedAt).toLocaleDateString()}
-                </td>
-                <td class="px-4 py-3">
-                  <Badge variant={statusToVariant(officer.status)}>{officer.status}</Badge>
-                </td>
-                <td class="px-4 py-3 text-right">
-                  {#if officer.status === 'active'}
-                    <button type="button" onclick={() => (confirmEndTermId = officer.id)}
-                      class="text-xs text-red-600 hover:underline">End term</button>
-                  {/if}
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-      {#if data.officersCursor}
-        <div class="flex justify-center pt-2">
-          <a href="?officersCursor={data.officersCursor}" class="text-sm text-[var(--cs-primary)] hover:underline">Load more</a>
-        </div>
-      {/if}
-    {/if}
+    <OfficersTab
+      officers={data.officers}
+      officersCursor={data.officersCursor}
+      members={data.members}
+      {form}
+    />
   {/if}
 
   <!-- Compliance Tab -->
@@ -318,66 +264,6 @@
   {/if}
 </div>
 
-<!-- Appoint Officer Modal -->
-<Modal open={officerModalOpen} title="Appoint Officer" onclose={() => (officerModalOpen = false)}>
-  <form method="POST" action="?/appointOfficer"
-    use:enhance={() => { submitting = true; return async ({ update }) => { submitting = false; await update(); }; }}
-    class="space-y-4">
-    <MemberSelect members={data.members} bind:value={selectedOfficerDid} name="officerDid" label="Member" required />
-    <div>
-      <label for="officerTitle" class="block text-sm font-medium text-[var(--cs-text-secondary)]">Title</label>
-      <select id="officerTitle" name="title" required
-        class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]">
-        <option value="">Select title…</option>
-        <option value="president">President</option>
-        <option value="secretary">Secretary</option>
-        <option value="treasurer">Treasurer</option>
-        <option value="director">Director</option>
-        <option value="other">Other</option>
-      </select>
-    </div>
-    <div>
-      <label for="appointmentType" class="block text-sm font-medium text-[var(--cs-text-secondary)]">Appointment Type</label>
-      <select id="appointmentType" name="appointmentType" required
-        class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]">
-        <option value="">Select type…</option>
-        <option value="elected">Elected</option>
-        <option value="appointed">Appointed</option>
-      </select>
-    </div>
-    <div class="grid grid-cols-2 gap-4">
-      <div>
-        <label for="appointedAt" class="block text-sm font-medium text-[var(--cs-text-secondary)]">Appointed Date</label>
-        <input id="appointedAt" name="appointedAt" type="date" required
-          class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]" />
-      </div>
-      <div>
-        <label for="termEndsAt" class="block text-sm font-medium text-[var(--cs-text-secondary)]">
-          Term Ends <span class="text-[var(--cs-text-muted)]">(optional)</span>
-        </label>
-        <input id="termEndsAt" name="termEndsAt" type="date"
-          class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]" />
-      </div>
-    </div>
-    <div>
-      <label for="responsibilities" class="block text-sm font-medium text-[var(--cs-text-secondary)]">
-        Responsibilities <span class="text-[var(--cs-text-muted)]">(optional)</span>
-      </label>
-      <textarea id="responsibilities" name="responsibilities" rows={2}
-        class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
-        placeholder="Key responsibilities…"></textarea>
-    </div>
-    <div class="flex justify-end gap-3">
-      <button type="button" onclick={() => (officerModalOpen = false)}
-        class="rounded-md border border-[var(--cs-border)] px-3 py-1.5 text-sm text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)]">Cancel</button>
-      <button type="submit" disabled={submitting}
-        class="rounded-md bg-[var(--cs-primary)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)] disabled:opacity-50">
-        {submitting ? 'Appointing…' : 'Appoint'}
-      </button>
-    </div>
-  </form>
-</Modal>
-
 <!-- Create Compliance Item Modal -->
 <Modal open={complianceModalOpen} title="New Compliance Item" onclose={() => (complianceModalOpen = false)}>
   <form method="POST" action="?/createCompliance"
@@ -506,20 +392,6 @@
         class="rounded-md bg-[var(--cs-primary)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)] disabled:opacity-50">
         {submitting ? 'Creating…' : 'Create'}
       </button>
-    </div>
-  </form>
-</Modal>
-
-<!-- End Term Confirmation -->
-<Modal open={confirmEndTermId !== null} title="End Officer Term" onclose={() => (confirmEndTermId = null)}>
-  <p class="mb-4 text-sm text-[var(--cs-text-secondary)]">Are you sure you want to end this officer's term?</p>
-  <form method="POST" action="?/endTerm" use:enhance>
-    <input type="hidden" name="id" value={confirmEndTermId ?? ''} />
-    <div class="flex justify-end gap-3">
-      <button type="button" onclick={() => (confirmEndTermId = null)}
-        class="rounded-md border border-[var(--cs-border)] px-3 py-1.5 text-sm text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)]">Cancel</button>
-      <button type="submit"
-        class="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700">End term</button>
     </div>
   </form>
 </Modal>
