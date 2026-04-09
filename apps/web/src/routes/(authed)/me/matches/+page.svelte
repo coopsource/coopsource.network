@@ -3,9 +3,15 @@
   import { enhance } from '$app/forms';
   import Sparkles from '@lucide/svelte/icons/sparkles';
   import Building2 from '@lucide/svelte/icons/building-2';
+  import User from '@lucide/svelte/icons/user';
   import Check from '@lucide/svelte/icons/check';
   import X from '@lucide/svelte/icons/x';
   import ExternalLink from '@lucide/svelte/icons/external-link';
+
+  // V8.8 — renders both cooperative and person matches. Persons get a
+  // distinguishing icon + subtitle (shared interests / shared coops). Person
+  // matches do NOT show a "View" link since there's no public person profile
+  // page yet (V8.9 polish will add a destination).
 
   let { data } = $props();
 
@@ -25,7 +31,7 @@
       Matches
     </h1>
     <p class="mt-1 text-sm text-[var(--cs-text-secondary)]">
-      Cooperatives we think you might want to join. Dismiss the ones that aren't a fit.
+      Cooperatives and people we think you'd want to connect with. Dismiss the ones that aren't a fit.
     </p>
   </div>
 
@@ -59,7 +65,7 @@
     <EmptyState
       title={include === 'all' ? 'No matches yet' : 'No active matches'}
       description={include === 'all'
-        ? "We haven't found any cooperatives to suggest yet. Check back later."
+        ? "We haven't found anyone to suggest yet. Check back later."
         : "You're all caught up. Switch to All to see dismissed and acted-on matches."}
     />
   {:else}
@@ -69,7 +75,11 @@
           class="cs-card cs-transition flex items-start gap-4 p-5
             {match.dismissedAt ? 'opacity-60' : ''}"
         >
-          <Building2 size={24} class="mt-1 flex-shrink-0 text-[var(--cs-primary)]" />
+          {#if match.matchType === 'person'}
+            <User size={24} class="mt-1 flex-shrink-0 text-violet-500" />
+          {:else}
+            <Building2 size={24} class="mt-1 flex-shrink-0 text-[var(--cs-primary)]" />
+          {/if}
 
           <div class="min-w-0 flex-1">
             <div class="flex items-start gap-2">
@@ -91,17 +101,27 @@
             {#if match.description}
               <p class="mt-2 text-sm text-[var(--cs-text-secondary)]">{match.description}</p>
             {/if}
-            {#if match.memberCount !== null && match.memberCount > 0}
-              <p class="mt-2 text-xs text-[var(--cs-text-muted)]">
-                {match.memberCount}
-                {match.memberCount === 1 ? 'member' : 'members'}
-                · {match.cooperativeType}
-              </p>
+            {#if match.matchType === 'cooperative'}
+              {#if match.memberCount !== null && match.memberCount > 0}
+                <p class="mt-2 text-xs text-[var(--cs-text-muted)]">
+                  {match.memberCount}
+                  {match.memberCount === 1 ? 'member' : 'members'}
+                  {#if match.cooperativeType} · {match.cooperativeType}{/if}
+                </p>
+              {/if}
+            {:else}
+              {#if match.sharedInterestCount !== null && match.sharedInterestCount > 0}
+                <p class="mt-2 text-xs text-[var(--cs-text-muted)]">
+                  {match.sharedInterestCount} shared interest{match.sharedInterestCount === 1 ? '' : 's'}
+                  {#if match.sharedCoopCount && match.sharedCoopCount > 0} · {match.sharedCoopCount} shared coop{match.sharedCoopCount === 1 ? '' : 's'}{/if}
+                </p>
+              {/if}
             {/if}
           </div>
 
           <div class="flex flex-shrink-0 items-center gap-2">
-            {#if match.handle}
+            {#if match.matchType === 'cooperative' && match.handle}
+              <!-- TODO(V8.9): add a person profile page so person matches can also link out. -->
               <a
                 href={`/explore/${match.handle}`}
                 class="inline-flex items-center gap-1 rounded border border-[var(--cs-border)] px-3 py-1.5 text-xs font-medium text-[var(--cs-text)] hover:border-[var(--cs-primary)] hover:text-[var(--cs-primary)]"
