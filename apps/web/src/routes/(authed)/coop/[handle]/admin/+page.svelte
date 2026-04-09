@@ -2,17 +2,16 @@
   import { enhance } from '$app/forms';
   import { Badge, EmptyState, Modal, Tabs } from '$lib/components/ui';
   import OfficersTab from '$lib/components/admin/OfficersTab.svelte';
+  import ComplianceTab from '$lib/components/admin/ComplianceTab.svelte';
   import Bot from '@lucide/svelte/icons/bot';
   import { workspacePrefix } from '$lib/utils/workspace.js';
 
   let { data, form } = $props();
 
   let activeTab = $state('officers');
-  let complianceModalOpen = $state(false);
   let noticeModalOpen = $state(false);
   let fiscalModalOpen = $state(false);
   let submitting = $state(false);
-  let confirmCompleteId = $state<string | null>(null);
   let confirmCloseFiscalId = $state<string | null>(null);
 
   const tabs = [
@@ -25,10 +24,8 @@
 
   $effect(() => {
     if (form?.success) {
-      complianceModalOpen = false;
       noticeModalOpen = false;
       fiscalModalOpen = false;
-      confirmCompleteId = null;
       confirmCloseFiscalId = null;
       if (form.tab) activeTab = form.tab as string;
     }
@@ -52,12 +49,7 @@
   <div class="flex items-center justify-between">
     <h1 class="text-xl font-semibold text-[var(--cs-text)]">Administration</h1>
     <div>
-      {#if activeTab === 'compliance'}
-        <button type="button" onclick={() => (complianceModalOpen = true)}
-          class="rounded-md bg-[var(--cs-primary)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)]">
-          New compliance item
-        </button>
-      {:else if activeTab === 'notices'}
+      {#if activeTab === 'notices'}
         <button type="button" onclick={() => (noticeModalOpen = true)}
           class="rounded-md bg-[var(--cs-primary)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)]">
           Send notice
@@ -94,57 +86,7 @@
 
   <!-- Compliance Tab -->
   {#if activeTab === 'compliance'}
-    {#if data.complianceItems.length === 0}
-      <EmptyState title="No compliance items" description="Create your first compliance calendar item." />
-    {:else}
-      <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)]">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="border-b border-[var(--cs-border)] text-left">
-              <th class="px-4 py-3 font-medium text-[var(--cs-text-secondary)]">Title</th>
-              <th class="px-4 py-3 font-medium text-[var(--cs-text-secondary)]">Filing Type</th>
-              <th class="px-4 py-3 font-medium text-[var(--cs-text-secondary)]">Due Date</th>
-              <th class="px-4 py-3 font-medium text-[var(--cs-text-secondary)]">Status</th>
-              <th class="px-4 py-3"></th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-[var(--cs-border)]">
-            {#each data.complianceItems as item}
-              <tr>
-                <td class="px-4 py-3">
-                  <div class="font-medium text-[var(--cs-text)]">{item.title}</div>
-                  {#if item.description}
-                    <div class="text-xs text-[var(--cs-text-muted)]">{item.description}</div>
-                  {/if}
-                </td>
-                <td class="px-4 py-3">
-                  <span class="rounded bg-[var(--cs-bg-inset)] px-1.5 py-0.5 text-xs text-[var(--cs-text-secondary)]">
-                    {item.filingType}
-                  </span>
-                </td>
-                <td class="px-4 py-3 text-[var(--cs-text-muted)]">
-                  {new Date(item.dueDate).toLocaleDateString()}
-                </td>
-                <td class="px-4 py-3">
-                  <Badge variant={statusToVariant(item.status)}>{item.status}</Badge>
-                </td>
-                <td class="px-4 py-3 text-right">
-                  {#if item.status !== 'completed'}
-                    <button type="button" onclick={() => (confirmCompleteId = item.id)}
-                      class="text-xs text-green-600 hover:underline">Mark complete</button>
-                  {/if}
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-      {#if data.complianceCursor}
-        <div class="flex justify-center pt-2">
-          <a href="?complianceCursor={data.complianceCursor}" class="text-sm text-[var(--cs-primary)] hover:underline">Load more</a>
-        </div>
-      {/if}
-    {/if}
+    <ComplianceTab complianceItems={data.complianceItems} complianceCursor={data.complianceCursor} {form} />
   {/if}
 
   <!-- Notices Tab -->
@@ -264,53 +206,6 @@
   {/if}
 </div>
 
-<!-- Create Compliance Item Modal -->
-<Modal open={complianceModalOpen} title="New Compliance Item" onclose={() => (complianceModalOpen = false)}>
-  <form method="POST" action="?/createCompliance"
-    use:enhance={() => { submitting = true; return async ({ update }) => { submitting = false; await update(); }; }}
-    class="space-y-4">
-    <div>
-      <label for="compTitle" class="block text-sm font-medium text-[var(--cs-text-secondary)]">Title</label>
-      <input id="compTitle" name="title" type="text" required
-        class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
-        placeholder="e.g. Annual Report Filing" />
-    </div>
-    <div>
-      <label for="compDesc" class="block text-sm font-medium text-[var(--cs-text-secondary)]">
-        Description <span class="text-[var(--cs-text-muted)]">(optional)</span>
-      </label>
-      <textarea id="compDesc" name="description" rows={2}
-        class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"></textarea>
-    </div>
-    <div class="grid grid-cols-2 gap-4">
-      <div>
-        <label for="dueDate" class="block text-sm font-medium text-[var(--cs-text-secondary)]">Due Date</label>
-        <input id="dueDate" name="dueDate" type="date" required
-          class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]" />
-      </div>
-      <div>
-        <label for="filingType" class="block text-sm font-medium text-[var(--cs-text-secondary)]">Filing Type</label>
-        <select id="filingType" name="filingType" required
-          class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]">
-          <option value="">Select type…</option>
-          <option value="annual_report">Annual Report</option>
-          <option value="tax_filing">Tax Filing</option>
-          <option value="state_report">State Report</option>
-          <option value="other">Other</option>
-        </select>
-      </div>
-    </div>
-    <div class="flex justify-end gap-3">
-      <button type="button" onclick={() => (complianceModalOpen = false)}
-        class="rounded-md border border-[var(--cs-border)] px-3 py-1.5 text-sm text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)]">Cancel</button>
-      <button type="submit" disabled={submitting}
-        class="rounded-md bg-[var(--cs-primary)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)] disabled:opacity-50">
-        {submitting ? 'Creating…' : 'Create'}
-      </button>
-    </div>
-  </form>
-</Modal>
-
 <!-- Send Notice Modal -->
 <Modal open={noticeModalOpen} title="Send Member Notice" onclose={() => (noticeModalOpen = false)}>
   <form method="POST" action="?/createNotice"
@@ -392,20 +287,6 @@
         class="rounded-md bg-[var(--cs-primary)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)] disabled:opacity-50">
         {submitting ? 'Creating…' : 'Create'}
       </button>
-    </div>
-  </form>
-</Modal>
-
-<!-- Complete Compliance Confirmation -->
-<Modal open={confirmCompleteId !== null} title="Mark Complete" onclose={() => (confirmCompleteId = null)}>
-  <p class="mb-4 text-sm text-[var(--cs-text-secondary)]">Mark this compliance item as completed?</p>
-  <form method="POST" action="?/completeCompliance" use:enhance>
-    <input type="hidden" name="id" value={confirmCompleteId ?? ''} />
-    <div class="flex justify-end gap-3">
-      <button type="button" onclick={() => (confirmCompleteId = null)}
-        class="rounded-md border border-[var(--cs-border)] px-3 py-1.5 text-sm text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)]">Cancel</button>
-      <button type="submit"
-        class="rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700">Mark complete</button>
     </div>
   </form>
 </Modal>
