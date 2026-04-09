@@ -2,6 +2,7 @@
   import { enhance } from '$app/forms';
   import { page } from '$app/stores';
   import { workspacePrefix } from '$lib/utils/workspace.js';
+  import { canEditCampaign } from '$lib/utils/entity-permissions.js';
 
   let { data, form } = $props();
   let pledging = $state(false);
@@ -86,12 +87,25 @@
   </div>
 
   {#if c.status === 'draft'}
-    <form method="POST" action="?/updateStatus" use:enhance={() => { statusUpdating = true; return async ({ update }) => { statusUpdating = false; await update(); }; }}>
-      <input type="hidden" name="status" value="active" />
-      <button type="submit" disabled={statusUpdating} class="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50">
-        {statusUpdating ? 'Activating...' : 'Activate Campaign'}
-      </button>
-    </form>
+    <div class="flex items-center gap-3">
+      {#if canEditCampaign(c)}
+        <a href="{$workspacePrefix}/campaigns/{encodeURIComponent(c.uri)}/edit" class="rounded-md border border-[var(--cs-border)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)]">
+          Edit
+        </a>
+      {/if}
+      <form method="POST" action="?/updateStatus" use:enhance={() => { statusUpdating = true; return async ({ update }) => { statusUpdating = false; await update(); }; }}>
+        <input type="hidden" name="status" value="active" />
+        <button type="submit" disabled={statusUpdating} class="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50">
+          {statusUpdating ? 'Activating...' : 'Activate Campaign'}
+        </button>
+      </form>
+    </div>
+  {:else if c.status === 'active'}
+    {#if canEditCampaign(c)}
+      <a href="{$workspacePrefix}/campaigns/{encodeURIComponent(c.uri)}/edit" class="rounded-md border border-[var(--cs-border)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)]">
+        Edit
+      </a>
+    {/if}
   {/if}
 
   {#if c.status === 'active'}

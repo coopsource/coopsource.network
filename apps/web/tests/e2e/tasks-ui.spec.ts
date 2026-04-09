@@ -71,6 +71,49 @@ test.describe('Tasks UI', () => {
     }
   });
 
+  test('edit task via modal in list view', async ({ page, request }) => {
+    await post(request, cookie, '/ops/tasks', {
+      title: 'Task To Edit',
+      priority: 'low',
+      status: 'todo',
+    });
+    await page.goto(wp('/tasks'));
+
+    // Switch to list view
+    await page.getByRole('button', { name: 'List' }).click();
+    await expect(page.getByText('Task To Edit')).toBeVisible({ timeout: 10_000 });
+
+    // Click edit button
+    await page.getByRole('button', { name: 'Edit' }).first().click();
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 10_000 });
+
+    // Verify pre-filled values
+    await expect(page.locator('#task-title')).toHaveValue('Task To Edit');
+
+    // Modify title
+    await page.locator('#task-title').fill('Updated Task');
+    await page.getByRole('dialog').getByRole('button', { name: 'Save changes' }).click();
+
+    // Verify update
+    await expect(page.getByText('Updated Task')).toBeVisible({ timeout: 10_000 });
+  });
+
+  test('edit button not visible for done tasks', async ({ page, request }) => {
+    await post(request, cookie, '/ops/tasks', {
+      title: 'Done Task',
+      priority: 'low',
+      status: 'done',
+    });
+    await page.goto(wp('/tasks'));
+    await page.getByRole('button', { name: 'List' }).click();
+    // Filter to show done tasks
+    await page.getByRole('link', { name: 'Done', exact: true }).click();
+    await expect(page.getByText('Done Task')).toBeVisible({ timeout: 10_000 });
+
+    // Edit button should not be visible
+    await expect(page.getByRole('button', { name: 'Edit' })).not.toBeVisible();
+  });
+
   test('task card shows in correct board column', async ({ page, request }) => {
     await post(request, cookie, '/ops/tasks', {
       title: 'In Progress Task',

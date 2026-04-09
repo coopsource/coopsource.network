@@ -199,8 +199,11 @@ export class FundingService {
     if (campaign.did !== cooperativeDid) {
       throw new UnauthorizedError('Not authorized to update this campaign');
     }
-    if (campaign.status !== 'draft') {
-      throw new ValidationError('Can only update draft campaigns');
+    if (campaign.status !== 'draft' && campaign.status !== 'active') {
+      throw new ValidationError('Can only update draft or active campaigns');
+    }
+    if (campaign.status === 'active' && data.fundingModel !== undefined) {
+      throw new ValidationError('Cannot change funding model on an active campaign');
     }
 
     const now = this.clock.now();

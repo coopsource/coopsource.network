@@ -54,6 +54,58 @@ test.describe('Funding Campaigns', () => {
 		await expect(page.getByRole('button', { name: 'Pledge' })).toBeVisible({ timeout: 10_000 });
 	});
 
+	test('edit draft campaign and verify changes', async ({ page }) => {
+		// Create campaign
+		await page.goto(wp('/campaigns/new'));
+		await page.getByLabel('Title').fill('Draft Campaign');
+		await page.getByLabel('Description').fill('Original description');
+		await page.getByLabel('Goal Amount ($)').fill('500');
+		await page.getByRole('button', { name: 'Create Campaign' }).click();
+		await page.waitForURL(/\/coop\/[^/]+\/campaigns\//);
+
+		// Click Edit link
+		await page.getByRole('link', { name: 'Edit' }).click();
+		await page.waitForURL(/\/campaigns\/.*\/edit$/);
+
+		// Verify pre-filled values
+		await expect(page.getByLabel('Title')).toHaveValue('Draft Campaign');
+		await expect(page.getByLabel('Goal Amount ($)')).toHaveValue('500');  // 50000 cents / 100 = 500 dollars
+
+		// Modify fields
+		await page.getByLabel('Title').fill('Updated Campaign');
+		await page.getByLabel('Goal Amount ($)').fill('1000');
+		await page.getByRole('button', { name: 'Save changes' }).click();
+
+		// Verify redirect with updated content
+		await page.waitForURL(/\/campaigns\/(?!.*edit)/);
+		await expect(page.getByRole('heading', { name: 'Updated Campaign' })).toBeVisible();
+	});
+
+	test('edit active campaign has locked fields', async ({ page }) => {
+		// Create and activate
+		await page.goto(wp('/campaigns/new'));
+		await page.getByLabel('Title').fill('Active Test');
+		await page.getByLabel('Goal Amount ($)').fill('100');
+		await page.getByRole('button', { name: 'Create Campaign' }).click();
+		await page.waitForURL(/\/coop\/[^/]+\/campaigns\//);
+		await page.getByRole('button', { name: 'Activate Campaign' }).click();
+		await expect(page.getByRole('heading', { name: 'Make a Pledge' })).toBeVisible({ timeout: 10_000 });
+
+		// Click Edit link (should be visible for active campaigns)
+		await page.getByRole('link', { name: 'Edit' }).click();
+		await page.waitForURL(/\/campaigns\/.*\/edit$/);
+
+		// Funding Model should be disabled
+		await expect(page.locator('#fundingModel')).toBeDisabled();
+
+		// Title should still be editable
+		await page.getByLabel('Title').fill('Updated Active Campaign');
+		await page.getByRole('button', { name: 'Save changes' }).click();
+
+		await page.waitForURL(/\/campaigns\/(?!.*edit)/);
+		await expect(page.getByRole('heading', { name: 'Updated Active Campaign' })).toBeVisible();
+	});
+
 	test('status filters work on campaign list', async ({ page }) => {
 		await page.goto(wp('/campaigns'));
 

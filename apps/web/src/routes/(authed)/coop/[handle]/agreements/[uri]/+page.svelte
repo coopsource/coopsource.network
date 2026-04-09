@@ -1,6 +1,7 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { Badge, Modal } from '$lib/components/ui';
+  import { canEditAgreement } from '$lib/utils/entity-permissions.js';
   import { workspacePrefix } from '$lib/utils/workspace.js';
 
   let { data, form } = $props();
@@ -95,6 +96,11 @@
     <!-- Status Actions -->
     <div class="mt-6 flex flex-wrap gap-3 border-t border-[var(--cs-border)] pt-4">
       {#if data.agreement.status === 'draft'}
+        {#if canEditAgreement(data.agreement, data.user?.did)}
+          <a href="{$workspacePrefix}/agreements/{encodeURIComponent(data.agreement.uri)}/edit" class="rounded-md border border-[var(--cs-border)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)]">
+            Edit
+          </a>
+        {/if}
         <form method="POST" action="?/open" use:enhance={() => { submitting = true; return async ({ update }) => { submitting = false; await update(); }; }}>
           <button type="submit" disabled={submitting} class="rounded-md bg-[var(--cs-primary)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)] disabled:opacity-50">
             Open for signing

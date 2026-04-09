@@ -1054,9 +1054,21 @@ These are intentionally narrow positive lists. Closed-governance coops route pro
 - **Pre-lowered category column on `stakeholder_interest`** — scale optimization for ~100K+ rows
 - **Ambient test pollution** (`well-known.test.ts` / `appview-dispatch.test.ts`) — pre-existing, needs separate investigation
 
-### Phase V8.10 — Entity Editing Foundation + Core Entities
+### Phase V8.10 — Entity Editing Foundation + Core Entities — ✅ Shipped
 
 **Goal**: Establish the entity editing pattern and apply it to the 5 most user-facing entities. Addresses a long-standing gap where users could create entities but not edit them — 13 of 16 entities currently have no edit UI.
+
+**What shipped**:
+1. ✅ `entity-permissions.ts` — 5 pure `canEdit` helpers (`canEditProposal`, `canEditAgreement`, `canEditCampaign`, `canEditTask`, `canEditExpense`) + 15 unit tests
+2. ✅ 3 shared form components: `ProposalForm.svelte`, `AgreementForm.svelte`, `CampaignForm.svelte` (with `disabledFields` prop for active-state field locking)
+3. ✅ 3 edit routes (form-page pattern): `governance/[id]/edit`, `agreements/[uri]/edit`, `campaigns/[uri]/edit` — each with editability guard (redirect if not editable), field pre-filling, and proper form actions
+4. ✅ 2 modal-reuse edits: Task and Expense pages share create/edit modals via `editingEntity` state + `{#key}` block for Svelte 5 re-render
+5. ✅ Proposal field name translation: form uses create-API names (`votingType`/`quorumType`/`closesAt`); edit page.server.ts translates to update-API names (`votingMethod`/`quorumRequired`/`votingEndsAt`)
+6. ✅ Campaign active-state editing: backend widened to allow `draft || active`; `fundingModel` changes rejected for active campaigns (defense-in-depth); frontend locks `tier`/`campaignType`/`fundingModel` via `disabledFields` + hidden inputs
+7. ✅ Campaign cents↔dollars conversion in edit page load/action
+8. ✅ Tests: 15 unit (entity-permissions), 4 API (campaign active update + fundingModel guard), 6 E2E (proposal edit + no-edit-after-open, task edit + no-edit-for-done, campaign draft edit + active locked fields)
+9. ✅ 3 create pages refactored to use shared form components (governance/new, agreements/new, campaigns/new)
+10. ✅ Detail pages: conditional "Edit" links in action bars for all 5 entities; board card hover pencil icon for tasks
 
 **Reference patterns already in the codebase**: Cooperative Profile (`/coop/[handle]/settings/+page.svelte`) and Legal Document (`/coop/[handle]/legal/[id]/+page.svelte`) both demonstrate inline edit-toggle patterns. Alignment Interests uses upsert semantics (create and edit via the same endpoint). V8.10 formalizes these into two consistent patterns:
 

@@ -46,6 +46,50 @@ test.describe('Proposals', () => {
     await expect(page.getByText(/You voted.*yes/i)).toBeVisible({ timeout: 10_000 });
   });
 
+  test('edit draft proposal and verify changes', async ({ page }) => {
+    // Create a proposal
+    await page.goto(wp('/governance/new'));
+    await page.getByLabel('Title').fill('Original Title');
+    await page.getByLabel('Description').fill('Original body text.');
+    await page.getByRole('button', { name: 'Create proposal' }).click();
+    await page.waitForURL(/\/coop\/[^/]+\/governance\/[a-f0-9-]+$/);
+    await expect(page.getByRole('heading', { name: 'Original Title' })).toBeVisible();
+
+    // Click Edit link (visible for draft proposals)
+    await page.getByRole('link', { name: 'Edit' }).click();
+    await page.waitForURL(/\/governance\/[a-f0-9-]+\/edit$/);
+
+    // Verify pre-filled values
+    await expect(page.getByLabel('Title')).toHaveValue('Original Title');
+    await expect(page.getByLabel('Description')).toHaveValue('Original body text.');
+
+    // Modify fields
+    await page.getByLabel('Title').fill('Updated Title');
+    await page.getByLabel('Description').fill('Updated body text.');
+    await page.getByRole('button', { name: 'Save changes' }).click();
+
+    // Verify redirect to detail page with updated content
+    await page.waitForURL(/\/governance\/[a-f0-9-]+$/);
+    await expect(page.getByRole('heading', { name: 'Updated Title' })).toBeVisible();
+    await expect(page.getByText('Updated body text.')).toBeVisible();
+  });
+
+  test('edit link not visible after opening proposal', async ({ page }) => {
+    // Create a proposal
+    await page.goto(wp('/governance/new'));
+    await page.getByLabel('Title').fill('Non-editable Proposal');
+    await page.getByLabel('Description').fill('Will be opened for voting.');
+    await page.getByRole('button', { name: 'Create proposal' }).click();
+    await page.waitForURL(/\/coop\/[^/]+\/governance\/[a-f0-9-]+$/);
+
+    // Open for voting
+    await page.getByRole('button', { name: 'Open for voting' }).click();
+    await expect(page.getByText('Cast Your Vote')).toBeVisible({ timeout: 10_000 });
+
+    // Edit link should not be visible
+    await expect(page.getByRole('link', { name: 'Edit' })).not.toBeVisible();
+  });
+
   test('vote is reflected in tally', async ({ page }) => {
     // Create and open a proposal
     await page.goto(wp('/governance/new'));

@@ -55,6 +55,34 @@ export const actions: Actions = {
     }
   },
 
+  updateExpense: async ({ request, fetch }) => {
+    const data = await request.formData();
+    const id = String(data.get('id') ?? '').trim();
+    const title = String(data.get('title') ?? '').trim();
+    const description = String(data.get('description') ?? '').trim();
+    const amountStr = String(data.get('amount') ?? '').trim();
+    const categoryId = String(data.get('categoryId') ?? '').trim();
+
+    if (!id) return fail(400, { error: 'Expense ID is required.' });
+    if (!title) return fail(400, { error: 'Title is required.' });
+    if (!amountStr || isNaN(Number(amountStr))) return fail(400, { error: 'Valid amount is required.' });
+
+    const cookie = request.headers.get('cookie') ?? undefined;
+    const api = createApiClient(fetch, cookie);
+    try {
+      await api.updateExpense(id, {
+        title,
+        description: description || undefined,
+        amount: Number(amountStr),
+        categoryId: categoryId || null,
+      });
+      return { success: true };
+    } catch (err) {
+      if (err instanceof ApiError) return fail(err.status, { error: err.message });
+      return fail(500, { error: 'Failed to update expense.' });
+    }
+  },
+
   deleteExpense: async ({ request, fetch }) => {
     const formData = await request.formData();
     const id = String(formData.get('id') ?? '');

@@ -2,17 +2,20 @@
   import { enhance } from '$app/forms';
   import { Badge, EmptyState, Modal } from '$lib/components/ui';
   import { workspacePrefix } from '$lib/utils/workspace.js';
+  import { canEditTask } from '$lib/utils/entity-permissions.js';
   import type { Task, TaskLabel } from '$lib/api/types.js';
 
   let { data, form } = $props();
 
   let showCreateForm = $state(false);
+  let editingTask = $state<Task | null>(null);
   let submitting = $state(false);
   let viewMode = $state<'board' | 'list'>('board');
 
   $effect(() => {
     if (form?.success) {
       showCreateForm = false;
+      editingTask = null;
     }
   });
 
@@ -143,10 +146,20 @@
             </div>
             <div class="space-y-2">
               {#each tasksByStatus(column.id) as task (task.id)}
-                <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-3 hover:border-[var(--cs-border-hover)] hover:shadow-sm transition-shadow">
+                <div class="group relative rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-3 hover:border-[var(--cs-border-hover)] hover:shadow-sm transition-shadow">
                   <div class="flex items-start justify-between gap-2">
                     <h4 class="text-sm font-medium text-[var(--cs-text)] leading-snug">{task.title}</h4>
                   </div>
+                  {#if canEditTask(task)}
+                    <button
+                      type="button"
+                      onclick={(e) => { e.stopPropagation(); editingTask = task; }}
+                      class="absolute top-2 right-2 hidden group-hover:block rounded p-0.5 text-[var(--cs-text-muted)] hover:text-[var(--cs-text)] hover:bg-[var(--cs-bg-inset)]"
+                      aria-label="Edit task"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                    </button>
+                  {/if}
                   {#if task.description}
                     <p class="mt-1 text-xs text-[var(--cs-text-muted)] line-clamp-2">{task.description}</p>
                   {/if}
@@ -228,6 +241,9 @@
                   </div>
                 </td>
                 <td class="px-4 py-3 text-right">
+                  {#if canEditTask(task)}
+                    <button type="button" onclick={() => { editingTask = task; }} class="text-xs text-[var(--cs-primary)] hover:underline mr-2">Edit</button>
+                  {/if}
                   <form method="POST" action="?/updateStatus" use:enhance class="inline">
                     <input type="hidden" name="id" value={task.id} />
                     {#if task.status !== 'done'}
@@ -245,11 +261,12 @@
   {/if}
 </div>
 
-<!-- Create Task Modal -->
-<Modal open={showCreateForm} title="New Task" onclose={() => (showCreateForm = false)}>
+<!-- Create / Edit Task Modal -->
+<Modal open={showCreateForm || editingTask !== null} title={editingTask ? 'Edit Task' : 'New Task'} onclose={() => { showCreateForm = false; editingTask = null; }}>
+  {#key editingTask?.id ?? 'create'}
   <form
     method="POST"
-    action="?/createTask"
+    action={editingTask ? '?/updateTask' : '?/createTask'}
     use:enhance={() => {
       submitting = true;
       return async ({ update }) => {
@@ -259,6 +276,8 @@
     }}
     class="space-y-4"
   >
+    {#if editingTask}<input type="hidden" name="id" value={editingTask.id} />{/if}
+
     <div>
       <label for="task-title" class="block text-sm font-medium text-[var(--cs-text-secondary)]">Title</label>
       <input
@@ -266,6 +285,7 @@
         name="title"
         type="text"
         required
+        value={editingTask?.title ?? ''}
         placeholder="Task title..."
         class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] placeholder:text-[var(--cs-text-muted)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
       />
@@ -279,7 +299,7 @@
         rows="3"
         placeholder="Optional description..."
         class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] placeholder:text-[var(--cs-text-muted)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
-      ></textarea>
+      >{editingTask?.description ?? ''}</textarea>
     </div>
 
     <div class="grid grid-cols-2 gap-4">
@@ -288,10 +308,11 @@
         <select
           id="task-priority"
           name="priority"
+          value={editingTask?.priority ?? 'medium'}
           class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
         >
           <option value="low">Low</option>
-          <option value="medium" selected>Medium</option>
+          <option value="medium">Medium</option>
           <option value="high">High</option>
           <option value="urgent">Urgent</option>
         </select>
@@ -301,6 +322,7 @@
         <select
           id="task-status"
           name="status"
+          value={editingTask?.status ?? 'backlog'}
           class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
         >
           <option value="backlog">Backlog</option>
@@ -317,6 +339,7 @@
         id="task-due"
         name="dueDate"
         type="date"
+        value={editingTask?.dueDate?.slice(0, 10) ?? ''}
         class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
       />
     </div>
@@ -324,14 +347,15 @@
     <div class="flex justify-end gap-3">
       <button
         type="button"
-        onclick={() => (showCreateForm = false)}
+        onclick={() => { showCreateForm = false; editingTask = null; }}
         class="rounded-md border border-[var(--cs-border)] px-3 py-1.5 text-sm text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)]"
       >Cancel</button>
       <button
         type="submit"
         disabled={submitting}
         class="rounded-md bg-[var(--cs-primary)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)] disabled:opacity-50"
-      >{submitting ? 'Creating...' : 'Create Task'}</button>
+      >{submitting ? 'Saving...' : editingTask ? 'Save changes' : 'Create Task'}</button>
     </div>
   </form>
+  {/key}
 </Modal>

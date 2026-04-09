@@ -1,6 +1,7 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { Badge } from '$lib/components/ui';
+  import { canEditProposal } from '$lib/utils/entity-permissions.js';
   import { workspacePrefix } from '$lib/utils/workspace.js';
 
   let { data, form } = $props();
@@ -95,6 +96,11 @@
     <!-- Proposal Actions -->
     {#if proposal.status === 'draft'}
       <div class="mt-4 flex gap-3 border-t border-[var(--cs-border)] pt-4">
+        {#if canEditProposal(proposal, data.user?.did)}
+          <a href="{$workspacePrefix}/governance/{proposal.id}/edit" class="rounded-md border border-[var(--cs-border)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)]">
+            Edit
+          </a>
+        {/if}
         <form method="POST" action="?/open" use:enhance>
           <button
             type="submit"

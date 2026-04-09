@@ -2,16 +2,19 @@
   import { enhance } from '$app/forms';
   import { Badge, EmptyState, Modal } from '$lib/components/ui';
   import { workspacePrefix } from '$lib/utils/workspace.js';
+  import { canEditExpense } from '$lib/utils/entity-permissions.js';
   import type { Expense, ExpenseCategory } from '$lib/api/types.js';
 
   let { data, form } = $props();
 
   let showCreateForm = $state(false);
+  let editingExpense = $state<Expense | null>(null);
   let submitting = $state(false);
 
   $effect(() => {
     if (form?.success) {
       showCreateForm = false;
+      editingExpense = null;
     }
   });
 
@@ -169,6 +172,9 @@
                 {new Date(expense.createdAt).toLocaleDateString()}
               </td>
               <td class="px-4 py-3 text-right">
+                {#if canEditExpense(expense, data.user?.did)}
+                  <button type="button" onclick={() => { editingExpense = expense; }} class="text-xs text-[var(--cs-primary)] hover:underline mr-2">Edit</button>
+                {/if}
                 {#if expense.status === 'submitted'}
                   <form method="POST" action="?/deleteExpense" use:enhance class="inline">
                     <input type="hidden" name="id" value={expense.id} />
@@ -184,11 +190,12 @@
   {/if}
 </div>
 
-<!-- Submit Expense Modal -->
-<Modal open={showCreateForm} title="Submit Expense" onclose={() => (showCreateForm = false)}>
+<!-- Submit / Edit Expense Modal -->
+<Modal open={showCreateForm || editingExpense !== null} title={editingExpense ? 'Edit Expense' : 'Submit Expense'} onclose={() => { showCreateForm = false; editingExpense = null; }}>
+  {#key editingExpense?.id ?? 'create'}
   <form
     method="POST"
-    action="?/submitExpense"
+    action={editingExpense ? '?/updateExpense' : '?/submitExpense'}
     use:enhance={() => {
       submitting = true;
       return async ({ update }) => {
@@ -198,6 +205,10 @@
     }}
     class="space-y-4"
   >
+    {#if editingExpense}
+      <input type="hidden" name="id" value={editingExpense.id} />
+    {/if}
+
     <div>
       <label for="exp-title" class="block text-sm font-medium text-[var(--cs-text-secondary)]">Title</label>
       <input
@@ -205,6 +216,7 @@
         name="title"
         type="text"
         required
+        value={editingExpense?.title ?? ''}
         placeholder="Expense title..."
         class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] placeholder:text-[var(--cs-text-muted)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
       />
@@ -219,6 +231,7 @@
         step="0.01"
         min="0.01"
         required
+        value={editingExpense?.amount ?? ''}
         placeholder="0.00"
         class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] placeholder:text-[var(--cs-text-muted)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
       />
@@ -229,6 +242,7 @@
       <select
         id="exp-category"
         name="categoryId"
+        value={editingExpense?.categoryId ?? ''}
         class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
       >
         <option value="">No category</option>
@@ -246,20 +260,21 @@
         rows="3"
         placeholder="Describe the expense..."
         class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] placeholder:text-[var(--cs-text-muted)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
-      ></textarea>
+      >{editingExpense?.description ?? ''}</textarea>
     </div>
 
     <div class="flex justify-end gap-3">
       <button
         type="button"
-        onclick={() => (showCreateForm = false)}
+        onclick={() => { showCreateForm = false; editingExpense = null; }}
         class="rounded-md border border-[var(--cs-border)] px-3 py-1.5 text-sm text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)]"
       >Cancel</button>
       <button
         type="submit"
         disabled={submitting}
         class="rounded-md bg-[var(--cs-primary)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)] disabled:opacity-50"
-      >{submitting ? 'Submitting...' : 'Submit Expense'}</button>
+      >{submitting ? 'Saving...' : editingExpense ? 'Save changes' : 'Submit Expense'}</button>
     </div>
   </form>
+  {/key}
 </Modal>

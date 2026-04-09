@@ -56,6 +56,35 @@ export const actions: Actions = {
     }
   },
 
+  updateTask: async ({ request, fetch }) => {
+    const data = await request.formData();
+    const id = String(data.get('id') ?? '').trim();
+    const title = String(data.get('title') ?? '').trim();
+    const description = String(data.get('description') ?? '').trim();
+    const priority = String(data.get('priority') ?? 'medium');
+    const status = String(data.get('status') ?? 'backlog');
+    const dueDate = String(data.get('dueDate') ?? '').trim();
+
+    if (!id) return fail(400, { error: 'Task ID is required.' });
+    if (!title) return fail(400, { error: 'Title is required.' });
+
+    const cookie = request.headers.get('cookie') ?? undefined;
+    const api = createApiClient(fetch, cookie);
+    try {
+      await api.updateTask(id, {
+        title,
+        description: description || undefined,
+        priority,
+        status,
+        dueDate: dueDate || null,
+      });
+      return { success: true };
+    } catch (err) {
+      if (err instanceof ApiError) return fail(err.status, { error: err.message });
+      return fail(500, { error: 'Failed to update task.' });
+    }
+  },
+
   updateStatus: async ({ request, fetch }) => {
     const formData = await request.formData();
     const id = String(formData.get('id') ?? '');

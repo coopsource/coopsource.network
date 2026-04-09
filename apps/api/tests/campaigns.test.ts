@@ -122,7 +122,7 @@ describe('Funding Campaigns', () => {
     expect(res.body.goalAmount).toBe(200000);
   });
 
-  it('rejects update on non-draft campaign', async () => {
+  it('allows title/description update on active campaign', async () => {
     const testApp = createTestApp();
     await setupAndLogin(testApp);
 
@@ -134,7 +134,63 @@ describe('Funding Campaigns', () => {
       .send({ status: 'active' })
       .expect(200);
 
-    // Try to update
+    // Update title and description — should succeed
+    const res = await testApp.agent
+      .put(`/api/v1/campaigns/${encodeURIComponent(campaign.uri)}`)
+      .send({ title: 'Updated Active Title', description: 'New description' })
+      .expect(200);
+
+    expect(res.body.title).toBe('Updated Active Title');
+    expect(res.body.description).toBe('New description');
+  });
+
+  it('rejects fundingModel change on active campaign', async () => {
+    const testApp = createTestApp();
+    await setupAndLogin(testApp);
+
+    const campaign = await createDraftCampaign(testApp.agent);
+
+    // Activate first
+    await testApp.agent
+      .post(`/api/v1/campaigns/${encodeURIComponent(campaign.uri)}/status`)
+      .send({ status: 'active' })
+      .expect(200);
+
+    // Try to change fundingModel — should fail
+    await testApp.agent
+      .put(`/api/v1/campaigns/${encodeURIComponent(campaign.uri)}`)
+      .send({ fundingModel: 'flexible' })
+      .expect(400);
+  });
+
+  it('allows fundingModel change on draft campaign', async () => {
+    const testApp = createTestApp();
+    await setupAndLogin(testApp);
+
+    const campaign = await createDraftCampaign(testApp.agent);
+
+    // Update fundingModel while still in draft — should succeed
+    const res = await testApp.agent
+      .put(`/api/v1/campaigns/${encodeURIComponent(campaign.uri)}`)
+      .send({ fundingModel: 'flexible' })
+      .expect(200);
+
+    expect(res.body.fundingModel).toBe('flexible');
+  });
+
+  it('rejects update on cancelled campaign', async () => {
+    const testApp = createTestApp();
+    await setupAndLogin(testApp);
+
+    const campaign = await createDraftCampaign(testApp.agent);
+
+    // Cancel the campaign
+    await testApp.agent
+      .post(`/api/v1/campaigns/${encodeURIComponent(campaign.uri)}/status`)
+      .send({ status: 'cancelled' })
+      .expect(200);
+
+    // Try to update — should fail
     await testApp.agent
       .put(`/api/v1/campaigns/${encodeURIComponent(campaign.uri)}`)
       .send({ title: 'Should Fail' })
