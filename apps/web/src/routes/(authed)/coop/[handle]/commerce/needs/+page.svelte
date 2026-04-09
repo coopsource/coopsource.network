@@ -2,16 +2,19 @@
   import { enhance } from '$app/forms';
   import { Badge, EmptyState, Modal } from '$lib/components/ui';
   import { workspacePrefix } from '$lib/utils/workspace.js';
+  import { canEditCommerceNeed } from '$lib/utils/entity-permissions.js';
   import type { CommerceNeed } from '$lib/api/types.js';
 
   let { data, form } = $props();
 
   let showCreateForm = $state(false);
+  let editingNeed = $state<CommerceNeed | null>(null);
   let submitting = $state(false);
 
   $effect(() => {
     if (form?.success) {
       showCreateForm = false;
+      editingNeed = null;
     }
   });
 
@@ -122,6 +125,13 @@
             </div>
             <div class="flex items-center gap-2">
               <Badge variant={urgencyVariant(need.urgency)}>{need.status}</Badge>
+              {#if canEditCommerceNeed(need)}
+                <button
+                  type="button"
+                  onclick={() => { editingNeed = need; }}
+                  class="text-xs text-[var(--cs-primary)] hover:underline"
+                >Edit</button>
+              {/if}
               <form method="POST" action="?/deleteNeed" use:enhance class="inline">
                 <input type="hidden" name="id" value={need.id} />
                 <button type="submit" class="text-xs text-red-600 hover:underline">Delete</button>
@@ -144,11 +154,12 @@
   {/if}
 </div>
 
-<!-- Create Need Modal -->
-<Modal open={showCreateForm} title="Post a Need" onclose={() => (showCreateForm = false)}>
+<!-- Create / Edit Need Modal -->
+<Modal open={showCreateForm || editingNeed !== null} title={editingNeed ? 'Edit Need' : 'Post a Need'} onclose={() => { showCreateForm = false; editingNeed = null; }}>
+  {#key editingNeed?.id ?? 'create'}
   <form
     method="POST"
-    action="?/createNeed"
+    action={editingNeed ? '?/updateNeed' : '?/createNeed'}
     use:enhance={() => {
       submitting = true;
       return async ({ update }) => {
@@ -158,6 +169,8 @@
     }}
     class="space-y-4"
   >
+    {#if editingNeed}<input type="hidden" name="id" value={editingNeed.id} />{/if}
+
     <div>
       <label for="need-title" class="block text-sm font-medium text-[var(--cs-text-secondary)]">Title</label>
       <input
@@ -165,6 +178,7 @@
         name="title"
         type="text"
         required
+        value={editingNeed?.title ?? ''}
         placeholder="What do you need?"
         class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] placeholder:text-[var(--cs-text-muted)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
       />
@@ -178,7 +192,7 @@
         rows="3"
         placeholder="Describe what you need in detail..."
         class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] placeholder:text-[var(--cs-text-muted)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
-      ></textarea>
+      >{editingNeed?.description ?? ''}</textarea>
     </div>
 
     <div class="grid grid-cols-2 gap-4">
@@ -188,6 +202,7 @@
           id="need-category"
           name="category"
           required
+          value={editingNeed?.category ?? 'goods'}
           class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
         >
           <option value="goods">Goods</option>
@@ -201,14 +216,27 @@
         <select
           id="need-urgency"
           name="urgency"
+          value={editingNeed?.urgency ?? 'normal'}
           class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
         >
           <option value="low">Low</option>
-          <option value="normal" selected>Normal</option>
+          <option value="normal">Normal</option>
           <option value="high">High</option>
           <option value="critical">Critical</option>
         </select>
       </div>
+    </div>
+
+    <div>
+      <label for="need-location" class="block text-sm font-medium text-[var(--cs-text-secondary)]">Location</label>
+      <input
+        id="need-location"
+        name="location"
+        type="text"
+        value={editingNeed?.location ?? ''}
+        placeholder="City or region (optional)"
+        class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] placeholder:text-[var(--cs-text-muted)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
+      />
     </div>
 
     <div>
@@ -217,6 +245,7 @@
         id="need-tags"
         name="tags"
         type="text"
+        value={editingNeed?.tags?.join(', ') ?? ''}
         placeholder="Comma-separated tags (optional)"
         class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] placeholder:text-[var(--cs-text-muted)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
       />
@@ -225,14 +254,15 @@
     <div class="flex justify-end gap-3">
       <button
         type="button"
-        onclick={() => (showCreateForm = false)}
+        onclick={() => { showCreateForm = false; editingNeed = null; }}
         class="rounded-md border border-[var(--cs-border)] px-3 py-1.5 text-sm text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)]"
       >Cancel</button>
       <button
         type="submit"
         disabled={submitting}
         class="rounded-md bg-[var(--cs-primary)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)] disabled:opacity-50"
-      >{submitting ? 'Posting...' : 'Post Need'}</button>
+      >{submitting ? 'Saving...' : editingNeed ? 'Save changes' : 'Post Need'}</button>
     </div>
   </form>
+  {/key}
 </Modal>

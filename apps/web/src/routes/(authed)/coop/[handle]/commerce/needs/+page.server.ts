@@ -55,6 +55,38 @@ export const actions: Actions = {
     }
   },
 
+  updateNeed: async ({ request, fetch }) => {
+    const formData = await request.formData();
+    const id = String(formData.get('id') ?? '').trim();
+    const title = String(formData.get('title') ?? '').trim();
+    const description = String(formData.get('description') ?? '').trim();
+    const category = String(formData.get('category') ?? '').trim();
+    const urgency = String(formData.get('urgency') ?? '').trim();
+    const location = String(formData.get('location') ?? '').trim();
+    const tagsStr = String(formData.get('tags') ?? '').trim();
+
+    if (!id || !title) return fail(400, { error: 'ID and title are required.' });
+
+    const tags = tagsStr ? tagsStr.split(',').map((t) => t.trim()).filter(Boolean) : undefined;
+
+    const cookie = request.headers.get('cookie') ?? undefined;
+    const api = createApiClient(fetch, cookie);
+    try {
+      await api.updateCommerceNeed(id, {
+        title,
+        description: description || undefined,
+        category,
+        urgency,
+        location: location || undefined,
+        tags,
+      });
+      return { success: true };
+    } catch (err) {
+      if (err instanceof ApiError) return fail(err.status, { error: err.message });
+      return fail(500, { error: 'Failed to update need.' });
+    }
+  },
+
   deleteNeed: async ({ request, fetch }) => {
     const formData = await request.formData();
     const id = String(formData.get('id') ?? '');
