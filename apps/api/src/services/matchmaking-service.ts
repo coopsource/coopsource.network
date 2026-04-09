@@ -40,6 +40,10 @@ import { scoreCandidate, SCORING_VERSION } from './matchmaking/score.js';
  *      source of truth for the composition formula. This service loads
  *      candidates + user alignment data, passes them in, and persists the
  *      result. It does not interpret signals.
+ *   8. `runMatchmakingForUser` issues 4 SELECTs per user (coop candidates,
+ *      coop interests, person candidates, person interests) before the
+ *      DELETE+INSERT transaction. This is acceptable at V8.8 scale;
+ *      optimization target if the job becomes hot.
  */
 
 type MatchSuggestionRow = Selectable<MatchSuggestionTable>;
@@ -431,12 +435,15 @@ export class MatchmakingService {
       .select('interests')
       .execute();
 
-    const userInterestPriorityByCategory = aggregateInterestsByCategory(interestRows);
+    const accum: PriorityAccum = new Map();
+    for (const r of interestRows) {
+      accumulateInterests(r.interests as InterestItem[] | null, accum);
+    }
 
     return {
       existingCoopDids: new Set(membershipRows.map((r) => r.cooperative_did)),
       userCoopTypes: new Set(membershipRows.map((r) => r.cooperative_type)),
-      userInterestPriorityByCategory,
+      userInterestPriorityByCategory: finalizeMean(accum),
     };
   }
 
@@ -455,20 +462,7 @@ export class MatchmakingService {
       // Exclude tombstoned DIDs (any prior dismiss/act for this user).
       // NOTE: NOT IN, not IN — IN would invert the filter and re-suggest
       // dismissed coops. See plan §V8.7 subtle issue #3.
-      .where(
-        'e.did',
-        'not in',
-        this.db
-          .selectFrom('match_suggestion')
-          .where('user_did', '=', userDid)
-          .where((eb) =>
-            eb.or([
-              eb('dismissed_at', 'is not', null),
-              eb('acted_on_at', 'is not', null),
-            ]),
-          )
-          .select('target_did'),
-      )
+      .where('e.did', 'not in', this.tombstonedTargetDids(userDid))
       .select(['e.did', 'e.created_at', 'cp.cooperative_type']);
 
     if (ctx.existingCoopDids.size > 0) {
@@ -552,20 +546,7 @@ export class MatchmakingService {
         ]),
       )
       // Same tombstone subquery as the cooperative path.
-      .where(
-        'e.did',
-        'not in',
-        this.db
-          .selectFrom('match_suggestion')
-          .where('user_did', '=', userDid)
-          .where((eb) =>
-            eb.or([
-              eb('dismissed_at', 'is not', null),
-              eb('acted_on_at', 'is not', null),
-            ]),
-          )
-          .select('target_did'),
-      )
+      .where('e.did', 'not in', this.tombstonedTargetDids(userDid))
       .select(['e.did', 'e.created_at'])
       .execute();
 
@@ -583,7 +564,7 @@ export class MatchmakingService {
     // Per-person accumulator: mean priority by category + set of
     // project_uris (to compute sharedCoopCount against ctx.existingCoopDids).
     interface PersonAccum {
-      priorityAccum: Map<string, { sum: number; count: number }>;
+      priorityAccum: PriorityAccum;
       projectUris: Set<string>;
     }
     const dataByPerson = new Map<string, PersonAccum>();
@@ -594,25 +575,14 @@ export class MatchmakingService {
         dataByPerson.set(r.did, acc);
       }
       acc.projectUris.add(r.project_uri);
-      const items = (r.interests as InterestItem[] | null) ?? [];
-      for (const item of items) {
-        const cat = String(item.category ?? '').toLowerCase();
-        if (!cat) continue;
-        const p = acc.priorityAccum.get(cat) ?? { sum: 0, count: 0 };
-        p.sum += Number(item.priority ?? 1);
-        p.count += 1;
-        acc.priorityAccum.set(cat, p);
-      }
+      accumulateInterests(r.interests as InterestItem[] | null, acc.priorityAccum);
     }
 
     return rows.map((r) => {
       const data = dataByPerson.get(r.did);
-      const interestPriorityByCategory = new Map<string, number>();
-      if (data) {
-        for (const [cat, { sum, count }] of data.priorityAccum) {
-          interestPriorityByCategory.set(cat, sum / count);
-        }
-      }
+      const interestPriorityByCategory = data
+        ? finalizeMean(data.priorityAccum)
+        : new Map<string, number>();
       const sharedCoopCount = data
         ? Array.from(data.projectUris).filter((d) => ctx.existingCoopDids.has(d)).length
         : 0;
@@ -649,36 +619,42 @@ export class MatchmakingService {
       .select(['project_uri', 'interests'])
       .execute();
 
-    const accumByCoop = new Map<
-      string,
-      Map<string, { sum: number; count: number }>
-    >();
+    const accumByCoop = new Map<string, PriorityAccum>();
     for (const r of interestRows) {
-      const items = (r.interests as InterestItem[] | null) ?? [];
       let coopAcc = accumByCoop.get(r.project_uri);
       if (!coopAcc) {
         coopAcc = new Map();
         accumByCoop.set(r.project_uri, coopAcc);
       }
-      for (const item of items) {
-        const cat = String(item.category ?? '').toLowerCase();
-        if (!cat) continue;
-        const a = coopAcc.get(cat) ?? { sum: 0, count: 0 };
-        a.sum += Number(item.priority ?? 1);
-        a.count += 1;
-        coopAcc.set(cat, a);
-      }
+      accumulateInterests(r.interests as InterestItem[] | null, coopAcc);
     }
 
     for (const [coopDid, accMap] of accumByCoop) {
-      const meanMap = new Map<string, number>();
-      for (const [cat, { sum, count }] of accMap) {
-        meanMap.set(cat, sum / count);
-      }
-      result.set(coopDid, meanMap);
+      result.set(coopDid, finalizeMean(accMap));
     }
 
     return result;
+  }
+
+  /**
+   * Returns a Kysely subquery that yields all `target_did` values currently
+   * tombstoned (dismissed or acted-on) for the given user. Used as the
+   * right-hand side of a `NOT IN` exclusion in both candidate-fetch paths.
+   *
+   * NOTE: the callers use `'not in'` — `'in'` would invert the filter and
+   * re-suggest dismissed targets. See plan §V8.7 subtle issue #3.
+   */
+  private tombstonedTargetDids(userDid: string) {
+    return this.db
+      .selectFrom('match_suggestion')
+      .where('user_did', '=', userDid)
+      .where((eb) =>
+        eb.or([
+          eb('dismissed_at', 'is not', null),
+          eb('acted_on_at', 'is not', null),
+        ]),
+      )
+      .select('target_did');
   }
 
   private async deleteActiveForUser(
@@ -700,37 +676,48 @@ function toIso(d: Date | string): string {
 }
 
 /**
- * V8.8 — Aggregate a set of `stakeholder_interest.interests` JSONB
- * arrays into a single {category → mean priority} map. Used by
- * `loadUserContext` (one DID = the user) and could be reused by
- * per-candidate aggregations; for the candidate paths we inline it
- * because we also need to track `project_uri` or group by DID, which
- * would awkwardly ride along.
+ * V8.8 — Module-local primitives for aggregating `stakeholder_interest`
+ * rows into a {category → mean priority} map. Split into two steps so the
+ * three call sites (user context, per-coop bucket, per-person bucket) can
+ * share the per-row accumulation without each reimplementing the inner
+ * loop. See the `PriorityAccum` type below.
  *
  * Categories are lowercased to match the rest of the alignment stack
  * (alignment-service.ts:496). Items with missing priority default to 1.
  * Items with missing/empty category are dropped. An empty input produces
- * an empty map — which `scoreCandidate` interprets as "no alignment
- * data" and routes to its fallback branch.
+ * an empty map — which `scoreCandidate` interprets as "no alignment data"
+ * and routes to its fallback branch.
  */
-function aggregateInterestsByCategory(
-  rows: ReadonlyArray<{ interests: unknown }>,
-): Map<string, number> {
-  const accum = new Map<string, { sum: number; count: number }>();
-  for (const row of rows) {
-    const items = (row.interests as InterestItem[] | null) ?? [];
-    for (const item of items) {
-      const cat = String(item.category ?? '').toLowerCase();
-      if (!cat) continue;
-      const a = accum.get(cat) ?? { sum: 0, count: 0 };
-      a.sum += Number(item.priority ?? 1);
-      a.count += 1;
-      accum.set(cat, a);
-    }
+type PriorityAccum = Map<string, { sum: number; count: number }>;
+
+/**
+ * Accumulate the priorities from a single stakeholder_interest row's
+ * `interests` JSONB array into the given accumulator map. Categories are
+ * lowercased per the alignment-service normalization convention. Missing
+ * or empty categories are dropped. Missing priorities default to 1.
+ */
+function accumulateInterests(
+  items: InterestItem[] | null | undefined,
+  into: PriorityAccum,
+): void {
+  if (!items) return;
+  for (const item of items) {
+    const cat = String(item.category ?? '').toLowerCase();
+    if (!cat) continue;
+    const a = into.get(cat) ?? { sum: 0, count: 0 };
+    a.sum += Number(item.priority ?? 1);
+    a.count += 1;
+    into.set(cat, a);
   }
-  const result = new Map<string, number>();
+}
+
+/**
+ * Finalize an accumulator into a plain category → mean-priority map.
+ */
+function finalizeMean(accum: PriorityAccum): Map<string, number> {
+  const out = new Map<string, number>();
   for (const [cat, { sum, count }] of accum) {
-    result.set(cat, sum / count);
+    out.set(cat, sum / count);
   }
-  return result;
+  return out;
 }
