@@ -935,22 +935,69 @@ These are intentionally narrow positive lists. Closed-governance coops route pro
 - `apps/web/src/routes/(authed)/me/matches/+page.svelte` (new)
 - `apps/web/src/lib/components/home/widgets/SuggestedMatches.svelte` (real impl)
 
-### Phase V8.8 — People Search & Alignment Matchmaking
+### Phase V8.8 — People Search & Alignment Matchmaking — ✅ Shipped
 
-**Goal**: Extend search to people. Match scoring uses alignment data.
+**Goal**: Extend search to people. Match scoring uses alignment data as the primary signal. Person matches flow through the same `match_suggestion` table, background job, routes, and Home/matches UI that V8.7 established — V8.7 was deliberately designed so V8.8 would not change the table schema, routes, job loop, or widget contracts.
 
-**Tasks**:
-1. Add FTS to `entity` table and to alignment tables (migration 062)
-2. Implement `searchPeople()` with privacy gating
-3. Implement `searchAlignment()` for matchmaking queries
-4. Update `MatchmakingService` to use alignment data as primary signal
-5. Add people-match type to `match_suggestion`
-6. Tests: privacy gating works, alignment scoring is sensible
+**Tasks** (all complete):
+1. ✅ Migration **061** — `profile.discoverable` opt-in flag, `profile.profile_bio_tsv` + GIN, `idx_profile_discoverable` partial index, `desired_outcome.outcome_search_tsv` + GIN. (The doc originally said 062; the repo's convention is contiguous numbering — the latest pre-V8.8 migration was 060. The migration header documents the rename.)
+2. ✅ `SearchService.searchPeople()` with the **D1 hybrid** discoverability predicate: `profile.discoverable = true OR EXISTS (stakeholder_interest for entity_did)`. The viewer can see themselves; all other results are gated. Sorted by recency with cursor pagination.
+3. ✅ `SearchService.searchAlignment()` via two CTEs (outcome FTS + interest tag match) with UNION, viewer membership exclusion (the viewer never sees coops they're already an active member of), and a belt-and-braces `cooperative_profile.anon_discoverable` filter on the outer join so the alignment endpoint respects the same opt-in switch as plain coop search.
+4. ✅ `score.ts` rewritten — `SCORING_VERSION = 2`, weighted-Jaccard alignment over mean-priority-weighted interest categories, with a **three-branch fallback** (see Design notes below). Discriminated `CandidateRow` union (cooperative vs person) so the composition branches stay type-safe.
+5. ✅ `MatchmakingService` now fetches person candidates alongside cooperative candidates via `match_type = 'person'` — gated by the same D1 hybrid discoverability rule searchPeople uses. Interest aggregation helpers and the tombstone subquery were extracted as shared internal helpers (DRY pass in commit `199350b`).
+6. ✅ `MatchView` contract evolved to support both types. `cooperativeType` relaxed to nullable, new `matchType: 'cooperative' | 'person'` discriminant, new `sharedInterestCount` + `sharedCoopCount` fields (populated for person matches, `null` for cooperatives). The web client, Home widget, and `/me/matches` page render a conditional `User` vs `Building2` icon and conditional subtitle based on `matchType`.
+7. ✅ `profile.discoverable` user-facing toggle: `ProfileService.setDiscoverable`, `PATCH /api/v1/me/profile` (new route file `me-profile.ts`), and a Discovery toggle on `/me/settings`. The `me-profile` GET response is **nested-only** (`{ profile: {…} }`) — the redundant flat-field convenience shape was dropped in commit `ef15e9e` before anything depended on it.
+8. ✅ People filter chip on `/me/explore` — fourth chip alongside All / Cooperatives / Posts. The page server fetches people alongside posts under the "All" chip so results are visible without requiring the user to select the People filter first.
+9. ✅ 57 new API tests (20 in `score.test.ts`, 20 in `search.test.ts` for people+alignment, 11 in `profile-service.test.ts`, 6 in `me-matches.test.ts` for person matches) including three load-bearing privacy regression tests that lock in the D1 hybrid predicate and the viewer-membership exclusion. Two new E2E tests (People chip round-trip on `/me/explore`, person match render on `/me/matches`) via a new `seedCandidatePerson` helper promoted to the shared E2E helpers module in the final fix-up commit.
 
-**Files**:
-- `packages/db/src/migrations/062_people_search.ts` (new)
-- `apps/api/src/services/search-service.ts` (extend with people)
-- `apps/api/src/services/matchmaking-service.ts` (alignment scoring)
+**Design notes** (V8.8):
+
+- **Score composition — three branches**. The `score.ts` rewrite uses weighted Jaccard over mean-priority-weighted interest categories, but the *composition* with recency/diversity has three branches that together preserve the "brand new user gets non-empty matches" guarantee without polluting the scored pool for established users:
+  1. `alignment > 0` — composition: `0.6·alignment + 0.3·recency + 0.1·diversity` for coops, `0.7·alignment + 0.3·recency` for persons. Alignment dominates.
+  2. `alignment == 0` AND the user has **no** alignment data — fall back to the V8.7 formula `recency × diversity` so the widget isn't empty for newly-registered users.
+  3. `alignment == 0` AND the user **has** alignment data — `score = 0` (suppression). Any candidate with non-zero alignment outranks this row. The service layer decides whether to fill remaining top-N slots from the zero-scored pool; by default it does, ensuring widget stability during the transition.
+  This asymmetry is deliberate: a new user with no signal deserves *any* suggestion; a user who took the trouble to record alignment data expects their matches to reflect it.
+
+- **v1 → v2 reason shape transition**. Pre-V8.8 `match_suggestion` rows written with `SCORING_VERSION = 1` have `signals: { recency, diversity, ageDays }` only. V8.8 extends the shape to six fields (`alignment`, `recency`, `diversity`, `ageDays`, `sharedCategoryCount`, `sharedCoopCount`) and the web mapper uses `?? 0` fallbacks so existing v1 rows render without crashing. For a clean dev/test slate, `TRUNCATE match_suggestion` is safe — the next hourly tick repopulates. The 14-day pruner from V8.7 eventually clears v1 rows without any intervention.
+
+- **Dead GIN index not added**. The draft of Task 1 included a `jsonb_path_ops` GIN on `stakeholder_interest.interests` for alignment interest aggregation. It was dropped during the Task 5 fix-up (commit `8ce43d9`) because the actual query shape is `jsonb_array_elements(si.interests) + text equality`, which expands rows and compares text — it can't use a `jsonb_path_ops` index (those only accelerate containment operators like `@>`). The index would sit unused while adding write-time overhead. Sequential scan is acceptable at V8.8 scale; revisit (e.g., via a denormalized pre-lowered category column) if `stakeholder_interest` grows past ~100K rows. The migration header documents this rationale.
+
+- **`searchAlignment` excludes the viewer's own coops**. The matchmaker should never suggest "join this coop you are already an active member of". This filter was also added in commit `8ce43d9` after the first implementation round missed it.
+
+- **`/search/people` requires active membership**. The route uses `requireAuth` (mirroring V8.6's `searchPosts`), not just `optionalAuth`. A newly-registered user with no active membership gets 401; the `/me/explore` page server catches this and degrades gracefully. This is consistent with V8.6 and intentionally conservative — V8.X may relax it behind its own anti-scraper rate limits.
+
+**Out of scope for V8.8** (deferred):
+- **Public profile pages for persons** (`/profiles/[handle]`) — V8.9. Person match cards currently render `displayName` as plain text (no link) pending this work.
+- **`profile.public_bio` privacy flag** — separate concern; V8.8 ships a binary opt-in.
+- **Person-to-person friend graph / mutual connections signal** — V8.X; not in the V8.8 scoring input.
+- **Anti-scraper rate limits on `/search/people`** — V8.X; `requireAuth` is the only gate for now.
+- **Embeddings for alignment matching** — Jaccard baseline is sufficient for V8.8 scale; LLM embeddings revisit once we have real usage data.
+- **Match notifications** — V8.7 deferred these because `notification.cooperative_did` is `NOT NULL` and system-generated matches have no natural sender. V8.8 inherits the constraint unchanged.
+
+**Files** (final):
+- `packages/db/src/migrations/061_people_search.ts` (new) — `profile.discoverable` + `profile_bio_tsv` + partial index, `desired_outcome.outcome_search_tsv`, all with rationale in the header
+- `packages/db/src/schema.ts` — `profile.discoverable` added to `ProfileTable`; tsvector columns intentionally NOT typed (like V8.6, they're never SELECTed, only used in raw `sql\`\`` WHERE clauses)
+- `apps/api/src/services/matchmaking/score.ts` — rewritten, `SCORING_VERSION = 2`, discriminated `CandidateRow` union, three-branch composition
+- `apps/api/src/services/matchmaking/score.test.ts` (new) — 20 unit tests covering all three branches and Jaccard edge cases
+- `apps/api/src/services/matchmaking-service.ts` — person candidate path, shared interest/tombstone helper extraction, `match_type` propagation through DELETE+INSERT refresh
+- `apps/api/src/services/search-service.ts` — `searchPeople` + `searchAlignment` (additions; V8.6 `searchCooperatives` + `searchPosts` unchanged)
+- `apps/api/src/services/profile-service.ts` — `setDiscoverable(entityDid, discoverable)` method
+- `apps/api/src/routes/search.ts` — `GET /api/v1/search/people` (`requireAuth`) + `GET /api/v1/search/alignment` (`requireAuth`)
+- `apps/api/src/routes/me-profile.ts` (new) — `GET /api/v1/me/profile` (nested shape) + `PATCH /api/v1/me/profile` body `{ discoverable: boolean }`
+- `apps/api/src/routes/admin.ts` — `test-seed-candidate-person` endpoint (non-prod only, mirrors V8.7's `test-seed-candidate-coop`)
+- `apps/api/src/index.ts` — mount `createMeProfileRoutes`
+- `apps/api/tests/search.test.ts` — +20 tests: 11 people-search + 9 alignment-search, including three privacy regression tests
+- `apps/api/tests/me-matches.test.ts` — +6 tests for person match rendering in the list endpoint
+- `apps/api/tests/profile-service.test.ts` (new) — 11 tests for setDiscoverable + PATCH roundtrip
+- `apps/web/src/lib/api/types.ts` — `MatchSuggestion` evolved (`cooperativeType` nullable, new `matchType` discriminant, `sharedInterestCount` + `sharedCoopCount`), `MatchReason.signals` extended to six fields, new `SearchPersonResult` / `SearchPeopleResponse` / `SearchAlignmentResponse` types
+- `apps/web/src/lib/api/client.ts` — `searchPeople`, `searchAlignment`, `getMyProfile`, `updateMyProfile`
+- `apps/web/src/lib/components/home/SuggestedMatches.svelte` — conditional `User` vs `Building2` icon and conditional subtitle on `matchType`
+- `apps/web/src/routes/(authed)/me/matches/+page.svelte` — same conditional rendering for the full-page list
+- `apps/web/src/routes/(authed)/me/explore/{+page.server.ts,+page.svelte}` — People filter chip, 401-graceful loader that degrades when the user has no active membership
+- `apps/web/src/routes/(authed)/me/settings/{+page.server.ts,+page.svelte}` — Discovery toggle bound to `/me/profile` PATCH
+- `apps/web/tests/e2e/search.spec.ts` — +1 test: People chip round-trip
+- `apps/web/tests/e2e/matches.spec.ts` — +1 test: seeded discoverable person renders as a match card
+- `apps/web/tests/e2e/helpers.ts` — `seedCandidatePerson` helper promoted from an in-spec local in the final fix-up commit `9797fcc`
 
 ### Phase V8.9 — Polish & Onboarding
 
