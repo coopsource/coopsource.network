@@ -78,6 +78,25 @@ export const actions: Actions = {
     }
   },
 
+  updateRoles: async ({ request, fetch }) => {
+    const data = await request.formData();
+    const did = String(data.get('did') ?? '').trim();
+    const roles = data.getAll('roles').map((r) => String(r));
+
+    if (!did) return fail(400, { rolesError: 'Member DID is required.' });
+    if (roles.length === 0) return fail(400, { rolesError: 'At least one role is required.' });
+
+    const cookie = request.headers.get('cookie') ?? undefined;
+    const api = createApiClient(fetch, cookie);
+    try {
+      await api.updateMemberRoles(did, roles);
+      return { rolesSuccess: true };
+    } catch (err) {
+      if (err instanceof ApiError) return fail(err.status, { rolesError: err.message });
+      return fail(500, { rolesError: 'Failed to update roles.' });
+    }
+  },
+
   revoke: async ({ request, fetch }) => {
     const data = await request.formData();
     const id = String(data.get('id') ?? '').trim();

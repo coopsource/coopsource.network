@@ -10,6 +10,8 @@
   let inviteOpen = $state(false);
   let submitting = $state(false);
   let confirmRemoveDid = $state<string | null>(null);
+  let editingRolesDid = $state<string | null>(null);
+  let editingRoles = $state<string[]>([]);
 
   // Onboarding state
   let obSubTab = $state('progress');
@@ -45,6 +47,9 @@
   $effect(() => {
     if (form?.inviteSuccess) {
       inviteOpen = false;
+    }
+    if (form?.rolesSuccess) {
+      editingRolesDid = null;
     }
     if (form?.onboardingSuccess || form?.configSuccess) {
       startModalOpen = false;
@@ -114,6 +119,9 @@
     {#if form?.removeError}
       <div class="rounded-md bg-red-50 p-3 text-sm text-red-700">{form.removeError}</div>
     {/if}
+    {#if form?.rolesError}
+      <div class="rounded-md bg-red-50 p-3 text-sm text-red-700">{form.rolesError}</div>
+    {/if}
 
     {#if data.members.length === 0}
       <EmptyState title="No members yet" description="Invite someone to join your cooperative." />
@@ -142,16 +150,40 @@
                   {/if}
                 </td>
                 <td class="px-4 py-3">
-                  {#if member.roles.length > 0}
-                    <div class="flex flex-wrap gap-1">
-                      {#each member.roles as role}
-                        <span class="rounded bg-[var(--cs-bg-inset)] px-1.5 py-0.5 text-xs text-[var(--cs-text-secondary)]"
-                          >{role}</span
-                        >
-                      {/each}
-                    </div>
+                  {#if editingRolesDid === member.did}
+                    <form method="POST" action="?/updateRoles" use:enhance={() => {
+                      return async ({ update }) => { editingRolesDid = null; await update(); };
+                    }}>
+                      <input type="hidden" name="did" value={member.did} />
+                      <div class="flex flex-wrap gap-2">
+                        {#each ['member', 'coordinator', 'admin', 'observer'] as role}
+                          <label class="flex items-center gap-1 text-xs">
+                            <input type="checkbox" name="roles" value={role} checked={editingRoles.includes(role)}
+                              class="rounded border-[var(--cs-border)]" />
+                            {role}
+                          </label>
+                        {/each}
+                      </div>
+                      <div class="mt-1 flex gap-2">
+                        <button type="submit" class="text-xs text-[var(--cs-primary)] hover:underline">Save</button>
+                        <button type="button" onclick={() => (editingRolesDid = null)} class="text-xs text-[var(--cs-text-muted)] hover:underline">Cancel</button>
+                      </div>
+                    </form>
                   {:else}
-                    <span class="text-[var(--cs-text-muted)]">—</span>
+                    {#if member.roles.length > 0}
+                      <div class="flex flex-wrap items-center gap-1">
+                        {#each member.roles as role}
+                          <span class="rounded bg-[var(--cs-bg-inset)] px-1.5 py-0.5 text-xs text-[var(--cs-text-secondary)]"
+                            >{role}</span
+                          >
+                        {/each}
+                        <button type="button" onclick={() => { editingRolesDid = member.did; editingRoles = [...member.roles]; }}
+                          class="ml-1 text-xs text-[var(--cs-primary)] hover:underline">Edit roles</button>
+                      </div>
+                    {:else}
+                      <button type="button" onclick={() => { editingRolesDid = member.did; editingRoles = []; }}
+                        class="text-xs text-[var(--cs-primary)] hover:underline">Add roles</button>
+                    {/if}
                   {/if}
                 </td>
                 <td class="px-4 py-3">
