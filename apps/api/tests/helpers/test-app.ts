@@ -88,6 +88,7 @@ import { createApiTokenRoutes } from '../../src/routes/agents/tokens.js';
 import { createModelConfigRoutes } from '../../src/routes/agents/model-config.js';
 import { createNotificationRoutes } from '../../src/routes/notifications.js';
 import { createMeMatchesRoutes } from '../../src/routes/me-matches.js';
+import { createMeProfileRoutes } from '../../src/routes/me-profile.js';
 import { createLabelRoutes } from '../../src/routes/labels.js';
 import { createLegalDocumentRoutes } from '../../src/routes/legal/documents.js';
 import { createMeetingRoutes } from '../../src/routes/legal/meetings.js';
@@ -321,6 +322,7 @@ export function createTestApp(): TestApp {
   app.use(createModelConfigRoutes(container));
   app.use(createNotificationRoutes(container));
   app.use(createMeMatchesRoutes(container));
+  app.use(createMeProfileRoutes(container));
   app.use(createLabelRoutes(governanceLabeler));
   app.use(createLegalDocumentRoutes(container));
   app.use(createMeetingRoutes(container));

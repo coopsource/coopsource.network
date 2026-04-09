@@ -41,3 +41,49 @@ test.describe('Home', () => {
     await expect(page.getByText('My Networks')).not.toBeVisible();
   });
 });
+
+/**
+ * V8.9 — GetStartedCard E2E tests.
+ *
+ * Serial because the dismiss test mutates server state (persisted via
+ * PATCH /api/v1/me/profile) and the subsequent reload test asserts the
+ * card stays gone. A fresh cooperative is set up once in beforeAll so
+ * the user starts with dismissed_get_started = false.
+ */
+test.describe.serial('V8.9 — GetStartedCard on /me', () => {
+  test.beforeAll(async ({ request }) => {
+    await setupCooperative(request);
+  });
+
+  test('fresh user sees the GetStartedCard', async ({ page }) => {
+    await loginAs(page, ADMIN.email, ADMIN.password);
+    const card = page.getByRole('complementary', { name: 'Getting started guide' });
+    await expect(card).toBeVisible();
+    await expect(card.getByText('Welcome to Co-op Source')).toBeVisible();
+  });
+
+  test('card contains link to /me/explore', async ({ page }) => {
+    await loginAs(page, ADMIN.email, ADMIN.password);
+    const card = page.getByRole('complementary', { name: 'Getting started guide' });
+    const exploreLink = card.getByRole('link', { name: 'directory' });
+    await expect(exploreLink).toBeVisible();
+    await expect(exploreLink).toHaveAttribute('href', '/me/explore');
+  });
+
+  test('dismissing the card removes it from the DOM', async ({ page }) => {
+    await loginAs(page, ADMIN.email, ADMIN.password);
+    const card = page.getByRole('complementary', { name: 'Getting started guide' });
+    await expect(card).toBeVisible();
+
+    await page.getByRole('button', { name: 'Dismiss getting started guide' }).click();
+
+    await expect(card).not.toBeVisible();
+  });
+
+  test('reloading /me after dismiss does NOT show the card', async ({ page }) => {
+    await loginAs(page, ADMIN.email, ADMIN.password);
+    await page.goto('/me');
+    const card = page.getByRole('complementary', { name: 'Getting started guide' });
+    await expect(card).not.toBeVisible();
+  });
+});

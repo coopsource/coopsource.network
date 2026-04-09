@@ -68,6 +68,7 @@ test.describe('V8.6 — Authed search on /me/explore', () => {
     await expect(page.getByRole('tab', { name: 'All' })).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Cooperatives' })).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Posts' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'People' })).toBeVisible();
   });
 
   test('searching renders both Cooperatives and Posts sections under "All"', async ({ page }) => {
