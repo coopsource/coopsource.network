@@ -40,3 +40,12 @@ infrastructure/pgdata/
 
 # Session handoffs (local notes, not for the repo)
 HANDOFF.md
+
+# Claude Code memory (machine-local)
+.claude/
+
+# Superpowers skills (machine-local)
+.superpowers/
+
+# SvelteKit build output
+apps/web/build/
