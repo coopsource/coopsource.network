@@ -12,9 +12,10 @@ import { requireAuth } from '../auth/middleware.js';
  * user without an approved coop membership sees the usual gate.
  *
  * GET /api/v1/me/profile
- *   Returns the caller's default profile (display name, avatar, bio,
- *   verified, and the V8.8 `discoverable` flag). Used by the settings
- *   page to hydrate the initial toggle state.
+ *   Returns `{ profile: { id, displayName, avatarCid, bio, verified,
+ *   discoverable } | null }`. The nested shape mirrors V8.7's
+ *   me-matches.ts convention. Used by the settings page to hydrate the
+ *   initial toggle state via `data.profile?.discoverable`.
  *
  * PATCH /api/v1/me/profile
  *   Currently only accepts `{ discoverable: boolean }`. A future revision
@@ -36,15 +37,10 @@ export function createMeProfileRoutes(container: Container): Router {
       const profile = await container.profileService.getDefaultProfile(req.actor!.did);
       if (!profile) {
         // AuthService.register() creates a default profile for every
-        // person, so this is effectively unreachable. Return an empty
-        // shape rather than 404 so the settings page can still render.
-        res.json({
-          profile: null,
-          discoverable: false,
-          displayName: null,
-          bio: null,
-          avatarCid: null,
-        });
+        // person, so this is effectively unreachable. Return a nulled
+        // nested shape rather than 404 so the settings page can still
+        // render and treat `data.profile?.discoverable` as undefined.
+        res.json({ profile: null });
         return;
       }
 
@@ -57,11 +53,6 @@ export function createMeProfileRoutes(container: Container): Router {
           verified: profile.verified,
           discoverable: profile.discoverable,
         },
-        // Convenience top-level fields for the settings page.
-        discoverable: profile.discoverable,
-        displayName: profile.displayName,
-        bio: profile.bio,
-        avatarCid: profile.avatarCid,
       });
     }),
   );
