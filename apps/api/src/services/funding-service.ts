@@ -273,6 +273,9 @@ export class FundingService {
       );
     }
 
+    // Defensive: clean up any pledges (shouldn't exist for draft, but safe)
+    await this.db.deleteFrom('funding_pledge').where('campaign_uri', '=', uri).execute();
+
     await this.db
       .deleteFrom('funding_campaign')
       .where('uri', '=', uri)

@@ -537,7 +537,11 @@ export class AgreementService {
       );
     }
 
-    // Hard delete draft — no signatures or history worth preserving
+    // Clean up child rows (no FK constraints, so must delete explicitly)
+    await this.db.deleteFrom('agreement_revision').where('agreement_uri', '=', uri).execute();
+    await this.db.deleteFrom('stakeholder_terms').where('agreement_uri', '=', uri).execute();
+    await this.db.deleteFrom('agreement_signature').where('agreement_uri', '=', uri).execute();
+
     await this.db
       .deleteFrom('agreement')
       .where('uri', '=', uri)
