@@ -948,7 +948,7 @@ These are intentionally narrow positive lists. Closed-governance coops route pro
 6. ✅ `MatchView` contract evolved to support both types. `cooperativeType` relaxed to nullable, new `matchType: 'cooperative' | 'person'` discriminant, new `sharedInterestCount` + `sharedCoopCount` fields (populated for person matches, `null` for cooperatives). The web client, Home widget, and `/me/matches` page render a conditional `User` vs `Building2` icon and conditional subtitle based on `matchType`.
 7. ✅ `profile.discoverable` user-facing toggle: `ProfileService.setDiscoverable`, `PATCH /api/v1/me/profile` (new route file `me-profile.ts`), and a Discovery toggle on `/me/settings`. The `me-profile` GET response is **nested-only** (`{ profile: {…} }`) — the redundant flat-field convenience shape was dropped in commit `ef15e9e` before anything depended on it.
 8. ✅ People filter chip on `/me/explore` — fourth chip alongside All / Cooperatives / Posts. The page server fetches people alongside posts under the "All" chip so results are visible without requiring the user to select the People filter first.
-9. ✅ 57 new API tests (20 in `score.test.ts`, 20 in `search.test.ts` for people+alignment, 11 in `profile-service.test.ts`, 6 in `me-matches.test.ts` for person matches) including three load-bearing privacy regression tests that lock in the D1 hybrid predicate and the viewer-membership exclusion. Two new E2E tests (People chip round-trip on `/me/explore`, person match render on `/me/matches`) via a new `seedCandidatePerson` helper promoted to the shared E2E helpers module in the final fix-up commit.
+9. ✅ 51 net new API tests (20 in `score.test.ts` (new file), 20 in `search.test.ts` for people+alignment, 5 added to `profile-service.test.ts` for `setDiscoverable`, net +6 in `me-matches.test.ts` — 9 person-match cases added, 3 pure-scoring cases removed and relocated to `score.test.ts`). Includes three load-bearing privacy regression tests that lock in the D1 hybrid predicate and the viewer-membership exclusion. Two new E2E tests (People chip round-trip on `/me/explore`, person match render on `/me/matches`) via a new `seedCandidatePerson` helper promoted to the shared E2E helpers module in the final fix-up commit.
 
 **Design notes** (V8.8):
 
@@ -990,7 +990,7 @@ These are intentionally narrow positive lists. Closed-governance coops route pro
 - `apps/api/tests/me-matches.test.ts` — +6 tests for person match rendering in the list endpoint
 - `apps/api/tests/profile-service.test.ts` (new) — 11 tests for setDiscoverable + PATCH roundtrip
 - `apps/web/src/lib/api/types.ts` — `MatchSuggestion` evolved (`cooperativeType` nullable, new `matchType` discriminant, `sharedInterestCount` + `sharedCoopCount`), `MatchReason.signals` extended to six fields, new `SearchPersonResult` / `SearchPeopleResponse` / `SearchAlignmentResponse` types
-- `apps/web/src/lib/api/client.ts` — `searchPeople`, `searchAlignment`, `getMyProfile`, `updateMyProfile`
+- `apps/web/src/lib/api/client.ts` — `searchPeople`, `searchAlignment`, `getMyProfile`, `setMyDiscoverable`
 - `apps/web/src/lib/components/home/SuggestedMatches.svelte` — conditional `User` vs `Building2` icon and conditional subtitle on `matchType`
 - `apps/web/src/routes/(authed)/me/matches/+page.svelte` — same conditional rendering for the full-page list
 - `apps/web/src/routes/(authed)/me/explore/{+page.server.ts,+page.svelte}` — People filter chip, 401-graceful loader that degrades when the user has no active membership
@@ -1016,6 +1016,25 @@ These are intentionally narrow positive lists. Closed-governance coops route pro
 **Files**:
 - Various — content updates, accessibility refinements
 - `apps/web/src/lib/components/home/GetStartedCard.svelte` (new)
+
+**Deferred from V8.8** (tracked here so they don't get forgotten — the V8.8 final code review surfaced these as non-blocking follow-ups):
+
+*User-visible*
+- **Public profile pages for persons** (`/profiles/[handle]`) — V8.8 match cards render person `displayName` as plain text pending this. TODO markers in `apps/web/src/lib/components/home/SuggestedMatches.svelte:62-63` and `apps/web/src/routes/(authed)/me/matches/+page.svelte:124`. Once the profile page exists, replace the plain-text render with a link and remove the TODOs.
+- **Settings discoverability toggle error recovery** — `apps/web/src/routes/(authed)/me/settings/+page.svelte` doesn't revert the checkbox state if the PATCH fails. The user sees the pre-submit state + an error message. Polish pass should show a toast and revert.
+
+*Test / infra*
+- **Explore page E2E chip enumeration** — `apps/web/tests/e2e/search.spec.ts` line ~62 asserts the presence of `All`, `Cooperatives`, `Posts` tabs but does NOT include `People`. Add to the asserted tab set (trivial one-line fix).
+- **Migration 061 runbook deadlink** — `packages/db/src/migrations/061_people_search.ts` header references `docs/operations.md` for a runbook entry that was never added. Either add a one-line entry or remove the reference.
+- **Ambient test pollution** — `well-known.test.ts` and `appview-dispatch.test.ts` fail together in the full `pnpm --filter @coopsource/api test` run but pass in isolation. Pre-existing cross-file state leak, not caused by V8.8, but worth a separate test-hygiene task.
+
+*Operational / scale*
+- **Anti-scraper rate limits on `/search/people`** — currently only `requireAuth` gates the endpoint. A motivated attacker with an account could scrape the discoverable-person directory. Acceptable given the D1 hybrid opt-in but should land before any public-facing promotion of people search.
+- **Match notifications** — still blocked by `notification.cooperative_did NOT NULL`. Requires either a nullability migration + audit of every consumer, or a synthetic "system" cooperative. V8.7 design note carries forward unchanged.
+- **Pre-lowered category column on `stakeholder_interest`** — the `jsonb_array_elements(si.interests) + lower(item->>'category') = ANY(...)` query in `searchAlignment` does a sequential scan. Acceptable at V8.8 scale; revisit once `stakeholder_interest` grows past ~100K rows (documented in migration 061 header). A denormalized `lower(category)[]` column with a GIN index is the natural fix.
+
+*Doc drift*
+- **ARCHITECTURE-V8 "57 new API tests"** — corrected to 51 on merge (the original count conflated total file size with new tests on `profile-service.test.ts`).
 
 ### Phase V8.10 — Entity Editing Foundation + Core Entities
 
