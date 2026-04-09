@@ -1,15 +1,8 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { Badge, EmptyState, Modal, MemberSelect } from '$lib/components/ui';
-
-  interface Officer {
-    id: string;
-    officerDid: string;
-    title: string;
-    appointmentType: string;
-    appointedAt: string;
-    status: string;
-  }
+  import { canEditOfficer } from '$lib/utils/entity-permissions.js';
+  import type { Officer } from '$lib/api/types.js';
 
   interface Member {
     did: string;
@@ -29,6 +22,7 @@
   } = $props();
 
   let officerModalOpen = $state(false);
+  let editingOfficer = $state<Officer | null>(null);
   let confirmEndTermId = $state<string | null>(null);
   let selectedOfficerDid = $state('');
   let submitting = $state(false);
@@ -36,6 +30,7 @@
   $effect(() => {
     if (form?.success && form.tab === 'officers') {
       officerModalOpen = false;
+      editingOfficer = null;
       confirmEndTermId = null;
     }
   });
@@ -92,6 +87,10 @@
               <Badge variant={statusToVariant(officer.status)}>{officer.status}</Badge>
             </td>
             <td class="px-4 py-3 text-right">
+              {#if canEditOfficer(officer)}
+                <button type="button" onclick={() => { editingOfficer = officer; }}
+                  class="text-xs text-[var(--cs-primary)] hover:underline mr-2">Edit</button>
+              {/if}
               {#if officer.status === 'active'}
                 <button type="button" onclick={() => (confirmEndTermId = officer.id)}
                   class="text-xs text-red-600 hover:underline">End term</button>
@@ -109,64 +108,98 @@
   {/if}
 {/if}
 
-<!-- Appoint Officer Modal -->
-<Modal open={officerModalOpen} title="Appoint Officer" onclose={() => (officerModalOpen = false)}>
-  <form method="POST" action="?/appointOfficer"
+<!-- Appoint / Edit Officer Modal -->
+<Modal open={officerModalOpen || editingOfficer !== null} title={editingOfficer ? 'Edit Officer' : 'Appoint Officer'} onclose={() => { officerModalOpen = false; editingOfficer = null; }}>
+  {#key editingOfficer?.id ?? 'create'}
+  <form method="POST" action={editingOfficer ? '?/updateOfficer' : '?/appointOfficer'}
     use:enhance={() => { submitting = true; return async ({ update }) => { submitting = false; await update(); }; }}
     class="space-y-4">
-    <MemberSelect {members} bind:value={selectedOfficerDid} name="officerDid" label="Member" required />
-    <div>
-      <label for="officerTitle" class="block text-sm font-medium text-[var(--cs-text-secondary)]">Title</label>
-      <select id="officerTitle" name="title" required
-        class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]">
-        <option value="">Select title...</option>
-        <option value="president">President</option>
-        <option value="secretary">Secretary</option>
-        <option value="treasurer">Treasurer</option>
-        <option value="director">Director</option>
-        <option value="other">Other</option>
-      </select>
-    </div>
-    <div>
-      <label for="appointmentType" class="block text-sm font-medium text-[var(--cs-text-secondary)]">Appointment Type</label>
-      <select id="appointmentType" name="appointmentType" required
-        class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]">
-        <option value="">Select type...</option>
-        <option value="elected">Elected</option>
-        <option value="appointed">Appointed</option>
-      </select>
-    </div>
-    <div class="grid grid-cols-2 gap-4">
+    {#if editingOfficer}
+      <input type="hidden" name="id" value={editingOfficer.id} />
       <div>
-        <label for="appointedAt" class="block text-sm font-medium text-[var(--cs-text-secondary)]">Appointed Date</label>
-        <input id="appointedAt" name="appointedAt" type="date" required
-          class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]" />
+        <label for="officerTitle" class="block text-sm font-medium text-[var(--cs-text-secondary)]">Title</label>
+        <select id="officerTitle" name="title" required
+          value={editingOfficer.title}
+          class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]">
+          <option value="president">President</option>
+          <option value="secretary">Secretary</option>
+          <option value="treasurer">Treasurer</option>
+          <option value="director">Director</option>
+          <option value="other">Other</option>
+        </select>
       </div>
       <div>
         <label for="termEndsAt" class="block text-sm font-medium text-[var(--cs-text-secondary)]">
           Term Ends <span class="text-[var(--cs-text-muted)]">(optional)</span>
         </label>
         <input id="termEndsAt" name="termEndsAt" type="date"
+          value={editingOfficer.termEndsAt?.slice(0, 10) ?? ''}
           class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]" />
       </div>
-    </div>
-    <div>
-      <label for="responsibilities" class="block text-sm font-medium text-[var(--cs-text-secondary)]">
-        Responsibilities <span class="text-[var(--cs-text-muted)]">(optional)</span>
-      </label>
-      <textarea id="responsibilities" name="responsibilities" rows={2}
-        class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
-        placeholder="Key responsibilities..."></textarea>
-    </div>
+      <div>
+        <label for="responsibilities" class="block text-sm font-medium text-[var(--cs-text-secondary)]">
+          Responsibilities <span class="text-[var(--cs-text-muted)]">(optional)</span>
+        </label>
+        <textarea id="responsibilities" name="responsibilities" rows={2}
+          class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
+          placeholder="Key responsibilities...">{editingOfficer.responsibilities ?? ''}</textarea>
+      </div>
+    {:else}
+      <MemberSelect {members} bind:value={selectedOfficerDid} name="officerDid" label="Member" required />
+      <div>
+        <label for="officerTitle" class="block text-sm font-medium text-[var(--cs-text-secondary)]">Title</label>
+        <select id="officerTitle" name="title" required
+          class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]">
+          <option value="">Select title...</option>
+          <option value="president">President</option>
+          <option value="secretary">Secretary</option>
+          <option value="treasurer">Treasurer</option>
+          <option value="director">Director</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div>
+        <label for="appointmentType" class="block text-sm font-medium text-[var(--cs-text-secondary)]">Appointment Type</label>
+        <select id="appointmentType" name="appointmentType" required
+          class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]">
+          <option value="">Select type...</option>
+          <option value="elected">Elected</option>
+          <option value="appointed">Appointed</option>
+        </select>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label for="appointedAt" class="block text-sm font-medium text-[var(--cs-text-secondary)]">Appointed Date</label>
+          <input id="appointedAt" name="appointedAt" type="date" required
+            class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]" />
+        </div>
+        <div>
+          <label for="termEndsAt" class="block text-sm font-medium text-[var(--cs-text-secondary)]">
+            Term Ends <span class="text-[var(--cs-text-muted)]">(optional)</span>
+          </label>
+          <input id="termEndsAt" name="termEndsAt" type="date"
+            class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]" />
+        </div>
+      </div>
+      <div>
+        <label for="responsibilities" class="block text-sm font-medium text-[var(--cs-text-secondary)]">
+          Responsibilities <span class="text-[var(--cs-text-muted)]">(optional)</span>
+        </label>
+        <textarea id="responsibilities" name="responsibilities" rows={2}
+          class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
+          placeholder="Key responsibilities..."></textarea>
+      </div>
+    {/if}
     <div class="flex justify-end gap-3">
-      <button type="button" onclick={() => (officerModalOpen = false)}
+      <button type="button" onclick={() => { officerModalOpen = false; editingOfficer = null; }}
         class="rounded-md border border-[var(--cs-border)] px-3 py-1.5 text-sm text-[var(--cs-text-secondary)] hover:bg-[var(--cs-bg-inset)]">Cancel</button>
       <button type="submit" disabled={submitting}
         class="rounded-md bg-[var(--cs-primary)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)] disabled:opacity-50">
-        {submitting ? 'Appointing...' : 'Appoint'}
+        {submitting ? 'Saving...' : editingOfficer ? 'Save changes' : 'Appoint'}
       </button>
     </div>
   </form>
+  {/key}
 </Modal>
 
 <!-- End Term Confirmation -->
