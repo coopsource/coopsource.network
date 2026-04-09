@@ -145,12 +145,15 @@ async function seedCandidatePerson(
 }
 
 /**
- * V8.8 — Attach a `stakeholder_interest` row to an existing person (e.g.,
- * the logged-in admin). Used by the person-match tests to give the viewer
- * alignment data so the scoring function follows the alignment branch
- * instead of the V8.7 fallback. `projectUri` defaults to the viewer's DID.
+ * V8.8 — Attach a `stakeholder_interest` row to ANY existing entity (a
+ * person OR a cooperative). Used by the person-match tests to give the
+ * viewer alignment data so the scoring function follows the alignment
+ * branch instead of the V8.7 fallback, and also used to attach alignment
+ * data to candidate cooperatives (matching how alignment-service.ts stores
+ * them, scoped to a coop DID via project_uri). `projectUri` defaults to
+ * the entity's own DID.
  */
-async function seedUserInterests(
+async function seedInterestsFor(
   did: string,
   interests: Array<{ category: string; description?: string; priority?: number }>,
   opts: { projectUri?: string } = {},
@@ -392,7 +395,7 @@ describe('V8.7 — Match Service', () => {
       // discoverable flag could pass for the wrong reason (the user-has-
       // no-alignment fallback). This test locks in that alignment data is
       // itself the opt-in signal.
-      await seedUserInterests(adminDid, [
+      await seedInterestsFor(adminDid, [
         { category: 'climate', priority: 3 },
       ]);
       await seedCandidatePerson('did:web:hidden-aligned.example', {
@@ -450,7 +453,7 @@ describe('V8.7 — Match Service', () => {
         .set({ discoverable: true })
         .where('entity_did', '=', adminDid)
         .execute();
-      await seedUserInterests(adminDid, [{ category: 'food', priority: 4 }]);
+      await seedInterestsFor(adminDid, [{ category: 'food', priority: 4 }]);
 
       await testApp.container.matchmakingService.runMatchmakingForUser(adminDid);
 
@@ -511,7 +514,7 @@ describe('V8.7 — Match Service', () => {
 
     it('getMatchesForUser returns mixed cooperative and person rows with correct shape', async () => {
       // Give admin alignment data so the scoring branch is deterministic.
-      await seedUserInterests(adminDid, [
+      await seedInterestsFor(adminDid, [
         { category: 'climate', priority: 3 },
       ]);
       // Person with matching alignment.
@@ -524,7 +527,7 @@ describe('V8.7 — Match Service', () => {
       // also attach a stakeholder_interest row scoped to the coop DID via
       // project_uri (matches how alignment-service.ts stores them).
       await seedCandidateCoop('did:web:coop-mix.example', 'worker');
-      await seedUserInterests('did:web:coop-mix.example', [
+      await seedInterestsFor('did:web:coop-mix.example', [
         { category: 'climate', priority: 3 },
       ]);
 
@@ -581,6 +584,19 @@ describe('V8.7 — Match Service', () => {
         .selectAll()
         .execute();
       expect(rows).toHaveLength(20);
+
+      // Sanity: the winning 20 must include BOTH match types. This catches
+      // a future refactor that accidentally treats one type as always
+      // score-0 and silently excludes it from the TOP_N.
+      const rowsByType = rows.reduce(
+        (acc, r) => {
+          acc[r.match_type] = (acc[r.match_type] ?? 0) + 1;
+          return acc;
+        },
+        {} as Record<string, number>,
+      );
+      expect(rowsByType.cooperative ?? 0).toBeGreaterThan(0);
+      expect(rowsByType.person ?? 0).toBeGreaterThan(0);
     });
 
     it('backward compat: empty user interests + empty candidate interests falls back to V8.7 formula', async () => {
@@ -602,14 +618,14 @@ describe('V8.7 — Match Service', () => {
       ).toBeDefined();
     });
 
-    it('SUPPRESSION: user with alignment + candidate with none → score 0 → excluded when a scored candidate exists', async () => {
+    it('SUPPRESSION: candidate with no alignment gets score 0 and ranks below scored candidates', async () => {
       // Viewer has alignment data.
-      await seedUserInterests(adminDid, [
+      await seedInterestsFor(adminDid, [
         { category: 'climate', priority: 3 },
       ]);
       // Candidate A: matching alignment → scored > 0 via alignment branch.
       await seedCandidateCoop('did:web:aligned-coop.example', 'worker');
-      await seedUserInterests('did:web:aligned-coop.example', [
+      await seedInterestsFor('did:web:aligned-coop.example', [
         { category: 'climate', priority: 3 },
       ]);
       // Candidate B: no alignment → score.ts routes to the suppression

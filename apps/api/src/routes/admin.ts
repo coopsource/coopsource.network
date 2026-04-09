@@ -255,7 +255,10 @@ export function createAdminRoutes(container: Container): Router {
             const projectUri =
               typeof body.projectUri === 'string' ? body.projectUri : body.did;
             const now = new Date();
-            const rkey = `test-${now.getTime()}`;
+            // Match the pattern used by the in-file helper at
+            // me-matches.test.ts:126 — Date.now() alone collides when two
+            // requests land in the same millisecond.
+            const rkey = `test-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
             await trx
               .insertInto('stakeholder_interest')
               .values({
