@@ -999,39 +999,60 @@ These are intentionally narrow positive lists. Closed-governance coops route pro
 - `apps/web/tests/e2e/matches.spec.ts` — +1 test: seeded discoverable person renders as a match card
 - `apps/web/tests/e2e/helpers.ts` — `seedCandidatePerson` helper promoted from an in-spec local in the final fix-up commit `9797fcc`
 
-### Phase V8.9 — Polish & Onboarding
+### Phase V8.9 — Polish & Onboarding — ✅ Shipped
 
-**Goal**: Contextual "Get Started" card on Home for new users. Content review. Accessibility audit.
+**Goal**: Contextual "Get Started" card on Home for new users. Public person profile pages (deferred from V8.8). Content review. Accessibility audit.
 
-**Tasks**:
-1. Add `dismissed_get_started` flag to user preferences
-2. Show "Get Started" card on Home until dismissed
-3. Card content: explain Home, link to Explore, suggest creating or joining a coop
-4. Marketing landing page content review
-5. About page content
-6. Accessibility audit on new components (ARIA, keyboard nav, color contrast)
-7. Empty state polish across all new pages
-8. Tests: card dismiss persists
+**Tasks** (all complete):
+1. ✅ Migration 062 adds `dismissed_get_started` boolean to `profile` table (O(1) catalog-only)
+2. ✅ GetStartedCard component on Home, rendered until dismissed via API-persisted flag
+3. ✅ Card content: welcome message, links to Explore, suggest creating/joining a coop
+4. ✅ Marketing landing page: feature bullets (governance, agreements, discovery, open protocols)
+5. ✅ About page: added People discovery and alignment matchmaking paragraph
+6. ✅ Accessibility: skip-to-main link, focus trap for modals, ARIA on SuggestedMatches/GetStartedCard/error messages
+7. ✅ Empty state polish: Home cooperatives section with explore CTA
+8. ✅ Tests: 19 new tests — 8 API (me-profile route + profile-service), 5 API (person explore), 4 E2E (GetStartedCard), 3 E2E (person profile), 1 E2E (People chip assertion)
 
-**Files**:
-- Various — content updates, accessibility refinements
-- `apps/web/src/lib/components/home/GetStartedCard.svelte` (new)
+**V8.8 deferred items resolved in V8.9:**
+- ✅ **Public person profile pages** (`/profiles/[handle]`) — read-only page showing displayName, bio, discoverable cooperatives, and alignment interest categories. D1 hybrid predicate enforced server-side. Match cards and explore results now link to profiles (V8.8 TODOs removed).
+- ✅ **Settings discoverability toggle error recovery** — PATCH error response now includes the pre-mutation `discoverable` value so the checkbox reverts. Error `<p>` has `role="alert"`.
+- ✅ **Explore page E2E chip enumeration** — `People` tab assertion added to `search.spec.ts`.
+- ✅ **Migration 061 runbook deadlink** — entry added to `docs/operations.md` maintenance window table.
 
-**Deferred from V8.8** (tracked here so they don't get forgotten — the V8.8 final code review surfaced these as non-blocking follow-ups):
+**Files** (final):
+- `packages/db/src/migrations/062_dismissed_get_started.ts` (new) — `profile.dismissed_get_started BOOLEAN NOT NULL DEFAULT false`
+- `packages/db/src/schema.ts` — `dismissed_get_started` added to `ProfileTable`
+- `apps/api/src/services/profile-service.ts` — `setDismissedGetStarted`, `getPublicPersonProfile`, `DefaultProfile.dismissedGetStarted`
+- `apps/api/src/routes/me-profile.ts` — PATCH widened to accept `{ discoverable?, dismissedGetStarted? }`; GET returns `dismissedGetStarted`
+- `apps/api/src/routes/explore-person.ts` (new) — `GET /api/v1/explore/people/:handle` (public, D1 hybrid gated)
+- `apps/api/src/index.ts` — mounted `createExplorePersonRoutes`
+- `apps/web/src/lib/components/home/GetStartedCard.svelte` (new) — onboarding card with dismiss form action
+- `apps/web/src/routes/(authed)/me/+page.server.ts` — loads `dismissedGetStarted` from profile; `dismissGetStarted` action
+- `apps/web/src/routes/(authed)/me/+page.svelte` — renders GetStartedCard when not dismissed; polished empty state
+- `apps/web/src/routes/(public)/profiles/[handle]/+page.svelte` (new) — public person profile page
+- `apps/web/src/routes/(public)/profiles/[handle]/+page.server.ts` (new) — loads person profile, 404 on miss
+- `apps/web/src/lib/components/home/SuggestedMatches.svelte` — person matches link to `/profiles/{handle}`; `aria-label` on section
+- `apps/web/src/routes/(authed)/me/matches/+page.svelte` — person matches get "View" link to `/profiles/{handle}`
+- `apps/web/src/routes/(authed)/me/explore/+page.svelte` — people results link to profiles
+- `apps/web/src/routes/(authed)/me/settings/+page.server.ts` — error response includes pre-mutation `discoverable`
+- `apps/web/src/routes/(authed)/me/settings/+page.svelte` — `role="alert"` on error message
+- `apps/web/src/routes/+page.svelte` — feature bullets grid below hero
+- `apps/web/src/routes/(public)/about/+page.svelte` — people discovery paragraph
+- `apps/web/src/lib/actions/focus-trap.ts` (new) — reusable Svelte action for modal focus trapping
+- `apps/web/src/app.html` — skip-to-main-content link
+- `apps/web/src/lib/components/layout/AppShell.svelte` — `id="main-content"` on `<main>`
+- `apps/web/src/routes/(public)/+layout.svelte` — `id="main-content"` on `<main>`
+- `apps/web/src/lib/components/ui/Modal.svelte` — `use:focusTrap` applied
+- `apps/web/src/lib/api/types.ts` — `MeProfilePayload.dismissedGetStarted`, `ExplorePersonProfile`
+- `apps/web/src/lib/api/client.ts` — `dismissGetStarted()`, `getExplorePerson(handle)`
+- `docs/operations.md` — migration 061 maintenance window entry
+- Tests: `profile-service.test.ts` (+3), `me-profile.test.ts` (new, 8), `explore.test.ts` (+5), `home.spec.ts` (+4), `person-profile.spec.ts` (new, 3), `search.spec.ts` (+1), `matches.spec.ts` (updated V8.8 assertion)
 
-*User-visible*
-- **Public profile pages for persons** (`/profiles/[handle]`) — V8.8 match cards render person `displayName` as plain text pending this. TODO markers in `apps/web/src/lib/components/home/SuggestedMatches.svelte:62-63` and `apps/web/src/routes/(authed)/me/matches/+page.svelte:124`. Once the profile page exists, replace the plain-text render with a link and remove the TODOs.
-- **Settings discoverability toggle error recovery** — `apps/web/src/routes/(authed)/me/settings/+page.svelte` doesn't revert the checkbox state if the PATCH fails. The user sees the pre-submit state + an error message. Polish pass should show a toast and revert.
-
-*Test / infra*
-- **Explore page E2E chip enumeration** — `apps/web/tests/e2e/search.spec.ts` line ~62 asserts the presence of `All`, `Cooperatives`, `Posts` tabs but does NOT include `People`. Add to the asserted tab set (trivial one-line fix).
-- **Migration 061 runbook deadlink** — `packages/db/src/migrations/061_people_search.ts` header references `docs/operations.md` for a runbook entry that was never added. Either add a one-line entry or remove the reference.
-- **Ambient test pollution** — `well-known.test.ts` and `appview-dispatch.test.ts` fail together in the full `pnpm --filter @coopsource/api test` run but pass in isolation. Pre-existing cross-file state leak, not caused by V8.8, but worth a separate test-hygiene task.
-
-*Operational / scale*
-- **Anti-scraper rate limits on `/search/people`** — currently only `requireAuth` gates the endpoint. A motivated attacker with an account could scrape the discoverable-person directory. Acceptable given the D1 hybrid opt-in but should land before any public-facing promotion of people search.
-- **Match notifications** — still blocked by `notification.cooperative_did NOT NULL`. Requires either a nullability migration + audit of every consumer, or a synthetic "system" cooperative. V8.7 design note carries forward unchanged.
-- **Pre-lowered category column on `stakeholder_interest`** — the `jsonb_array_elements(si.interests) + lower(item->>'category') = ANY(...)` query in `searchAlignment` does a sequential scan. Acceptable at V8.8 scale; revisit once `stakeholder_interest` grows past ~100K rows (documented in migration 061 header). A denormalized `lower(category)[]` column with a GIN index is the natural fix.
+**Still deferred to V8.X** (not V8.9 scope):
+- **Anti-scraper rate limits on `/search/people`** — `requireAuth` is the only gate; needs rate-limit middleware design before public promotion
+- **Match notifications** — blocked by `notification.cooperative_did NOT NULL`; requires nullability migration
+- **Pre-lowered category column on `stakeholder_interest`** — scale optimization for ~100K+ rows
+- **Ambient test pollution** (`well-known.test.ts` / `appview-dispatch.test.ts`) — pre-existing, needs separate investigation
 
 ### Phase V8.10 — Entity Editing Foundation + Core Entities
 

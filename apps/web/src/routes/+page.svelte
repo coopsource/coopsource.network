@@ -16,7 +16,7 @@
   <PublicNav user={data.user} />
 
   <!-- Hero -->
-  <main class="flex flex-1 flex-col items-center justify-center px-6 text-center">
+  <main id="main-content" class="flex flex-1 flex-col items-center justify-center px-6 text-center">
     <h1 class="max-w-2xl text-4xl font-bold tracking-tight text-[var(--cs-text)] sm:text-5xl">
       Federated collaboration for cooperatives
     </h1>
