@@ -545,22 +545,69 @@ export interface SearchPostsResponse {
   cursor: string | null;
 }
 
-// V8.7 — Match suggestions
+// V8.8 — People search
+
+export interface PersonSearchResult {
+  did: string;
+  handle: string | null;
+  displayName: string;
+  bio: string | null;
+  avatarCid: string | null;
+  membershipCount: number;
+}
+
+export interface SearchPeopleResponse {
+  people: PersonSearchResult[];
+  cursor: string | null;
+}
+
+// V8.8 — Alignment search (cooperatives ranked by shared interests/outcomes)
+
+export interface AlignmentSearchResult {
+  did: string;
+  handle: string | null;
+  displayName: string;
+  cooperativeType: string;
+  matchedOutcomes: number;
+  matchedInterests: number;
+  alignmentScore: number;
+}
+
+export interface SearchAlignmentResponse {
+  cooperatives: AlignmentSearchResult[];
+  cursor: string | null;
+}
+
+// V8.7/V8.8 — Match suggestions
 
 export interface MatchReason {
-  signals: { recency: number; diversity: number; ageDays: number };
+  signals: {
+    alignment: number;
+    recency: number;
+    diversity: number;
+    ageDays: number;
+    sharedCategoryCount: number;
+    sharedCoopCount: number;
+  };
   version: number;
 }
 
 export interface MatchSuggestion {
   id: string;
+  /** V8.8 discriminant: cooperative vs person target. */
+  matchType: 'cooperative' | 'person';
   targetDid: string;
   handle: string | null;
   displayName: string;
   description: string | null;
   avatarCid: string | null;
-  cooperativeType: string;
+  /** Null for person matches. */
+  cooperativeType: string | null;
   memberCount: number | null;
+  /** V8.8: populated for person matches, null for cooperatives. */
+  sharedInterestCount: number | null;
+  /** V8.8: populated for person matches, null for cooperatives. */
+  sharedCoopCount: number | null;
   /** Postgres numeric — string-formatted decimal in [0, 1]. */
   score: string;
   reason: MatchReason;
@@ -580,6 +627,21 @@ export interface MatchActionResponse {
     dismissedAt: string | null;
     actedOnAt: string | null;
   };
+}
+
+// V8.8 — /me/profile
+
+export interface MeProfilePayload {
+  id: string;
+  displayName: string;
+  avatarCid: string | null;
+  bio: string | null;
+  verified: boolean;
+  discoverable: boolean;
+}
+
+export interface MeProfileResponse {
+  profile: MeProfilePayload | null;
 }
 
 // ─── Agents ──────────────────────────────────────────────────────────────────

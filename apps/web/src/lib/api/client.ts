@@ -47,8 +47,11 @@ import type {
   ExploreNetworksResponse,
   SearchCooperativesResponse,
   SearchPostsResponse,
+  SearchPeopleResponse,
+  SearchAlignmentResponse,
   GetMatchesResponse,
   MatchActionResponse,
+  MeProfileResponse,
   MyMembershipsResponse,
   AgentConfig,
   AgentsResponse,
@@ -837,6 +840,32 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string, apiBase?
       return request<SearchPostsResponse>(`/search/posts?${qs}`);
     },
 
+    // V8.8 — People search (authed)
+    searchPeople: (q: string, params?: { limit?: number; cursor?: string }) => {
+      const qs = new URLSearchParams({ q });
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      return request<SearchPeopleResponse>(`/search/people?${qs}`);
+    },
+
+    // V8.8 — Alignment search (authed)
+    searchAlignment: (params: {
+      q?: string;
+      interests?: string[];
+      limit?: number;
+      cursor?: string;
+    }) => {
+      const qs = new URLSearchParams();
+      if (params.q) qs.set('q', params.q);
+      if (params.interests && params.interests.length > 0) {
+        qs.set('interests', params.interests.join(','));
+      }
+      if (params.limit) qs.set('limit', String(params.limit));
+      if (params.cursor) qs.set('cursor', params.cursor);
+      const suffix = qs.toString() ? `?${qs}` : '';
+      return request<SearchAlignmentResponse>(`/search/alignment${suffix}`);
+    },
+
     // V8.7 — Match suggestions
     getMyMatches: (params?: { limit?: number; include?: 'active' | 'all' }) => {
       const qs = new URLSearchParams();
@@ -854,6 +883,15 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string, apiBase?
     actOnMatch: (id: string) =>
       request<MatchActionResponse>(`/me/matches/${encodeURIComponent(id)}/act`, {
         method: 'POST',
+      }),
+
+    // V8.8 — /me/profile (discoverability toggle)
+    getMyProfile: () => request<MeProfileResponse>('/me/profile'),
+
+    setMyDiscoverable: (discoverable: boolean) =>
+      request<{ ok: true; discoverable: boolean }>('/me/profile', {
+        method: 'PATCH',
+        body: JSON.stringify({ discoverable }),
       }),
 
     // ── Agents ──────────────────────────────────────────────────────────────
