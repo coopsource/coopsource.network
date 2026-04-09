@@ -11,6 +11,11 @@ import { parsePagination } from '../lib/pagination.js';
  * /api/v1/search/posts requires auth — and via requireAuth's active-membership
  * check, requires the viewer to be an active member of at least one coop.
  * Frontend at /me/explore handles the 401 path gracefully (see V8.6 plan §10).
+ *
+ * V8.8 — Adds /api/v1/search/people and /api/v1/search/alignment. Both are
+ * auth-gated (D2: require active membership, mirroring /search/posts). The
+ * people route enforces D1 hybrid discoverability in SQL; the alignment
+ * route combines outcome FTS with interest tag overlap.
  */
 export function createSearchRoutes(container: Container): Router {
   const router = Router();
@@ -63,6 +68,78 @@ export function createSearchRoutes(container: Container): Router {
           body: row.body,
           authorDid: row.authorDid,
           createdAt: row.createdAt.toISOString(),
+        })),
+        cursor: result.cursor,
+      });
+    }),
+  );
+
+  // V8.8 — People search. Auth-gated (active membership required via
+  // requireAuth). The D1 hybrid privacy predicate
+  // (profile.discoverable OR has stakeholder_interest) is enforced in SQL
+  // inside SearchService.searchPeople — see that method for details.
+  router.get(
+    '/api/v1/search/people',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const viewerDid = req.actor!.did;
+      const q = String(req.query.q ?? '').trim();
+      const { limit, cursor } = parsePagination(req.query as Record<string, unknown>);
+      const result = await container.searchService.searchPeople(q, viewerDid, {
+        limit,
+        cursor,
+      });
+
+      res.json({
+        people: result.items.map((row) => ({
+          did: row.did,
+          handle: row.handle,
+          displayName: row.displayName,
+          bio: row.bio,
+          avatarCid: row.avatarCid,
+          membershipCount: row.membershipCount,
+        })),
+        cursor: result.cursor,
+      });
+    }),
+  );
+
+  // V8.8 — Alignment matchmaking search. Auth-gated. Accepts either `q`
+  // (outcome FTS) or `interests` (comma-separated tags) or both. Empty
+  // inputs return an empty result (no SQL hit).
+  router.get(
+    '/api/v1/search/alignment',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const viewerDid = req.actor!.did;
+      const q = req.query.q ? String(req.query.q).trim() : undefined;
+      const interests = req.query.interests
+        ? String(req.query.interests)
+            .split(',')
+            .map((s) => s.trim().toLowerCase())
+            .filter((s) => s.length > 0)
+        : undefined;
+
+      if (!q && (!interests || interests.length === 0)) {
+        res.json({ cooperatives: [], cursor: null });
+        return;
+      }
+
+      const { limit, cursor } = parsePagination(req.query as Record<string, unknown>);
+      const result = await container.searchService.searchAlignment(
+        { q, interests, limit, cursor },
+        viewerDid,
+      );
+
+      res.json({
+        cooperatives: result.items.map((row) => ({
+          did: row.did,
+          handle: row.handle,
+          displayName: row.displayName,
+          cooperativeType: row.cooperativeType,
+          matchedOutcomes: row.matchedOutcomes,
+          matchedInterests: row.matchedInterests,
+          alignmentScore: row.alignmentScore,
         })),
         cursor: result.cursor,
       });

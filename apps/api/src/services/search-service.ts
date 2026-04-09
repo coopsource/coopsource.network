@@ -44,6 +44,45 @@ export interface PostSearchRow {
   createdAt: Date;
 }
 
+/**
+ * V8.8 — People search row.
+ *
+ * `membershipCount` reflects ACTIVE bilateral memberships only
+ * (status = 'active' AND invalidated_at IS NULL). This is a count of
+ * cooperatives the person is a member of, not roles or pending applications.
+ */
+export interface PersonSearchRow {
+  did: string;
+  handle: string | null;
+  displayName: string;
+  bio: string | null;
+  avatarCid: string | null;
+  membershipCount: number;
+  createdAt: Date;
+}
+
+/**
+ * V8.8 — Alignment search row.
+ *
+ * `alignmentScore` is a cheap cooperative-discovery heuristic (NOT the
+ * V8.7 match-service score). Formula:
+ *   min(1.0, matched_outcomes * 0.5 + matched_interests * 0.2)
+ * where `matched_outcomes` is the count of desired_outcome rows whose
+ * `outcome_search_tsv` matches the query, and `matched_interests` is the
+ * count of distinct interest categories (lowercased) that appear in the
+ * caller-provided interests list.
+ */
+export interface AlignmentSearchRow {
+  did: string;
+  handle: string | null;
+  displayName: string;
+  cooperativeType: string;
+  matchedOutcomes: number;
+  matchedInterests: number;
+  alignmentScore: number;
+  createdAt: Date;
+}
+
 export class SearchService {
   constructor(private readonly db: Kysely<Database>) {}
 
@@ -209,6 +248,300 @@ export class SearchService {
         body: row.body,
         authorDid: row.authorDid,
         createdAt: row.createdAt,
+      })),
+      cursor: nextCursor,
+    };
+  }
+
+  /**
+   * V8.8 — People search with D1 hybrid discoverability.
+   *
+   * Surfaces a person iff:
+   *   - their profile.discoverable flag is true, OR
+   *   - they have at least one stakeholder_interest record (i.e., they
+   *     participate in alignment data — a soft opt-in by action).
+   *
+   * FTS is over BOTH entity.entity_search_tsv (display name / handle /
+   * description, added in migration 059) AND profile.profile_bio_tsv
+   * (bio text, added in migration 061). The OR across the two tsvectors
+   * keeps the query simple and lets Postgres short-circuit on whichever
+   * GIN index matches first.
+   *
+   * The viewer is always excluded from their own results.
+   */
+  async searchPeople(
+    query: string,
+    viewerDid: string,
+    params: PageParams,
+  ): Promise<{ items: PersonSearchRow[]; cursor: string | null }> {
+    const trimmed = query.trim();
+    if (!trimmed) return { items: [], cursor: null };
+
+    const limit = params.limit ?? 50;
+
+    let q = this.db
+      .selectFrom('entity')
+      .innerJoin('profile', (join) =>
+        join
+          .onRef('profile.entity_did', '=', 'entity.did')
+          .on('profile.is_default', '=', true)
+          .on('profile.invalidated_at', 'is', null),
+      )
+      .where('entity.type', '=', 'person')
+      .where('entity.status', '=', 'active')
+      .where('entity.invalidated_at', 'is', null)
+      .where('entity.did', '!=', viewerDid)
+      .where((eb) =>
+        eb.or([
+          eb('profile.discoverable', '=', true),
+          eb.exists(
+            eb
+              .selectFrom('stakeholder_interest as si')
+              .whereRef('si.did', '=', 'entity.did')
+              .select('si.uri'),
+          ),
+        ]),
+      )
+      .where(
+        sql<boolean>`(
+          entity.entity_search_tsv @@ websearch_to_tsquery('english', ${trimmed})
+          OR profile.profile_bio_tsv @@ websearch_to_tsquery('english', ${trimmed})
+        )`,
+      )
+      .select([
+        'entity.did',
+        'entity.handle',
+        'entity.display_name as displayName',
+        'profile.bio',
+        'profile.avatar_cid as avatarCid',
+        'entity.created_at as createdAt',
+        sql<number>`(
+          SELECT COUNT(*)::int FROM membership m
+          WHERE m.member_did = entity.did
+            AND m.status = 'active'
+            AND m.invalidated_at IS NULL
+        )`.as('membershipCount'),
+      ])
+      .orderBy('entity.created_at', 'desc')
+      .orderBy('entity.did', 'desc');
+
+    if (params.cursor) {
+      const { t, i } = decodeCursor(params.cursor);
+      q = q.where((eb) =>
+        eb.or([
+          eb('entity.created_at', '<', new Date(t)),
+          eb.and([
+            eb('entity.created_at', '=', new Date(t)),
+            eb('entity.did', '<', i),
+          ]),
+        ]),
+      );
+    }
+
+    const rows = await q.limit(limit + 1).execute();
+    const hasMore = rows.length > limit;
+    const items = hasMore ? rows.slice(0, limit) : rows;
+
+    const nextCursor =
+      hasMore && items.length > 0
+        ? encodeCursor(items[items.length - 1]!.createdAt, items[items.length - 1]!.did)
+        : null;
+
+    return {
+      items: items.map((row) => ({
+        did: row.did,
+        handle: row.handle,
+        displayName: row.displayName,
+        bio: row.bio,
+        avatarCid: row.avatarCid,
+        membershipCount: row.membershipCount,
+        createdAt: row.createdAt,
+      })),
+      cursor: nextCursor,
+    };
+  }
+
+  /**
+   * V8.8 — Alignment search over cooperatives.
+   *
+   * Combined signal from two sources:
+   *   - outcome FTS: matches against `desired_outcome.outcome_search_tsv`,
+   *     grouped by project_uri (used as the cooperative DID — see
+   *     alignment-service.ts which treats project_uri as the coop's DID).
+   *   - interest tag overlap: counts distinct interest categories
+   *     (lowercased) that match the caller-supplied list, using
+   *     `jsonb_array_elements` to expand the `interests` JSON array stored
+   *     on `stakeholder_interest`.
+   *
+   * Either input alone is enough to seed results; both are OR-combined.
+   * If neither is supplied (empty/whitespace `q` AND empty/null `interests`)
+   * we return empty immediately — same short-circuit as searchCooperatives.
+   *
+   * Cooperatives surface only when `anon_discoverable = true`. This is
+   * belt-and-braces: even though the route is auth-gated, alignment search
+   * intentionally mirrors the anon-safe discoverability predicate so a
+   * future unauth'd variant (if the product decides to expose it) requires
+   * zero schema changes.
+   *
+   * Ordering: by (alignment_score DESC, did DESC). The cursor encoding
+   * for this endpoint is `(alignmentScore, did)` — distinct from the
+   * `(createdAt, did)` encoding used by recency-ordered searches. It's
+   * best-effort: rows inserted or whose scores change between pages may
+   * be missed or repeated at the boundary. Acceptable for a discovery UI.
+   */
+  async searchAlignment(
+    opts: { q?: string; interests?: string[]; limit?: number; cursor?: string },
+    _viewerDid: string,
+  ): Promise<{ items: AlignmentSearchRow[]; cursor: string | null }> {
+    const limit = opts.limit ?? 50;
+    const q = opts.q?.trim();
+    const interests = opts.interests
+      ?.map((s) => s.trim().toLowerCase())
+      .filter((s) => s.length > 0);
+
+    const hasQ = !!(q && q.length > 0);
+    const hasInterests = !!(interests && interests.length > 0);
+
+    if (!hasQ && !hasInterests) {
+      return { items: [], cursor: null };
+    }
+
+    // Best-effort relevance cursor: (alignmentScore, did). Encoded as
+    // base64url JSON. Kept local to this method rather than polluting
+    // the shared pagination helpers, which assume recency ordering.
+    let cursorScore: number | null = null;
+    let cursorDid: string | null = null;
+    if (opts.cursor) {
+      try {
+        const decoded = JSON.parse(
+          Buffer.from(opts.cursor, 'base64url').toString(),
+        ) as { s: number; i: string };
+        cursorScore = decoded.s;
+        cursorDid = decoded.i;
+      } catch {
+        throw Object.assign(new Error('Invalid cursor'), { statusCode: 400 });
+      }
+    }
+
+    // Raw SQL: two CTEs (outcome_matches, interest_matches) joined onto
+    // entity + cooperative_profile. We parameterise hasQ / hasInterests
+    // with literal SQL booleans so the CTE short-circuits cleanly when a
+    // caller supplies only one signal.
+    //
+    // Parameter binding notes:
+    //   - trimmed query is only referenced inside the outcome_matches CTE,
+    //     guarded by `${hasQ}::boolean`. When hasQ is false the CTE is
+    //     empty and the query text parameter is still bound but never
+    //     evaluated — Postgres is fine with this.
+    //   - `interests` is passed as a text[] via Kysely's sql.val, and
+    //     compared with `= ANY(...)` against the lowercased category.
+    //
+    // `project_uri` is used as the cooperative DID (not parsed from an
+    // AT-URI) to match the semantics in alignment-service.ts where records
+    // are stored with project_uri set directly to the coop DID.
+    const qText = hasQ ? q! : '';
+    // When hasInterests is false, pass a one-element sentinel array rather
+    // than an empty array. Kysely/pg serializers can be fussy about empty
+    // arrays without an explicit type hint, and the CTE body is guarded by
+    // `${hasInterests}::boolean = FALSE` anyway so the sentinel is never
+    // compared. The explicit `::text[]` cast at the call site is retained
+    // as belt-and-braces.
+    const interestsArr: string[] = hasInterests ? interests! : [''];
+
+    const result = await sql<{
+      did: string;
+      handle: string | null;
+      display_name: string;
+      cooperative_type: string;
+      matched_outcomes: number;
+      matched_interests: number;
+      alignment_score: number;
+      created_at: Date;
+    }>`
+      WITH outcome_matches AS (
+        -- NOTE: alias 'dout' (not 'do') — 'do' is reserved in Postgres
+        -- as the PL/pgSQL DO block keyword and causes a parse error.
+        SELECT dout.project_uri AS coop_did,
+               COUNT(*)::int AS matched_outcomes
+        FROM desired_outcome dout
+        WHERE ${hasQ}::boolean
+          AND dout.outcome_search_tsv @@ websearch_to_tsquery('english', ${qText})
+        GROUP BY dout.project_uri
+      ),
+      interest_matches AS (
+        SELECT si.project_uri AS coop_did,
+               COUNT(DISTINCT lower(item->>'category'))::int AS matched_interests
+        FROM stakeholder_interest si,
+             jsonb_array_elements(si.interests) AS item
+        WHERE ${hasInterests}::boolean
+          AND lower(item->>'category') = ANY(${sql.val(interestsArr)}::text[])
+        GROUP BY si.project_uri
+      )
+      SELECT
+        e.did,
+        e.handle,
+        e.display_name,
+        cp.cooperative_type,
+        e.created_at,
+        COALESCE(om.matched_outcomes, 0) AS matched_outcomes,
+        COALESCE(im.matched_interests, 0) AS matched_interests,
+        LEAST(
+          1.0,
+          COALESCE(om.matched_outcomes, 0) * 0.5
+            + COALESCE(im.matched_interests, 0) * 0.2
+        )::float8 AS alignment_score
+      FROM entity e
+      INNER JOIN cooperative_profile cp ON cp.entity_did = e.did
+      LEFT JOIN outcome_matches  om ON om.coop_did = e.did
+      LEFT JOIN interest_matches im ON im.coop_did = e.did
+      WHERE e.type = 'cooperative'
+        AND e.status = 'active'
+        AND e.invalidated_at IS NULL
+        AND cp.is_network = false
+        AND cp.anon_discoverable = true
+        AND (COALESCE(om.matched_outcomes, 0) > 0 OR COALESCE(im.matched_interests, 0) > 0)
+        AND (
+          ${cursorScore === null}::boolean
+          OR LEAST(
+            1.0,
+            COALESCE(om.matched_outcomes, 0) * 0.5
+              + COALESCE(im.matched_interests, 0) * 0.2
+          ) < ${cursorScore ?? 0}::float8
+          OR (
+            LEAST(
+              1.0,
+              COALESCE(om.matched_outcomes, 0) * 0.5
+                + COALESCE(im.matched_interests, 0) * 0.2
+            ) = ${cursorScore ?? 0}::float8
+            AND e.did < ${cursorDid ?? ''}
+          )
+        )
+      ORDER BY alignment_score DESC, e.did DESC
+      LIMIT ${limit + 1}
+    `.execute(this.db);
+
+    const rows = result.rows;
+    const hasMore = rows.length > limit;
+    const items = hasMore ? rows.slice(0, limit) : rows;
+
+    const last = items[items.length - 1];
+    const nextCursor =
+      hasMore && last
+        ? Buffer.from(
+            JSON.stringify({ s: Number(last.alignment_score), i: last.did }),
+          ).toString('base64url')
+        : null;
+
+    return {
+      items: items.map((row) => ({
+        did: row.did,
+        handle: row.handle,
+        displayName: row.display_name,
+        cooperativeType: row.cooperative_type,
+        matchedOutcomes: Number(row.matched_outcomes),
+        matchedInterests: Number(row.matched_interests),
+        alignmentScore: Number(row.alignment_score),
+        createdAt: row.created_at,
       })),
       cursor: nextCursor,
     };
