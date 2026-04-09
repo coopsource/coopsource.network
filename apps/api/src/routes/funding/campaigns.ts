@@ -90,6 +90,20 @@ export function createCampaignRoutes(container: Container): Router {
     }),
   );
 
+  // DELETE /api/v1/campaigns/:uri — Delete draft campaign
+  router.delete(
+    '/api/v1/campaigns/:uri',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const uri = decodeURIComponent(String(req.params.uri));
+      await container.fundingService.deleteCampaign(
+        uri,
+        req.actor!.cooperativeDid,
+      );
+      res.status(204).end();
+    }),
+  );
+
   // POST /api/v1/campaigns/:uri/status — Change campaign status
   router.post(
     '/api/v1/campaigns/:uri/status',

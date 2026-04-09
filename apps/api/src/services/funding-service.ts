@@ -262,6 +262,23 @@ export class FundingService {
     return row!;
   }
 
+  async deleteCampaign(uri: string, cooperativeDid: string): Promise<void> {
+    const campaign = await this.getCampaign(uri);
+    if (campaign.did !== cooperativeDid) {
+      throw new UnauthorizedError('Not authorized to delete this campaign');
+    }
+    if (campaign.status !== 'draft') {
+      throw new ValidationError(
+        'Cannot delete non-draft campaign; use cancel instead',
+      );
+    }
+
+    await this.db
+      .deleteFrom('funding_campaign')
+      .where('uri', '=', uri)
+      .execute();
+  }
+
   // ─── Pledges ───────────────────────────────────────────────────────────
 
   async createPledge(

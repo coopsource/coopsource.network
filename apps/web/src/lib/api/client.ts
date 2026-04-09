@@ -492,6 +492,9 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string, apiBase?
     voidAgreement: (uri: string) =>
       request<Agreement>(`/agreements/${encodeURIComponent(uri)}/void`, { method: 'POST' }),
 
+    deleteAgreement: (uri: string) =>
+      request<void>(`/agreements/${encodeURIComponent(uri)}`, { method: 'DELETE' }),
+
     addStakeholderTerms: (agreementUri: string, body: {
       stakeholderDid: string;
       stakeholderType: string;
@@ -651,6 +654,9 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string, apiBase?
         method: 'POST',
         body: JSON.stringify({ status }),
       }),
+
+    deleteCampaign: (uri: string) =>
+      request<void>(`/campaigns/${encodeURIComponent(uri)}`, { method: 'DELETE' }),
 
     createPledge: (campaignUri: string, body: { amount: number; currency?: string }) =>
       request<Pledge>(`/campaigns/${encodeURIComponent(campaignUri)}/pledge`, {

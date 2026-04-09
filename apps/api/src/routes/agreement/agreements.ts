@@ -228,6 +228,17 @@ export function createAgreementRoutes(container: Container): Router {
     }),
   );
 
+  // DELETE /api/v1/agreements/:uri — Delete draft agreement
+  router.delete(
+    '/api/v1/agreements/:uri',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const uri = decodeURIComponent(String(req.params.uri));
+      await container.agreementService.deleteAgreement(uri, req.actor!.did);
+      res.status(204).send();
+    }),
+  );
+
   // DELETE /api/v1/agreements/:uri/sign — Retract signature
   router.delete(
     '/api/v1/agreements/:uri/sign',

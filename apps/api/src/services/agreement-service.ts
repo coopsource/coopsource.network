@@ -520,6 +520,30 @@ export class AgreementService {
     return row!;
   }
 
+  async deleteAgreement(uri: string, actorDid: string): Promise<void> {
+    const existing = await this.db
+      .selectFrom('agreement')
+      .where('uri', '=', uri)
+      .selectAll()
+      .executeTakeFirst();
+
+    if (!existing) throw new NotFoundError('Agreement not found');
+    if (existing.created_by !== actorDid) {
+      throw new UnauthorizedError('Only the author can delete an agreement');
+    }
+    if (existing.status !== 'draft') {
+      throw new ValidationError(
+        'Cannot delete non-draft agreement; use void instead',
+      );
+    }
+
+    // Hard delete draft — no signatures or history worth preserving
+    await this.db
+      .deleteFrom('agreement')
+      .where('uri', '=', uri)
+      .execute();
+  }
+
   // ─── Signing ─────────────────────────────────────────────────────────
 
   async signAgreement(
