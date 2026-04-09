@@ -545,6 +545,43 @@ export interface SearchPostsResponse {
   cursor: string | null;
 }
 
+// V8.7 — Match suggestions
+
+export interface MatchReason {
+  signals: { recency: number; diversity: number; ageDays: number };
+  version: number;
+}
+
+export interface MatchSuggestion {
+  id: string;
+  targetDid: string;
+  handle: string | null;
+  displayName: string;
+  description: string | null;
+  avatarCid: string | null;
+  cooperativeType: string;
+  memberCount: number | null;
+  /** Postgres numeric — string-formatted decimal in [0, 1]. */
+  score: string;
+  reason: MatchReason;
+  createdAt: string;
+  dismissedAt: string | null;
+  actedOnAt: string | null;
+}
+
+export interface GetMatchesResponse {
+  matches: MatchSuggestion[];
+  cursor: string | null;
+}
+
+export interface MatchActionResponse {
+  match: {
+    id: string;
+    dismissedAt: string | null;
+    actedOnAt: string | null;
+  };
+}
+
 // ─── Agents ──────────────────────────────────────────────────────────────────
 
 export interface ModelRoutingConfig {

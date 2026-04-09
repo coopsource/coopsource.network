@@ -144,11 +144,62 @@ export function createAdminRoutes(container: Container): Router {
             report_template, report_snapshot,
             notification_preference, mention,
             hook_dead_letter,
+            match_suggestion,
             script_execution_log, cooperative_script
           CASCADE
         `.execute(container.db);
         resetSetupCache();
         res.json({ ok: true });
+      }),
+    );
+
+    // POST /api/v1/admin/test-run-matchmaking — fire the matchmaking job
+    // synchronously for E2E tests. Lets the test seed candidate coops
+    // and then deterministically populate the match_suggestion table
+    // without waiting for the hourly setInterval tick.
+    router.post(
+      '/api/v1/admin/test-run-matchmaking',
+      asyncHandler(async (_req, res) => {
+        const result = await container.matchmakingService.runMatchmakingForAllUsers();
+        res.json(result);
+      }),
+    );
+
+    // POST /api/v1/admin/test-seed-candidate-coop — create a discoverable
+    // candidate cooperative for E2E matchmaking tests. The admin's own coop
+    // is excluded from their own match results (can't suggest a coop you
+    // already belong to), so tests need a separate entity to match against.
+    router.post(
+      '/api/v1/admin/test-seed-candidate-coop',
+      asyncHandler(async (req, res) => {
+        const body = req.body as {
+          did: string;
+          handle: string;
+          displayName: string;
+          cooperativeType?: string;
+        };
+        await container.db
+          .insertInto('entity')
+          .values({
+            did: body.did,
+            type: 'cooperative',
+            handle: body.handle,
+            display_name: body.displayName,
+            status: 'active',
+            created_at: new Date(),
+          })
+          .execute();
+        await container.db
+          .insertInto('cooperative_profile')
+          .values({
+            entity_did: body.did,
+            cooperative_type: body.cooperativeType ?? 'worker',
+            membership_policy: 'open',
+            is_network: false,
+            anon_discoverable: true,
+          })
+          .execute();
+        res.json({ ok: true, did: body.did });
       }),
     );
   }

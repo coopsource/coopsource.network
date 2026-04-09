@@ -3,6 +3,7 @@
   import Globe from '@lucide/svelte/icons/globe';
   import Building2 from '@lucide/svelte/icons/building-2';
   import Mail from '@lucide/svelte/icons/mail';
+  import SuggestedMatches from '$lib/components/home/SuggestedMatches.svelte';
 
   let { data } = $props();
 
@@ -112,4 +113,7 @@
       </div>
     </section>
   {/if}
+
+  <!-- V8.7 Suggested Matches — sibling of Pending Invitations, NOT nested -->
+  <SuggestedMatches matches={data.matches ?? []} />
 </div>

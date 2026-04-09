@@ -50,6 +50,7 @@ import { createAgentTriggerRoutes } from './routes/agents/triggers.js';
 import { createApiTokenRoutes } from './routes/agents/tokens.js';
 import { createModelConfigRoutes } from './routes/agents/model-config.js';
 import { createNotificationRoutes } from './routes/notifications.js';
+import { createMeMatchesRoutes } from './routes/me-matches.js';
 import { createOnboardingRoutes } from './routes/onboarding/config.js';
 import { createDelegationRoutes } from './routes/governance/delegations.js';
 import { createGovernanceFeedRoutes } from './routes/governance/feed.js';
@@ -242,6 +243,9 @@ async function start(): Promise<void> {
   // Notification routes
   app.use(createNotificationRoutes(container));
 
+  // V8.7 — Match suggestion routes (authed; web /me handles 401 gracefully)
+  app.use(createMeMatchesRoutes(container));
+
   // Legal & Administrative routes (Phase 4)
   app.use(createLegalDocumentRoutes(container));
   app.use(createMeetingRoutes(container));
@@ -331,11 +335,25 @@ async function start(): Promise<void> {
   // Outbox processor retired — public data flows through ATProto relay firehose
 
   // Background: resolve expired proposals every 60s
-  setInterval(() => {
+  const proposalResolverHandle = setInterval(() => {
     container.proposalService.resolveExpiredProposals().catch((err) => {
       logger.error(err, 'Failed to resolve expired proposals');
     });
   }, 60_000);
+
+  // V8.7 — Matchmaking job. Hourly, plus once on startup so dev/fresh-install
+  // users see matches immediately instead of waiting up to an hour.
+  container.matchmakingService
+    .runMatchmakingForAllUsers()
+    .then(() => container.matchmakingService.pruneStale())
+    .catch((err) => logger.error(err, 'Initial matchmaking run failed'));
+
+  const matchmakingHandle = setInterval(() => {
+    container.matchmakingService
+      .runMatchmakingForAllUsers()
+      .then(() => container.matchmakingService.pruneStale())
+      .catch((err) => logger.error(err, 'Matchmaking job failed'));
+  }, 60 * 60 * 1000);
 
   const server = app.listen(config.PORT, () => {
     logger.info(`API server listening on port ${config.PORT}`);
@@ -346,6 +364,8 @@ async function start(): Promise<void> {
   // Graceful shutdown — drain connections before exit
   const shutdown = async () => {
     logger.info('Shutting down...');
+    clearInterval(proposalResolverHandle);
+    clearInterval(matchmakingHandle);
     container.eventDispatcher.stop();
     await container.scriptWorkerPool.shutdown();
     labelWss.close();

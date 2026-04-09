@@ -17,6 +17,7 @@ import { ProfileService } from './services/profile-service.js';
 import { MembershipService } from './services/membership-service.js';
 import { PostService } from './services/post-service.js';
 import { SearchService } from './services/search-service.js';
+import { MatchmakingService } from './services/matchmaking-service.js';
 import { ProposalService } from './services/proposal-service.js';
 import { AgreementService } from './services/agreement-service.js';
 import { NetworkService } from './services/network-service.js';
@@ -90,6 +91,7 @@ export interface Container {
   membershipService: MembershipService;
   postService: PostService;
   searchService: SearchService;
+  matchmakingService: MatchmakingService;
   proposalService: ProposalService;
   agreementService: AgreementService;
   agreementTemplateService: AgreementTemplateService;
@@ -225,6 +227,7 @@ export function createContainer(config: AppConfig): Container {
   const governanceLabeler = new GovernanceLabeler(db, labelSubscriptionManager, labelSigner);
   const postService = new PostService(db, clock);
   const searchService = new SearchService(db);
+  const matchmakingService = new MatchmakingService(db, clock);
   const proposalService = new ProposalService(db, pdsService, clock, memberWriteProxy, governanceLabeler, visibilityRouter);
   const agreementService = new AgreementService(db, pdsService, clock, memberWriteProxy);
   const agreementTemplateService = new AgreementTemplateService(db, clock);
@@ -301,6 +304,7 @@ export function createContainer(config: AppConfig): Container {
     membershipService,
     postService,
     searchService,
+    matchmakingService,
     proposalService,
     agreementService,
     agreementTemplateService,
