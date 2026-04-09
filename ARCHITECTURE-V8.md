@@ -3,7 +3,7 @@
 > **Prerequisite**: V7 (production deployment + extensibility — Ozone replacement, V3 cleanup, hook pipeline, declarative configs, scripting, MCP) is complete and merged.
 > **Design references**: ARCHITECTURE-V7.md (extensibility), ARCHITECTURE-V6.md (federation), ARCHITECTURE-V5.md (cooperative lifecycle, security model)
 > **Date**: April 2026
-> **Status**: Design — implementation planned in phases V8.1–V8.9
+> **Status**: V8.1–V8.11 shipped; V8.12–V8.13 in progress
 
 ---
 
@@ -1177,7 +1177,64 @@ The Edit button is conditionally rendered based on this helper. Backend also enf
 - `apps/web/src/lib/api/client.ts` (add `updateNotice`)
 - Member row role-picker UI in `members/+page.svelte`
 
-**Out of scope for V8.11**: Entity deletion (see Future Work), activity/audit log integration beyond the existing fact log.
+**Out of scope for V8.11**: Entity deletion (see V8.12), activity/audit log integration beyond the existing fact log.
+
+### Phase V8.12 — Entity Deletion UI
+
+**Goal**: Add deletion UI for all user-created entities, standardize on `ConfirmDialog` for all destructive actions, and add missing backend DELETE endpoints.
+
+**Scope**: 8 entities get frontend delete UI. 2 entities (Campaign, Agreement) need new backend DELETE endpoints. 4 pages with existing inline delete buttons (no confirmation) are upgraded to use `ConfirmDialog`. Expense frontend status guard mismatch is fixed.
+
+**canDelete rules** (added to `entity-permissions.ts`):
+
+| Entity | Rule | Delete type |
+|--------|------|-------------|
+| Proposal | `draft` + author | Soft (invalidated_at) |
+| Agreement | `draft` + author | Soft (invalidated_at) |
+| Campaign | `draft` only | Hard (deleteFrom) |
+| Task | not `done`/`cancelled` | Hard (deleteFrom) |
+| Expense | `draft` + owner | Hard (deleteFrom) |
+| Commerce Listing | `active` or `paused` | Soft (→ archived) |
+| Commerce Need | `open` or `matched` | Soft (→ cancelled) |
+| Post | author only (any status) | Soft (invalidated_at) |
+
+**Frontend pattern**: All deletions use the existing `ConfirmDialog` component with `confirmDeleteId` state + hidden form, following the pattern from `admin/scripts/+page.svelte`.
+
+**Sub-phases**:
+- V8.12a — canDelete helpers + unit tests (foundation)
+- V8.12b — Backend DELETE endpoints for Campaign + Agreement, fix expense guard
+- V8.12c — Frontend delete UI for Proposal, Agreement, Campaign, Task (new)
+- V8.12d — Upgrade existing inline deletes on Expense, Commerce Listing, Commerce Need, Post
+- V8.12e — E2E tests
+
+**Key files**:
+- `apps/web/src/lib/utils/entity-permissions.ts` (8 new canDelete helpers)
+- `apps/api/src/services/funding-service.ts` (deleteCampaign)
+- `apps/api/src/routes/funding/campaigns.ts` (DELETE route)
+- `apps/api/src/services/agreement-service.ts` (deleteAgreement)
+- `apps/api/src/routes/agreement/agreements.ts` (DELETE route)
+- `apps/web/src/lib/api/client.ts` (deleteCampaign, deleteAgreement)
+- Detail pages for proposal, agreement, campaign (new delete buttons)
+- Tasks, expenses, commerce listings/needs, posts pages (delete buttons + ConfirmDialog)
+
+**Out of scope for V8.12**: Undo/restore for soft-deleted entities, bulk deletion, edit history/revisions.
+
+### Phase V8.13 — Bug Fixes & Stability
+
+**Goal**: Fix pre-existing bugs and add missing guardrails identified during V8.10–V8.12 development.
+
+**Scope**:
+1. **Commerce urgency label mismatch** — Frontend offers `critical` but DB constraint and Zod schema only allow `urgent`. Align frontend dropdown to match backend.
+2. **svelte-check errors** — 9 type errors in campaigns, capital-accounts, and networks pages. Fix type mismatches.
+3. **PlcClient API path fix** — `PlcClient.create()` POSTs to wrong endpoint (deferred from V7). Unskip 2 cross-instance E2E tests.
+4. **Match notifications** — Make `notification.cooperative_did` nullable to support cross-coop match alerts.
+5. **/search/people rate limits** — Add per-DID rate limiting to the people search endpoint.
+
+**Key files**:
+- `apps/web/src/routes/(authed)/coop/[handle]/commerce/needs/+page.svelte` (urgency fix)
+- `packages/common/src/validation.ts` (urgency enum)
+- `packages/federation/src/local/plc-client.ts` (API path fix)
+- `apps/api/tests/federation-e2e/cross-instance.test.ts` (unskip tests)
 
 ---
 
@@ -1241,8 +1298,8 @@ The Edit button is conditionally rendered based on this helper. Backend also enf
 - Public RSS/Atom feeds for coops with `publicActivity`
 - Public ATProto firehose subscription for coops (so other AppViews can index coopsource content)
 
-### Entity editing (beyond V8.10/V8.11)
-- **Entity deletion** — V8.10/V8.11 handle editing only. Soft-delete or hard-delete for user-created entities (proposals, tasks, expenses, etc.) is a separate concern. Deletion policy varies by entity (e.g., drafts deletable, active records not; some entities should tombstone rather than disappear). Deferred to post-V8.
+### Entity editing (beyond V8.10–V8.12)
+- **Undo/restore** — Soft-deleted entities could support an "undo" toast or a trash view with restore. Requires new backend restore endpoints.
 - **Auto-save / draft management** — currently all forms are explicit-submit; no draft persistence. Post-V8 could add client-side auto-save with an explicit "Save draft" affordance.
 - **Edit history / revisions** — Legal Document has versioning; other entities don't. A generic edit-history timeline (leveraging the existing fact log) is a post-V8 feature.
 - **Bulk editing** — editing multiple entities at once (e.g., tag multiple tasks). Not planned for V8.

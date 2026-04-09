@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Proposal, Agreement, Campaign, Task, Expense, Officer, ComplianceItem, FiscalPeriod, CommerceListing, CommerceNeed } from '$lib/api/types.js';
+import type { Proposal, Agreement, Campaign, Task, Expense, Officer, ComplianceItem, FiscalPeriod, CommerceListing, CommerceNeed, Post } from '$lib/api/types.js';
 import {
   canEditProposal,
   canEditAgreement,
@@ -11,6 +11,14 @@ import {
   canEditFiscalPeriod,
   canEditCommerceListing,
   canEditCommerceNeed,
+  canDeleteProposal,
+  canDeleteAgreement,
+  canDeleteCampaign,
+  canDeleteTask,
+  canDeleteExpense,
+  canDeleteCommerceListing,
+  canDeleteCommerceNeed,
+  canDeletePost,
 } from './entity-permissions.js';
 
 function makeProposal(overrides: Partial<Proposal> = {}): Proposal {
@@ -179,5 +187,149 @@ describe('canEditCommerceNeed', () => {
 
   it('returns false for cancelled', () => {
     expect(canEditCommerceNeed({ status: 'cancelled' } as CommerceNeed)).toBe(false);
+  });
+});
+
+// ─── canDelete helpers ──────────────────────────────────────────────
+
+function makePost(overrides: Partial<Post> = {}): Post {
+  return { authorDid: 'did:plc:alice', status: 'active', ...overrides } as Post;
+}
+
+describe('canDeleteProposal', () => {
+  it('returns true for draft + matching authorDid', () => {
+    expect(canDeleteProposal(makeProposal(), 'did:plc:alice')).toBe(true);
+  });
+
+  it('returns false for non-draft', () => {
+    expect(canDeleteProposal(makeProposal({ status: 'open' }), 'did:plc:alice')).toBe(false);
+    expect(canDeleteProposal(makeProposal({ status: 'closed' }), 'did:plc:alice')).toBe(false);
+    expect(canDeleteProposal(makeProposal({ status: 'resolved' }), 'did:plc:alice')).toBe(false);
+  });
+
+  it('returns false for different authorDid', () => {
+    expect(canDeleteProposal(makeProposal(), 'did:plc:bob')).toBe(false);
+  });
+
+  it('returns false for undefined userDid', () => {
+    expect(canDeleteProposal(makeProposal())).toBe(false);
+  });
+});
+
+describe('canDeleteAgreement', () => {
+  it('returns true for draft + matching authorDid', () => {
+    expect(canDeleteAgreement(makeAgreement(), 'did:plc:alice')).toBe(true);
+  });
+
+  it('returns false for non-draft', () => {
+    expect(canDeleteAgreement(makeAgreement({ status: 'open' }), 'did:plc:alice')).toBe(false);
+    expect(canDeleteAgreement(makeAgreement({ status: 'active' }), 'did:plc:alice')).toBe(false);
+    expect(canDeleteAgreement(makeAgreement({ status: 'terminated' }), 'did:plc:alice')).toBe(false);
+  });
+
+  it('returns false for different authorDid', () => {
+    expect(canDeleteAgreement(makeAgreement(), 'did:plc:bob')).toBe(false);
+  });
+});
+
+describe('canDeleteCampaign', () => {
+  it('returns true for draft', () => {
+    expect(canDeleteCampaign(makeCampaign({ status: 'draft' }))).toBe(true);
+  });
+
+  it('returns false for active/funded/completed/cancelled', () => {
+    expect(canDeleteCampaign(makeCampaign({ status: 'active' }))).toBe(false);
+    expect(canDeleteCampaign(makeCampaign({ status: 'funded' }))).toBe(false);
+    expect(canDeleteCampaign(makeCampaign({ status: 'completed' }))).toBe(false);
+    expect(canDeleteCampaign(makeCampaign({ status: 'cancelled' }))).toBe(false);
+  });
+});
+
+describe('canDeleteTask', () => {
+  it('returns true for backlog, todo, in_progress, in_review', () => {
+    expect(canDeleteTask(makeTask({ status: 'backlog' }))).toBe(true);
+    expect(canDeleteTask(makeTask({ status: 'todo' }))).toBe(true);
+    expect(canDeleteTask(makeTask({ status: 'in_progress' }))).toBe(true);
+    expect(canDeleteTask(makeTask({ status: 'in_review' }))).toBe(true);
+  });
+
+  it('returns false for done, cancelled', () => {
+    expect(canDeleteTask(makeTask({ status: 'done' }))).toBe(false);
+    expect(canDeleteTask(makeTask({ status: 'cancelled' }))).toBe(false);
+  });
+});
+
+describe('canDeleteExpense', () => {
+  it('returns true for draft + matching memberDid', () => {
+    expect(canDeleteExpense(makeExpense({ status: 'draft' }), 'did:plc:alice')).toBe(true);
+  });
+
+  it('returns false for submitted (backend rejects)', () => {
+    expect(canDeleteExpense(makeExpense({ status: 'submitted' }), 'did:plc:alice')).toBe(false);
+  });
+
+  it('returns false for approved/rejected/reimbursed', () => {
+    expect(canDeleteExpense(makeExpense({ status: 'approved' }), 'did:plc:alice')).toBe(false);
+    expect(canDeleteExpense(makeExpense({ status: 'rejected' }), 'did:plc:alice')).toBe(false);
+    expect(canDeleteExpense(makeExpense({ status: 'reimbursed' }), 'did:plc:alice')).toBe(false);
+  });
+
+  it('returns false for different memberDid', () => {
+    expect(canDeleteExpense(makeExpense({ status: 'draft' }), 'did:plc:bob')).toBe(false);
+  });
+
+  it('returns false for undefined userDid', () => {
+    expect(canDeleteExpense(makeExpense({ status: 'draft' }))).toBe(false);
+  });
+});
+
+describe('canDeleteCommerceListing', () => {
+  it('returns true for active', () => {
+    expect(canDeleteCommerceListing({ status: 'active' } as CommerceListing)).toBe(true);
+  });
+
+  it('returns true for paused', () => {
+    expect(canDeleteCommerceListing({ status: 'paused' } as CommerceListing)).toBe(true);
+  });
+
+  it('returns false for archived', () => {
+    expect(canDeleteCommerceListing({ status: 'archived' } as CommerceListing)).toBe(false);
+  });
+});
+
+describe('canDeleteCommerceNeed', () => {
+  it('returns true for open', () => {
+    expect(canDeleteCommerceNeed({ status: 'open' } as CommerceNeed)).toBe(true);
+  });
+
+  it('returns true for matched', () => {
+    expect(canDeleteCommerceNeed({ status: 'matched' } as CommerceNeed)).toBe(true);
+  });
+
+  it('returns false for fulfilled', () => {
+    expect(canDeleteCommerceNeed({ status: 'fulfilled' } as CommerceNeed)).toBe(false);
+  });
+
+  it('returns false for cancelled', () => {
+    expect(canDeleteCommerceNeed({ status: 'cancelled' } as CommerceNeed)).toBe(false);
+  });
+});
+
+describe('canDeletePost', () => {
+  it('returns true for matching authorDid', () => {
+    expect(canDeletePost(makePost(), 'did:plc:alice')).toBe(true);
+  });
+
+  it('returns true regardless of status', () => {
+    expect(canDeletePost(makePost({ status: 'active' }), 'did:plc:alice')).toBe(true);
+    expect(canDeletePost(makePost({ status: 'archived' }), 'did:plc:alice')).toBe(true);
+  });
+
+  it('returns false for different authorDid', () => {
+    expect(canDeletePost(makePost(), 'did:plc:bob')).toBe(false);
+  });
+
+  it('returns false for undefined userDid', () => {
+    expect(canDeletePost(makePost())).toBe(false);
   });
 });
