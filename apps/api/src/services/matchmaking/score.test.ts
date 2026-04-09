@@ -13,26 +13,31 @@ const NOW = new Date('2026-04-08T00:00:00Z');
 const ONE_WEEK_AGO = new Date('2026-04-01T00:00:00Z');
 const ONE_YEAR_AGO = new Date('2025-04-08T00:00:00Z');
 
-function coopCandidate(overrides: Partial<ScoreInput['candidate']> = {}): ScoreInput['candidate'] {
+// ScoreInput.candidate is a discriminated union on `type`. The factories
+// below return the narrowed variant so tests can spread overrides safely.
+type CoopCandidate = Extract<ScoreInput['candidate'], { type: 'cooperative' }>;
+type PersonCandidate = Extract<ScoreInput['candidate'], { type: 'person' }>;
+
+function coopCandidate(overrides: Partial<Omit<CoopCandidate, 'type'>> = {}): CoopCandidate {
   return {
     did: 'did:web:coop.example',
     type: 'cooperative',
     cooperativeType: 'worker',
     createdAt: ONE_WEEK_AGO,
-    interestCategories: new Set<string>(),
     interestPriorityByCategory: new Map<string, number>(),
     sharedCoopCount: 0,
     ...overrides,
   };
 }
 
-function personCandidate(overrides: Partial<ScoreInput['candidate']> = {}): ScoreInput['candidate'] {
+function personCandidate(
+  overrides: Partial<Omit<PersonCandidate, 'type' | 'cooperativeType'>> = {},
+): PersonCandidate {
   return {
     did: 'did:web:person.example',
     type: 'person',
     cooperativeType: null,
     createdAt: ONE_WEEK_AGO,
-    interestCategories: new Set<string>(),
     interestPriorityByCategory: new Map<string, number>(),
     sharedCoopCount: 0,
     ...overrides,
@@ -42,7 +47,6 @@ function personCandidate(overrides: Partial<ScoreInput['candidate']> = {}): Scor
 function ctx(overrides: Partial<ScoreInput['ctx']> = {}): ScoreInput['ctx'] {
   return {
     userCoopTypes: new Set<string>(),
-    userInterestCategories: new Set<string>(),
     userInterestPriorityByCategory: new Map<string, number>(),
     ...overrides,
   };
@@ -58,14 +62,12 @@ describe('scoreCandidate', () => {
   it('is deterministic for identical inputs', () => {
     const input: ScoreInput = {
       candidate: coopCandidate({
-        interestCategories: new Set(['climate', 'housing']),
         interestPriorityByCategory: new Map([
           ['climate', 4],
           ['housing', 3],
         ]),
       }),
       ctx: ctx({
-        userInterestCategories: new Set(['climate', 'food']),
         userInterestPriorityByCategory: new Map([
           ['climate', 5],
           ['food', 2],
@@ -110,7 +112,6 @@ describe('scoreCandidate', () => {
 
   it('high alignment + low recency beats low alignment + high recency', () => {
     const userCtx = ctx({
-      userInterestCategories: new Set(['climate', 'housing']),
       userInterestPriorityByCategory: new Map([
         ['climate', 5],
         ['housing', 5],
@@ -121,7 +122,6 @@ describe('scoreCandidate', () => {
     const oldHighAlign = scoreCandidate({
       candidate: coopCandidate({
         createdAt: ONE_YEAR_AGO,
-        interestCategories: new Set(['climate', 'housing']),
         interestPriorityByCategory: new Map([
           ['climate', 5],
           ['housing', 5],
@@ -142,7 +142,6 @@ describe('scoreCandidate', () => {
     const freshLowAlign = scoreCandidate({
       candidate: coopCandidate({
         createdAt: NOW,
-        interestCategories: new Set(['climate', 'food', 'transport']),
         interestPriorityByCategory: new Map([
           ['climate', 1],
           ['food', 5],
@@ -155,6 +154,79 @@ describe('scoreCandidate', () => {
 
     expect(oldHighAlign.signals.alignment).toBeGreaterThan(freshLowAlign.signals.alignment);
     expect(oldHighAlign.score).toBeGreaterThan(freshLowAlign.score);
+  });
+
+  // ─── Three-branch fallback ──────────────────────────────────────────
+
+  it('user has alignment data but candidate has none → score is 0 (suppressed)', () => {
+    // User has interests; candidate has none. The alignment-less candidate
+    // must NOT outrank any candidate with actual alignment, so score = 0.
+    const result = scoreCandidate({
+      candidate: coopCandidate({
+        createdAt: NOW, // max recency, would otherwise dominate
+        interestPriorityByCategory: new Map<string, number>(),
+      }),
+      ctx: ctx({
+        userInterestPriorityByCategory: new Map([['climate', 5]]),
+      }),
+      now: NOW,
+    });
+    expect(result.signals.alignment).toBe(0);
+    expect(result.signals.recency).toBeCloseTo(1.0, 10);
+    expect(result.signals.diversity).toBe(1.0);
+    expect(result.score).toBe(0);
+  });
+
+  it('user has no alignment data + candidate has none → V8.7 fallback (recency * diversity)', () => {
+    // Newly-registered user (no alignment) sees cooperative-type-diversity
+    // suggestions instead of an empty feed.
+    const result = scoreCandidate({
+      candidate: coopCandidate({
+        cooperativeType: 'worker',
+        interestPriorityByCategory: new Map<string, number>(),
+      }),
+      ctx: ctx({
+        userCoopTypes: new Set(['consumer']),
+        userInterestPriorityByCategory: new Map<string, number>(),
+      }),
+      now: NOW,
+    });
+    const expectedRecency = Math.exp(-7 / 30);
+    expect(result.signals.alignment).toBe(0);
+    expect(result.score).toBeCloseTo(expectedRecency * 1.0, 10);
+    expect(result.score).toBeGreaterThan(0);
+  });
+
+  it('user has alignment data: alignment-having candidate ranks above no-alignment candidate', () => {
+    // Regression guard for the ranking inversion the three-branch fallback
+    // fixes. With the old `recency * diversity` fallback, a brand-new coop
+    // with no alignment could outrank an older coop that shares interests.
+    const userCtx = ctx({
+      userInterestPriorityByCategory: new Map([['climate', 5]]),
+    });
+
+    const oldAlignedCoop = scoreCandidate({
+      candidate: coopCandidate({
+        createdAt: ONE_YEAR_AGO, // low recency
+        interestPriorityByCategory: new Map([['climate', 3]]),
+      }),
+      ctx: userCtx,
+      now: NOW,
+    });
+
+    const freshNoAlignCoop = scoreCandidate({
+      candidate: coopCandidate({
+        createdAt: NOW, // max recency — would be 1.0 under old fallback
+        interestPriorityByCategory: new Map<string, number>(),
+      }),
+      ctx: userCtx,
+      now: NOW,
+    });
+
+    expect(oldAlignedCoop.signals.alignment).toBeGreaterThan(0);
+    expect(freshNoAlignCoop.signals.alignment).toBe(0);
+    expect(freshNoAlignCoop.score).toBe(0);
+    expect(oldAlignedCoop.score).toBeGreaterThan(freshNoAlignCoop.score);
   });
 
   // ─── Person candidates ──────────────────────────────────────────────
@@ -173,11 +245,9 @@ describe('scoreCandidate', () => {
     // createdAt 7 days ago → recency = e^(-7/30).
     const result = scoreCandidate({
       candidate: personCandidate({
-        interestCategories: new Set(['climate']),
         interestPriorityByCategory: new Map([['climate', 4]]),
       }),
       ctx: ctx({
-        userInterestCategories: new Set(['climate']),
         userInterestPriorityByCategory: new Map([['climate', 4]]),
       }),
       now: NOW,
@@ -203,11 +273,9 @@ describe('scoreCandidate', () => {
     const result = scoreCandidate({
       candidate: personCandidate({
         sharedCoopCount: 2,
-        interestCategories: new Set(['climate']),
         interestPriorityByCategory: new Map([['climate', 5]]),
       }),
       ctx: ctx({
-        userInterestCategories: new Set(['climate']),
         userInterestPriorityByCategory: new Map([['climate', 5]]),
       }),
       now: NOW,
@@ -228,11 +296,9 @@ describe('weightedJaccard (via scoreCandidate signals.alignment)', () => {
     return scoreCandidate({
       candidate: coopCandidate({
         createdAt: NOW,
-        interestCategories: new Set(candMap.keys()),
         interestPriorityByCategory: candMap,
       }),
       ctx: ctx({
-        userInterestCategories: new Set(userMap.keys()),
         userInterestPriorityByCategory: userMap,
       }),
       now: NOW,
@@ -246,11 +312,9 @@ describe('weightedJaccard (via scoreCandidate signals.alignment)', () => {
     return scoreCandidate({
       candidate: coopCandidate({
         createdAt: NOW,
-        interestCategories: new Set(candMap.keys()),
         interestPriorityByCategory: candMap,
       }),
       ctx: ctx({
-        userInterestCategories: new Set(userMap.keys()),
         userInterestPriorityByCategory: userMap,
       }),
       now: NOW,

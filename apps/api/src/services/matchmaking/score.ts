@@ -11,16 +11,17 @@
  * aggregated alignment interest categories with mean priority weighting,
  * combined via a weighted Jaccard coefficient.
  *
- * Composition:
- *   - When any alignment signal is present (the weighted Jaccard is > 0),
- *     alignment dominates:
- *       cooperative candidate: 0.6 * alignment + 0.3 * recency + 0.1 * diversity
- *       person      candidate: 0.7 * alignment + 0.3 * recency
- *   - When alignment is 0 (one side has no interests, or the sets are
- *     disjoint), the score falls back to `recency * diversity` — the
- *     exact v1 formula. This preserves the V8.7 behavior that
- *     newly-registered users (without any alignment data yet) still see
- *     cooperative-type-diversity suggestions instead of an empty feed.
+ * Composition (three branches):
+ *   1. alignment > 0  — alignment dominates:
+ *        cooperative candidate: 0.6 * alignment + 0.3 * recency + 0.1 * diversity
+ *        person      candidate: 0.7 * alignment + 0.3 * recency
+ *   2. alignment == 0 AND user has no alignment data — brand new user;
+ *      fall back to the V8.7 formula `recency * diversity` so the matches
+ *      widget isn't empty for newly-registered accounts.
+ *   3. alignment == 0 AND user HAS alignment data — suppress entirely
+ *      (score = 0). Any candidate with non-zero alignment must outrank
+ *      this one; the service layer decides whether to fill remaining
+ *      slots from the zero-scored pool.
  *
  * SCORING_VERSION is bumped to 2 for this release so callers can
  * distinguish v1 rows from v2 rows in the database.
@@ -29,25 +30,36 @@
 export const SCORING_VERSION = 2;
 
 export interface ScoreInput {
-  candidate: {
-    did: string;
-    type: 'cooperative' | 'person';
-    /** null for person candidates. */
-    cooperativeType: string | null;
-    createdAt: Date;
-    /** Lowercased categories aggregated for this candidate. Empty = no alignment data. */
-    interestCategories: Set<string>;
-    /** Mean priority [1,5] per category. Same keys as interestCategories. */
-    interestPriorityByCategory: Map<string, number>;
-    /**
-     * Coops this person also belongs to that the user is also a member of.
-     * 0 for cooperative candidates.
-     */
-    sharedCoopCount: number;
-  };
+  candidate:
+    | {
+        did: string;
+        type: 'cooperative';
+        cooperativeType: string;
+        createdAt: Date;
+        /** Mean priority [1,5] per lowercased category. Empty = no alignment data. */
+        interestPriorityByCategory: Map<string, number>;
+        /**
+         * Coops this person also belongs to that the user is also a member of.
+         * 0 for cooperative candidates.
+         */
+        sharedCoopCount: number;
+      }
+    | {
+        did: string;
+        type: 'person';
+        cooperativeType: null;
+        createdAt: Date;
+        /** Mean priority [1,5] per lowercased category. Empty = no alignment data. */
+        interestPriorityByCategory: Map<string, number>;
+        /**
+         * Coops this person also belongs to that the user is also a member of.
+         * 0 for cooperative candidates.
+         */
+        sharedCoopCount: number;
+      };
   ctx: {
     userCoopTypes: Set<string>;
-    userInterestCategories: Set<string>;
+    /** Mean priority [1,5] per lowercased category. Empty = user has no alignment data. */
     userInterestPriorityByCategory: Map<string, number>;
   };
   now: Date;
@@ -130,10 +142,12 @@ export function scoreCandidate(input: ScoreInput): ScoreOutput {
   // (future-dated candidates) but caps at 1 via clamp.
   const recency = clamp01(Math.exp(-Math.max(0, ageDays) / 30));
 
+  // TypeScript narrows candidate.cooperativeType to `string` in the
+  // cooperative branch, so no fallback is needed.
   const diversity =
     candidate.type === 'person'
       ? 1.0
-      : ctx.userCoopTypes.has(candidate.cooperativeType ?? '')
+      : ctx.userCoopTypes.has(candidate.cooperativeType)
         ? 0.5
         : 1.0;
 
@@ -142,17 +156,27 @@ export function scoreCandidate(input: ScoreInput): ScoreOutput {
     candidate.interestPriorityByCategory,
   );
 
-  // Composition: alignment dominates when present; recency * diversity is a
-  // fallback floor so newly-registered users still see matches (the v1
-  // behavior V8.7 deliberately preserved).
+  // Composition: three branches keyed on whether alignment fires and
+  // whether the user has any alignment data at all.
   let score: number;
   if (alignment > 0) {
+    // Alignment is the primary signal. The composition formula combines it
+    // with recency and (for coops only) diversity.
     score =
       candidate.type === 'cooperative'
         ? clamp01(0.6 * alignment + 0.3 * recency + 0.1 * diversity)
         : clamp01(0.7 * alignment + 0.3 * recency);
-  } else {
+  } else if (ctx.userInterestPriorityByCategory.size === 0) {
+    // The user has no alignment data yet (newly registered). Fall back to
+    // the V8.7 formula so the matches widget isn't empty for new accounts.
     score = clamp01(recency * diversity);
+  } else {
+    // The user HAS alignment data but this candidate doesn't overlap with
+    // it. Suppress entirely so any candidate with non-zero alignment always
+    // outranks this one. The service layer (matchmaking-service) decides
+    // whether to fill remaining slots from a pool of zero-scored candidates
+    // when the alignment-having pool is too small.
+    score = 0;
   }
 
   return {
