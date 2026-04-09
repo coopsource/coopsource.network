@@ -1,4 +1,4 @@
-import type { Proposal, Agreement, Campaign, Task, Expense } from '$lib/api/types.js';
+import type { Proposal, Agreement, Campaign, Task, Expense, Officer, ComplianceItem, FiscalPeriod, CommerceListing, CommerceNeed } from '$lib/api/types.js';
 
 /** Proposal: editable only in draft by the author */
 export function canEditProposal(p: Proposal, userDid?: string): boolean {
@@ -23,4 +23,29 @@ export function canEditTask(t: Task): boolean {
 /** Expense: editable in submitted/draft by the owning member */
 export function canEditExpense(e: Expense, userDid?: string): boolean {
   return (e.status === 'submitted' || e.status === 'draft') && !!userDid && e.memberDid === userDid;
+}
+
+/** Officer: editable only while active */
+export function canEditOfficer(o: Officer): boolean {
+  return o.status === 'active';
+}
+
+/** Compliance item: editable while pending or overdue */
+export function canEditComplianceItem(c: ComplianceItem): boolean {
+  return c.status === 'pending' || c.status === 'overdue';
+}
+
+/** Fiscal period: editable only while open */
+export function canEditFiscalPeriod(f: FiscalPeriod): boolean {
+  return f.status === 'open';
+}
+
+/** Commerce listing: editable while active or paused */
+export function canEditCommerceListing(l: CommerceListing): boolean {
+  return l.status === 'active' || l.status === 'paused';
+}
+
+/** Commerce need: editable while open or matched */
+export function canEditCommerceNeed(n: CommerceNeed): boolean {
+  return n.status === 'open' || n.status === 'matched';
 }

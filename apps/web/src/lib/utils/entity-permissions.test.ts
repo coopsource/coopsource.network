@@ -1,11 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import type { Proposal, Agreement, Campaign, Task, Expense } from '$lib/api/types.js';
+import type { Proposal, Agreement, Campaign, Task, Expense, Officer, ComplianceItem, FiscalPeriod } from '$lib/api/types.js';
 import {
   canEditProposal,
   canEditAgreement,
   canEditCampaign,
   canEditTask,
   canEditExpense,
+  canEditOfficer,
+  canEditComplianceItem,
+  canEditFiscalPeriod,
 } from './entity-permissions.js';
 
 function makeProposal(overrides: Partial<Proposal> = {}): Proposal {
@@ -108,5 +111,39 @@ describe('canEditExpense', () => {
 
   it('returns false for different memberDid', () => {
     expect(canEditExpense(makeExpense(), 'did:plc:bob')).toBe(false);
+  });
+});
+
+describe('canEditOfficer', () => {
+  it('returns true for active', () => {
+    expect(canEditOfficer({ status: 'active' } as Officer)).toBe(true);
+  });
+
+  it('returns false for ended', () => {
+    expect(canEditOfficer({ status: 'ended' } as Officer)).toBe(false);
+  });
+});
+
+describe('canEditComplianceItem', () => {
+  it('returns true for pending', () => {
+    expect(canEditComplianceItem({ status: 'pending' } as ComplianceItem)).toBe(true);
+  });
+
+  it('returns true for overdue', () => {
+    expect(canEditComplianceItem({ status: 'overdue' } as ComplianceItem)).toBe(true);
+  });
+
+  it('returns false for completed', () => {
+    expect(canEditComplianceItem({ status: 'completed' } as ComplianceItem)).toBe(false);
+  });
+});
+
+describe('canEditFiscalPeriod', () => {
+  it('returns true for open', () => {
+    expect(canEditFiscalPeriod({ status: 'open' } as FiscalPeriod)).toBe(true);
+  });
+
+  it('returns false for closed', () => {
+    expect(canEditFiscalPeriod({ status: 'closed' } as FiscalPeriod)).toBe(false);
   });
 });
