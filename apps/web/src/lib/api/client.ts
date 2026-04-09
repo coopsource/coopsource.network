@@ -52,6 +52,7 @@ import type {
   GetMatchesResponse,
   MatchActionResponse,
   MeProfileResponse,
+  ExplorePersonProfile,
   MyMembershipsResponse,
   AgentConfig,
   AgentsResponse,
@@ -885,6 +886,10 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string, apiBase?
         method: 'POST',
       }),
 
+    // V8.9 — /explore/people/:handle (public person profile)
+    getExplorePerson: (handle: string) =>
+      request<ExplorePersonProfile>(`/explore/people/${encodeURIComponent(handle)}`),
+
     // V8.8 — /me/profile (discoverability toggle)
     getMyProfile: () => request<MeProfileResponse>('/me/profile'),
 
@@ -892,6 +897,12 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string, apiBase?
       request<{ ok: true; discoverable: boolean }>('/me/profile', {
         method: 'PATCH',
         body: JSON.stringify({ discoverable }),
+      }),
+
+    dismissGetStarted: () =>
+      request<{ ok: true; dismissedGetStarted: boolean }>('/me/profile', {
+        method: 'PATCH',
+        body: JSON.stringify({ dismissedGetStarted: true }),
       }),
 
     // ── Agents ──────────────────────────────────────────────────────────────

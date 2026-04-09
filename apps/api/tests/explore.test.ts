@@ -686,6 +686,214 @@ describe('Explore', () => {
     });
   });
 
+  // ─── V8.9 — Person profiles ──────────────────────────────────────────
+
+  describe('GET /api/v1/explore/people/:handle', () => {
+    /** Seed a person entity + default profile directly in the database. */
+    async function seedPerson(
+      did: string,
+      opts: {
+        handle?: string;
+        displayName?: string;
+        bio?: string | null;
+        discoverable?: boolean;
+      } = {},
+    ): Promise<void> {
+      const db = getTestDb();
+      const displayName = opts.displayName ?? `Person ${did.slice(-4)}`;
+      await db
+        .insertInto('entity')
+        .values({
+          did,
+          type: 'person',
+          handle: opts.handle ?? null,
+          display_name: displayName,
+          status: 'active',
+          created_at: new Date(),
+        })
+        .execute();
+      await db
+        .insertInto('profile')
+        .values({
+          entity_did: did,
+          is_default: true,
+          display_name: displayName,
+          bio: opts.bio ?? null,
+          verified: true,
+          discoverable: opts.discoverable ?? false,
+        })
+        .execute();
+    }
+
+    /** Seed stakeholder_interest rows for a person. */
+    async function seedInterests(
+      did: string,
+      interests: Array<{ category: string }>,
+    ): Promise<void> {
+      const db = getTestDb();
+      const rkey = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      await db
+        .insertInto('stakeholder_interest')
+        .values({
+          uri: `at://${did}/network.coopsource.alignment.interest/${rkey}`,
+          did,
+          rkey,
+          project_uri: did,
+          interests: JSON.stringify(interests),
+          contributions: '[]',
+          constraints: '[]',
+          red_lines: '[]',
+          preferences: '{}',
+          created_at: new Date(),
+          updated_at: new Date(),
+          indexed_at: new Date(),
+        })
+        .execute();
+    }
+
+    /** Create an active membership between a person and a cooperative. */
+    async function seedMembership(
+      memberDid: string,
+      cooperativeDid: string,
+    ): Promise<void> {
+      const db = getTestDb();
+      await db
+        .insertInto('membership')
+        .values({
+          member_did: memberDid,
+          cooperative_did: cooperativeDid,
+          status: 'active',
+          created_at: new Date(),
+          indexed_at: new Date(),
+        })
+        .execute();
+    }
+
+    it('returns a person profile when discoverable=true', async () => {
+      const testApp = createTestApp();
+      // Setup creates a coop entity — we need one for the membership test
+      await setupWithHandle(testApp, 'person-test-coop');
+
+      await seedPerson('did:web:alice.example', {
+        handle: 'alice',
+        displayName: 'Alice Test',
+        bio: 'A discoverable person',
+        discoverable: true,
+      });
+
+      const res = await testApp.agent
+        .get('/api/v1/explore/people/alice')
+        .expect(200);
+
+      expect(res.body.did).toBe('did:web:alice.example');
+      expect(res.body.handle).toBe('alice');
+      expect(res.body.displayName).toBe('Alice Test');
+      expect(res.body.bio).toBe('A discoverable person');
+      expect(res.body.cooperatives).toEqual([]);
+      expect(res.body.interests).toEqual([]);
+    });
+
+    it('returns 404 for non-existent handle', async () => {
+      const testApp = createTestApp();
+
+      const res = await testApp.agent
+        .get('/api/v1/explore/people/nonexistent')
+        .expect(404);
+
+      expect(res.body.error).toBe('Not found');
+    });
+
+    it('returns 404 when person is not discoverable and has no alignment data', async () => {
+      const testApp = createTestApp();
+
+      await seedPerson('did:web:hidden.example', {
+        handle: 'hidden-person',
+        displayName: 'Hidden Person',
+        discoverable: false,
+      });
+
+      await testApp.agent
+        .get('/api/v1/explore/people/hidden-person')
+        .expect(404);
+    });
+
+    it('returns person profile when not discoverable but has alignment data', async () => {
+      const testApp = createTestApp();
+
+      await seedPerson('did:web:aligned.example', {
+        handle: 'aligned-person',
+        displayName: 'Aligned Person',
+        discoverable: false,
+      });
+      await seedInterests('did:web:aligned.example', [
+        { category: 'Climate' },
+        { category: 'Education' },
+      ]);
+
+      const res = await testApp.agent
+        .get('/api/v1/explore/people/aligned-person')
+        .expect(200);
+
+      expect(res.body.did).toBe('did:web:aligned.example');
+      expect(res.body.handle).toBe('aligned-person');
+      expect(res.body.displayName).toBe('Aligned Person');
+      // Interests should be lowercased and deduplicated
+      expect(res.body.interests).toContain('climate');
+      expect(res.body.interests).toContain('education');
+      expect(res.body.interests).toHaveLength(2);
+    });
+
+    it('includes only publicly-discoverable cooperatives', async () => {
+      const testApp = createTestApp();
+      const { coopDid } = await setupWithHandle(testApp, 'pub-coop');
+      await makeDiscoverable(coopDid);
+
+      // Create a second cooperative that is NOT discoverable
+      const db = getTestDb();
+      const privateDid = 'did:web:private-coop.example';
+      await db
+        .insertInto('entity')
+        .values({
+          did: privateDid,
+          type: 'cooperative',
+          handle: 'private-coop',
+          display_name: 'Private Coop',
+          status: 'active',
+          created_at: new Date(),
+        })
+        .execute();
+      await db
+        .insertInto('cooperative_profile')
+        .values({
+          entity_did: privateDid,
+          cooperative_type: 'worker',
+          is_network: false,
+          anon_discoverable: false,
+        })
+        .execute();
+
+      // Seed the person
+      await seedPerson('did:web:member.example', {
+        handle: 'member-person',
+        displayName: 'Member Person',
+        discoverable: true,
+      });
+
+      // Add memberships in both coops
+      await seedMembership('did:web:member.example', coopDid);
+      await seedMembership('did:web:member.example', privateDid);
+
+      const res = await testApp.agent
+        .get('/api/v1/explore/people/member-person')
+        .expect(200);
+
+      // Only the publicly-discoverable coop should appear
+      expect(res.body.cooperatives).toHaveLength(1);
+      expect(res.body.cooperatives[0].handle).toBe('pub-coop');
+      expect(res.body.cooperatives[0].displayName).toBe('Test Cooperative');
+    });
+  });
+
   // ─── V8.5 — anonDiscoverable plumbing ───────────────────────────────
 
   describe('V8.5 anonDiscoverable in cooperative endpoints', () => {

@@ -638,10 +638,22 @@ export interface MeProfilePayload {
   bio: string | null;
   verified: boolean;
   discoverable: boolean;
+  dismissedGetStarted: boolean;
 }
 
 export interface MeProfileResponse {
   profile: MeProfilePayload | null;
+}
+
+// V8.9 — /explore/people/:handle
+export interface ExplorePersonProfile {
+  did: string;
+  handle: string;
+  displayName: string;
+  bio: string | null;
+  avatarCid: string | null;
+  cooperatives: Array<{ handle: string; displayName: string }>;
+  interests: string[];
 }
 
 // ─── Agents ──────────────────────────────────────────────────────────────────

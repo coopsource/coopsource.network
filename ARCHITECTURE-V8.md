@@ -1033,9 +1033,6 @@ These are intentionally narrow positive lists. Closed-governance coops route pro
 - **Match notifications** — still blocked by `notification.cooperative_did NOT NULL`. Requires either a nullability migration + audit of every consumer, or a synthetic "system" cooperative. V8.7 design note carries forward unchanged.
 - **Pre-lowered category column on `stakeholder_interest`** — the `jsonb_array_elements(si.interests) + lower(item->>'category') = ANY(...)` query in `searchAlignment` does a sequential scan. Acceptable at V8.8 scale; revisit once `stakeholder_interest` grows past ~100K rows (documented in migration 061 header). A denormalized `lower(category)[]` column with a GIN index is the natural fix.
 
-*Doc drift*
-- **ARCHITECTURE-V8 "57 new API tests"** — corrected to 51 on merge (the original count conflated total file size with new tests on `profile-service.test.ts`).
-
 ### Phase V8.10 — Entity Editing Foundation + Core Entities
 
 **Goal**: Establish the entity editing pattern and apply it to the 5 most user-facing entities. Addresses a long-standing gap where users could create entities but not edit them — 13 of 16 entities currently have no edit UI.

@@ -77,6 +77,7 @@ import { createMapRoutes } from '../../src/routes/alignment/map.js';
 import { createConnectionRoutes } from '../../src/routes/connections/connections.js';
 import { createAdminRoutes } from '../../src/routes/admin.js';
 import { createExploreRoutes } from '../../src/routes/explore.js';
+import { createExplorePersonRoutes } from '../../src/routes/explore-person.js';
 import { createSearchRoutes } from '../../src/routes/search.js';
 import { createBlobRoutes } from '../../src/routes/blobs.js';
 import { createFederationRoutes } from '../../src/routes/federation.js';
@@ -293,6 +294,7 @@ export function createTestApp(): TestApp {
 
   // Mount routes in the same order as production
   app.use(createExploreRoutes(container));
+  app.use(createExplorePersonRoutes(container));
   app.use(createSearchRoutes(container));
   app.use(createBlobRoutes(container));
   app.use(createSetupRoutes(container));

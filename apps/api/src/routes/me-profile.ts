@@ -18,9 +18,11 @@ import { requireAuth } from '../auth/middleware.js';
  *   initial toggle state via `data.profile?.discoverable`.
  *
  * PATCH /api/v1/me/profile
- *   Currently only accepts `{ discoverable: boolean }`. A future revision
- *   can extend the payload with display_name/bio updates once the
- *   rate-limited rename flow lands (V8.X).
+ *   Accepts `{ discoverable?: boolean; dismissedGetStarted?: boolean }`.
+ *   At least one field must be present. Each field that's present triggers
+ *   an independent UPDATE on the profile row. A future revision can extend
+ *   the payload with display_name/bio updates once the rate-limited rename
+ *   flow lands (V8.X).
  *
  * Ownership: every operation targets `req.actor!.did`. There is no `:id`
  * param and the service method filters by `entity_did` — no cross-user
@@ -52,6 +54,7 @@ export function createMeProfileRoutes(container: Container): Router {
           bio: profile.bio,
           verified: profile.verified,
           discoverable: profile.discoverable,
+          dismissedGetStarted: profile.dismissedGetStarted,
         },
       });
     }),
@@ -62,13 +65,36 @@ export function createMeProfileRoutes(container: Container): Router {
     '/api/v1/me/profile',
     requireAuth,
     asyncHandler(async (req, res) => {
-      const body = (req.body ?? {}) as { discoverable?: unknown };
-      if (typeof body.discoverable !== 'boolean') {
-        throw new ValidationError('discoverable: boolean required');
+      const body = (req.body ?? {}) as {
+        discoverable?: unknown;
+        dismissedGetStarted?: unknown;
+      };
+      const hasDiscoverable = typeof body.discoverable === 'boolean';
+      const hasDismissed = typeof body.dismissedGetStarted === 'boolean';
+      if (!hasDiscoverable && !hasDismissed) {
+        throw new ValidationError(
+          'at least one of discoverable, dismissedGetStarted required',
+        );
       }
 
-      await container.profileService.setDiscoverable(req.actor!.did, body.discoverable);
-      res.json({ ok: true, discoverable: body.discoverable });
+      if (hasDiscoverable) {
+        await container.profileService.setDiscoverable(
+          req.actor!.did,
+          body.discoverable as boolean,
+        );
+      }
+      if (hasDismissed) {
+        await container.profileService.setDismissedGetStarted(
+          req.actor!.did,
+          body.dismissedGetStarted as boolean,
+        );
+      }
+
+      res.json({
+        ok: true,
+        ...(hasDiscoverable && { discoverable: body.discoverable }),
+        ...(hasDismissed && { dismissedGetStarted: body.dismissedGetStarted }),
+      });
     }),
   );
 

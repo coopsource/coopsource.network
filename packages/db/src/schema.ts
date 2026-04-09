@@ -68,6 +68,8 @@ export interface ProfileTable {
   // V8.8 — opt-in person discoverability flag (D1 hybrid: this OR has
   // alignment data). Added in migration 061.
   discoverable: ColumnType<boolean, boolean | undefined, boolean>;
+  // V8.9 — whether user dismissed the onboarding Get Started card.
+  dismissed_get_started: ColumnType<boolean, boolean | undefined, boolean>;
   last_renamed_at: ColumnType<
     Date | null,
     Date | string | null | undefined,

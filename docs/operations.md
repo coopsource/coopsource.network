@@ -97,6 +97,7 @@ maintenance window with the API offline (or at minimum, traffic drained).
 | Migration | Why |
 |---|---|
 | `059_search_indexes.ts` (V8.6) | Adds two `GENERATED ALWAYS AS ... STORED` `tsvector` columns to `entity` and `post`. The `ALTER TABLE entity ADD COLUMN ...` rewrites the table and takes `ACCESS EXCLUSIVE`; `entity` is the central FK target so this blocks all in-flight queries. Sub-second on small datasets, but unbounded on large production tables. |
+| `061_people_search.ts` (V8.8) | Adds `GENERATED ALWAYS AS ... STORED` `tsvector` columns to `profile` and `desired_outcome`. Both `ALTER TABLE ... ADD COLUMN` statements rewrite their tables and take `ACCESS EXCLUSIVE` locks. Substantially smaller impact than 059: `profile` has no inbound foreign keys from other tables, and `desired_outcome` has only a handful of inbound references via alignment-feature tables. Sub-second on small datasets. |
 
 For future large-table migrations, prefer the safer pattern:
 1. Add a nullable column.

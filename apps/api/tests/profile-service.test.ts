@@ -103,6 +103,8 @@ describe('ProfileService.getDefaultProfile', () => {
     expect(fetched!.verified).toBe(true);
     // V8.8 — discoverable defaults to false per migration 061.
     expect(fetched!.discoverable).toBe(false);
+    // V8.9 — dismissedGetStarted defaults to false per migration 062.
+    expect(fetched!.dismissedGetStarted).toBe(false);
   });
 
   it('returns null when the entity has no profile', async () => {
@@ -238,5 +240,58 @@ describe('ProfileService.setDiscoverable (V8.8)', () => {
     await expect(
       profileService.setDiscoverable('did:plc:noone', true),
     ).resolves.toBeUndefined();
+  });
+});
+
+describe('ProfileService.setDismissedGetStarted (V8.9)', () => {
+  it('flips dismissed_get_started from false to true', async () => {
+    await insertPerson('did:plc:kim', 'Kim');
+    await profileService.createDefaultProfile({
+      entityDid: 'did:plc:kim',
+      displayName: 'Kim',
+    });
+
+    const before = await profileService.getDefaultProfile('did:plc:kim');
+    expect(before!.dismissedGetStarted).toBe(false);
+
+    await profileService.setDismissedGetStarted('did:plc:kim', true);
+
+    const after = await profileService.getDefaultProfile('did:plc:kim');
+    expect(after!.dismissedGetStarted).toBe(true);
+  });
+
+  it('flips dismissed_get_started back to false', async () => {
+    await insertPerson('did:plc:leo', 'Leo');
+    await profileService.createDefaultProfile({
+      entityDid: 'did:plc:leo',
+      displayName: 'Leo',
+    });
+
+    await profileService.setDismissedGetStarted('did:plc:leo', true);
+    await profileService.setDismissedGetStarted('did:plc:leo', false);
+
+    const after = await profileService.getDefaultProfile('did:plc:leo');
+    expect(after!.dismissedGetStarted).toBe(false);
+  });
+
+  it('bumps updated_at', async () => {
+    await insertPerson('did:plc:mia', 'Mia');
+    const created = await profileService.createDefaultProfile({
+      entityDid: 'did:plc:mia',
+      displayName: 'Mia',
+    });
+
+    testApp.clock.advance(60_000);
+    await profileService.setDismissedGetStarted('did:plc:mia', true);
+
+    const row = await db
+      .selectFrom('profile')
+      .where('id', '=', created.id)
+      .select(['updated_at'])
+      .executeTakeFirstOrThrow();
+
+    expect(new Date(row.updated_at).getTime()).toBeGreaterThan(
+      new Date(created.updatedAt).getTime(),
+    );
   });
 });
