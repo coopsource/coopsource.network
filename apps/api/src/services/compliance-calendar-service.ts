@@ -1,6 +1,6 @@
 import type { Kysely, Selectable } from 'kysely';
 import type { Database, ComplianceItemTable } from '@coopsource/db';
-import { NotFoundError, ConflictError } from '@coopsource/common';
+import { NotFoundError, ConflictError, ValidationError } from '@coopsource/common';
 import type { IClock } from '@coopsource/federation';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
@@ -85,6 +85,46 @@ export class ComplianceCalendarService {
         : undefined;
 
     return { items: slice, cursor };
+  }
+
+  async update(
+    id: string,
+    cooperativeDid: string,
+    data: {
+      title?: string;
+      description?: string;
+      dueDate?: string;
+      filingType?: string;
+    },
+  ): Promise<ComplianceRow> {
+    const existing = await this.db
+      .selectFrom('compliance_item')
+      .where('id', '=', id)
+      .where('cooperative_did', '=', cooperativeDid)
+      .where('invalidated_at', 'is', null)
+      .selectAll()
+      .executeTakeFirst();
+
+    if (!existing) throw new NotFoundError('Compliance item not found');
+    if (existing.status === 'completed') {
+      throw new ValidationError('Completed compliance items cannot be edited');
+    }
+
+    const now = this.clock.now();
+    const updates: Record<string, unknown> = { indexed_at: now };
+    if (data.title !== undefined) updates.title = data.title;
+    if (data.description !== undefined) updates.description = data.description;
+    if (data.dueDate !== undefined) updates.due_date = new Date(data.dueDate);
+    if (data.filingType !== undefined) updates.filing_type = data.filingType;
+
+    const [row] = await this.db
+      .updateTable('compliance_item')
+      .set(updates)
+      .where('id', '=', id)
+      .returningAll()
+      .execute();
+
+    return row!;
   }
 
   async markCompleted(

@@ -6,7 +6,7 @@ import { asyncHandler } from '../../lib/async-handler.js';
 import { requireAuth } from '../../auth/middleware.js';
 import { requirePermission } from '../../middleware/permissions.js';
 import { parsePagination } from '../../lib/pagination.js';
-import { CreateComplianceItemSchema } from '@coopsource/common';
+import { CreateComplianceItemSchema, UpdateComplianceItemSchema } from '@coopsource/common';
 
 function formatCompliance(row: Selectable<ComplianceItemTable>) {
   return {
@@ -61,6 +61,24 @@ export function createComplianceRoutes(container: Container): Router {
       );
 
       res.status(201).json(formatCompliance(item));
+    }),
+  );
+
+  // PUT /api/v1/admin/compliance/:id — update
+  router.put(
+    '/api/v1/admin/compliance/:id',
+    requireAuth,
+    requirePermission('compliance.manage'),
+    asyncHandler(async (req, res) => {
+      const data = UpdateComplianceItemSchema.parse(req.body);
+
+      const item = await container.complianceCalendarService.update(
+        String(req.params.id),
+        req.actor!.cooperativeDid,
+        data,
+      );
+
+      res.json(formatCompliance(item));
     }),
   );
 

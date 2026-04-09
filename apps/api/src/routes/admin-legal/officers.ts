@@ -6,7 +6,7 @@ import { asyncHandler } from '../../lib/async-handler.js';
 import { requireAuth } from '../../auth/middleware.js';
 import { requirePermission } from '../../middleware/permissions.js';
 import { parsePagination } from '../../lib/pagination.js';
-import { CreateOfficerSchema } from '@coopsource/common';
+import { CreateOfficerSchema, UpdateOfficerSchema } from '@coopsource/common';
 
 function formatOfficer(row: Selectable<AdminOfficerTable>) {
   return {
@@ -61,6 +61,24 @@ export function createOfficerRoutes(container: Container): Router {
       );
 
       res.status(201).json(formatOfficer(officer));
+    }),
+  );
+
+  // PUT /api/v1/admin/officers/:id — update
+  router.put(
+    '/api/v1/admin/officers/:id',
+    requireAuth,
+    requirePermission('officer.manage'),
+    asyncHandler(async (req, res) => {
+      const data = UpdateOfficerSchema.parse(req.body);
+
+      const officer = await container.officerRecordService.update(
+        String(req.params.id),
+        req.actor!.cooperativeDid,
+        data,
+      );
+
+      res.json(formatOfficer(officer));
     }),
   );
 

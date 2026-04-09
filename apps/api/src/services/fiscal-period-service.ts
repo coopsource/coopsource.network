@@ -1,6 +1,6 @@
 import type { Kysely, Selectable } from 'kysely';
 import type { Database, FiscalPeriodTable } from '@coopsource/db';
-import { NotFoundError, ConflictError } from '@coopsource/common';
+import { NotFoundError, ConflictError, ValidationError } from '@coopsource/common';
 import type { IClock } from '@coopsource/federation';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
@@ -79,6 +79,44 @@ export class FiscalPeriodService {
         : undefined;
 
     return { items: slice, cursor };
+  }
+
+  async update(
+    id: string,
+    cooperativeDid: string,
+    data: {
+      label?: string;
+      startsAt?: string;
+      endsAt?: string;
+    },
+  ): Promise<FiscalRow> {
+    const existing = await this.db
+      .selectFrom('fiscal_period')
+      .where('id', '=', id)
+      .where('cooperative_did', '=', cooperativeDid)
+      .where('invalidated_at', 'is', null)
+      .selectAll()
+      .executeTakeFirst();
+
+    if (!existing) throw new NotFoundError('Fiscal period not found');
+    if (existing.status !== 'open') {
+      throw new ValidationError('Only open fiscal periods can be edited');
+    }
+
+    const now = this.clock.now();
+    const updates: Record<string, unknown> = { indexed_at: now };
+    if (data.label !== undefined) updates.label = data.label;
+    if (data.startsAt !== undefined) updates.starts_at = new Date(data.startsAt);
+    if (data.endsAt !== undefined) updates.ends_at = new Date(data.endsAt);
+
+    const [row] = await this.db
+      .updateTable('fiscal_period')
+      .set(updates)
+      .where('id', '=', id)
+      .returningAll()
+      .execute();
+
+    return row!;
   }
 
   async close(id: string, cooperativeDid: string): Promise<FiscalRow> {

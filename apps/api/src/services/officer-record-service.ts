@@ -1,6 +1,6 @@
 import type { Kysely, Selectable } from 'kysely';
 import type { Database, AdminOfficerTable } from '@coopsource/db';
-import { NotFoundError, ConflictError } from '@coopsource/common';
+import { NotFoundError, ConflictError, ValidationError } from '@coopsource/common';
 import type { IClock } from '@coopsource/federation';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
@@ -40,6 +40,44 @@ export class OfficerRecordService {
         created_at: now,
         indexed_at: now,
       })
+      .returningAll()
+      .execute();
+
+    return row!;
+  }
+
+  async update(
+    id: string,
+    cooperativeDid: string,
+    data: {
+      title?: string;
+      termEndsAt?: string;
+      responsibilities?: string;
+    },
+  ): Promise<OfficerRow> {
+    const existing = await this.db
+      .selectFrom('admin_officer')
+      .where('id', '=', id)
+      .where('cooperative_did', '=', cooperativeDid)
+      .where('invalidated_at', 'is', null)
+      .selectAll()
+      .executeTakeFirst();
+
+    if (!existing) throw new NotFoundError('Officer record not found');
+    if (existing.status !== 'active') {
+      throw new ValidationError('Only active officers can be edited');
+    }
+
+    const now = this.clock.now();
+    const updates: Record<string, unknown> = { indexed_at: now };
+    if (data.title !== undefined) updates.title = data.title;
+    if (data.termEndsAt !== undefined) updates.term_ends_at = new Date(data.termEndsAt);
+    if (data.responsibilities !== undefined) updates.responsibilities = data.responsibilities;
+
+    const [row] = await this.db
+      .updateTable('admin_officer')
+      .set(updates)
+      .where('id', '=', id)
       .returningAll()
       .execute();
 

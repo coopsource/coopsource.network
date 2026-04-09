@@ -809,6 +809,25 @@ export const CreateFiscalPeriodSchema = z.object({
   endsAt: z.string().min(1),
 });
 
+export const UpdateOfficerSchema = z.object({
+  title: z.string().min(1).max(100).optional(),
+  termEndsAt: z.string().optional(),
+  responsibilities: z.string().max(3000).optional(),
+});
+
+export const UpdateComplianceItemSchema = z.object({
+  title: z.string().min(1).max(255).optional(),
+  description: z.string().max(3000).optional(),
+  dueDate: z.string().optional(),
+  filingType: z.enum(['annual_report', 'tax_filing', 'state_report', 'other']).optional(),
+});
+
+export const UpdateFiscalPeriodSchema = z.object({
+  label: z.string().min(1).max(100).optional(),
+  startsAt: z.string().optional(),
+  endsAt: z.string().optional(),
+});
+
 export type CreateLegalDocumentInput = z.infer<typeof CreateLegalDocumentSchema>;
 export type UpdateLegalDocumentInput = z.infer<typeof UpdateLegalDocumentSchema>;
 export type CreateMeetingRecordInput = z.infer<typeof CreateMeetingRecordSchema>;
@@ -816,6 +835,9 @@ export type CreateOfficerInput = z.infer<typeof CreateOfficerSchema>;
 export type CreateComplianceItemInput = z.infer<typeof CreateComplianceItemSchema>;
 export type CreateMemberNoticeInput = z.infer<typeof CreateMemberNoticeSchema>;
 export type CreateFiscalPeriodInput = z.infer<typeof CreateFiscalPeriodSchema>;
+export type UpdateOfficerInput = z.infer<typeof UpdateOfficerSchema>;
+export type UpdateComplianceItemInput = z.infer<typeof UpdateComplianceItemSchema>;
+export type UpdateFiscalPeriodInput = z.infer<typeof UpdateFiscalPeriodSchema>;
 
 // --- Private Record Schemas ---
 

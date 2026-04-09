@@ -6,7 +6,7 @@ import { asyncHandler } from '../../lib/async-handler.js';
 import { requireAuth } from '../../auth/middleware.js';
 import { requirePermission } from '../../middleware/permissions.js';
 import { parsePagination } from '../../lib/pagination.js';
-import { CreateFiscalPeriodSchema } from '@coopsource/common';
+import { CreateFiscalPeriodSchema, UpdateFiscalPeriodSchema } from '@coopsource/common';
 
 function formatFiscalPeriod(row: Selectable<FiscalPeriodTable>) {
   return {
@@ -57,6 +57,24 @@ export function createFiscalPeriodRoutes(container: Container): Router {
       );
 
       res.status(201).json(formatFiscalPeriod(period));
+    }),
+  );
+
+  // PUT /api/v1/admin/fiscal-periods/:id — update
+  router.put(
+    '/api/v1/admin/fiscal-periods/:id',
+    requireAuth,
+    requirePermission('compliance.manage'),
+    asyncHandler(async (req, res) => {
+      const data = UpdateFiscalPeriodSchema.parse(req.body);
+
+      const period = await container.fiscalPeriodService.update(
+        String(req.params.id),
+        req.actor!.cooperativeDid,
+        data,
+      );
+
+      res.json(formatFiscalPeriod(period));
     }),
   );
 
