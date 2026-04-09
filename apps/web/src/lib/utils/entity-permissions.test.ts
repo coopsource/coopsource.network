@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Proposal, Agreement, Campaign, Task, Expense, Officer, ComplianceItem, FiscalPeriod } from '$lib/api/types.js';
+import type { Proposal, Agreement, Campaign, Task, Expense, Officer, ComplianceItem, FiscalPeriod, CommerceListing, CommerceNeed } from '$lib/api/types.js';
 import {
   canEditProposal,
   canEditAgreement,
@@ -9,6 +9,8 @@ import {
   canEditOfficer,
   canEditComplianceItem,
   canEditFiscalPeriod,
+  canEditCommerceListing,
+  canEditCommerceNeed,
 } from './entity-permissions.js';
 
 function makeProposal(overrides: Partial<Proposal> = {}): Proposal {
@@ -145,5 +147,37 @@ describe('canEditFiscalPeriod', () => {
 
   it('returns false for closed', () => {
     expect(canEditFiscalPeriod({ status: 'closed' } as FiscalPeriod)).toBe(false);
+  });
+});
+
+describe('canEditCommerceListing', () => {
+  it('returns true for active', () => {
+    expect(canEditCommerceListing({ status: 'active' } as CommerceListing)).toBe(true);
+  });
+
+  it('returns true for paused', () => {
+    expect(canEditCommerceListing({ status: 'paused' } as CommerceListing)).toBe(true);
+  });
+
+  it('returns false for archived', () => {
+    expect(canEditCommerceListing({ status: 'archived' } as CommerceListing)).toBe(false);
+  });
+});
+
+describe('canEditCommerceNeed', () => {
+  it('returns true for open', () => {
+    expect(canEditCommerceNeed({ status: 'open' } as CommerceNeed)).toBe(true);
+  });
+
+  it('returns true for matched', () => {
+    expect(canEditCommerceNeed({ status: 'matched' } as CommerceNeed)).toBe(true);
+  });
+
+  it('returns false for fulfilled', () => {
+    expect(canEditCommerceNeed({ status: 'fulfilled' } as CommerceNeed)).toBe(false);
+  });
+
+  it('returns false for cancelled', () => {
+    expect(canEditCommerceNeed({ status: 'cancelled' } as CommerceNeed)).toBe(false);
   });
 });

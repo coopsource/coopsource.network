@@ -1481,6 +1481,8 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string, apiBase?
       if (params?.cursor) qs.set('cursor', params.cursor);
       return request<{ items: CommerceNeed[]; cursor: string | null }>(`/commerce/needs/search${qs.size ? `?${qs}` : ''}`);
     },
+    updateCommerceNeed: (id: string, body: { title?: string; description?: string; category?: string; urgency?: string; location?: string; tags?: string[] }) =>
+      request<CommerceNeed>(`/commerce/needs/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
     deleteCommerceNeed: (id: string) => request<void>(`/commerce/needs/${id}`, { method: 'DELETE' }),
 
     // ── Inter-Coop Agreements (Phase 9) ──────────────────────────────
