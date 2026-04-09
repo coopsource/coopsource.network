@@ -101,6 +101,8 @@ describe('ProfileService.getDefaultProfile', () => {
     expect(fetched!.id).toBe(created.id);
     expect(fetched!.displayName).toBe('Dave');
     expect(fetched!.verified).toBe(true);
+    // V8.8 — discoverable defaults to false per migration 061.
+    expect(fetched!.discoverable).toBe(false);
   });
 
   it('returns null when the entity has no profile', async () => {
@@ -123,5 +125,118 @@ describe('ProfileService.getDefaultProfile', () => {
 
     const fetched = await profileService.getDefaultProfile('did:plc:eve');
     expect(fetched).toBeNull();
+  });
+});
+
+describe('ProfileService.setDiscoverable (V8.8)', () => {
+  it('flips discoverable from false to true on the default profile', async () => {
+    await insertPerson('did:plc:frank', 'Frank');
+    await profileService.createDefaultProfile({
+      entityDid: 'did:plc:frank',
+      displayName: 'Frank',
+    });
+
+    // Default from migration 061 is false.
+    const before = await profileService.getDefaultProfile('did:plc:frank');
+    expect(before!.discoverable).toBe(false);
+
+    await profileService.setDiscoverable('did:plc:frank', true);
+
+    const after = await profileService.getDefaultProfile('did:plc:frank');
+    expect(after!.discoverable).toBe(true);
+  });
+
+  it('flips discoverable back to false', async () => {
+    await insertPerson('did:plc:grace', 'Grace');
+    await profileService.createDefaultProfile({
+      entityDid: 'did:plc:grace',
+      displayName: 'Grace',
+    });
+
+    await profileService.setDiscoverable('did:plc:grace', true);
+    await profileService.setDiscoverable('did:plc:grace', false);
+
+    const after = await profileService.getDefaultProfile('did:plc:grace');
+    expect(after!.discoverable).toBe(false);
+  });
+
+  it('bumps updated_at on the row', async () => {
+    await insertPerson('did:plc:heidi', 'Heidi');
+    const created = await profileService.createDefaultProfile({
+      entityDid: 'did:plc:heidi',
+      displayName: 'Heidi',
+    });
+
+    // Tests use MockClock; advance it so the new timestamp is strictly
+    // greater than the createdAt baked into the creation.
+    testApp.clock.advance(60_000);
+
+    await profileService.setDiscoverable('did:plc:heidi', true);
+
+    const row = await db
+      .selectFrom('profile')
+      .where('id', '=', created.id)
+      .select(['updated_at'])
+      .executeTakeFirstOrThrow();
+
+    expect(new Date(row.updated_at).getTime()).toBeGreaterThan(
+      new Date(created.updatedAt).getTime(),
+    );
+  });
+
+  it('only updates the default profile row (leaves non-default profiles alone)', async () => {
+    // V8.3 ships single-profile-only, but the partial unique index allows
+    // non-default rows. Seed one directly to verify the WHERE clause.
+    await insertPerson('did:plc:ivan', 'Ivan');
+    const now = new Date();
+    const defaultRow = await db
+      .insertInto('profile')
+      .values({
+        entity_did: 'did:plc:ivan',
+        is_default: true,
+        display_name: 'Ivan Default',
+        verified: true,
+        discoverable: false,
+        created_at: now,
+        updated_at: now,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+    const sideRow = await db
+      .insertInto('profile')
+      .values({
+        entity_did: 'did:plc:ivan',
+        is_default: false,
+        display_name: 'Ivan Alt',
+        verified: false,
+        discoverable: false,
+        created_at: now,
+        updated_at: now,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+
+    await profileService.setDiscoverable('did:plc:ivan', true);
+
+    const def = await db
+      .selectFrom('profile')
+      .where('id', '=', defaultRow.id)
+      .select(['discoverable'])
+      .executeTakeFirstOrThrow();
+    const side = await db
+      .selectFrom('profile')
+      .where('id', '=', sideRow.id)
+      .select(['discoverable'])
+      .executeTakeFirstOrThrow();
+
+    expect(def.discoverable).toBe(true);
+    expect(side.discoverable).toBe(false);
+  });
+
+  it('is a no-op when the entity has no default profile', async () => {
+    // No row inserted → update affects zero rows, no throw.
+    await expect(
+      profileService.setDiscoverable('did:plc:noone', true),
+    ).resolves.toBeUndefined();
   });
 });

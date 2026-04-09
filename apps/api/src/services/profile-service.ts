@@ -22,6 +22,7 @@ export interface DefaultProfile {
   avatarCid: string | null;
   bio: string | null;
   verified: boolean;
+  discoverable: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,6 +47,7 @@ export class ProfileService {
         'avatar_cid',
         'bio',
         'verified',
+        'discoverable',
         'created_at',
         'updated_at',
       ])
@@ -60,9 +62,33 @@ export class ProfileService {
       avatarCid: row.avatar_cid,
       bio: row.bio,
       verified: row.verified,
+      discoverable: row.discoverable,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
+  }
+
+  /**
+   * V8.8 — Flip the `discoverable` flag on the user's default profile.
+   *
+   * Scoped to `is_default = true AND invalidated_at IS NULL` so non-default
+   * profiles (once multi-profile lands post-V8.3) are untouched. The partial
+   * unique index guarantees at most one row matches per entity.
+   *
+   * No-op if the entity has no default profile (zero rows updated). The
+   * caller (PATCH /api/v1/me/profile) runs behind `requireAuth`, which
+   * already enforces an active membership — and AuthService.register
+   * creates a default profile for every person — so in practice this will
+   * always find a row.
+   */
+  async setDiscoverable(entityDid: string, discoverable: boolean): Promise<void> {
+    await this.db
+      .updateTable('profile')
+      .set({ discoverable, updated_at: this.clock.now() })
+      .where('entity_did', '=', entityDid)
+      .where('is_default', '=', true)
+      .where('invalidated_at', 'is', null)
+      .execute();
   }
 
   /**
@@ -105,6 +131,7 @@ export class ProfileService {
         'avatar_cid',
         'bio',
         'verified',
+        'discoverable',
         'created_at',
         'updated_at',
       ])
@@ -117,6 +144,7 @@ export class ProfileService {
       avatarCid: row.avatar_cid,
       bio: row.bio,
       verified: row.verified,
+      discoverable: row.discoverable,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
