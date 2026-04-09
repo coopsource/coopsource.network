@@ -15,9 +15,17 @@ import { sql } from 'kysely';
  *      `discoverable = true OR EXISTS (alignment data)` predicate hot path.
  *   4. `desired_outcome.outcome_search_tsv` — generated tsvector + GIN index
  *      for searchAlignment (title/category weight A, description weight B).
- *   5. `idx_stakeholder_interest_interests_gin` — JSONB GIN index using
- *      `jsonb_path_ops` (smaller, faster, supports `@>` containment which is
- *      exactly what the matchmaking interest aggregation uses).
+ *
+ * Index considered but NOT added:
+ *   A `jsonb_path_ops` GIN index on `stakeholder_interest.interests` was
+ *   initially included for the matchmaking interest aggregation, but the
+ *   actual query shape in `searchAlignment` uses
+ *   `jsonb_array_elements(si.interests) + lower(item->>'category') = ANY(...)`
+ *   which is row expansion + text equality, NOT `@>` containment. A
+ *   jsonb_path_ops GIN index only supports containment operators and would
+ *   sit unused while adding write-time overhead. Sequential scan is
+ *   acceptable at V8.8 scale; revisit (e.g., via a denormalized pre-lowered
+ *   category column) if `stakeholder_interest` grows past ~100K rows.
  *
  * Naming note:
  *   ARCHITECTURE-V8.md §V8.8 calls this 062, but the repo's existing
@@ -41,7 +49,6 @@ import { sql } from 'kysely';
  *     - `profile` has no inbound foreign keys from other tables.
  *     - `desired_outcome` has only a handful of inbound references via
  *       alignment-feature tables.
- *     - `stakeholder_interest` is only getting an index (no table rewrite).
  *
  *   For dev/staging this is sub-second. THIS MIGRATION IS STILL NOT SAFE TO
  *   RUN ONLINE AGAINST A POPULATED PRODUCTION DB WITHOUT A MAINTENANCE
@@ -93,19 +100,13 @@ export async function up(db: Kysely<unknown>): Promise<void> {
       ON desired_outcome USING GIN (outcome_search_tsv)
   `.execute(db);
 
-  // 5. JSONB GIN on stakeholder_interest.interests for the @> containment
-  //    used by the matchmaking interest aggregation. jsonb_path_ops is
-  //    smaller and faster but only supports @>, which is exactly what we use.
-  await sql`
-    CREATE INDEX idx_stakeholder_interest_interests_gin
-      ON stakeholder_interest USING GIN (interests jsonb_path_ops)
-  `.execute(db);
+  // Note: no index on stakeholder_interest.interests — see the header
+  // comment for why a jsonb_path_ops GIN index can't serve searchAlignment's
+  // actual query shape.
 }
 
 export async function down(db: Kysely<unknown>): Promise<void> {
   // Reverse order: drop indexes first, then columns.
-  await sql`DROP INDEX IF EXISTS idx_stakeholder_interest_interests_gin`.execute(db);
-
   await sql`DROP INDEX IF EXISTS idx_desired_outcome_search_tsv`.execute(db);
   await sql`ALTER TABLE desired_outcome DROP COLUMN IF EXISTS outcome_search_tsv`.execute(db);
 

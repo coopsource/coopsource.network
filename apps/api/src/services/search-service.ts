@@ -388,10 +388,14 @@ export class SearchService {
    * `(createdAt, did)` encoding used by recency-ordered searches. It's
    * best-effort: rows inserted or whose scores change between pages may
    * be missed or repeated at the boundary. Acceptable for a discovery UI.
+   *
+   * Cooperatives the viewer is already an active member of are excluded
+   * from results — mirroring the noise-reduction in the matchmaking-service
+   * coop path, since surfacing them on a discovery endpoint is ~always noise.
    */
   async searchAlignment(
     opts: { q?: string; interests?: string[]; limit?: number; cursor?: string },
-    _viewerDid: string,
+    viewerDid: string,
   ): Promise<{ items: AlignmentSearchRow[]; cursor: string | null }> {
     const limit = opts.limit ?? 50;
     const q = opts.q?.trim();
@@ -469,6 +473,11 @@ export class SearchService {
         GROUP BY dout.project_uri
       ),
       interest_matches AS (
+        -- Note: this CTE does a sequential scan over stakeholder_interest. The
+        -- jsonb_array_elements + lower() shape cannot use a jsonb_path_ops GIN
+        -- index (which only supports @>), and storing pre-lowercased categories
+        -- would require a schema change. Acceptable at V8.8 scale; revisit if
+        -- stakeholder_interest grows past ~100K rows.
         SELECT si.project_uri AS coop_did,
                COUNT(DISTINCT lower(item->>'category'))::int AS matched_interests
         FROM stakeholder_interest si,
@@ -515,6 +524,12 @@ export class SearchService {
             ) = ${cursorScore ?? 0}::float8
             AND e.did < ${cursorDid ?? ''}
           )
+        )
+        AND e.did NOT IN (
+          SELECT m.cooperative_did FROM membership m
+          WHERE m.member_did = ${sql.val(viewerDid)}
+            AND m.status = 'active'
+            AND m.invalidated_at IS NULL
         )
       ORDER BY alignment_score DESC, e.did DESC
       LIMIT ${limit + 1}
