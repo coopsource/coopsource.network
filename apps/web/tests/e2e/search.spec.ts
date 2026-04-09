@@ -61,7 +61,8 @@ test.describe('V8.6 — Authed search on /me/explore', () => {
   test('renders the Explore page with search input and chips', async ({ page }) => {
     await page.goto('/me/explore');
     await expect(page.getByRole('heading', { name: 'Explore', exact: true })).toBeVisible();
-    await expect(page.getByPlaceholder('Search cooperatives and posts...')).toBeVisible();
+    // V8.8 — Task 9 widened the placeholder to mention people alongside coops/posts.
+    await expect(page.getByPlaceholder('Search cooperatives, people, and posts...')).toBeVisible();
     // Filter chips
     await expect(page.getByRole('tab', { name: 'All' })).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Cooperatives' })).toBeVisible();
@@ -97,5 +98,39 @@ test.describe('V8.6 — Authed search on /me/explore', () => {
     await expect(exploreLink).toBeVisible();
     await exploreLink.click();
     await expect(page).toHaveURL('/me/explore');
+  });
+
+  // V8.8 — People filter chip. The /me/explore page now has a People chip
+  // alongside Cooperatives and Posts. Discoverable persons (profile.discoverable
+  // = true) seeded via the test admin endpoint should be findable via FTS on
+  // displayName/handle, and the chip should narrow to the People section.
+  test('People chip — seeded discoverable person appears under the People filter', async ({
+    page,
+    request,
+  }) => {
+    await request.post(
+      'http://localhost:3002/api/v1/admin/test-seed-candidate-person',
+      {
+        data: {
+          did: 'did:web:e2e-person-quinoa.example',
+          handle: 'quinoafan-e2e',
+          displayName: 'Quinoa E2E Person',
+          discoverable: true,
+        },
+      },
+    );
+
+    // Navigate with the People chip preselected so we don't depend on the
+    // "All" view rendering all sections at once.
+    await page.goto('/me/explore?q=quinoa&type=people');
+
+    // Confirm the chip is the active tab.
+    const peopleChip = page.getByRole('tab', { name: 'People', exact: true });
+    await expect(peopleChip).toHaveAttribute('aria-selected', 'true');
+
+    // The People section heading + the seeded display name are both visible.
+    await expect(page.getByRole('heading', { name: 'People', exact: true })).toBeVisible();
+    await expect(page.getByText('Quinoa E2E Person', { exact: true })).toBeVisible();
+    await expect(page.getByText('@quinoafan-e2e', { exact: true })).toBeVisible();
   });
 });
