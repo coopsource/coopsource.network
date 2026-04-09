@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ADMIN, setupCooperative, loginAs } from './helpers.js';
+import { ADMIN, setupCooperative, loginAs, seedCandidatePerson } from './helpers.js';
 
 const API_URL = 'http://localhost:3002';
 
@@ -24,26 +24,6 @@ async function seedCandidateCoop(
   });
   if (!res.ok()) {
     throw new Error(`Seed failed (${res.status()}): ${await res.text()}`);
-  }
-}
-
-// V8.8 — Seed a discoverable person candidate so the matchmaking job has a
-// person to score and surface alongside the cooperative candidates. Mirrors
-// seedCandidateCoop but hits the V8.8 admin endpoint that writes the
-// `entity` (type=person) + `profile` (discoverable=true) rows. The viewer
-// (E2E admin) will not have alignment data, so the V8.7 fallback branch in
-// score.ts (recency * diversity) is what surfaces this candidate.
-async function seedCandidatePerson(
-  request: import('@playwright/test').APIRequestContext,
-  did: string,
-  handle: string,
-  displayName: string,
-): Promise<void> {
-  const res = await request.post(`${API_URL}/api/v1/admin/test-seed-candidate-person`, {
-    data: { did, handle, displayName, discoverable: true },
-  });
-  if (!res.ok()) {
-    throw new Error(`Seed person failed (${res.status()}): ${await res.text()}`);
   }
 }
 

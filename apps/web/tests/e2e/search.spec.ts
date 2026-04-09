@@ -5,6 +5,7 @@ import {
   setupCooperative,
   loginAs,
   setExploreVisibility,
+  seedCandidatePerson,
 } from './helpers.js';
 
 test.describe('V8.6 — Anon search on /explore', () => {
@@ -108,16 +109,11 @@ test.describe('V8.6 — Authed search on /me/explore', () => {
     page,
     request,
   }) => {
-    await request.post(
-      'http://localhost:3002/api/v1/admin/test-seed-candidate-person',
-      {
-        data: {
-          did: 'did:web:e2e-person-quinoa.example',
-          handle: 'quinoafan-e2e',
-          displayName: 'Quinoa E2E Person',
-          discoverable: true,
-        },
-      },
+    await seedCandidatePerson(
+      request,
+      'did:web:e2e-person-quinoa.example',
+      'quinoafan-e2e',
+      'Quinoa E2E Person',
     );
 
     // Navigate with the People chip preselected so we don't depend on the
