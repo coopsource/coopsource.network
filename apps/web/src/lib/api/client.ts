@@ -1099,6 +1099,8 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string, apiBase?
     },
     appointOfficer: (body: { officerDid: string; title: string; appointedAt: string; appointmentType: string; termEndsAt?: string; responsibilities?: string }) =>
       request<Officer>('/admin/officers', { method: 'POST', body: JSON.stringify(body) }),
+    updateOfficer: (id: string, body: { title?: string; termEndsAt?: string; responsibilities?: string }) =>
+      request<Officer>(`/admin/officers/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
     endOfficerTerm: (id: string) =>
       request<Officer>(`/admin/officers/${id}/end-term`, { method: 'POST' }),
 
@@ -1112,6 +1114,8 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string, apiBase?
     },
     createComplianceItem: (body: { title: string; description?: string; dueDate: string; filingType: string }) =>
       request<ComplianceItem>('/admin/compliance', { method: 'POST', body: JSON.stringify(body) }),
+    updateComplianceItem: (id: string, body: { title?: string; description?: string; dueDate?: string; filingType?: string }) =>
+      request<ComplianceItem>(`/admin/compliance/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
     completeComplianceItem: (id: string) =>
       request<ComplianceItem>(`/admin/compliance/${id}/complete`, { method: 'POST' }),
 
@@ -1134,6 +1138,8 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string, apiBase?
     },
     createFiscalPeriod: (body: { label: string; startsAt: string; endsAt: string }) =>
       request<FiscalPeriod>('/admin/fiscal-periods', { method: 'POST', body: JSON.stringify(body) }),
+    updateFiscalPeriod: (id: string, body: { label?: string; startsAt?: string; endsAt?: string }) =>
+      request<FiscalPeriod>(`/admin/fiscal-periods/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
     closeFiscalPeriod: (id: string) =>
       request<FiscalPeriod>(`/admin/fiscal-periods/${id}/close`, { method: 'POST' }),
 

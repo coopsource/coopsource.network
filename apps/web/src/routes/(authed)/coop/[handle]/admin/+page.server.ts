@@ -176,4 +176,78 @@ export const actions: Actions = {
       return fail(500, { error: 'Failed to close fiscal period.' });
     }
   },
+
+  updateOfficer: async ({ request, fetch }) => {
+    const data = await request.formData();
+    const id = String(data.get('id') ?? '').trim();
+    const title = String(data.get('title') ?? '').trim();
+    const termEndsAt = String(data.get('termEndsAt') ?? '').trim();
+    const responsibilities = String(data.get('responsibilities') ?? '').trim();
+
+    if (!id) return fail(400, { error: 'Officer ID is required.' });
+
+    const cookie = request.headers.get('cookie') ?? undefined;
+    const api = createApiClient(fetch, cookie);
+    try {
+      await api.updateOfficer(id, {
+        title: title || undefined,
+        termEndsAt: termEndsAt || undefined,
+        responsibilities: responsibilities || undefined,
+      });
+      return { success: true, tab: 'officers' };
+    } catch (err) {
+      if (err instanceof ApiError) return fail(err.status, { error: err.message });
+      return fail(500, { error: 'Failed to update officer.' });
+    }
+  },
+
+  updateCompliance: async ({ request, fetch }) => {
+    const data = await request.formData();
+    const id = String(data.get('id') ?? '').trim();
+    const title = String(data.get('title') ?? '').trim();
+    const description = String(data.get('description') ?? '').trim();
+    const dueDate = String(data.get('dueDate') ?? '').trim();
+    const filingType = String(data.get('filingType') ?? '').trim();
+
+    if (!id) return fail(400, { error: 'Compliance item ID is required.' });
+
+    const cookie = request.headers.get('cookie') ?? undefined;
+    const api = createApiClient(fetch, cookie);
+    try {
+      await api.updateComplianceItem(id, {
+        title: title || undefined,
+        description: description || undefined,
+        dueDate: dueDate || undefined,
+        filingType: filingType || undefined,
+      });
+      return { success: true, tab: 'compliance' };
+    } catch (err) {
+      if (err instanceof ApiError) return fail(err.status, { error: err.message });
+      return fail(500, { error: 'Failed to update compliance item.' });
+    }
+  },
+
+  updateFiscalPeriod: async ({ request, fetch }) => {
+    const data = await request.formData();
+    const id = String(data.get('id') ?? '').trim();
+    const label = String(data.get('label') ?? '').trim();
+    const startsAt = String(data.get('startsAt') ?? '').trim();
+    const endsAt = String(data.get('endsAt') ?? '').trim();
+
+    if (!id) return fail(400, { error: 'Fiscal period ID is required.' });
+
+    const cookie = request.headers.get('cookie') ?? undefined;
+    const api = createApiClient(fetch, cookie);
+    try {
+      await api.updateFiscalPeriod(id, {
+        label: label || undefined,
+        startsAt: startsAt || undefined,
+        endsAt: endsAt || undefined,
+      });
+      return { success: true, tab: 'fiscal' };
+    } catch (err) {
+      if (err instanceof ApiError) return fail(err.status, { error: err.message });
+      return fail(500, { error: 'Failed to update fiscal period.' });
+    }
+  },
 };
