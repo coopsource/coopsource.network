@@ -9,9 +9,8 @@
   import ExternalLink from '@lucide/svelte/icons/external-link';
 
   // V8.8 — renders both cooperative and person matches. Persons get a
-  // distinguishing icon + subtitle (shared interests / shared coops). Person
-  // matches do NOT show a "View" link since there's no public person profile
-  // page yet (V8.9 polish will add a destination).
+  // distinguishing icon + subtitle (shared interests / shared coops).
+  // V8.9 — person matches now link to /profiles/{handle}.
 
   let { data } = $props();
 
@@ -120,10 +119,9 @@
           </div>
 
           <div class="flex flex-shrink-0 items-center gap-2">
-            {#if match.matchType === 'cooperative' && match.handle}
-              <!-- TODO(V8.9): add a person profile page so person matches can also link out. -->
+            {#if match.handle}
               <a
-                href={`/explore/${match.handle}`}
+                href={match.matchType === 'cooperative' ? `/explore/${match.handle}` : `/profiles/${match.handle}`}
                 class="inline-flex items-center gap-1 rounded border border-[var(--cs-border)] px-3 py-1.5 text-xs font-medium text-[var(--cs-text)] hover:border-[var(--cs-primary)] hover:text-[var(--cs-primary)]"
               >
                 <ExternalLink size={12} />

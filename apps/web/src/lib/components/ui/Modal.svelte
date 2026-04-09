@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import X from '@lucide/svelte/icons/x';
+  import { focusTrap } from '$lib/actions/focus-trap';
 
   interface Props {
     open: boolean;
@@ -51,6 +52,7 @@
     role="presentation"
   >
     <div
+      use:focusTrap
       class="w-full {widths[size]} mx-4 bg-[var(--cs-bg-elevated)] border border-[var(--cs-border)] rounded-[var(--radius-lg)] shadow-lg animate-in zoom-in-95 duration-200"
       role="dialog"
       aria-modal="true"

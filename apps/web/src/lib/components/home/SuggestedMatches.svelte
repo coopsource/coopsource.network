@@ -14,15 +14,14 @@
   // bring it back when scoring is real.
   //
   // V8.8 — renders both cooperative and person matches. Persons get a
-  // distinguishing icon + subtitle (shared interests / shared coops). Person
-  // names are rendered as plain text since there's no public person profile
-  // page yet (V8.9 polish will add a destination).
+  // distinguishing icon + subtitle (shared interests / shared coops).
+  // V8.9 — person matches now link to /profiles/{handle}.
 
   let { matches }: { matches: MatchSuggestion[] } = $props();
 </script>
 
 {#if matches.length > 0}
-  <section>
+  <section aria-label="Suggested matches">
     <h2 class="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-[var(--cs-text-muted)]">
       <Sparkles size={14} class="text-[var(--cs-primary)]" />
       Suggested for You
@@ -59,28 +58,32 @@
               </div>
             </a>
           {:else}
-            <!-- V8.8: person matches have no public profile page yet — render as plain text. -->
-            <!-- TODO(V8.9): link to a person profile page once it exists. -->
-            <div class="flex items-start gap-3">
-              <User size={20} class="mt-0.5 text-violet-500" />
-              <div class="min-w-0 flex-1 pr-6">
-                <h3 class="font-medium text-[var(--cs-text)]">{match.displayName}</h3>
-                {#if match.handle}
-                  <p class="mt-0.5 text-xs text-[var(--cs-text-muted)]">@{match.handle}</p>
-                {/if}
-                {#if match.description}
-                  <p class="mt-1 line-clamp-2 text-xs text-[var(--cs-text-muted)]">
-                    {match.description}
-                  </p>
-                {/if}
-                {#if match.sharedInterestCount !== null && match.sharedInterestCount > 0}
-                  <p class="mt-2 text-xs text-[var(--cs-text-muted)]">
-                    {match.sharedInterestCount} shared interest{match.sharedInterestCount === 1 ? '' : 's'}
-                    {#if match.sharedCoopCount && match.sharedCoopCount > 0} · {match.sharedCoopCount} shared coop{match.sharedCoopCount === 1 ? '' : 's'}{/if}
-                  </p>
-                {/if}
+            <a
+              href={match.handle ? `/profiles/${match.handle}` : `#`}
+              class="block"
+              aria-label="View {match.displayName}"
+            >
+              <div class="flex items-start gap-3">
+                <User size={20} class="mt-0.5 text-violet-500" />
+                <div class="min-w-0 flex-1 pr-6">
+                  <h3 class="font-medium text-[var(--cs-text)]">{match.displayName}</h3>
+                  {#if match.handle}
+                    <p class="mt-0.5 text-xs text-[var(--cs-text-muted)]">@{match.handle}</p>
+                  {/if}
+                  {#if match.description}
+                    <p class="mt-1 line-clamp-2 text-xs text-[var(--cs-text-muted)]">
+                      {match.description}
+                    </p>
+                  {/if}
+                  {#if match.sharedInterestCount !== null && match.sharedInterestCount > 0}
+                    <p class="mt-2 text-xs text-[var(--cs-text-muted)]">
+                      {match.sharedInterestCount} shared interest{match.sharedInterestCount === 1 ? '' : 's'}
+                      {#if match.sharedCoopCount && match.sharedCoopCount > 0} · {match.sharedCoopCount} shared coop{match.sharedCoopCount === 1 ? '' : 's'}{/if}
+                    </p>
+                  {/if}
+                </div>
               </div>
-            </div>
+            </a>
           {/if}
           <form method="POST" action="?/dismissMatch" use:enhance class="absolute right-2 top-2">
             <input type="hidden" name="id" value={match.id} />

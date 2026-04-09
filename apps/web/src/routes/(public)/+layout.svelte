@@ -8,7 +8,7 @@
   <PublicNav user={data.user} />
 
   <!-- Page content -->
-  <main class="mx-auto max-w-6xl px-4 py-8">
+  <main id="main-content" class="mx-auto max-w-6xl px-4 py-8">
     {@render children()}
   </main>
 </div>

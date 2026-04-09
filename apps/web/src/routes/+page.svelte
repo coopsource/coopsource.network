@@ -1,5 +1,9 @@
 <script lang="ts">
   import PublicNav from '$lib/components/layout/PublicNav.svelte';
+  import Vote from '@lucide/svelte/icons/vote';
+  import Handshake from '@lucide/svelte/icons/handshake';
+  import Search from '@lucide/svelte/icons/search';
+  import Globe from '@lucide/svelte/icons/globe';
 
   let { data } = $props();
 </script>
@@ -20,6 +24,38 @@
       Governance, agreements, and membership — built on open protocols.
       Your cooperative, your data, your network.
     </p>
+
+    <div class="mt-10 grid max-w-2xl grid-cols-1 gap-x-10 gap-y-5 text-left sm:grid-cols-2">
+      <div class="flex items-start gap-3">
+        <Vote class="mt-0.5 size-5 shrink-0 text-[var(--cs-primary)]" />
+        <div>
+          <p class="text-sm font-medium text-[var(--cs-text)]">Governance</p>
+          <p class="text-sm text-[var(--cs-text-muted)]">Vote on proposals and delegate authority</p>
+        </div>
+      </div>
+      <div class="flex items-start gap-3">
+        <Handshake class="mt-0.5 size-5 shrink-0 text-[var(--cs-primary)]" />
+        <div>
+          <p class="text-sm font-medium text-[var(--cs-text)]">Agreements</p>
+          <p class="text-sm text-[var(--cs-text-muted)]">Draft, sign, and manage cooperative agreements</p>
+        </div>
+      </div>
+      <div class="flex items-start gap-3">
+        <Search class="mt-0.5 size-5 shrink-0 text-[var(--cs-primary)]" />
+        <div>
+          <p class="text-sm font-medium text-[var(--cs-text)]">Discovery</p>
+          <p class="text-sm text-[var(--cs-text-muted)]">Find cooperatives and people aligned with your goals</p>
+        </div>
+      </div>
+      <div class="flex items-start gap-3">
+        <Globe class="mt-0.5 size-5 shrink-0 text-[var(--cs-primary)]" />
+        <div>
+          <p class="text-sm font-medium text-[var(--cs-text)]">Open protocols</p>
+          <p class="text-sm text-[var(--cs-text-muted)]">Built on ATProto — your data is portable and yours</p>
+        </div>
+      </div>
+    </div>
+
     <div class="mt-8 flex items-center gap-4">
       <a
         href="/register"

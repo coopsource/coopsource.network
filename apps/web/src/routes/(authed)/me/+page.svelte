@@ -3,7 +3,9 @@
   import Globe from '@lucide/svelte/icons/globe';
   import Building2 from '@lucide/svelte/icons/building-2';
   import Mail from '@lucide/svelte/icons/mail';
+  import Search from '@lucide/svelte/icons/search';
   import SuggestedMatches from '$lib/components/home/SuggestedMatches.svelte';
+  import GetStartedCard from '$lib/components/home/GetStartedCard.svelte';
 
   let { data } = $props();
 
@@ -29,6 +31,10 @@
     </p>
   </div>
 
+  {#if !data.dismissedGetStarted}
+    <GetStartedCard />
+  {/if}
+
   <!-- My Cooperatives -->
   <section>
     <h2 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--cs-text-muted)]">
@@ -36,9 +42,19 @@
     </h2>
     {#if cooperatives.length === 0}
       <EmptyState
+        icon={Search}
         title="No cooperatives yet"
-        description="Create or join a cooperative to get started."
-      />
+        description="You're not a member of any cooperative yet. Browse the directory to find one."
+      >
+        {#snippet actions()}
+          <a
+            href="/me/explore"
+            class="inline-flex items-center rounded-md bg-[var(--cs-primary)] px-4 py-2 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)]"
+          >
+            Browse cooperatives
+          </a>
+        {/snippet}
+      </EmptyState>
     {:else}
       <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {#each cooperatives as coop}

@@ -48,7 +48,7 @@
   <Sidebar {user} workspaceLabel={displayLabel} {myCoops} bind:collapsed {workspace} {currentProfile} />
   <div class="flex flex-1 flex-col overflow-hidden min-w-0">
     <Navbar {user} {workspace} />
-    <main class="flex-1 overflow-auto p-6">
+    <main id="main-content" class="flex-1 overflow-auto p-6">
       {@render children()}
     </main>
   </div>

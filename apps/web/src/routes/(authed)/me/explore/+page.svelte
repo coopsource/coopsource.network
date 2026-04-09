@@ -181,9 +181,9 @@
                 </div>
                 <div class="min-w-0 flex-1">
                   <div class="flex items-center gap-2">
-                    <span class="text-sm font-medium text-[var(--cs-text)] truncate">
+                    <a href="/profiles/{person.handle}" class="text-sm font-medium text-[var(--cs-text)] truncate hover:underline">
                       {person.displayName}
-                    </span>
+                    </a>
                     {#if person.handle}
                       <span class="text-xs text-[var(--cs-text-muted)] truncate">
                         @{person.handle}

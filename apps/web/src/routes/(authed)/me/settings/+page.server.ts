@@ -33,7 +33,7 @@ export const actions: Actions = {
       return { success: true, discoverable: result.discoverable };
     } catch (e: unknown) {
       if (e instanceof ApiError) {
-        return fail(e.status, { error: e.message });
+        return fail(e.status, { error: e.message, discoverable: !discoverable });
       }
       throw e;
     }

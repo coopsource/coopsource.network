@@ -17,6 +17,12 @@
       finance, and operations. Cooperatives own their data, their identity, and their
       network presence. Nothing is locked in.
     </p>
+    <p class="text-[var(--cs-text-secondary)]">
+      Beyond running a cooperative, Co-op Source helps you discover people and
+      organizations that share your interests. Search for cooperatives by sector
+      or location, find individuals aligned with your goals, and connect with
+      potential collaborators across the network.
+    </p>
   </section>
 
   <section class="space-y-3">

@@ -88,7 +88,7 @@
     {#if form?.success}
       <p class="mt-2 text-xs text-green-600">Saved.</p>
     {:else if form && 'error' in form && form.error}
-      <p class="mt-2 text-xs text-red-600">{form.error}</p>
+      <p class="mt-2 text-xs text-red-600" role="alert">{form.error}</p>
     {/if}
   </section>
 
