@@ -1,6 +1,6 @@
 import type { Kysely, Selectable } from 'kysely';
 import type { Database, CommerceNeedTable } from '@coopsource/db';
-import { NotFoundError, ConflictError } from '@coopsource/common';
+import { NotFoundError, ConflictError, ValidationError } from '@coopsource/common';
 import type { DID } from '@coopsource/common';
 import type { IClock } from '@coopsource/federation';
 import type { IPdsService } from '@coopsource/federation';
@@ -107,6 +107,11 @@ export class CommerceNeedService {
       status?: string;
     },
   ): Promise<NeedRow> {
+    const need = await this.getNeed(id);
+    if (need.status === 'fulfilled' || need.status === 'cancelled') {
+      throw new ValidationError('Cannot update a fulfilled or cancelled need');
+    }
+
     const now = this.clock.now();
     const updates: Record<string, unknown> = { updated_at: now, indexed_at: now };
 

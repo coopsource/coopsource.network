@@ -1,6 +1,6 @@
 import type { Kysely, Selectable } from 'kysely';
 import type { Database, CommerceListingTable } from '@coopsource/db';
-import { NotFoundError, ConflictError } from '@coopsource/common';
+import { NotFoundError, ConflictError, ValidationError } from '@coopsource/common';
 import type { DID } from '@coopsource/common';
 import type { IClock } from '@coopsource/federation';
 import type { IPdsService } from '@coopsource/federation';
@@ -110,6 +110,11 @@ export class CommerceListingService {
       status?: string;
     },
   ): Promise<ListingRow> {
+    const listing = await this.getListing(id);
+    if (listing.status === 'archived') {
+      throw new ValidationError('Cannot update an archived listing');
+    }
+
     const now = this.clock.now();
     const updates: Record<string, unknown> = { updated_at: now, indexed_at: now };
 
