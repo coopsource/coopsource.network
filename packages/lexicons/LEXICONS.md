@@ -150,3 +150,74 @@ A named responsibility with defined permissions, scoped to a cooperative or proj
 | `permissions` | array of string (each max 500) | No | What this role can do |
 | `termLengthMonths` | integer (min 0) | No | Term length in months, if applicable |
 | `createdAt` | datetime | Yes | When the role was created |
+
+---
+
+## Namespace: `governance`
+
+The `governance` namespace implements the full cooperative decision-making lifecycle: from drafting a proposal through community discussion and voting to a final outcome.
+
+A `proposal` moves through a linear status progression: `draft` → `discussion` → `voting` → `passed` / `failed` / `withdrawn`. At each stage, cooperative members can see where deliberation stands. The proposal specifies a `votingMethod` — `simple_majority`, `supermajority`, `consensus`, or `ranked_choice` — and an optional `quorumRequired` expressed as a fraction between 0 and 1. The `quorumBasis` field controls whether that fraction is measured against votes actually cast or against the total member count. Optional deadlines (`discussionEndsAt`, `votingEndsAt`) allow automated stage transitions. Proposals can also carry links to cross-ecosystem artifacts: a Smoke Signal calendar event for the governance meeting, a WhiteWind blog entry for detailed rationale, and a Frontpage discussion thread for community commentary.
+
+Visibility of the `proposal` record is controlled by `VisibilityRouter`. Cooperatives running open governance write proposals directly to their PDS, making them Tier 1 records that flow through the ATProto relay firehose. Cooperatives running closed governance store proposals in the `private_record` table as Tier 2 records, keeping deliberations off the public firehose entirely.
+
+Members cast votes by writing `vote` records to their **own PDS** via `MemberWriteProxy`. Each vote references the proposal by AT URI, identifies the voter by DID, and carries a `choice` string (`yes`, `no`, or `abstain` for standard methods; a JSON-encoded ranked array for `ranked_choice`). The `weight` field, which defaults to 1.0, is increased when active delegations are in effect — the AppView computes effective weight from all active delegations before tallying results.
+
+Delegation is the mechanism by which a member temporarily transfers their voting authority to a trusted peer. A `delegation` record names a delegator, a delegatee, and a `scope`: `project` (covers all proposals within a project) or `proposal` (covers only one specific proposal). Delegations can be revoked at any time by setting `status` to `revoked` and recording a `revokedAt` timestamp. `delegation` is DB-only — it has no ATProto write path.
+
+---
+
+### `network.coopsource.governance.proposal`
+
+A governance proposal for cooperative decision-making. Written to the **cooperative's PDS** for open-governance cooperatives; stored in `private_record` (Tier 2) for closed-governance cooperatives, via `VisibilityRouter`.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `cooperativeDid` | did | Yes | The cooperative this proposal belongs to |
+| `title` | string (max 256) | Yes | Short title of the proposal |
+| `body` | string (max 10000) | Yes | Full text of the proposal |
+| `proposalType` | string | Yes | Category: `amendment`, `budget`, `membership`, `policy`, `election`, `other` |
+| `votingMethod` | string | Yes | How votes are counted: `simple_majority`, `supermajority`, `consensus`, `ranked_choice` |
+| `options` | array of string (each max 256) | No | For `ranked_choice` or multi-option proposals, the list of options |
+| `quorumRequired` | number (min 0, max 1) | No | Fraction of members required to vote (0–1) |
+| `quorumBasis` | string | No | Whether quorum is measured against `votesCast` or `totalMembers` |
+| `discussionEndsAt` | datetime | No | When the discussion period closes |
+| `votingEndsAt` | datetime | No | When the voting period closes |
+| `meetingEvent` | at-uri | No | Smoke Signal calendar event for the governance meeting |
+| `fullDocument` | at-uri | No | WhiteWind blog entry with detailed rationale |
+| `discussionThread` | at-uri | No | Frontpage link submission for community discussion |
+| `status` | string | Yes | `draft`, `discussion`, `voting`, `passed`, `failed`, `withdrawn` |
+| `createdAt` | datetime | Yes | When the proposal was created |
+
+---
+
+### `network.coopsource.governance.vote`
+
+A vote cast on a governance proposal. Written to the **member's PDS** via `MemberWriteProxy`.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `proposalUri` | at-uri | Yes | The proposal being voted on |
+| `voterDid` | did | Yes | DID of the voter |
+| `choice` | string (max 1000) | Yes | Vote choice: `yes`, `no`, or `abstain` for standard methods; JSON array for `ranked_choice` |
+| `weight` | number (min 0) | No | Voting weight, defaults to 1.0; higher when delegations are active |
+| `rationale` | string (max 2000) | No | Optional explanation of the voter's reasoning |
+| `delegatedFrom` | did | No | DID of the delegator, if this vote was cast on behalf of someone else |
+| `createdAt` | datetime | Yes | When the vote was cast |
+
+---
+
+### `network.coopsource.governance.delegation`
+
+A transfer of voting authority from one project member to another. **DB-only** — no ATProto write path implemented.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `projectUri` | at-uri | Yes | The project this delegation applies to |
+| `delegatorDid` | did | Yes | DID of the person delegating their vote |
+| `delegateeDid` | did | Yes | DID of the person receiving the delegation |
+| `scope` | string | Yes | Coverage of the delegation: `project` (all proposals) or `proposal` (one specific proposal) |
+| `proposalUri` | at-uri | No | Specific proposal URI when `scope` is `proposal` |
+| `status` | string | Yes | `active` or `revoked` |
+| `revokedAt` | datetime | No | When the delegation was revoked |
+| `createdAt` | datetime | Yes | When the delegation was created |
