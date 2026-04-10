@@ -29,7 +29,7 @@
 
   function urgencyVariant(urgency: string): 'success' | 'warning' | 'danger' | 'default' {
     switch (urgency) {
-      case 'critical': return 'danger';
+      case 'urgent': return 'danger';
       case 'high': return 'warning';
       case 'normal': return 'default';
       case 'low': return 'success';
@@ -39,7 +39,7 @@
 
   function urgencyColor(urgency: string): string {
     switch (urgency) {
-      case 'critical': return 'bg-red-100 text-red-700';
+      case 'urgent': return 'bg-red-100 text-red-700';
       case 'high': return 'bg-orange-100 text-orange-700';
       case 'normal': return 'bg-blue-100 text-blue-700';
       case 'low': return 'bg-gray-100 text-gray-600';
@@ -222,7 +222,7 @@
           <option value="low">Low</option>
           <option value="normal">Normal</option>
           <option value="high">High</option>
-          <option value="critical">Critical</option>
+          <option value="urgent">Urgent</option>
         </select>
       </div>
     </div>

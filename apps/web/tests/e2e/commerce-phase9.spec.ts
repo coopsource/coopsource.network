@@ -4,7 +4,7 @@ import { setupCooperative } from './helpers.js';
 const API = 'http://localhost:3002/api/v1';
 
 /** Helper: authenticated POST */
-async function post(request: APIRequestContext, cookie: string, path: string, data: unknown) {
+async function post(request: APIRequestContext, cookie: string, path: string, data?: unknown) {
   return request.post(`${API}${path}`, { headers: { Cookie: cookie }, data });
 }
 

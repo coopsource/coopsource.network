@@ -7,7 +7,6 @@
 </script>
 
 <aside
-  role="complementary"
   aria-label="Getting started guide"
   class="cs-card relative border-l-4 border-[var(--cs-primary)] p-5"
 >

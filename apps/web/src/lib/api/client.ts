@@ -397,7 +397,7 @@ export function createApiClient(fetchFn: typeof fetch, cookie?: string, apiBase?
         body: string;
         proposalType: string;
         votingMethod: string;
-        quorumRequired: number;
+        quorumType: string;
         votingEndsAt: string;
       }>,
     ) =>

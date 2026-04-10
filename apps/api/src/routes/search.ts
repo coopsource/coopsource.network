@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import type { Container } from '../container.js';
 import { asyncHandler } from '../lib/async-handler.js';
 import { requireAuth } from '../auth/middleware.js';
@@ -19,6 +20,20 @@ import { parsePagination } from '../lib/pagination.js';
  */
 export function createSearchRoutes(container: Container): Router {
   const router = Router();
+
+  // Per-DID rate limiter for expensive FTS search endpoints.
+  // Stricter than the global 200/15min — 60 requests per 15 minutes per user.
+  // Skipped in test to avoid flaky E2E (mirrors pattern in index.ts).
+  const searchLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 60,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    // requireAuth runs before this middleware, so req.actor.did is always set.
+    keyGenerator: (req) => req.actor!.did,
+    skip: () => process.env.NODE_ENV === 'test',
+    validate: { keyGeneratorIpFallback: false },
+  });
 
   router.get(
     '/api/v1/search/cooperatives',
@@ -81,6 +96,7 @@ export function createSearchRoutes(container: Container): Router {
   router.get(
     '/api/v1/search/people',
     requireAuth,
+    searchLimiter,
     asyncHandler(async (req, res) => {
       const viewerDid = req.actor!.did;
       const q = String(req.query.q ?? '').trim();
@@ -110,6 +126,7 @@ export function createSearchRoutes(container: Container): Router {
   router.get(
     '/api/v1/search/alignment',
     requireAuth,
+    searchLimiter,
     asyncHandler(async (req, res) => {
       const viewerDid = req.actor!.did;
       const q = req.query.q ? String(req.query.q).trim() : undefined;

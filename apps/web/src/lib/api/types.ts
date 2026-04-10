@@ -77,10 +77,11 @@ export interface Proposal {
   body: string;
   proposalType: string;
   votingMethod: string;
-  quorumRequired: number | null;
+  quorumType: string;
+  quorumBasis: string | null;
   votingEndsAt: string | null;
   status: string; // draft | open | closed | resolved
-  result: Record<string, unknown> | null;
+  outcome: string | null;
   authorDid: string;
   authorHandle: string | null;
   authorDisplayName: string;
@@ -782,7 +783,7 @@ export interface ApiError {
 
 export interface Notification {
   id: string;
-  cooperativeDid: string;
+  cooperativeDid: string | null;
   title: string;
   body: string | null;
   category: string;

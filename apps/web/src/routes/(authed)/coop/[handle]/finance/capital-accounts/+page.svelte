@@ -60,16 +60,16 @@
   {#if data.summary}
     <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
       <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-4">
-        <p class="text-xs text-[var(--cs-text-muted)]">Total Balance</p>
-        <p class="mt-1 text-lg font-semibold text-[var(--cs-text)]">{fmt(data.summary.totalBalance)}</p>
+        <p class="text-xs text-[var(--cs-text-muted)]">Total Equity</p>
+        <p class="mt-1 text-lg font-semibold text-[var(--cs-text)]">{fmt(data.summary.totalEquity)}</p>
       </div>
       <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-4">
         <p class="text-xs text-[var(--cs-text-muted)]">Contributions</p>
-        <p class="mt-1 text-lg font-semibold text-[var(--cs-text)]">{fmt(data.summary.totalContributions)}</p>
+        <p class="mt-1 text-lg font-semibold text-[var(--cs-text)]">{fmt(data.summary.totalInitialContributions)}</p>
       </div>
       <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-4">
         <p class="text-xs text-[var(--cs-text-muted)]">Allocated</p>
-        <p class="mt-1 text-lg font-semibold text-[var(--cs-text)]">{fmt(data.summary.totalAllocated)}</p>
+        <p class="mt-1 text-lg font-semibold text-[var(--cs-text)]">{fmt(data.summary.totalPatronageAllocated)}</p>
       </div>
       <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-4">
         <p class="text-xs text-[var(--cs-text-muted)]">Redeemed</p>

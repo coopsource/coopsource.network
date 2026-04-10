@@ -35,7 +35,7 @@ export const actions: Actions = {
         title,
         body,
         votingMethod: votingType,
-        quorumRequired: quorumType,
+        quorumType,
         votingEndsAt: closesAt || undefined,
       });
     } catch (err) {

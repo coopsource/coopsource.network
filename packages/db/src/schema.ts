@@ -700,7 +700,7 @@ export interface TriggerExecutionLogTable {
 
 export interface NotificationTable {
   id: Generated<string>;
-  cooperative_did: string;
+  cooperative_did: string | null;
   recipient_did: string;
   title: string;
   body: string | null;

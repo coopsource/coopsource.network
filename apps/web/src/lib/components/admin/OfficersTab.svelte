@@ -2,12 +2,7 @@
   import { enhance } from '$app/forms';
   import { Badge, EmptyState, Modal, MemberSelect } from '$lib/components/ui';
   import { canEditOfficer } from '$lib/utils/entity-permissions.js';
-  import type { Officer } from '$lib/api/types.js';
-
-  interface Member {
-    did: string;
-    displayName?: string;
-  }
+  import type { Officer, Member } from '$lib/api/types.js';
 
   let {
     officers,

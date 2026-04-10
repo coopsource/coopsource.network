@@ -21,8 +21,8 @@ import { scoreCandidate, SCORING_VERSION } from './matchmaking/score.js';
  * — no per-type quota; highest scores win regardless of `match_type`.
  *
  * Architectural decisions (see plan §V8.7/§V8.8):
- *   1. Notifications are DEFERRED — `notification.cooperative_did` is
- *      NOT NULL and system-generated matches have no natural sender.
+ *   1. Match notifications unblocked — `notification.cooperative_did`
+ *      made nullable in migration 063 (V8.13).
  *   2. Dismissed/acted rows are TOMBSTONES — they stay in the table to
  *      block re-suggestion via the unique key on `(user_did, target_did)`.
  *      `pruneStale` only deletes un-actioned rows.

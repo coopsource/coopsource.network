@@ -134,8 +134,9 @@
         pledging = true;
         return async ({ result, update }) => {
           pledging = false;
-          if (result.type === 'success' && result.data?.checkoutUrl) {
-            window.location.href = result.data.checkoutUrl;
+          const successData = result.type === 'success' ? result.data as Record<string, string> | undefined : undefined;
+          if (successData?.checkoutUrl) {
+            window.location.href = successData.checkoutUrl;
             return;
           }
           await update();

@@ -55,7 +55,9 @@ pnpm --filter @coopsource/db migrate   # Run Kysely migrations
 
 # Build & test
 pnpm build                             # Build all packages (turbo)
-pnpm test                              # Run all tests (Vitest)
+pnpm test                              # Run all tests with local PDS fallback (no Docker needed)
+make test:all                          # Full test suite with real PDS (Docker required, resets volumes)
+make test:pds                          # Federation PDS integration tests only
 
 # Federation development
 make dev                               # Standalone mode (one process, one DB)

@@ -78,8 +78,8 @@
     <div class="mb-4 flex flex-wrap gap-3 text-xs text-[var(--cs-text-muted)]">
       <span>Type: <strong>{proposal.proposalType}</strong></span>
       <span>Voting: <strong>{proposal.votingMethod}</strong></span>
-      {#if proposal.quorumRequired}
-        <span>Quorum: <strong>{proposal.quorumRequired}</strong></span>
+      {#if proposal.quorumType}
+        <span>Quorum: <strong>{proposal.quorumType}</strong></span>
       {/if}
       {#if proposal.votingEndsAt}
         <span>Deadline: <strong>{new Date(proposal.votingEndsAt).toLocaleString()}</strong></span>

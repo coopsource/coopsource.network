@@ -20,12 +20,8 @@ describe('PlcClient', () => {
   });
 
   describe('create()', () => {
-    it('should POST a genesis operation to the PLC directory', async () => {
-      const mockDid = 'did:plc:abc123def456';
-      const mockFetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ did: mockDid }),
-      });
+    it('should compute DID from DAG-CBOR and POST to /{did}', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({ ok: true });
       vi.stubGlobal('fetch', mockFetch);
 
       const client = new PlcClient('https://plc.directory');
@@ -35,11 +31,13 @@ describe('PlcClient', () => {
         pdsUrl: 'https://pds.mycoop.coop',
       });
 
-      expect(did).toBe(mockDid);
+      // DID is computed client-side from DAG-CBOR, not from server response
+      expect(did).toMatch(/^did:plc:[a-z2-7]{24}$/);
       expect(mockFetch).toHaveBeenCalledOnce();
 
       const [url, options] = mockFetch.mock.calls[0]!;
-      expect(url).toBe('https://plc.directory');
+      // POST to /{did} (the computed DID, URL-encoded)
+      expect(url).toBe(`https://plc.directory/${encodeURIComponent(did)}`);
       expect(options.method).toBe('POST');
       expect(options.headers['Content-Type']).toBe('application/json');
 
@@ -56,11 +54,23 @@ describe('PlcClient', () => {
       });
     });
 
+    it('should return deterministic DID for same input', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({ ok: true });
+      vi.stubGlobal('fetch', mockFetch);
+
+      const client = new PlcClient('https://plc.directory');
+      const params = {
+        signingKey: 'zDnaerDaTF5BXEavCrfRZEk316dpbLsfPDZ3WJ5hRTPFU2169',
+        handle: 'mycoop.coop',
+        pdsUrl: 'https://pds.mycoop.coop',
+      };
+      const did1 = await client.create(params);
+      const did2 = await client.create(params);
+      expect(did1).toBe(did2);
+    });
+
     it('should use signing key as rotation key when none provided', async () => {
-      const mockFetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ did: 'did:plc:test' }),
-      });
+      const mockFetch = vi.fn().mockResolvedValue({ ok: true });
       vi.stubGlobal('fetch', mockFetch);
 
       const client = new PlcClient('https://plc.directory');
@@ -75,10 +85,7 @@ describe('PlcClient', () => {
     });
 
     it('should use custom rotation keys when provided', async () => {
-      const mockFetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ did: 'did:plc:test' }),
-      });
+      const mockFetch = vi.fn().mockResolvedValue({ ok: true });
       vi.stubGlobal('fetch', mockFetch);
 
       const client = new PlcClient('https://plc.directory');

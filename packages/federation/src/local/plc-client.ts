@@ -1,9 +1,33 @@
+import * as dagCbor from '@ipld/dag-cbor';
+import * as crypto from 'node:crypto';
 import {
   signPlcOperation,
   signPlcOperationK256,
   type UnsignedPlcOperation,
   type SignedPlcOperation,
 } from './plc-signing.js';
+
+// ─── Base32 encoding (RFC 4648, lowercase) ─────────────────────────────────
+
+const BASE32_ALPHABET = 'abcdefghijklmnopqrstuvwxyz234567';
+
+function base32Encode(buf: Uint8Array): string {
+  let out = '';
+  let bits = 0;
+  let val = 0;
+  for (const byte of buf) {
+    val = (val << 8) | byte;
+    bits += 8;
+    while (bits >= 5) {
+      bits -= 5;
+      out += BASE32_ALPHABET[(val >> bits) & 0x1f];
+    }
+  }
+  if (bits > 0) {
+    out += BASE32_ALPHABET[(val << (5 - bits)) & 0x1f];
+  }
+  return out;
+}
 
 export interface PlcCreateParams {
   signingKey: string; // multibase-encoded public key
@@ -32,7 +56,8 @@ export class PlcClient {
 
   /**
    * Create a new DID via a signed genesis operation.
-   * POST / to the PLC directory with the signed genesis operation.
+   * Computes the DID from the DAG-CBOR encoding of the signed operation,
+   * then POSTs to /{did} on the PLC directory.
    * @returns The created DID string (e.g. "did:plc:abc123...")
    */
   async create(
@@ -72,19 +97,35 @@ export class PlcClient {
       body = await this.signOperation(unsignedOp, signingKey);
     }
 
-    const res = await fetch(`${this.plcUrl}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    // Compute the DID from the DAG-CBOR encoding of the genesis operation.
+    // Algorithm: did:plc: + base32_lower(sha256(dag-cbor(signed_op)))[:24]
+    const did = PlcClient.computeDid(body);
+
+    const res = await fetch(
+      `${this.plcUrl}/${encodeURIComponent(did)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+    );
 
     if (!res.ok) {
       const text = await res.text().catch(() => 'unknown error');
       throw new Error(`PLC create failed (${res.status}): ${text}`);
     }
 
-    const data = (await res.json()) as { did: string };
-    return data.did;
+    return did;
+  }
+
+  /**
+   * Compute a did:plc identifier from a genesis operation using DAG-CBOR.
+   * Algorithm: "did:plc:" + base32_lower(sha256(dag-cbor(op)))[0..24]
+   */
+  static computeDid(op: UnsignedPlcOperation | SignedPlcOperation): string {
+    const bytes = dagCbor.encode(op);
+    const hash = crypto.createHash('sha256').update(bytes).digest();
+    return 'did:plc:' + base32Encode(hash).slice(0, 24);
   }
 
   /**

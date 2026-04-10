@@ -7,7 +7,7 @@
 
   const network = $derived(data.network);
   const members = $derived(data.members);
-  const coopDid = $derived(data.workspace?.cooperative?.did ?? data.cooperative?.did);
+  const coopDid = $derived(data.workspace?.cooperative?.did);
   const isMember = $derived(members.some((m: { did: string }) => m.did === coopDid));
 </script>
 

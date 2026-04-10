@@ -11,7 +11,7 @@
     title: data.proposal.title,
     body: data.proposal.body,
     votingType: data.proposal.votingMethod,
-    quorumType: data.proposal.quorumRequired,
+    quorumType: data.proposal.quorumType,
     closesAt: data.proposal.votingEndsAt?.slice(0, 16) ?? '',
   });
 </script>
