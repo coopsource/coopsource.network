@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ADMIN, wp, setupCooperative, loginAs } from './helpers.js';
+import { ADMIN, wp, setupCooperative, loginAs, waitForHydration } from './helpers.js';
 
 test.describe('Notifications', () => {
   test.beforeEach(async ({ page, request }) => {
@@ -34,16 +34,16 @@ test.describe('Notifications', () => {
     await expect(page.getByText('No notifications')).not.toBeVisible();
   });
 
-  test.fixme('dropdown contains "View all notifications" link', async ({ page }) => {
-    // Pre-existing failure on main: the "View all notifications" link is wrapped in
-    // {#if workspacePrefix} in NotificationBell.svelte:141, but workspacePrefix is
-    // empty in the test context. Needs investigation — possibly Navbar isn't passing
-    // the workspace prefix correctly during E2E test runs.
+  test('dropdown contains "View all notifications" link', async ({ page }) => {
     await page.goto(wp('/members'));
-    await page.getByRole('button', { name: 'Notifications' }).click();
-    const viewAll = page.getByRole('link', { name: 'View all notifications' });
-    await expect(viewAll).toBeVisible();
-    await expect(viewAll).toHaveAttribute('href', wp('/notifications'));
+    await waitForHydration(page);
+    // Use .toPass() retry: dropdown rendering depends on reactive workspacePrefix
+    await expect(async () => {
+      await page.getByRole('button', { name: 'Notifications' }).click({ timeout: 2_000 });
+      const viewAll = page.getByRole('link', { name: 'View all notifications' });
+      await expect(viewAll).toBeVisible({ timeout: 2_000 });
+      await expect(viewAll).toHaveAttribute('href', wp('/notifications'));
+    }).toPass({ timeout: 15_000 });
   });
 
   test('Settings > Notifications tab navigates to notifications view', async ({ page }) => {

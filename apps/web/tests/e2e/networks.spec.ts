@@ -30,9 +30,11 @@ test.describe('Networks', () => {
   });
 
   test.fixme('join network shows co-op in members', async ({ page, request }) => {
-    // Flaky test: passes in isolation, fails when run as part of the full suite.
-    // Likely test isolation issue — needs investigation independent of V8.1.
-    // Create a network via API (faster than UI)
+    // V8.13 investigation: clicking "Join network" submits the form but the
+    // page never updates — "Leave network" button never appears. The form
+    // action may be silently failing or the page's load function isn't
+    // invalidating properly after the network join. Needs backend + SvelteKit
+    // form action debugging.
     const setup = await setupCooperative(request);
     await loginAs(page, ADMIN.email, ADMIN.password);
 

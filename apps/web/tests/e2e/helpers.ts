@@ -1,4 +1,5 @@
-import type { Page, APIRequestContext } from '@playwright/test';
+import type { Page, Locator, APIRequestContext } from '@playwright/test';
+import { expect } from '@playwright/test';
 
 export const ADMIN = {
   email: 'admin@e2e-test.com',
@@ -228,5 +229,42 @@ export async function registerAs(
   await page.getByLabel('Password').fill(user.password);
   await page.getByRole('button', { name: 'Create account' }).click();
   await page.waitForURL('/me');
+}
+
+/**
+ * Wait for Svelte 5 hydration to complete.
+ * The root +layout.svelte sets data-hydrated="true" on <html> after onMount.
+ * Call this after page.goto() before interacting with stateful UI.
+ */
+export async function waitForHydration(page: Page): Promise<void> {
+  await page.waitForSelector('html[data-hydrated="true"]', { timeout: 10_000 });
+}
+
+/**
+ * Click a button, then wait for a dialog/modal to appear.
+ *
+ * The click fires ONCE — only the assertion is retried via .toPass().
+ * This handles the Svelte 5 microtask batching delay between $state
+ * updates and DOM rendering.
+ *
+ * Call waitForHydration() before this to ensure event handlers are attached.
+ *
+ * @param dialogContent - Text string to find, a Locator, or undefined (defaults to role="dialog")
+ */
+export async function clickAndWaitForDialog(
+  page: Page,
+  buttonLocator: Locator,
+  dialogContent?: string | Locator,
+): Promise<void> {
+  await buttonLocator.click();
+  await expect(async () => {
+    if (typeof dialogContent === 'string') {
+      await expect(page.getByText(dialogContent)).toBeVisible({ timeout: 2_000 });
+    } else if (dialogContent) {
+      await expect(dialogContent).toBeVisible({ timeout: 2_000 });
+    } else {
+      await expect(page.getByRole('dialog')).toBeVisible({ timeout: 2_000 });
+    }
+  }).toPass({ timeout: 15_000 });
 }
 

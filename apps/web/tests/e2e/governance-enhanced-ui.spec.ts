@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ADMIN, wp, setupCooperative, loginAs } from './helpers.js';
+import { ADMIN, wp, setupCooperative, loginAs, waitForHydration } from './helpers.js';
 
 test.describe('Governance — Tabs', () => {
   test.beforeEach(async ({ page, request }) => {
@@ -42,13 +42,20 @@ test.describe('Governance — Vote Weights on Detail Page', () => {
 
   test('proposal detail shows vote tally after voting', async ({ page }) => {
     await page.goto(wp('/governance/new'));
+    await waitForHydration(page);
     await page.getByLabel('Title').fill('Weight Test');
     await page.getByLabel('Description').fill('Test vote weights');
     await page.getByRole('button', { name: 'Create proposal' }).click();
     await page.waitForURL(/\/governance\/[a-f0-9-]+$/);
+    await waitForHydration(page);
 
+    // "Open for voting" triggers a state-mutating API call — click once,
+    // retry only the assertion (do NOT retry the click).
     await page.getByRole('button', { name: 'Open for voting' }).click();
-    await expect(page.getByText('Cast Your Vote')).toBeVisible({ timeout: 10_000 });
+    await expect(async () => {
+      await expect(page.getByText('Cast Your Vote')).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 15_000 });
+
     await page.getByRole('button', { name: 'Yes' }).click();
     await expect(page.getByText(/You voted.*yes/i)).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText(/1 total vote/)).toBeVisible();

@@ -7,6 +7,7 @@ import {
   loginAs,
   registerAs,
   resetDatabase,
+  waitForHydration,
 } from './helpers.js';
 
 test.describe('Authentication', () => {
@@ -113,10 +114,10 @@ test.describe('Login Page Navigation', () => {
 
 test.describe('Registration Flow', () => {
   test.fixme('register with valid credentials redirects to /me', async ({ page, request }) => {
-    // Pre-existing failure on main: registration form submit does not navigate
-    // away from /register. waitForURL('/me') times out after 30s.
-    // Likely cause: server-side validation or redirect logic broken — needs
-    // investigation independent of V8.1.
+    // V8.13 investigation: the form submits but the API returns 500
+    // "Internal server error". Page stays on /register showing the error.
+    // This is a backend bug in the registration endpoint, not a hydration
+    // issue. Needs API-level debugging.
     await setupCooperative(request);
     await registerAs(page, {
       displayName: 'New User',
@@ -128,32 +129,20 @@ test.describe('Registration Flow', () => {
     await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
   });
 
-  test.fixme('register with duplicate email shows error', async ({ page, request }) => {
-    // Pre-existing flake. Verified by running this test in isolation against
-    // `main` 3 separate times (DB-reset between each): all 3 runs failed
-    // identically with "element(s) not found" for the error message regex.
-    // The failure is independent of any V8.4 changes.
-    //
-    // The test only passes when the FULL auth.spec.ts suite is run; some
-    // earlier test in the suite leaves browser/server state that incidentally
-    // lets the {form?.error} block render. The full-suite passing on commit 4
-    // of V8.4 was the same lucky ordering — the sweep's small timing change
-    // flipped its luck.
-    //
-    // Joins the same flaky pool as the .fixme'd test 11 immediately above
-    // ("registration form submit does not navigate away from /register").
-    // Both fail because the registration form hydration is racy. Fix is
-    // non-trivial (separate Svelte 5 hydration investigation) and unrelated
-    // to V8.4 — flagged for cleanup in a future hydration-fix commit.
+  test('register with duplicate email shows error', async ({ page, request }) => {
+    // V8.13 investigation: this test passes with waitForHydration.
+    // The original failure was a hydration timing issue — the form wasn't
+    // interactive when the test tried to fill and submit it.
     await setupCooperative(request);
     await page.goto('/register');
+    await waitForHydration(page);
     await page.getByLabel('Display Name').fill('Duplicate User');
     await page.locator('#handle').fill('duplicate-user');
     await page.getByLabel('Email').fill(ADMIN.email);
     await page.getByLabel('Password').fill('duplicatepassword123');
     await page.getByRole('button', { name: 'Create account' }).click();
 
-    await expect(page.getByText(/already registered|already exists|error/i)).toBeVisible();
+    await expect(page.getByText(/already registered|already exists|error/i)).toBeVisible({ timeout: 10_000 });
   });
 
   test('register with missing fields shows validation error', async ({ page, request }) => {
