@@ -410,4 +410,613 @@ A tracked fulfillment event for a stakeholder's obligations under their terms. *
 | `startDate` | datetime | No | When the contribution period began |
 | `endDate` | datetime | No | When the contribution period ended |
 | `status` | string | Yes | `pending`, `in-progress`, `fulfilled`, `disputed` |
-| `createdAt` | datetime | Yes | When this contribution record was created |
+
+---
+
+## Namespace: `network.coopsource.funding`
+
+The funding namespace lets cooperatives and projects raise money from supporters. A campaign specifies a goal amount, a campaign type (`rewards`, `patronage`, `donation`, `revenue_share`), and a funding model (`all_or_nothing` or `keep_it_all`). Members back campaigns by creating pledge records in their own PDS. Both records are written via `pdsService` by the creating member rather than by the cooperative's OperatorWriteProxy.
+
+---
+
+### `network.coopsource.funding.campaign`
+
+A crowdfunding campaign for a cooperative, project, or the network. Written to the **member's PDS**.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `beneficiaryUri` | string | Yes | AT URI of the cooperative/project, or `'network:coopsource'` for network-level campaigns |
+| `title` | string (max 256) | Yes | Campaign title |
+| `description` | string (max 5000) | No | Campaign description |
+| `tier` | string | Yes | Level at which the campaign operates: `network`, `cooperative`, `project` |
+| `campaignType` | string | Yes | Type of crowdfunding: `rewards`, `patronage`, `donation`, `revenue_share` |
+| `goalAmount` | integer (min 1) | Yes | Funding goal in cents |
+| `goalCurrency` | string (max 10) | Yes | ISO 4217 currency code |
+| `amountRaised` | integer (min 0) | No | Total amount raised so far, in cents |
+| `backerCount` | integer (min 0) | No | Number of backers |
+| `fundingModel` | string | Yes | How funds are collected: `all_or_nothing`, `keep_it_all` |
+| `status` | string | Yes | `draft`, `active`, `funded`, `completed`, `cancelled` |
+| `startDate` | datetime | No | Campaign start date |
+| `endDate` | datetime | No | Campaign end date |
+| `metadata` | unknown | No | Additional campaign data (reward tiers, images, tags) |
+| `createdAt` | datetime | Yes | Creation timestamp |
+
+---
+
+### `network.coopsource.funding.pledge`
+
+A pledge or contribution to a crowdfunding campaign. Written to the **member's PDS**.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `campaignUri` | at-uri | Yes | The campaign this pledge is for |
+| `backerDid` | did | Yes | DID of the backer |
+| `amount` | integer (min 1) | Yes | Pledge amount in cents |
+| `currency` | string (max 10) | Yes | ISO 4217 currency code |
+| `paymentStatus` | string | Yes | `pending`, `completed`, `failed`, `refunded` |
+| `metadata` | unknown | No | Additional pledge data (reward tier selection, etc.) |
+| `createdAt` | datetime | Yes | Creation timestamp |
+
+---
+
+## Namespace: `network.coopsource.alignment`
+
+The alignment namespace gives projects a structured way to surface and reconcile stakeholder interests. Members declare their interests (priorities, contributions, constraints, and red lines) and propose outcomes with measurable success criteria. The platform can compute an interest map that identifies alignment and conflict zones across all stakeholder declarations, optionally with AI-generated analysis and mediation suggestions. `interestMap` and `stakeholder` are stored in PostgreSQL only and have no ATProto write path.
+
+---
+
+### `network.coopsource.alignment.interest`
+
+A stakeholder's detailed interests, contributions, constraints, and red lines for a project. Written to the **member's PDS**.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `projectUri` | at-uri | Yes | The project this interest declaration relates to |
+| `interests` | array of `interestItem` | Yes | Detailed interests and goals |
+| `contributions` | array of `contributionItem` | No | What the stakeholder can bring to the project |
+| `constraints` | array of `constraintItem` | No | Limitations or conditions |
+| `redLines` | array of `redLineItem` | No | Non-negotiable boundaries |
+| `preferences` | `workPreferences` | No | Work style and decision-making preferences |
+| `createdAt` | datetime | Yes | Creation timestamp |
+| `updatedAt` | datetime | No | Last update timestamp |
+
+#### Sub-definition: `interestItem`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `category` | string (max 100) | Yes | Category label for this interest |
+| `description` | string (max 2000) | Yes | Detailed description of the interest |
+| `priority` | integer (1–5) | Yes | Priority level, 1 = lowest, 5 = highest |
+| `scope` | string | No | Time horizon: `short-term`, `medium-term`, `long-term` |
+
+#### Sub-definition: `contributionItem`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | string | Yes | `skill`, `resource`, `capital`, `network`, `time` |
+| `description` | string (max 2000) | Yes | Description of the contribution |
+| `capacity` | string (max 500) | No | Estimated availability |
+
+#### Sub-definition: `constraintItem`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `description` | string (max 2000) | Yes | Description of the constraint |
+| `hardConstraint` | boolean | No | Whether this is a hard (non-flexible) constraint |
+
+#### Sub-definition: `redLineItem`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `description` | string (max 2000) | Yes | Description of the red line |
+| `reason` | string (max 2000) | No | Explanation of why this is a red line |
+
+#### Sub-definition: `workPreferences`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `decisionMaking` | string (max 500) | No | Preferred decision-making style |
+| `communication` | string (max 500) | No | Preferred communication style |
+| `pace` | string (max 500) | No | Preferred work pace |
+
+---
+
+### `network.coopsource.alignment.outcome`
+
+A desired outcome for a project, with success criteria and stakeholder support tracking. Written to the **member's PDS**.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `projectUri` | at-uri | Yes | The project this outcome belongs to |
+| `title` | string (max 255) | Yes | Outcome title |
+| `description` | string (max 3000) | Yes | Detailed description of the desired outcome |
+| `category` | string | Yes | `financial`, `social`, `environmental`, `governance`, `other` |
+| `successCriteria` | array of `successCriterion` | No | Measurable criteria for achieving this outcome |
+| `stakeholderSupport` | array of `supportEntry` | No | Support levels from individual stakeholders |
+| `status` | string | Yes | `proposed`, `endorsed`, `active`, `achieved`, `abandoned` |
+| `createdAt` | datetime | Yes | Creation timestamp |
+
+#### Sub-definition: `successCriterion`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `metric` | string (max 500) | Yes | The measurable metric |
+| `target` | string (max 500) | Yes | The target value or threshold |
+| `timeline` | string (max 200) | No | When this criterion should be met |
+| `ownerDid` | did | No | DID of the person responsible for this criterion |
+
+#### Sub-definition: `supportEntry`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `stakeholderDid` | did | Yes | DID of the stakeholder |
+| `supportLevel` | string | Yes | `strong`, `moderate`, `conditional`, `neutral`, `opposed` |
+| `conditions` | string (max 2000) | No | Conditions attached to conditional support |
+
+---
+
+### `network.coopsource.alignment.interestMap`
+
+A computed map of alignment and conflict zones across stakeholder interests for a project. **DB-only** — no ATProto write path.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `projectUri` | at-uri | Yes | The project this map covers |
+| `alignmentZones` | array of `alignmentZone` | No | Areas where stakeholders agree |
+| `conflictZones` | array of `conflictZone` | No | Areas of tension between stakeholders |
+| `aiAnalysis` | `aiAnalysis` | No | Optional AI-generated analysis |
+| `createdAt` | datetime | Yes | Creation timestamp |
+
+#### Sub-definition: `alignmentZone`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `participants` | array of did | Yes | DIDs of stakeholders in this alignment zone |
+| `description` | string (max 2000) | Yes | Description of the shared area of agreement |
+| `strength` | integer (0–100) | Yes | Overlap percentage |
+| `interestsInvolved` | array of string (max 500 each) | No | Interest labels involved in this zone |
+
+#### Sub-definition: `conflictZone`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `stakeholders` | array of did | Yes | DIDs of stakeholders in tension |
+| `description` | string (max 2000) | Yes | Description of the conflict |
+| `severity` | string | Yes | `low`, `medium`, `high` |
+| `potentialSolutions` | array of string (max 1000 each) | No | Suggested ways to resolve the conflict |
+
+#### Sub-definition: `aiAnalysis`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `summary` | string (max 5000) | No | AI-generated summary of stakeholder alignment |
+| `recommendations` | array of string (max 2000 each) | No | AI-generated recommendations |
+| `mediationSuggestions` | array of string (max 2000 each) | No | AI-generated mediation suggestions |
+
+---
+
+### `network.coopsource.alignment.stakeholder`
+
+A stakeholder profile within a project, describing their role and background. **DB-only** — no ATProto write path.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `projectUri` | at-uri | Yes | The project this stakeholder belongs to |
+| `name` | string (max 255) | Yes | Display name of the stakeholder |
+| `role` | string (max 100) | Yes | Stakeholder category: `worker`, `investor`, `customer`, `partner`, `supplier`, `community`, `other` |
+| `stakeholderClass` | string (max 100) | No | Subclass for more specific categorization |
+| `description` | string (max 3000) | No | Background and context about this stakeholder |
+| `interestsSummary` | string (max 1000) | No | Brief overview of what they care about |
+| `createdAt` | datetime | Yes | Creation timestamp |
+
+---
+
+## Namespace: `network.coopsource.ops`
+
+The ops namespace covers cooperative work coordination. The cooperative creates `task` records via OperatorWriteProxy; members signal acceptance by writing a `taskAcceptance` record — mirroring the bilateral membership pattern. `schedule` records track shifts and are also written to the cooperative's PDS. `timeEntry` is a Tier 2 private record stored exclusively in `private_record` and never emitted on the firehose. Note that `taskAcceptance` and `timeEntry` are DB-only in the current implementation. The lexicon identifier is `ops.schedule`; some internal code paths refer to this as `ops.scheduleShift`.
+
+---
+
+### `network.coopsource.ops.task`
+
+A task definition in a cooperative's work coordination system. Written to the **cooperative's PDS**.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `cooperativeDid` | did | Yes | The cooperative this task belongs to |
+| `projectId` | string | No | Project entity ID |
+| `title` | string (max 255) | Yes | Task title |
+| `description` | string (max 10000) | No | Full task description |
+| `status` | string | Yes | `backlog`, `todo`, `in_progress`, `in_review`, `done`, `cancelled` |
+| `priority` | string | Yes | `urgent`, `high`, `medium`, `low` |
+| `assigneeDids` | array of did (max 20) | No | DIDs of assigned members |
+| `dueDate` | datetime | No | Task due date |
+| `labels` | array of string max 50 (max 20) | No | Categorization labels |
+| `linkedProposal` | at-uri | No | AT URI of a linked governance proposal |
+| `createdBy` | did | Yes | DID of the task creator |
+| `createdAt` | datetime | Yes | Creation timestamp |
+
+---
+
+### `network.coopsource.ops.taskAcceptance`
+
+A member's acceptance of a task assignment. **DB-only** — mirrors the bilateral membership pattern but not yet written to the member's live PDS.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `taskUri` | at-uri | Yes | AT URI of the task record being accepted |
+| `cooperativeDid` | did | Yes | The cooperative this task belongs to |
+| `note` | string (max 2000) | No | Optional note from the accepting member |
+| `createdAt` | datetime | Yes | Creation timestamp |
+
+---
+
+### `network.coopsource.ops.schedule`
+
+A shift or schedule entry in a cooperative's work schedule. Written to the **cooperative's PDS**. The lexicon ID is `ops.schedule`; the code sometimes refers to this collection as `ops.scheduleShift`.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `cooperativeDid` | did | Yes | The cooperative this schedule entry belongs to |
+| `title` | string (max 255) | Yes | Shift or schedule entry title |
+| `description` | string (max 2000) | No | Additional details |
+| `assignedDid` | did | No | DID of the member assigned to this shift |
+| `startsAt` | datetime | Yes | Shift start time |
+| `endsAt` | datetime | Yes | Shift end time |
+| `recurrence` | string (max 50) | No | Recurrence rule (e.g. iCal RRULE string) |
+| `location` | string (max 500) | No | Physical or virtual location |
+| `status` | string | No | `open`, `assigned`, `completed`, `cancelled` |
+| `calendarEventRef` | at-uri | No | Reference to a Smoke Signal calendar event |
+| `createdBy` | did | Yes | DID of the creator |
+| `createdAt` | datetime | Yes | Creation timestamp |
+
+---
+
+### `network.coopsource.ops.timeEntry`
+
+A time entry recording work hours. **DB-only** (Tier 2 private) — stored in `private_record` table, never emitted on the firehose.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `cooperativeDid` | did | Yes | The cooperative context for this time entry |
+| `memberDid` | did | Yes | DID of the member who performed the work |
+| `taskId` | string | No | ID of the related task |
+| `projectId` | string | No | ID of the related project |
+| `description` | string (max 2000) | No | Description of work performed |
+| `startedAt` | datetime | Yes | When work started |
+| `endedAt` | datetime | No | When work ended |
+| `durationMinutes` | integer (1–1440) | No | Duration of work in minutes |
+| `status` | string | No | `draft`, `submitted`, `approved`, `rejected` |
+| `createdAt` | datetime | Yes | Creation timestamp |
+
+---
+
+## Namespace: `network.coopsource.finance`
+
+Financial records are all Tier 2 private — stored in `private_record` and never broadcast on the firehose. The `expense` → `expenseApproval` flow mirrors the bilateral task pattern: a member submits an expense claim and an authorized reviewer writes an approval or rejection record. `revenue` records track cooperative income with optional period attribution.
+
+---
+
+### `network.coopsource.finance.expense`
+
+An expense claim submitted by a member. **DB-only** (Tier 2 private).
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `cooperativeDid` | did | Yes | The cooperative this expense is submitted to |
+| `memberDid` | did | Yes | DID of the member submitting the expense |
+| `categoryId` | string | No | Internal expense category ID |
+| `title` | string (max 255) | Yes | Expense title |
+| `description` | string (max 2000) | No | Details about the expense |
+| `amount` | number (min 0) | Yes | Expense amount |
+| `currency` | string (max 10) | Yes | ISO 4217 currency code |
+| `receiptBlobCid` | cid-link | No | CID of the uploaded receipt blob |
+| `status` | string | No | `draft`, `submitted`, `approved`, `rejected`, `reimbursed` |
+| `createdAt` | datetime | Yes | Creation timestamp |
+
+---
+
+### `network.coopsource.finance.expenseApproval`
+
+Cooperative approval or rejection of an expense claim. **DB-only** (Tier 2 private).
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `cooperativeDid` | did | Yes | The cooperative processing the approval |
+| `expenseId` | string | Yes | ID of the expense record being reviewed |
+| `action` | string | Yes | `approve`, `reject` |
+| `reviewedBy` | did | Yes | DID of the officer or authorized reviewer |
+| `note` | string (max 1000) | No | Reviewer note or explanation |
+| `createdAt` | datetime | Yes | Creation timestamp |
+
+---
+
+### `network.coopsource.finance.revenue`
+
+A revenue entry recording cooperative income. **DB-only** (Tier 2 private).
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `cooperativeDid` | did | Yes | The cooperative this revenue belongs to |
+| `projectId` | string | No | ID of the related project |
+| `title` | string (max 255) | Yes | Revenue entry title |
+| `description` | string (max 2000) | No | Details about the revenue |
+| `amount` | number (min 0) | Yes | Revenue amount |
+| `currency` | string (max 10) | Yes | ISO 4217 currency code |
+| `source` | string (max 100) | No | Revenue source label |
+| `sourceReference` | string (max 500) | No | External reference (invoice number, transaction ID, etc.) |
+| `recordedBy` | did | Yes | DID of the person recording this entry |
+| `recordedAt` | datetime | No | When the revenue was recorded |
+| `periodStart` | datetime | No | Start of the revenue period |
+| `periodEnd` | datetime | No | End of the revenue period |
+| `createdAt` | datetime | Yes | Creation timestamp |
+
+---
+
+## Namespace: `network.coopsource.admin`
+
+The admin namespace covers cooperative governance housekeeping: officer appointments, regulatory compliance tracking, member communications, and fiscal year management. All four lexicons are DB-only.
+
+---
+
+### `network.coopsource.admin.officer`
+
+An officer appointment record for a cooperative. **DB-only**.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `cooperativeDid` | did | Yes | The cooperative this officer serves |
+| `officerDid` | did | Yes | DID of the appointed officer |
+| `title` | string | Yes | `president`, `secretary`, `treasurer`, `director`, `other` |
+| `appointedAt` | datetime | Yes | When the officer was appointed or elected |
+| `termEndsAt` | datetime | No | When the officer's term ends |
+| `appointmentType` | string | Yes | `elected`, `appointed` |
+| `responsibilities` | string (max 3000) | No | Description of the officer's responsibilities |
+| `status` | string | Yes | `active`, `ended` |
+| `createdAt` | datetime | Yes | Creation timestamp |
+
+---
+
+### `network.coopsource.admin.complianceItem`
+
+A compliance calendar item tracking regulatory deadlines and filings. **DB-only**.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `cooperativeDid` | did | Yes | The cooperative this item belongs to |
+| `title` | string (max 255) | Yes | Item title |
+| `description` | string (max 3000) | No | Details about the filing or requirement |
+| `dueDate` | datetime | Yes | When the filing or report is due |
+| `filingType` | string | Yes | `annual_report`, `tax_filing`, `state_report`, `other` |
+| `status` | string | Yes | `pending`, `completed`, `overdue` |
+| `completedAt` | datetime | No | When this item was completed |
+| `createdAt` | datetime | Yes | Creation timestamp |
+
+---
+
+### `network.coopsource.admin.memberNotice`
+
+A notice sent to members of a cooperative. **DB-only**.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `cooperativeDid` | did | Yes | The cooperative sending the notice |
+| `title` | string (max 255) | Yes | Notice title |
+| `body` | string (max 10000) | Yes | Full text of the notice |
+| `noticeType` | string | Yes | `general`, `election`, `meeting`, `policy_change`, `other` |
+| `targetAudience` | string | Yes | `all`, `board`, `officers` |
+| `sentAt` | datetime | No | When the notice was sent |
+| `createdAt` | datetime | Yes | Creation timestamp |
+
+---
+
+### `network.coopsource.admin.fiscalPeriod`
+
+A fiscal period (e.g. fiscal year) for a cooperative. **DB-only**.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `cooperativeDid` | did | Yes | The cooperative this fiscal period belongs to |
+| `label` | string (max 100) | Yes | Human-readable label (e.g. `FY2026`) |
+| `startsAt` | datetime | Yes | Start of the fiscal period |
+| `endsAt` | datetime | Yes | End of the fiscal period |
+| `status` | string | Yes | `open`, `closed` |
+| `createdAt` | datetime | Yes | Creation timestamp |
+
+---
+
+## Namespace: `network.coopsource.legal`
+
+The legal namespace stores versioned foundational documents and meeting records for cooperatives. Both lexicons are DB-only.
+
+---
+
+### `network.coopsource.legal.document`
+
+A foundational legal document (bylaws, articles, policies, resolutions) for a cooperative. **DB-only**.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `cooperativeDid` | did | Yes | The cooperative this document belongs to |
+| `title` | string (max 255) | Yes | Document title |
+| `body` | string (max 50000) | No | Full text of the document |
+| `documentType` | string | Yes | `bylaws`, `articles`, `policy`, `resolution`, `other` |
+| `version` | integer (min 1) | Yes | Monotonically increasing version number |
+| `previousVersion` | at-uri | No | AT URI of the previous version in the chain |
+| `bodyFormat` | string (max 50) | No | Format of the body text: `markdown`, `plain`, `html` |
+| `status` | string | Yes | `draft`, `active`, `superseded`, `archived` |
+| `createdAt` | datetime | Yes | Creation timestamp |
+
+---
+
+### `network.coopsource.legal.meetingRecord`
+
+A record of a cooperative meeting with minutes, attendance, and resolutions. **DB-only**.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `cooperativeDid` | did | Yes | The cooperative this meeting belongs to |
+| `title` | string (max 255) | Yes | Meeting title |
+| `meetingDate` | datetime | Yes | When the meeting took place |
+| `meetingType` | string | Yes | `board`, `general`, `special`, `committee` |
+| `attendees` | array of did | No | DIDs of members who attended |
+| `quorumMet` | boolean | No | Whether quorum was achieved |
+| `resolutions` | array of string (max 2000 each) | No | Resolutions passed during the meeting |
+| `minutes` | string (max 50000) | No | Full text of the meeting minutes |
+| `certifiedBy` | did | No | DID of the person who certified the minutes |
+| `createdAt` | datetime | Yes | Creation timestamp |
+
+---
+
+## Namespace: `network.coopsource.commerce`
+
+The commerce namespace enables marketplace activity across the cooperative ecosystem. Cooperatives publish `listing` and `need` records to advertise what they offer and what they require, and `resource` records to make shared assets bookable by network members. `collaborativeProject` records signal cross-cooperative initiatives visible on the firehose. `intercoopAgreement` is bilateral: each cooperative writes its own copy to its PDS. Most records flow through OperatorWriteProxy. The lexicon ID is `commerce.resource`; some code paths refer to this collection as `commerce.sharedResource`.
+
+---
+
+### `network.coopsource.commerce.listing`
+
+A service or product offering published by a cooperative. Written to the **cooperative's PDS**.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `cooperativeDid` | did | Yes | The cooperative publishing this listing |
+| `title` | string (max 255) | Yes | Listing title |
+| `description` | string (max 5000) | No | Detailed description of the offering |
+| `category` | string (max 100) | Yes | Category label |
+| `availability` | string | No | `available`, `limited`, `unavailable` |
+| `location` | string (max 500) | No | Geographic or service area |
+| `cooperativeType` | string (max 100) | No | Type of cooperative producing this offering |
+| `tags` | array of string max 50 (max 20) | No | Searchable tags |
+| `createdBy` | did | Yes | DID of the member who created the listing |
+| `createdAt` | datetime | Yes | Creation timestamp |
+
+---
+
+### `network.coopsource.commerce.need`
+
+A request for services or products published by a cooperative. Written to the **cooperative's PDS**.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `cooperativeDid` | did | Yes | The cooperative publishing this need |
+| `title` | string (max 255) | Yes | Need title |
+| `description` | string (max 5000) | No | Detailed description of what is needed |
+| `category` | string (max 100) | Yes | Category label |
+| `urgency` | string | No | `low`, `normal`, `high`, `urgent` |
+| `location` | string (max 500) | No | Geographic or service area |
+| `tags` | array of string max 50 (max 20) | No | Searchable tags |
+| `createdBy` | did | Yes | DID of the member who created the need |
+| `createdAt` | datetime | Yes | Creation timestamp |
+
+---
+
+### `network.coopsource.commerce.resource`
+
+A shared resource listing bookable by network members. Written to the **cooperative's PDS**. The lexicon ID is `commerce.resource`; some code paths call this `commerce.sharedResource`.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `cooperativeDid` | did | Yes | The cooperative offering this resource |
+| `title` | string (max 255) | Yes | Resource title |
+| `description` | string (max 5000) | No | Description of the resource |
+| `resourceType` | string | Yes | `equipment`, `space`, `expertise`, `vehicle`, `other` |
+| `location` | string (max 500) | No | Physical or virtual location |
+| `status` | string | No | `available`, `reserved`, `unavailable` |
+| `createdBy` | did | Yes | DID of the member who created the listing |
+| `createdAt` | datetime | Yes | Creation timestamp |
+
+---
+
+### `network.coopsource.commerce.collaborativeProject`
+
+A cross-cooperative project record, signaling ecosystem collaboration on the firehose. Written to the **cooperative's PDS**.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `hostCooperativeDid` | did | Yes | DID of the cooperative hosting the project |
+| `title` | string (max 255) | Yes | Project title |
+| `description` | string (max 10000) | No | Project description |
+| `participantDids` | array of did (max 50) | Yes | DIDs of all participating cooperatives |
+| `status` | string | No | `planning`, `active`, `completed`, `cancelled` |
+| `createdBy` | did | Yes | DID of the member who created the record |
+| `createdAt` | datetime | Yes | Creation timestamp |
+
+---
+
+### `network.coopsource.commerce.intercoopAgreement`
+
+A bilateral B2B agreement between two cooperatives. Each cooperative writes its own copy to its PDS. Written to the **cooperative's PDS**.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `initiatorDid` | did | Yes | DID of the cooperative that initiated the agreement |
+| `responderDid` | did | Yes | DID of the cooperative that is the counterparty |
+| `title` | string (max 255) | Yes | Agreement title |
+| `description` | string (max 10000) | No | Agreement description |
+| `agreementType` | string | Yes | `service`, `supply`, `joint_venture`, `procurement`, `resource_sharing`, `other` |
+| `status` | string | No | `proposed`, `negotiating`, `active`, `completed`, `cancelled` |
+| `createdAt` | datetime | Yes | Creation timestamp |
+
+---
+
+## Namespace: `network.coopsource.connection`
+
+The connection namespace manages external OAuth service integrations. A `link` record (written to the member's PDS) declares that the user has connected an external service such as GitHub or Google. `binding` and `sync` are DB-only: `binding` maps a linked service's resource to a project, and `sync` records discrete synchronization events for a binding.
+
+---
+
+### `network.coopsource.connection.link`
+
+An external service connection linked to a user's account. Written to the **member's PDS**.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `service` | string | Yes | External service provider: `github`, `google` |
+| `status` | string | Yes | `active`, `revoked`, `expired` |
+| `metadata` | `metadata` | No | Metadata about the external service account |
+| `createdAt` | datetime | Yes | Creation timestamp |
+
+#### Sub-definition: `metadata`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `username` | string (max 255) | No | Username on the external service |
+| `email` | string (max 255) | No | Email address on the external service |
+| `scopes` | array of string (max 255 each) | No | OAuth scopes granted |
+
+---
+
+### `network.coopsource.connection.binding`
+
+A binding between an external resource and a project. **DB-only**.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `connectionUri` | at-uri | Yes | The external connection this binding belongs to |
+| `projectUri` | at-uri | Yes | The project this resource is bound to |
+| `resourceType` | string | Yes | `github_repo`, `google_doc`, `google_sheet`, `google_drive_folder` |
+| `resourceId` | string (max 1000) | Yes | External identifier for the resource |
+| `metadata` | `resourceMetadata` | No | Display metadata for the bound resource |
+| `createdAt` | datetime | Yes | Creation timestamp |
+
+#### Sub-definition: `resourceMetadata`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `displayName` | string (max 500) | No | Human-readable name of the resource |
+| `url` | string (max 2000) | No | URL to access the resource |
+| `description` | string (max 2000) | No | Description of the resource |
+
+---
+
+### `network.coopsource.connection.sync`
+
+A synchronization event for a connection binding. **DB-only** — placeholder for Phase 3 sync implementation.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `bindingUri` | at-uri | Yes | The connection binding this sync event relates to |
+| `eventType` | string | Yes | `push`, `pull`, `webhook` |
+| `timestamp` | datetime | Yes | When the sync event occurred |
+| `payload` | object | No | Event-specific data |
