@@ -413,7 +413,7 @@ A tracked fulfillment event for a stakeholder's obligations under their terms. *
 
 ---
 
-## Namespace: `network.coopsource.funding`
+## Namespace: `funding`
 
 The funding namespace lets cooperatives and projects raise money from supporters. A campaign specifies a goal amount, a campaign type (`rewards`, `patronage`, `donation`, `revenue_share`), and a funding model (`all_or_nothing` or `keep_it_all`). Members back campaigns by creating pledge records in their own PDS. Both records are written via `pdsService` by the creating member rather than by the cooperative's OperatorWriteProxy.
 
@@ -459,7 +459,7 @@ A pledge or contribution to a crowdfunding campaign. Written to the **member's P
 
 ---
 
-## Namespace: `network.coopsource.alignment`
+## Namespace: `alignment`
 
 The alignment namespace gives projects a structured way to surface and reconcile stakeholder interests. Members declare their interests (priorities, contributions, constraints, and red lines) and propose outcomes with measurable success criteria. The platform can compute an interest map that identifies alignment and conflict zones across all stakeholder declarations, optionally with AI-generated analysis and mediation suggestions. `interestMap` and `stakeholder` are stored in PostgreSQL only and have no ATProto write path.
 
@@ -611,7 +611,7 @@ A stakeholder profile within a project, describing their role and background. **
 
 ---
 
-## Namespace: `network.coopsource.ops`
+## Namespace: `ops`
 
 The ops namespace covers cooperative work coordination. The cooperative creates `task` records via OperatorWriteProxy; members signal acceptance by writing a `taskAcceptance` record — mirroring the bilateral membership pattern. `schedule` records track shifts and are also written to the cooperative's PDS. `timeEntry` is a Tier 2 private record stored exclusively in `private_record` and never emitted on the firehose. Note that `taskAcceptance` and `timeEntry` are DB-only in the current implementation. The lexicon identifier is `ops.schedule`; some internal code paths refer to this as `ops.scheduleShift`.
 
@@ -691,7 +691,7 @@ A time entry recording work hours. **DB-only** (Tier 2 private) — stored in `p
 
 ---
 
-## Namespace: `network.coopsource.finance`
+## Namespace: `finance`
 
 Financial records are all Tier 2 private — stored in `private_record` and never broadcast on the firehose. The `expense` → `expenseApproval` flow mirrors the bilateral task pattern: a member submits an expense claim and an authorized reviewer writes an approval or rejection record. `revenue` records track cooperative income with optional period attribution.
 
@@ -753,7 +753,7 @@ A revenue entry recording cooperative income. **DB-only** (Tier 2 private).
 
 ---
 
-## Namespace: `network.coopsource.admin`
+## Namespace: `admin`
 
 The admin namespace covers cooperative governance housekeeping: officer appointments, regulatory compliance tracking, member communications, and fiscal year management. All four lexicons are DB-only.
 
@@ -825,7 +825,7 @@ A fiscal period (e.g. fiscal year) for a cooperative. **DB-only**.
 
 ---
 
-## Namespace: `network.coopsource.legal`
+## Namespace: `legal`
 
 The legal namespace stores versioned foundational documents and meeting records for cooperatives. Both lexicons are DB-only.
 
@@ -868,7 +868,7 @@ A record of a cooperative meeting with minutes, attendance, and resolutions. **D
 
 ---
 
-## Namespace: `network.coopsource.commerce`
+## Namespace: `commerce`
 
 The commerce namespace enables marketplace activity across the cooperative ecosystem. Cooperatives publish `listing` and `need` records to advertise what they offer and what they require, and `resource` records to make shared assets bookable by network members. `collaborativeProject` records signal cross-cooperative initiatives visible on the firehose. `intercoopAgreement` is bilateral: each cooperative writes its own copy to its PDS. Most records flow through OperatorWriteProxy. The lexicon ID is `commerce.resource`; some code paths refer to this collection as `commerce.sharedResource`.
 
@@ -960,7 +960,7 @@ A bilateral B2B agreement between two cooperatives. Each cooperative writes its 
 
 ---
 
-## Namespace: `network.coopsource.connection`
+## Namespace: `connection`
 
 The connection namespace manages external OAuth service integrations. A `link` record (written to the member's PDS) declares that the user has connected an external service such as GitHub or Google. `binding` and `sync` are DB-only: `binding` maps a linked service's resource to a project, and `sync` records discrete synchronization events for a binding.
 
