@@ -156,10 +156,10 @@ describe('Funding Campaigns', () => {
       .send({ status: 'active' })
       .expect(200);
 
-    // Try to change fundingModel — should fail
+    // Try to change fundingModel on active campaign — should fail (business logic guard)
     await testApp.agent
       .put(`/api/v1/campaigns/${encodeURIComponent(campaign.uri)}`)
-      .send({ fundingModel: 'flexible' })
+      .send({ fundingModel: 'keep_it_all' })
       .expect(400);
   });
 
@@ -172,10 +172,10 @@ describe('Funding Campaigns', () => {
     // Update fundingModel while still in draft — should succeed
     const res = await testApp.agent
       .put(`/api/v1/campaigns/${encodeURIComponent(campaign.uri)}`)
-      .send({ fundingModel: 'flexible' })
+      .send({ fundingModel: 'keep_it_all' })
       .expect(200);
 
-    expect(res.body.fundingModel).toBe('flexible');
+    expect(res.body.fundingModel).toBe('keep_it_all');
   });
 
   it('rejects update on cancelled campaign', async () => {

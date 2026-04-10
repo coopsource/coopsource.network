@@ -3,7 +3,7 @@ import session from 'express-session';
 import supertest from 'supertest';
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
-import { MockClock } from '@coopsource/federation';
+import { MockClock, AtprotoPdsService } from '@coopsource/federation';
 import { LocalPdsService, LocalBlobStore } from '@coopsource/federation/local';
 import type { FederationDatabase } from '@coopsource/federation/local';
 import { DidWebResolver } from '@coopsource/federation/http';
@@ -122,16 +122,25 @@ export function createTestApp(): TestApp {
   const db = getTestDb();
   const clock = new MockClock();
 
-  const pdsService = new LocalPdsService(
-    db as unknown as Kysely<FederationDatabase>,
-    {
-      plcUrl: 'local',
-      instanceUrl: 'http://localhost:3001',
-      keyEncKey: 'yIknTzhyTfVpR7cc/ZrwSpewmhyiOJA97leVbKqccsY=',
-      connectionString: getTestConnectionString(),
-    },
-    clock,
-  );
+  // Use real AtprotoPdsService when PDS_URL is set (Docker), otherwise LocalPdsService
+  const PDS_URL = process.env.PDS_URL;
+  const PLC_URL = process.env.PLC_URL;
+  const pdsService = PDS_URL
+    ? new AtprotoPdsService(
+        PDS_URL,
+        process.env.PDS_ADMIN_PASSWORD ?? 'admin',
+        PLC_URL,
+      )
+    : new LocalPdsService(
+        db as unknown as Kysely<FederationDatabase>,
+        {
+          plcUrl: 'local',
+          instanceUrl: 'http://localhost:3001',
+          keyEncKey: 'yIknTzhyTfVpR7cc/ZrwSpewmhyiOJA97leVbKqccsY=',
+          connectionString: getTestConnectionString(),
+        },
+        clock,
+      );
 
   const blobStore = new LocalBlobStore({ blobDir: '/tmp/coopsource-test-blobs' });
 

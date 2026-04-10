@@ -12,13 +12,12 @@ import type { DID } from '@coopsource/common';
  * Skip: these tests are skipped when PDS_URL is not set.
  */
 
-const PDS_URL = process.env.PDS_URL;
+// PDS_URL and PLC_URL are guaranteed to be set by globalSetup (starts Docker if needed)
+const PDS_URL = process.env.PDS_URL!;
 const PDS_ADMIN_PASSWORD = process.env.PDS_ADMIN_PASSWORD ?? 'admin';
 const PLC_URL = process.env.PLC_URL ?? 'http://localhost:2582';
 
-const describeIfPds = PDS_URL ? describe : describe.skip;
-
-describeIfPds('AtprotoPdsService (integration)', () => {
+describe('AtprotoPdsService (integration)', () => {
   let service: AtprotoPdsService;
   let testDid: DID;
 
@@ -27,7 +26,7 @@ describeIfPds('AtprotoPdsService (integration)', () => {
   });
 
   it('should create an account and get a DID', async () => {
-    const handle = `test-${Date.now()}.localhost`;
+    const handle = `test-${Date.now()}.test`;
     const doc = await service.createDid({
       entityType: 'person',
       handle,
@@ -104,9 +103,7 @@ describeIfPds('AtprotoPdsService (integration)', () => {
  * PLC signing integration tests.
  * Requires a running PLC directory at PLC_URL (default: http://localhost:2582).
  */
-const describeIfPlc = PLC_URL !== 'local' && PDS_URL ? describe : describe.skip;
-
-describeIfPlc('PlcClient signed operations (integration)', () => {
+describe('PlcClient signed operations (integration)', () => {
   let plc: PlcClient;
 
   beforeAll(() => {
@@ -115,14 +112,15 @@ describeIfPlc('PlcClient signed operations (integration)', () => {
 
   it('should create a DID with a signed genesis operation', async () => {
     const { privateKeyHex, publicKeyMultibase } = await generateRotationKeypair();
-    const signingKeyMultibase = publicKeyMultibase; // Use same key for both in test
+    // PLC directory expects did:key:-prefixed keys in rotationKeys
+    const didKey = `did:key:${publicKeyMultibase}`;
 
     const did = await plc.create(
       {
-        signingKey: signingKeyMultibase,
+        signingKey: didKey,
         handle: `test-${Date.now()}.test`,
         pdsUrl: PDS_URL!,
-        rotationKeys: [publicKeyMultibase],
+        rotationKeys: [didKey],
       },
       { type: 'k256', privateKeyHex },
     );
@@ -136,13 +134,14 @@ describeIfPlc('PlcClient signed operations (integration)', () => {
 
   it('should resolve a created DID', async () => {
     const { privateKeyHex, publicKeyMultibase } = await generateRotationKeypair();
+    const didKey = `did:key:${publicKeyMultibase}`;
 
     const did = await plc.create(
       {
-        signingKey: publicKeyMultibase,
+        signingKey: didKey,
         handle: `resolve-${Date.now()}.test`,
         pdsUrl: PDS_URL!,
-        rotationKeys: [publicKeyMultibase],
+        rotationKeys: [didKey],
       },
       { type: 'k256', privateKeyHex },
     );

@@ -6,7 +6,7 @@ SHELL := /bin/bash
 
 SCRIPTS := ./scripts/dev-services.sh
 
-.PHONY: help setup dev dev-clean start stop status ports install db-migrate db-reset clean test\:e2e test\:e2e-clean test\:e2e\:real test\:e2e\:mocked pds-up pds-status pds-logs pds-down pds-dev provision-coop test\:pds dev-federation stop-federation migrate-all test-federation deploy-build deploy-up deploy-down deploy-logs deploy-migrate private-build private-up private-down private-logs private-migrate
+.PHONY: help setup dev dev-clean start stop status ports install db-migrate db-reset clean test\:e2e test\:e2e-clean test\:e2e\:real test\:e2e\:mocked pds-up pds-reset pds-status pds-logs pds-down pds-dev provision-coop test\:pds test\:all dev-federation stop-federation migrate-all test-federation deploy-build deploy-up deploy-down deploy-logs deploy-migrate private-build private-up private-down private-logs private-migrate
 
 help: ## Show all targets
 	@echo ""
@@ -67,6 +67,10 @@ test\:e2e\:mocked: ## Run mocked E2E tests (no services needed)
 pds-up: ## Start PDS + PLC via Docker Compose
 	docker compose -f infrastructure/docker-compose.yml up -d plc pds
 
+pds-reset: ## Reset PDS + PLC containers (drops volumes for clean state)
+	docker compose -f infrastructure/docker-compose.yml down -v plc pds 2>/dev/null || true
+	docker compose -f infrastructure/docker-compose.yml up -d plc pds
+
 pds-status: ## Check PDS + PLC container status
 	@docker compose -f infrastructure/docker-compose.yml ps plc pds
 
@@ -78,8 +82,13 @@ pds-down: ## Stop PDS + PLC containers
 
 test\:pds: pds-up ## Run PDS integration tests (starts PDS containers, waits for health)
 	@echo "Waiting for PDS to be healthy..."
-	@docker compose -f infrastructure/docker-compose.yml exec pds wget -q --spider http://localhost:3000/xrpc/_health 2>/dev/null || sleep 5
-	@docker compose -f infrastructure/docker-compose.yml exec pds wget -q --spider http://localhost:3000/xrpc/_health 2>/dev/null || sleep 5
+	@docker compose -f infrastructure/docker-compose.yml up -d --wait plc pds
+	PDS_URL=http://localhost:2583 PLC_URL=http://localhost:2582 pnpm --filter @coopsource/federation test
+
+test\:all: pds-reset start ## Run ALL tests with real PDS (Docker required, resets volumes)
+	@echo "Waiting for PDS + PLC to be healthy..."
+	@docker compose -f infrastructure/docker-compose.yml up -d --wait plc pds
+	pnpm test
 	PDS_URL=http://localhost:2583 PLC_URL=http://localhost:2582 pnpm --filter @coopsource/federation test
 
 pds-dev: start pds-up ## Start all services + PDS for V6 development

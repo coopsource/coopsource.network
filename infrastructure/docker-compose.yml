@@ -49,7 +49,7 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:2582/health || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:2582/_health || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -64,9 +64,10 @@ services:
     environment:
       PDS_HOSTNAME: ${PDS_HOSTNAME:-localhost}
       PDS_PORT: 3000
+      PDS_DEV_MODE: "true"
       PDS_JWT_SECRET: ${PDS_JWT_SECRET:-dev-jwt-secret-change-me-32chars!!}
       PDS_ADMIN_PASSWORD: ${PDS_ADMIN_PASSWORD:-admin}
-      PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX: ${PDS_ROTATION_KEY:-}
+      PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX: ${PDS_ROTATION_KEY:-5e7541331aa00cf45649f00c22cdc09dac8bdb95ffd0909150d08e3e5816c810}
       PDS_DATA_DIRECTORY: /pds
       PDS_BLOBSTORE_DISK_LOCATION: /pds/blobs
       PDS_DID_PLC_URL: http://plc:2582

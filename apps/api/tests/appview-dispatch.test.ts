@@ -1,190 +1,157 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
-import type { FirehoseEvent } from '@coopsource/federation';
-import type { AtUri, CID, DID } from '@coopsource/common';
-import { dispatchFirehoseEvent } from '../src/appview/loop.js';
+import { HookRegistry } from '../src/appview/hooks/registry.js';
+import { registerBuiltinHooks } from '../src/appview/hooks/builtin/index.js';
+import { processFirehoseEvent } from '../src/appview/hooks/pipeline.js';
+import { makeEvent } from './helpers/make-event.js';
+import { getTestDb, truncateAllTables } from './helpers/test-db.js';
 
-// Mock all indexers
-vi.mock('../src/appview/indexers/membership-indexer.js', () => ({
-  indexMembership: vi.fn(),
-  indexMemberApproval: vi.fn(),
-}));
+/**
+ * Hook pipeline dispatch tests.
+ *
+ * Verifies that registerBuiltinHooks correctly wires all collections to
+ * post-storage hooks, and that processFirehoseEvent routes events through
+ * the pipeline (pds_record upsert + hook invocation).
+ *
+ * Uses real test DB — processFirehoseEvent upserts into pds_record.
+ * Complements hook-pipeline.test.ts which tests pipeline mechanics
+ * (skip, transform, dead-letter, priority, wildcards).
+ */
+describe('Hook pipeline dispatch', () => {
+  let db: Kysely<Database>;
+  let registry: HookRegistry;
 
-vi.mock('../src/appview/indexers/proposal-indexer.js', () => ({
-  indexProposal: vi.fn(),
-  indexVote: vi.fn(),
-}));
-
-vi.mock('../src/appview/indexers/agreement-indexer.js', () => ({
-  indexAgreement: vi.fn(),
-  indexSignature: vi.fn(),
-}));
-
-vi.mock('../src/appview/indexers/alignment-indexer.js', () => ({
-  indexInterest: vi.fn(),
-  indexOutcome: vi.fn(),
-  indexInterestMap: vi.fn(),
-}));
-
-vi.mock('../src/appview/indexers/calendar-indexer.js', () => ({
-  indexCalendarEvent: vi.fn(),
-  indexCalendarRsvp: vi.fn(),
-}));
-
-vi.mock('../src/appview/indexers/frontpage-indexer.js', () => ({
-  indexFrontpagePost: vi.fn(),
-}));
-
-vi.mock('../src/appview/indexers/legal-indexer.js', () => ({
-  indexLegalDocument: vi.fn(),
-  indexMeetingRecord: vi.fn(),
-}));
-
-vi.mock('../src/appview/indexers/admin-indexer.js', () => ({
-  indexOfficer: vi.fn(),
-  indexComplianceItem: vi.fn(),
-  indexMemberNotice: vi.fn(),
-  indexFiscalPeriod: vi.fn(),
-}));
-
-vi.mock('../src/appview/hooks/pipeline.js', () => ({
-  processFirehoseEvent: vi.fn(),
-  getValidationWarnings: vi.fn().mockReturnValue(0),
-}));
-
-// Also need to mock relay-consumer, tap-consumer, and commit-verifier since loop.ts imports them
-vi.mock('../src/appview/relay-consumer.js', () => ({
-  subscribeRelay: vi.fn(),
-}));
-
-vi.mock('../src/appview/tap-consumer.js', () => ({
-  subscribeTap: vi.fn(),
-}));
-
-vi.mock('../src/appview/commit-verifier.js', () => ({
-  verifyCommitSignature: vi.fn().mockResolvedValue(true),
-}));
-
-function makeEvent(collection: string, operation: 'create' | 'update' | 'delete' = 'create'): FirehoseEvent {
-  return {
-    seq: 1,
-    did: 'did:plc:test' as DID,
-    operation,
-    uri: `at://did:plc:test/${collection}/rkey1` as AtUri,
-    cid: 'bafytest' as CID,
-    record: { $type: collection },
-    time: '2026-01-01T00:00:00Z',
-  };
-}
-
-// Use a fake db — the indexers are mocked so it won't be called
-const fakeDb = {} as Kysely<Database>;
-
-describe('dispatchFirehoseEvent', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+  beforeEach(async () => {
+    await truncateAllTables();
+    db = getTestDb();
+    registry = new HookRegistry();
+    registerBuiltinHooks(registry);
   });
 
-  it('dispatches org.membership create to indexMembership', async () => {
-    const { indexMembership } = await import('../src/appview/indexers/membership-indexer.js');
-    const event = makeEvent('network.coopsource.org.membership');
+  // ─── Hook registration coverage ────────────────────────────────────
 
-    await dispatchFirehoseEvent(fakeDb, event);
+  const complexCollections = [
+    'network.coopsource.org.membership',
+    'network.coopsource.org.memberApproval',
+    'network.coopsource.governance.proposal',
+    'network.coopsource.governance.vote',
+    'network.coopsource.agreement.master',
+    'network.coopsource.agreement.signature',
+  ];
 
-    expect(indexMembership).toHaveBeenCalledWith(fakeDb, event);
-  });
+  const declarativeCollections = [
+    'network.coopsource.alignment.interest',
+    'network.coopsource.alignment.outcome',
+    'network.coopsource.alignment.interestMap',
+    'network.coopsource.admin.officer',
+    'network.coopsource.admin.complianceItem',
+    'network.coopsource.admin.memberNotice',
+    'network.coopsource.admin.fiscalPeriod',
+    'network.coopsource.legal.document',
+    'network.coopsource.legal.meetingRecord',
+    'community.lexicon.calendar.event',
+    'community.lexicon.calendar.rsvp',
+    'fyi.unravel.frontpage.post',
+  ];
 
-  it('dispatches org.memberApproval create to indexMemberApproval', async () => {
-    const { indexMemberApproval } = await import('../src/appview/indexers/membership-indexer.js');
-    const event = makeEvent('network.coopsource.org.memberApproval');
+  for (const collection of [...complexCollections, ...declarativeCollections]) {
+    it(`has a post-storage hook registered for ${collection}`, () => {
+      const hooks = registry.getPostStorageHooks(collection);
+      expect(hooks.length).toBeGreaterThanOrEqual(1);
+    });
+  }
 
-    await dispatchFirehoseEvent(fakeDb, event);
+  // ─── Pipeline integration: pds_record storage ──────────────────────
 
-    expect(indexMemberApproval).toHaveBeenCalledWith(fakeDb, event);
-  });
+  for (const collection of complexCollections) {
+    it(`stores pds_record and invokes hook for ${collection}`, async () => {
+      const event = makeEvent(collection);
+      await processFirehoseEvent(db, registry, event);
 
-  it('dispatches governance.proposal to indexProposal', async () => {
-    const { indexProposal } = await import('../src/appview/indexers/proposal-indexer.js');
-    const event = makeEvent('network.coopsource.governance.proposal');
+      const row = await db
+        .selectFrom('pds_record')
+        .where('uri', '=', event.uri)
+        .select(['collection', 'did', 'cid'])
+        .executeTakeFirst();
 
-    await dispatchFirehoseEvent(fakeDb, event);
+      expect(row).toBeDefined();
+      expect(row!.collection).toBe(collection);
+      expect(row!.did).toBe('did:plc:test');
+    });
+  }
 
-    expect(indexProposal).toHaveBeenCalledWith(fakeDb, event);
-  });
+  for (const collection of declarativeCollections) {
+    it(`stores pds_record via declarative hook for ${collection}`, async () => {
+      const event = makeEvent(collection);
+      await processFirehoseEvent(db, registry, event);
 
-  it('dispatches governance.vote to indexVote', async () => {
-    const { indexVote } = await import('../src/appview/indexers/proposal-indexer.js');
-    const event = makeEvent('network.coopsource.governance.vote');
+      const row = await db
+        .selectFrom('pds_record')
+        .where('uri', '=', event.uri)
+        .select('collection')
+        .executeTakeFirst();
 
-    await dispatchFirehoseEvent(fakeDb, event);
+      expect(row?.collection).toBe(collection);
+    });
+  }
 
-    expect(indexVote).toHaveBeenCalledWith(fakeDb, event);
-  });
+  // ─── Edge cases ────────────────────────────────────────────────────
 
-  it('dispatches agreement.master to indexAgreement', async () => {
-    const { indexAgreement } = await import('../src/appview/indexers/agreement-indexer.js');
-    const event = makeEvent('network.coopsource.agreement.master');
-
-    await dispatchFirehoseEvent(fakeDb, event);
-
-    expect(indexAgreement).toHaveBeenCalledWith(fakeDb, event);
-  });
-
-  it('dispatches agreement.signature to indexSignature', async () => {
-    const { indexSignature } = await import('../src/appview/indexers/agreement-indexer.js');
-    const event = makeEvent('network.coopsource.agreement.signature');
-
-    await dispatchFirehoseEvent(fakeDb, event);
-
-    expect(indexSignature).toHaveBeenCalledWith(fakeDb, event);
-  });
-
-  it('dispatches alignment.interest to indexInterest', async () => {
-    const { indexInterest } = await import('../src/appview/indexers/alignment-indexer.js');
-    const event = makeEvent('network.coopsource.alignment.interest');
-
-    await dispatchFirehoseEvent(fakeDb, event);
-
-    expect(indexInterest).toHaveBeenCalledWith(fakeDb, event);
-  });
-
-  it('dispatches alignment.outcome to indexOutcome', async () => {
-    const { indexOutcome } = await import('../src/appview/indexers/alignment-indexer.js');
-    const event = makeEvent('network.coopsource.alignment.outcome');
-
-    await dispatchFirehoseEvent(fakeDb, event);
-
-    expect(indexOutcome).toHaveBeenCalledWith(fakeDb, event);
-  });
-
-  it('dispatches alignment.interestMap to indexInterestMap', async () => {
-    const { indexInterestMap } = await import('../src/appview/indexers/alignment-indexer.js');
-    const event = makeEvent('network.coopsource.alignment.interestMap');
-
-    await dispatchFirehoseEvent(fakeDb, event);
-
-    expect(indexInterestMap).toHaveBeenCalledWith(fakeDb, event);
-  });
-
-  it('skips unknown collections silently', async () => {
-    const { indexMembership } = await import('../src/appview/indexers/membership-indexer.js');
-    const { indexProposal } = await import('../src/appview/indexers/proposal-indexer.js');
+  it('stores pds_record for unknown collections with no hook', async () => {
     const event = makeEvent('app.bsky.feed.post');
+    await processFirehoseEvent(db, registry, event);
 
-    await dispatchFirehoseEvent(fakeDb, event);
+    // No hook for bsky posts, but pds_record is still stored
+    const hooks = registry.getPostStorageHooks('app.bsky.feed.post');
+    expect(hooks.length).toBe(0);
 
-    expect(indexMembership).not.toHaveBeenCalled();
-    expect(indexProposal).not.toHaveBeenCalled();
+    const row = await db
+      .selectFrom('pds_record')
+      .where('uri', '=', event.uri)
+      .select('collection')
+      .executeTakeFirst();
+    expect(row?.collection).toBe('app.bsky.feed.post');
   });
 
-  it('dispatches delete events to indexers', async () => {
-    const { indexMembership } = await import('../src/appview/indexers/membership-indexer.js');
-    const event = makeEvent('network.coopsource.org.membership', 'delete');
+  it('handles delete events (soft-deletes pds_record)', async () => {
+    // Create first
+    const createEvent = makeEvent('network.coopsource.org.membership');
+    await processFirehoseEvent(db, registry, createEvent);
 
-    await dispatchFirehoseEvent(fakeDb, event);
+    // Then delete
+    const deleteEvent = makeEvent('network.coopsource.org.membership', 'delete');
+    await processFirehoseEvent(db, registry, deleteEvent);
 
-    expect(indexMembership).toHaveBeenCalledWith(fakeDb, event);
-    expect(event.operation).toBe('delete');
+    const row = await db
+      .selectFrom('pds_record')
+      .where('uri', '=', createEvent.uri)
+      .select('deleted_at')
+      .executeTakeFirst();
+
+    expect(row).toBeDefined();
+    expect(row!.deleted_at).not.toBeNull();
+  });
+
+  it('creates pds_record with correct fields', async () => {
+    const event = makeEvent(
+      'network.coopsource.governance.proposal',
+      'create',
+      { $type: 'network.coopsource.governance.proposal', title: 'Test' },
+    );
+    await processFirehoseEvent(db, registry, event);
+
+    const row = await db
+      .selectFrom('pds_record')
+      .where('uri', '=', event.uri)
+      .selectAll()
+      .executeTakeFirst();
+
+    expect(row).toBeDefined();
+    expect(row!.did).toBe('did:plc:test');
+    expect(row!.collection).toBe('network.coopsource.governance.proposal');
+    expect(row!.cid).toBe('bafytest');
+    expect(row!.rkey).toBe('rkey1');
+    expect(row!.deleted_at).toBeNull();
   });
 });

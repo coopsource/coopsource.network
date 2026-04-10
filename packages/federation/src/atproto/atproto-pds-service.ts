@@ -28,6 +28,7 @@ export class AtprotoPdsService implements IPdsService {
   private adminAgent: AtpAgent;
   private plcUrl: string;
   private sessionCache = new Map<string, AtpAgent>();
+  private adminAuthHeader: string;
 
   constructor(
     private pdsUrl: string,
@@ -36,6 +37,8 @@ export class AtprotoPdsService implements IPdsService {
   ) {
     this.adminAgent = new AtpAgent({ service: pdsUrl });
     this.plcUrl = plcUrl ?? 'https://plc.directory';
+    // PDS admin API uses HTTP Basic auth: admin:<password>
+    this.adminAuthHeader = 'Basic ' + Buffer.from(`admin:${adminPassword}`).toString('base64');
   }
 
   // ─── DID Operations ──────────────────────────────────────────────────────
@@ -43,27 +46,60 @@ export class AtprotoPdsService implements IPdsService {
   async createDid(options: CreateDidOptions): Promise<DidDocument> {
     // Create account on PDS via admin invite flow
     const handle =
-      options.handle ?? `${options.entityType}-${Date.now()}.localhost`;
+      options.handle ?? `${options.entityType}-${Date.now()}.test`;
     const password = `auto-${crypto.randomUUID()}`;
     const email = `${handle.replace(/\./g, '-')}@coopsource.local`;
 
-    // Authenticate as admin to create invite code
-    await this.adminAgent.login({
-      identifier: 'admin',
-      password: this.adminPassword,
+    // Create invite code via PDS admin API (Basic auth)
+    const inviteRes = await fetch(`${this.pdsUrl}/xrpc/com.atproto.server.createInviteCode`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': this.adminAuthHeader,
+      },
+      body: JSON.stringify({ useCount: 1 }),
     });
+    if (!inviteRes.ok) {
+      const text = await inviteRes.text().catch(() => 'unknown');
+      throw new Error(`Failed to create invite code (${inviteRes.status}): ${text}`);
+    }
+    const invite = (await inviteRes.json()) as { code: string };
 
-    const invite = await this.adminAgent.api.com.atproto.server.createInviteCode(
-      { useCount: 1 },
-    );
-
-    // Create a fresh agent for the new account
-    const agent = new AtpAgent({ service: this.pdsUrl });
+    // Create a fresh agent for the new account.
+    // Pin all requests to pdsUrl — the PDS DID doc may advertise an internal
+    // hostname (e.g., localhost:3000 inside Docker) that isn't reachable from
+    // the host. This fetch wrapper rewrites XRPC URLs to the configured pdsUrl.
+    const pdsUrl = this.pdsUrl;
+    const agent = new AtpAgent({
+      service: pdsUrl,
+      fetch: async (input: string | URL | Request, init?: RequestInit) => {
+        let url: string;
+        if (typeof input === 'string') {
+          url = input;
+        } else if (input instanceof URL) {
+          url = input.toString();
+        } else if (input instanceof Request) {
+          url = input.url;
+        } else {
+          url = String(input);
+        }
+        // Rewrite any /xrpc/ URL to use the configured PDS URL
+        const xrpcIdx = url.indexOf('/xrpc/');
+        if (xrpcIdx !== -1) {
+          url = pdsUrl + url.slice(xrpcIdx);
+        }
+        // Preserve method/body/headers from Request objects
+        if (input instanceof Request && !init) {
+          return globalThis.fetch(new Request(url, input));
+        }
+        return globalThis.fetch(url, init);
+      },
+    });
     const result = await agent.createAccount({
       handle,
       email,
       password,
-      inviteCode: invite.data.code,
+      inviteCode: invite.code,
     });
 
     const did = result.data.did as DID;
@@ -212,13 +248,17 @@ export class AtprotoPdsService implements IPdsService {
     const cached = this.sessionCache.get(did);
     if (cached) return cached;
 
-    // If we don't have a cached session, create a new admin-authed agent.
-    // In a real deployment, per-entity credentials would be stored securely.
-    // For now, admin auth with repo targeting works for the PDS owner.
-    const agent = new AtpAgent({ service: this.pdsUrl });
-    await agent.login({
-      identifier: 'admin',
-      password: this.adminPassword,
+    // No cached session — use admin auth to operate on the repo.
+    // PDS admin can perform repo operations on any account.
+    // Inject admin Basic auth via the AtpAgent's fetch handler.
+    const adminAuth = this.adminAuthHeader;
+    const agent = new AtpAgent({
+      service: this.pdsUrl,
+      fetch: async (input, init) => {
+        const headers = new Headers(init?.headers);
+        headers.set('Authorization', adminAuth);
+        return globalThis.fetch(input, { ...init, headers });
+      },
     });
     this.sessionCache.set(did, agent);
     return agent;
