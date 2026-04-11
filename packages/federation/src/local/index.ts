@@ -21,6 +21,11 @@ export {
   publicJwkToMultibase,
 } from './did-manager.js';
 export type { JwkKey } from './did-manager.js';
+export { provisionCooperative } from './cooperative-provisioning.js';
+export type {
+  ProvisionCooperativeOptions,
+  ProvisionCooperativeResult,
+} from './cooperative-provisioning.js';
 export { createFirehoseEmitter } from './firehose.js';
 export type { FirehoseEmitter } from './firehose.js';
 export type { FederationDatabase } from './db-tables.js';
