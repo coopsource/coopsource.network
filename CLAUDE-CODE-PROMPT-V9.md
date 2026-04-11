@@ -59,7 +59,14 @@ You are implementing the Co-op Source Network V9 — ecosystem composability and
 
 ### Context
 
-`OperatorWriteProxy` (`apps/api/src/services/operator-write-proxy.ts`) uses app-passwords. The Roomy/OpenMeet pattern (March 2026) proves service-auth JWTs work for cross-app ATProto writes. Auth Scopes are now shipped (`atproto.com/specs/permission`).
+Today, every write to a cooperative's PDS repo in production (`PDS_URL` set) goes through `AtprotoPdsService.getAgentForDid()` at `packages/federation/src/atproto/atproto-pds-service.ts:247-265`, which attaches `Authorization: Basic admin:${PDS_ADMIN_PASSWORD}` on every XRPC call — a shared admin credential with full control over every repo on the PDS. V9.1 replaces this with short-lived service-auth JWTs (`iss=cooperativeDid`, `aud=<pds service DID>`, `lxm=<xrpc method>`, `exp=now+60`) signed by the cooperative's own `verificationMethods.atproto` key. The Roomy/OpenMeet pattern (March 2026) proves the underlying JWT flow works across apps.
+
+**Two scope realities** — neither reflected in the original sketch of this phase:
+
+1. **CSN does not hold the cooperative's signing key today.** `AtprotoPdsService.createDid()` calls `com.atproto.server.createAccount` and the PDS generates the `verificationMethods.atproto` key internally; CSN never sees it. V9.1 must put CSN in control of that key via a PLC operation before JWTs can verify in production.
+2. **The mode switch belongs inside `AtprotoPdsService`, not `OperatorWriteProxy`.** Many direct `pdsService.createRecord` / `putRecord` / `deleteRecord` calls target cooperative DIDs and bypass `OperatorWriteProxy` entirely (starter-pack-service, network-service, intercoop-agreement, membership, setup routes, federation routes, org/memberships routes). The ACL + audit layer in `OperatorWriteProxy` is orthogonal — unchanged in V9.1.
+
+The full implementation plan lives at `/Users/alan/.claude/plans/immutable-stirring-flamingo.md` (reference it for per-step detail and the validation gate).
 
 ### Tasks
 
@@ -68,39 +75,56 @@ You are implementing the Co-op Source Network V9 — ecosystem composability and
 ```typescript
 export class ServiceAuthClient {
   async createServiceAuth(params: {
-    issuerDid: string;      // Operator performing the action
-    audienceDid: string;    // PDS service endpoint DID
+    issuerDid: string;      // Cooperative DID (the repo owner)
+    audienceDid: string;    // PDS service DID (from describeServer)
     lxm: string;            // XRPC method being called
-    signingKey: Uint8Array; // Operator's signing key
+    signingKey: Uint8Array; // Cooperative's atproto-signing key (32 raw bytes)
   }): Promise<string> {
-    // Create JWT: iss=operator, aud=pds, lxm=method, exp=now+60s
-    // Sign with @atproto/crypto
+    // Build JWT: header {alg:'ES256',typ:'JWT'}, payload {iss,aud,exp,iat,jti,lxm}
+    // Sign via @atproto/crypto P256Keypair.sign() (returns 64-byte raw r||s)
+    // Assemble three-part base64url token
   }
 }
 ```
 
-2. **Modify `OperatorWriteProxy`** — add `COOP_AUTH_MODE` config (`app-password` | `service-auth`). When `service-auth`: create JWT per operation. When `app-password`: existing behavior.
+2. **Extend `SigningKeyResolver`** (`packages/federation/src/http/signing-key-resolver.ts`) with `resolveRawBytes(entityDid, purpose): Promise<Uint8Array>`. Returns the decrypted JWK's `d` field as 32 raw bytes. Keep the existing `resolve()` method (used for federation HTTP signing) unchanged. Throws when no matching row exists — the throw IS the fallback signal.
 
-3. **Update provisioning** — add `#coopsource` service entry to cooperative DID document.
+3. **Add `resolvePdsServiceDid(pdsUrl)`** at `packages/federation/src/atproto/pds-did-resolver.ts` — single exported function backed by a module-level `Map<string,string>` cache. Calls `com.atproto.server.describeServer` and returns `data.did`. No class.
 
-4. **Add config** — `COOP_AUTH_MODE` in `apps/api/src/config.ts`.
+4. **Modify `AtprotoPdsService`** at `packages/federation/src/atproto/atproto-pds-service.ts`:
+   - Add optional constructor params `signingKeyResolver?`, `serviceAuthClient?`. Back-compat: positional extension `(pdsUrl, adminPassword, plcUrl?, signingKeyResolver?, serviceAuthClient?)`.
+   - Replace `getAgentForDid(did)` with per-method `authFor(did, lxm)`:
+     - Try `signingKeyResolver.resolveRawBytes(did, 'atproto-signing')`.
+     - On success: resolve `audienceDid`, mint JWT, return fresh `AtpAgent` with `Authorization: Bearer <jwt>`.
+     - On throw/missing/no-deps: return fresh `AtpAgent` with `Authorization: Basic admin:...` (today's behavior).
+   - Call per operation from each of `createRecord`, `putRecord`, `deleteRecord`.
+   - **Remove `sessionCache`** — service-auth JWTs must not be reused.
 
-5. **Wire DI** — inject `ServiceAuthClient` into `OperatorWriteProxy` in `apps/api/src/container.ts`.
+5. **Wire DI** in `apps/api/src/container.ts` — instantiate `SigningKeyResolver` (with `KEY_ENC_KEY`) and `ServiceAuthClient`, pass to `AtprotoPdsService`. `OperatorWriteProxy` is unchanged. **No config changes** — no `COOP_AUTH_MODE`, no new env vars.
 
-6. **Update Auth Scopes** — replace `transition:generic` with proper permission sets.
+6. **Provision cooperative signing key end-to-end.** Three scripts:
+   - `scripts/request-coop-plc-signature.ts` — logs in as the cooperative, calls `com.atproto.identity.requestPlcOperationSignature` (triggers an email with a confirmation token), prints "check email" and exits (~15 lines).
+   - `scripts/migrate-coop-signing-key.ts` — takes `--token <value>` (required), reads current PLC doc, merges in the new `verificationMethods.atproto` + `#coopsource` service entry, calls `signPlcOperation` + `submitPlcOperation`. Persists the new private key to `entity_key` with `key_purpose='atproto-signing'`.
+   - `scripts/provision-cooperative.ts` (modify) — after `agent.createAccount()`, generates a fresh P-256 keypair, writes it to `entity_key` BEFORE any PLC op, then drives the two-phase migration flow. In dev, developers copy the confirmation token from Mailpit at `http://localhost:8025`.
+
+7. **Do NOT rewrite OAuth scopes in V9.1.** The proposed narrow replacement (`rpc:network.coopsource.governance?aud=* rpc:network.coopsource.org?aud=*`) breaks 8+ feature areas (agreement, funding, alignment, commerce, ops, legal, connection, actor) that write records in namespaces outside the narrow set. Deferred to V9.2 where the full per-namespace scope audit happens alongside the governance AppView API. `apps/api/src/auth/oauth-client.ts:30` stays as `'atproto transition:generic'` for V9.1.
 
 ### Key Files
 - `packages/federation/src/atproto/service-auth-client.ts` (new)
-- `apps/api/src/services/operator-write-proxy.ts` (modify)
-- `apps/api/src/config.ts` (add COOP_AUTH_MODE)
-- `apps/api/src/container.ts` (wire)
-- `scripts/provision-cooperative.ts` (DID doc service entry)
+- `packages/federation/src/atproto/pds-did-resolver.ts` (new)
+- `packages/federation/src/http/signing-key-resolver.ts` (modify — add `resolveRawBytes`)
+- `packages/federation/src/atproto/atproto-pds-service.ts` (modify — add `authFor`, remove `sessionCache`)
+- `packages/federation/src/index.ts` (export new pieces)
+- `apps/api/src/container.ts` (wire `SigningKeyResolver` + `ServiceAuthClient`)
+- `scripts/request-coop-plc-signature.ts` (new)
+- `scripts/migrate-coop-signing-key.ts` (new)
+- `scripts/provision-cooperative.ts` (modify — install CSN-owned atproto-signing key + PLC migration)
 
 ### Tests
-- Unit: ServiceAuthClient creates valid JWTs with correct claims
-- Unit: OperatorWriteProxy switches modes based on config
-- Integration: full write flow through service-auth with test PDS
-- All 339 E2E tests pass
+- Unit: `ServiceAuthClient` creates valid JWTs with correct claims, signature round-trips, `jti` unique across 100 calls.
+- Unit: `SigningKeyResolver.resolveRawBytes` returns 32 bytes, throws on missing, round-trips through `P256Keypair`.
+- **Integration — validation gate**: `packages/federation/tests/coop-write-auth-mode.test.ts` runs under `make test:pds` against a real PDS auto-started by `global-setup.ts`. Asserts happy-path JWT write (Bearer header, decoded claims match), method binding, fallback to admin Basic for member DIDs, post-`createDid` ordering, and negative tests (expired JWT, wrong iss, wrong aud all rejected). **If the real PDS rejects `iss=repo.did` JWTs for `com.atproto.repo.createRecord`, stop V9.1 and write a new plan.**
+- All 339 E2E tests pass.
 
 ---
 

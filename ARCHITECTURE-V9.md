@@ -99,33 +99,42 @@ No Permissioned Data Diary 5 was published post-conference. No permission spaces
 
 ### Problem
 
-CSN's `OperatorWriteProxy` uses app-passwords to write to the cooperative's PDS. This pattern:
-- Uses long-lived credentials that don't identify which operator acted
-- Prevents other ATProto apps from writing to the cooperative's repo
-- Is not aligned with the ecosystem's direction toward service-auth JWTs
+In production (`PDS_URL` set), every write to a cooperative's PDS repo routes through `AtprotoPdsService.getAgentForDid()`, which attaches `Authorization: Basic admin:${PDS_ADMIN_PASSWORD}` on every XRPC call. That single shared admin credential has full control over every repo on the PDS — not auditable to a specific operator, not portable, and not aligned with where the ATProto ecosystem is heading.
 
 ### Reference: Roomy/OpenMeet Pattern
 
 Roomy declares an OAuth scope (`rpc:net.openmeet.auth?aud=*`). When a user navigates to an OpenMeet event, Roomy silently requests a service-auth JWT from the user's PDS via `getServiceAuthToken()`, addressed to OpenMeet's DID. OpenMeet verifies the JWT and issues session tokens. No redirect or login form.
 
-The JWT payload uses `iss` (issuer DID), `aud` (target service DID), `exp`, `iat`, `jti`, and optional `lxm` (method binding). The proposed `client_id` claim has NOT been adopted.
+The JWT payload uses `iss` (issuer DID), `aud` (target service DID), `exp`, `iat`, `jti`, and optional `lxm` (method binding). The proposed `client_id` claim has NOT been adopted. Note that the Roomy/OpenMeet PoC uses service-auth for cross-service authentication to a custom endpoint, not for writing records to another repo — V9.1 extends the pattern to repo writes, and step 7 of the implementation plan is the validation gate that proves the PDS actually accepts `iss=repo.did` JWTs for `com.atproto.repo.createRecord`.
+
+### Scope reality check
+
+Two inaccuracies in earlier sketches of this phase:
+
+1. **CSN does not hold the cooperative's signing key today.** `AtprotoPdsService.createDid()` calls `com.atproto.server.createAccount` and the PDS internally generates the P-256 `verificationMethods.atproto` key. CSN never sees it; nothing is written to `entity_key` by this path. Signing a JWT with whatever CSN has in `entity_key` will not verify against the PDS-held key. V9.1 must put CSN in control of the cooperative's ATProto signing key via a PLC operation before service-auth JWTs can work in production.
+
+2. **The mode switch belongs inside `AtprotoPdsService`, not `OperatorWriteProxy`.** Many direct `pdsService.createRecord` / `putRecord` / `deleteRecord` calls target cooperative DIDs bypassing `OperatorWriteProxy` entirely (starter-pack-service, network-service, intercoop-agreement, membership, setup routes, federation routes, org/memberships routes). A switch inside `OperatorWriteProxy` would miss all of them. The ACL + audit layer in `OperatorWriteProxy` is orthogonal and unchanged.
 
 ### Implementation
 
-1. Build `ServiceAuthClient` in `packages/federation/src/atproto/`:
-   - Create short-lived JWTs (< 60s) signed by operator's key
-   - `iss` = operator DID, `aud` = cooperative PDS DID, `lxm` = XRPC method
+1. **Build `ServiceAuthClient`** in `packages/federation/src/atproto/service-auth-client.ts`:
+   - Pure class, no IO. `createServiceAuth({issuerDid, audienceDid, lxm, signingKey})` builds an ES256 JWT (header `{alg:'ES256',typ:'JWT'}`, payload `{iss,aud,exp,iat,jti,lxm}` with `exp = now+60`), signs with `@atproto/crypto` `P256Keypair.sign()` (64-byte raw r||s — no DER conversion).
+   - `iss` = cooperative DID (the repo owner). `aud` = cooperative's PDS service DID (resolved via `com.atproto.server.describeServer`, cached per PDS URL).
+   - Per-operation minting. Tokens are never cached.
 
-2. Modify `OperatorWriteProxy` to use service-auth JWTs:
-   - New config: `COOP_AUTH_MODE` (`'app-password' | 'service-auth'`, default `service-auth`)
-   - Audit log captures operator DID from JWT `iss` (improved attribution)
-   - Retain app-password fallback for existing cooperatives
+2. **Modify `AtprotoPdsService`** to mint JWTs on the write path:
+   - Add optional `signingKeyResolver` and `serviceAuthClient` constructor params.
+   - Replace `getAgentForDid(did)` with `authFor(did, lxm)`: try `SigningKeyResolver.resolveRawBytes(did, 'atproto-signing')`; on success, mint a JWT and return an `AtpAgent` with `Authorization: Bearer <jwt>`; on throw/missing, fall back to admin Basic (today's behavior).
+   - The resolver-lookup is the natural branch — cooperatives with a migrated key get JWTs; member DIDs, standalone-mode instance DIDs, and unmigrated cooperatives get admin Basic. **No `COOP_AUTH_MODE` env var** — the resolver miss-or-hit IS the switch.
+   - Remove the existing `sessionCache` — service-auth JWTs must not be reused across operations.
 
-3. Update cooperative provisioning to add CSN AppView as service entry in DID document
+3. **Update cooperative provisioning** to install a CSN-owned ATProto signing key and add CSN as a `#coopsource` service entry in the cooperative's DID document. This is a three-method PLC operation (`requestPlcOperationSignature` triggers an email with a confirmation token; `signPlcOperation` takes `{token, verificationMethods, services, rotationKeys, alsoKnownAs}` and returns a signed op; `submitPlcOperation` pushes it to PLC). Read-merge-write of current PLC state is required — dropping existing rotation keys bricks the cooperative's identity.
 
-4. Declare CSN-specific OAuth scopes using shipped Auth Scopes infrastructure:
-   - `rpc:network.coopsource.governance?aud=*` — governance operations
-   - `rpc:network.coopsource.org?aud=*` — membership operations
+4. **Provide a retrofit migration script** (`scripts/migrate-coop-signing-key.ts`) for cooperatives provisioned before V9.1, driven by a two-script flow: one to trigger the email, one to consume the token and run `signPlcOperation` + `submitPlcOperation`.
+
+### Deferred to V9.2 — OAuth scope rewrite
+
+V9.1 was originally sketched to replace `'atproto transition:generic'` (in `apps/api/src/auth/oauth-client.ts`) with `'atproto rpc:network.coopsource.governance?aud=* rpc:network.coopsource.org?aud=*'`. This is deferred because it's a permission **narrowing**, not a neutral rewrite — CSN writes to at least ten lexicon namespaces via member OAuth sessions (`funding`, `alignment`, `agreement`, `commerce`, `ops`, `legal`, `connection`, `actor`, `governance`, `org`), and the narrow two-namespace set would silently break eight feature areas the moment a user's OAuth session refreshes. V9.2 (governance AppView API) does the full per-namespace scope audit and is the right place to ship the rewrite.
 
 ---
 
