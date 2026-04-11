@@ -427,21 +427,83 @@ curl https://raw.githubusercontent.com/bluesky-social/pds/main/installer.sh > in
 sudo bash installer.sh
 ```
 
-Create a cooperative account:
+Once the PDS is running, provision a cooperative account using the V9.1 provisioning script (below).
+
+---
+
+## Provisioning a Cooperative (V9.1 app-password flow)
+
+Starting with V9.1, cooperatives are provisioned via a single script that:
+
+1. Creates the account on the PDS via `com.atproto.server.createAccount` (normal flow, not the DID-import path).
+2. Creates a scoped, privileged app password via `com.atproto.server.createAppPassword` using the returned session.
+3. Encrypts the app password with `KEY_ENC_KEY` and stores it in `auth_credential` with `credential_type='atproto-app-password'`.
+4. Writes a matching `entity` row.
+5. Prints the DID, handle, and app password for operator reference.
+
+After provisioning, `AtprotoPdsService.authFor(did, lxm)` picks up the stored app password via `AuthCredentialResolver`, opens a login session via `AtpAgent.login`, caches the session-bearing agent per DID, and uses it for all subsequent cooperative repo writes. `@atproto/api` handles access-token refresh automatically via the stored `refreshJwt`; the API's write path auto-retries once on auth-class errors (expired refresh, revoked app password).
+
+### Running the script
+
 ```bash
-docker exec pds goat pds admin account create \
+# From the repo root. The script lives inside apps/api/scripts/ because
+# it needs tsx to resolve workspace package imports against
+# apps/api/node_modules/@coopsource/*.
+pnpm --filter @coopsource/api exec tsx scripts/provision-cooperative.ts \
+  --pds-url https://pds.mycoop.net \
+  --admin-password <pds-admin-password> \
   --handle mycoop.pds-domain.net \
-  --email admin@mycoop.example \
-  --password <secure-password>
+  --display-name "My Cooperative" \
+  --description "A worker-owned cooperative"
 ```
 
-Then set in your AppView `.env`:
-```
+**Required env vars** (read by the script, must match the API):
+
+| Variable | Description |
+|---|---|
+| `KEY_ENC_KEY` | 32-byte base64 encryption key. Must match the API's `KEY_ENC_KEY`. Used to encrypt the app password at rest in `auth_credential.secret_hash`. |
+| `DATABASE_URL` | Postgres connection string for the CSN database. The script inserts `entity` and `auth_credential` rows here. |
+
+**Optional CLI flags:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--email <addr>` | `<handle>@coopsource.local` | Email address for the account |
+| `--admin-password <pw>` | `admin` | PDS admin password (used to create the invite code) |
+| `--database-url <url>` | `DATABASE_URL` env var | Postgres connection string |
+
+### After provisioning
+
+Add these to your AppView `.env`:
+
+```bash
 COOP_PDS_URL=https://pds.mycoop.net
-COOP_PDS_ADMIN_PASSWORD=<password>
-COOP_DID=did:plc:<your-coop-did>
-PLC_URL=https://plc.directory
+COOP_PDS_ADMIN_PASSWORD=<pds-admin-password>
+COOP_DID=did:plc:<your-coop-did>   # printed by the script
+PDS_URL=https://pds.mycoop.net
+PDS_ADMIN_PASSWORD=<pds-admin-password>
 ```
+
+You do NOT need to set any env var for the app password — it lives in `auth_credential`, encrypted with `KEY_ENC_KEY`. The API looks it up at runtime via `AuthCredentialResolver`.
+
+### App-password rotation (operator runbook)
+
+V9.1 does not ship a rotation script. If an app password leaks or needs to be rotated:
+
+1. Revoke the old app password via `com.atproto.server.revokeAppPassword` using the cooperative's account session (or the PDS admin panel).
+2. Mark the old `auth_credential` row invalidated: `UPDATE auth_credential SET invalidated_at = NOW() WHERE entity_did = '<coop-did>' AND credential_type = 'atproto-app-password';`
+3. Re-run `provision-cooperative.ts` — or a narrower rotation script — to create a fresh app password and insert a new row. `AuthCredentialResolver` always reads the most-recently-created non-invalidated row, so the next cooperative write automatically picks up the new credential.
+
+The API's retry-once wrapper (`withAuthForCoop`) handles the in-flight case: if an active request's cached session gets invalidated mid-operation, it drops the cache, re-resolves the credential, and retries once before propagating. No manual API restart needed for rotation.
+
+### What's NOT in V9.1
+
+V9.1 deliberately does not:
+
+- **Register CSN-owned signing keys in the cooperative's PLC document.** The normal `createAccount` flow lets the PDS generate the `verificationMethods.atproto` key. Deferred — the `ServiceAuthClient` / `SigningKeyResolver.resolveRawBytes` / `resolvePdsServiceDid` infrastructure is in the codebase ready for the day this work resumes (blocked today on `@atproto/pds` 0.4 upstream gates around account imports).
+- **Add a `#coopsource` service entry to the cooperative's PLC document.** Deferred to V9.2 (Governance AppView API) where the service entry first becomes load-bearing for other ATProto apps discovering CSN as the cooperative's governance service. V9.2 will revisit the PLC update flow (`requestPlcOperationSignature` → email token → `signPlcOperation` → `submitPlcOperation`).
+
+See `ARCHITECTURE-V9.md` §2 for the full rationale.
 
 ---
 
