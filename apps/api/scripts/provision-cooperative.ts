@@ -2,25 +2,24 @@
 /**
  * CLI wrapper around `provisionCooperative` in @coopsource/federation/local.
  *
- * Provisions a cooperative identity on a self-hosted ATProto PDS using the
- * V9.1 `createAccount(plcOp)` flow: CSN-owned signing key in PLC from day
- * one, `#coopsource` service entry on the DID document, and an encrypted
- * `atproto-signing` row in `entity_key` so the API's `AtprotoPdsService`
- * can mint service-auth JWTs for all subsequent writes.
+ * Provisions a cooperative account on an ATProto PDS and stores a
+ * privileged app password in `auth_credential` so the API's
+ * `AtprotoPdsService` can use it for ongoing repo writes via
+ * `AuthCredentialResolver`.
  *
  * See packages/federation/src/local/cooperative-provisioning.ts for the
- * full flow description. See ARCHITECTURE-V9.md §2 for context.
+ * full flow description and V9.1 scope decisions. See ARCHITECTURE-V9.md
+ * §2 for the ecosystem-alignment rationale.
  *
- * Location: this script lives inside `apps/api/scripts/` (not the top-level
- * `scripts/` dir) because tsx resolves workspace package imports relative
- * to the script file's directory — `apps/api/node_modules/@coopsource/*`
- * symlinks are the resolution anchor for `@coopsource/federation/local`
- * and `@coopsource/db`.
+ * Location: this script lives inside `apps/api/scripts/` (not the
+ * top-level `scripts/` dir) because tsx resolves workspace package
+ * imports relative to the script file's directory —
+ * `apps/api/node_modules/@coopsource/*` symlinks are the resolution
+ * anchor for `@coopsource/federation/local` and `@coopsource/db`.
  *
  * Usage:
  *   pnpm --filter @coopsource/api exec tsx scripts/provision-cooperative.ts \
  *     --pds-url http://localhost:2583 \
- *     --instance-url http://localhost:3001 \
  *     --handle mycoop.test \
  *     --display-name "My Cooperative" \
  *     --description "A worker-owned cooperative"
@@ -33,7 +32,6 @@ import { provisionCooperative } from '@coopsource/federation/local';
 
 interface CliOptions {
   pdsUrl: string;
-  instanceUrl: string;
   databaseUrl: string;
   keyEncKey: string;
   adminPassword: string;
@@ -58,9 +56,6 @@ function parseArgs(): CliOptions {
   if (!opts['pds-url'] || !opts['handle']) {
     console.error(`Usage: provision-cooperative.ts
   --pds-url <url>           PDS base URL (e.g. http://localhost:2583)
-  --instance-url <url>      CSN instance URL for the #coopsource service entry
-                            (e.g. http://localhost:3001). Defaults to the
-                            INSTANCE_URL env var.
   --database-url <url>      PostgreSQL connection string. Defaults to the
                             DATABASE_URL env var.
   --admin-password <pw>     PDS admin password (default: admin)
@@ -70,23 +65,15 @@ function parseArgs(): CliOptions {
   --email <email>           Email for the account (optional)
 
 Required env vars:
-  KEY_ENC_KEY               Encryption key for entity_key.private_key_enc
+  KEY_ENC_KEY               Encryption key for auth_credential.secret_hash
                             (must match the API's KEY_ENC_KEY)`);
-    process.exit(1);
-  }
-
-  const instanceUrl = opts['instance-url'] ?? process.env.INSTANCE_URL;
-  if (!instanceUrl) {
-    console.error(
-      'Error: --instance-url or INSTANCE_URL env var is required for the #coopsource service entry.',
-    );
     process.exit(1);
   }
 
   const databaseUrl = opts['database-url'] ?? process.env.DATABASE_URL;
   if (!databaseUrl) {
     console.error(
-      'Error: --database-url or DATABASE_URL env var is required for writing the entity_key row.',
+      'Error: --database-url or DATABASE_URL env var is required for writing the auth_credential row.',
     );
     process.exit(1);
   }
@@ -94,7 +81,7 @@ Required env vars:
   const keyEncKey = process.env.KEY_ENC_KEY;
   if (!keyEncKey) {
     console.error(
-      'Error: KEY_ENC_KEY env var is required for encrypting the signing key at rest. ' +
+      'Error: KEY_ENC_KEY env var is required for encrypting the app password at rest. ' +
         "Must match the API's KEY_ENC_KEY.",
     );
     process.exit(1);
@@ -102,7 +89,6 @@ Required env vars:
 
   return {
     pdsUrl: opts['pds-url']!,
-    instanceUrl,
     databaseUrl,
     keyEncKey,
     adminPassword: opts['admin-password'] ?? 'admin',
@@ -115,8 +101,7 @@ Required env vars:
 
 async function main(opts: CliOptions): Promise<void> {
   console.log(`\nProvisioning cooperative on PDS: ${opts.pdsUrl}`);
-  console.log(`Handle:       ${opts.handle}`);
-  console.log(`Instance URL: ${opts.instanceUrl}\n`);
+  console.log(`Handle: ${opts.handle}\n`);
 
   const db = createDb({ connectionString: opts.databaseUrl });
   try {
@@ -124,7 +109,6 @@ async function main(opts: CliOptions): Promise<void> {
       db,
       pdsUrl: opts.pdsUrl,
       adminPassword: opts.adminPassword,
-      instanceUrl: opts.instanceUrl,
       keyEncKey: opts.keyEncKey,
       handle: opts.handle,
       email: opts.email,
@@ -135,35 +119,18 @@ async function main(opts: CliOptions): Promise<void> {
     console.log('\n' + '='.repeat(60));
     console.log('COOPERATIVE PROVISIONED SUCCESSFULLY');
     console.log('='.repeat(60));
-    console.log(`DID:            ${result.did}`);
-    console.log(`Handle:         ${result.handle}`);
-    console.log(`PDS URL:        ${opts.pdsUrl}`);
-    console.log(`Email:          ${result.email}`);
-    console.log(`Password:       ${result.password}`);
+    console.log(`DID:      ${result.did}`);
+    console.log(`Handle:   ${result.handle}`);
+    console.log(`PDS URL:  ${opts.pdsUrl}`);
+    console.log(`Email:    ${result.email}`);
+    console.log(`Password: ${result.password}   (account password — store securely, not used by API)`);
     console.log('');
-    console.log('Signing key stored encrypted in entity_key with');
-    console.log("key_purpose='atproto-signing'. AtprotoPdsService.authFor()");
-    console.log('will mint service-auth JWTs for writes to this DID.');
+    console.log('App password stored encrypted in auth_credential with');
+    console.log(`credential_type='atproto-app-password'. AtprotoPdsService`);
+    console.log('will use this to open login-based sessions for writes to this DID.');
     console.log('');
-    console.log(`Signing key (did:key): ${result.signingKeyDidKey}`);
+    console.log(`App password (also stored): ${result.appPassword}`);
     console.log('');
-    console.log('Rotation key (secp256k1 private hex) — store securely:');
-    console.log(result.rotationPrivateKeyHex);
-    console.log(`Rotation key (did:key): ${result.rotationDidKey}`);
-    console.log('');
-
-    const domain = result.handle;
-    console.log('='.repeat(60));
-    console.log('DOMAIN-AS-HANDLE DNS SETUP (optional)');
-    console.log('='.repeat(60));
-    console.log('');
-    console.log(`To verify ownership of @${domain}, add this DNS TXT record:`);
-    console.log('');
-    console.log(`  Host:  _atproto.${domain}`);
-    console.log(`  Type:  TXT`);
-    console.log(`  Value: did=${result.did}`);
-    console.log('');
-
     console.log('='.repeat(60));
     console.log('ENVIRONMENT VARIABLES');
     console.log('='.repeat(60));
@@ -171,9 +138,7 @@ async function main(opts: CliOptions): Promise<void> {
     console.log('Add these to your .env file:');
     console.log('');
     console.log(`COOP_PDS_URL=${opts.pdsUrl}`);
-    console.log(`COOP_PDS_ADMIN_PASSWORD=${opts.adminPassword}`);
     console.log(`COOP_DID=${result.did}`);
-    console.log(`COOP_ROTATION_KEY_HEX=${result.rotationPrivateKeyHex}`);
     console.log(`PDS_URL=${opts.pdsUrl}`);
     console.log(`PDS_ADMIN_PASSWORD=${opts.adminPassword}`);
     console.log('');

@@ -16,9 +16,7 @@ import type {
 } from '../types.js';
 import { AtpAgent } from '@atproto/api';
 import { decodeFirehoseMessage } from './firehose-decoder.js';
-import type { ServiceAuthClient } from './service-auth-client.js';
-import type { SigningKeyResolver } from '../http/signing-key-resolver.js';
-import { resolvePdsServiceDid } from './pds-did-resolver.js';
+import type { AuthCredentialResolver } from '../http/auth-credential-resolver.js';
 
 /**
  * Stage 2: Wraps @atproto/api to talk to a real ATProto PDS via XRPC.
@@ -26,48 +24,60 @@ import { resolvePdsServiceDid } from './pds-did-resolver.js';
  * Each entity (person/cooperative) has its own account on the PDS. Writes
  * go through `authFor(did, lxm)`, which picks an auth header in this order:
  *
- * 1. **Service-auth JWT (V9.1 — the target path)**: if a `SigningKeyResolver`
- *    and `ServiceAuthClient` are wired and the target DID has an
- *    `atproto-signing` key in `entity_key` (written by the provisioning or
- *    migration scripts once CSN controls the cooperative's PLC
- *    `verificationMethods.atproto` key), mint a short-lived ES256 JWT bound
- *    to the XRPC method and attach it as `Authorization: Bearer <jwt>`. A
- *    fresh JWT is minted per operation; no caching.
+ * 1. **App-password session (V9.1 — the target path for cooperatives).**
+ *    If an `AuthCredentialResolver` is wired and the target DID has a
+ *    stored app password in `auth_credential` (written by
+ *    `provisionCooperative`), log in as the DID using the decrypted app
+ *    password and cache the resulting session-bearing `AtpAgent` per DID.
+ *    Subsequent calls reuse the cached agent; `@atproto/api` handles
+ *    access-token refresh automatically via the stored `refreshJwt`.
  *
- * 2. **Post-createDid session cache (V6 legacy, narrow scope)**: if a write
- *    happens immediately after `createDid()` in the same process, use the
- *    account-session-bearing `AtpAgent` we cached at that point. This is
- *    what the V6 implementation always relied on for freshly-provisioned
- *    cooperatives — it's the only pre-V9.1 path that actually worked for
- *    `com.atproto.repo.*` methods.
+ * 2. **Post-createDid session cache (V6 legacy, narrow scope).** If a
+ *    write happens immediately after `createDid()` in the same process,
+ *    use the account-session-bearing `AtpAgent` we cached at that point.
+ *    This is what the V6 implementation always relied on for
+ *    freshly-provisioned cooperatives.
  *
- * 3. **Admin Basic fallback (broken for repo writes, kept for back-compat)**:
- *    attach `Authorization: Basic admin:<password>`. This is what the V6
- *    code advertised as the universal fallback, but empirically a real
- *    `@atproto/pds` rejects admin Basic for `com.atproto.repo.*` methods
- *    ("Unexpected authorization type"). This branch is kept for
- *    non-repo methods (admin endpoints, identity updates) and for DIDs
- *    that don't exist in either the cache or `entity_key` — the call
- *    will fail if it's a repo write, and the failure is the right
- *    operator signal to run the migration script.
+ * 3. **Admin Basic fallback (broken for repo writes, kept for back-compat).**
+ *    Attach `Authorization: Basic admin:<password>`. This is what V6
+ *    advertised as the universal fallback, but empirically `@atproto/pds`
+ *    rejects admin Basic for `com.atproto.repo.*` methods ("Unexpected
+ *    authorization type"). This branch is kept for non-repo methods
+ *    (admin endpoints, identity updates) and for DIDs that don't exist
+ *    in any other path — the call will fail on repo writes and the
+ *    failure is the right operator signal.
  *
- * V9.1's operational goal is to make path 1 the dominant one for every
- * cooperative write. Path 2 stays as a narrow in-process optimization for
- * test ergonomics. Path 3 is legacy and will fail loudly on real repo
- * writes — which is the correct signal.
+ * Historical note: V9.1 originally targeted service-auth JWTs for repo
+ * writes (signed by the cooperative's PLC-registered key). Verification
+ * against `@atproto/pds` main (0.4.218) showed this doesn't work: the
+ * `authVerifier.authorization()` function used by
+ * `com.atproto.repo.createRecord/putRecord/deleteRecord` routes Bearer
+ * tokens to the legacy `access()` verifier (session-only) and DPoP
+ * tokens to OAuth; it has no service-auth branch. App-password sessions
+ * are the ecosystem-native pattern for server-to-server write auth.
+ * `ServiceAuthClient` is retained but only used by
+ * `provisionCooperative` for the `createAccount` DID-import flow.
  */
 export class AtprotoPdsService implements IPdsService {
   private adminAgent: AtpAgent;
   private plcUrl: string;
   private adminAuthHeader: string;
-  private signingKeyResolver?: SigningKeyResolver;
-  private serviceAuthClient?: ServiceAuthClient;
+  private authCredentialResolver?: AuthCredentialResolver;
+
+  /**
+   * Per-DID cache of session-bearing `AtpAgent` instances from successful
+   * `agent.login({identifier: did, password: appPassword})` calls (Path A
+   * in `authFor`). Cooperative writes flow through here. On auth error
+   * from a cached agent (expired refresh, revoked app password), the
+   * entry is dropped and re-login is attempted once.
+   */
+  private appPasswordSessionCache = new Map<string, AtpAgent>();
 
   /**
    * Cache of session-bearing `AtpAgent` instances from `createDid()`.
    * Narrow-scope: only populated by `createDid` for freshly-provisioned
-   * DIDs in the current process. Not a general-purpose auth cache; not a
-   * JWT cache; JWTs are always minted fresh in `authFor()`.
+   * DIDs in the current process. Retained as a V6-era optimization for
+   * the immediate-post-provisioning write window.
    */
   private sessionCache = new Map<string, AtpAgent>();
 
@@ -75,15 +85,13 @@ export class AtprotoPdsService implements IPdsService {
     private pdsUrl: string,
     private adminPassword: string,
     plcUrl?: string,
-    signingKeyResolver?: SigningKeyResolver,
-    serviceAuthClient?: ServiceAuthClient,
+    authCredentialResolver?: AuthCredentialResolver,
   ) {
     this.adminAgent = new AtpAgent({ service: pdsUrl });
     this.plcUrl = plcUrl ?? 'https://plc.directory';
     // PDS admin API uses HTTP Basic auth: admin:<password>
     this.adminAuthHeader = 'Basic ' + Buffer.from(`admin:${adminPassword}`).toString('base64');
-    this.signingKeyResolver = signingKeyResolver;
-    this.serviceAuthClient = serviceAuthClient;
+    this.authCredentialResolver = authCredentialResolver;
   }
 
   // ─── DID Operations ──────────────────────────────────────────────────────
@@ -187,46 +195,61 @@ export class AtprotoPdsService implements IPdsService {
   // ─── Record Operations ───────────────────────────────────────────────────
 
   async createRecord(params: CreateRecordParams): Promise<RecordRef> {
-    const agent = await this.authFor(params.did, 'com.atproto.repo.createRecord');
-    const result = await agent.api.com.atproto.repo.createRecord({
-      repo: params.did,
-      collection: params.collection,
-      rkey: params.rkey,
-      record: {
-        $type: params.collection,
-        ...params.record,
+    return this.withAuthForCoop(
+      params.did,
+      'com.atproto.repo.createRecord',
+      async (agent) => {
+        const result = await agent.api.com.atproto.repo.createRecord({
+          repo: params.did,
+          collection: params.collection,
+          rkey: params.rkey,
+          record: {
+            $type: params.collection,
+            ...params.record,
+          },
+        });
+        return {
+          uri: result.data.uri as AtUri,
+          cid: result.data.cid as CID,
+        };
       },
-    });
-    return {
-      uri: result.data.uri as AtUri,
-      cid: result.data.cid as CID,
-    };
+    );
   }
 
   async putRecord(params: PutRecordParams): Promise<RecordRef> {
-    const agent = await this.authFor(params.did, 'com.atproto.repo.putRecord');
-    const result = await agent.api.com.atproto.repo.putRecord({
-      repo: params.did,
-      collection: params.collection,
-      rkey: params.rkey,
-      record: {
-        $type: params.collection,
-        ...params.record,
+    return this.withAuthForCoop(
+      params.did,
+      'com.atproto.repo.putRecord',
+      async (agent) => {
+        const result = await agent.api.com.atproto.repo.putRecord({
+          repo: params.did,
+          collection: params.collection,
+          rkey: params.rkey,
+          record: {
+            $type: params.collection,
+            ...params.record,
+          },
+        });
+        return {
+          uri: result.data.uri as AtUri,
+          cid: result.data.cid as CID,
+        };
       },
-    });
-    return {
-      uri: result.data.uri as AtUri,
-      cid: result.data.cid as CID,
-    };
+    );
   }
 
   async deleteRecord(params: DeleteRecordParams): Promise<void> {
-    const agent = await this.authFor(params.did, 'com.atproto.repo.deleteRecord');
-    await agent.api.com.atproto.repo.deleteRecord({
-      repo: params.did,
-      collection: params.collection,
-      rkey: params.rkey,
-    });
+    await this.withAuthForCoop(
+      params.did,
+      'com.atproto.repo.deleteRecord',
+      async (agent) => {
+        await agent.api.com.atproto.repo.deleteRecord({
+          repo: params.did,
+          collection: params.collection,
+          rkey: params.rkey,
+        });
+      },
+    );
   }
 
   async getRecord(uri: string): Promise<PdsRecord> {
@@ -296,25 +319,20 @@ export class AtprotoPdsService implements IPdsService {
 
   /**
    * Return an `AtpAgent` configured to authenticate to the PDS for the
-   * given `did` + XRPC method. Decision order:
+   * given `did`. `lxm` is accepted for future use (logging, telemetry,
+   * possible future scope-aware auth) but is not used by the current
+   * decision logic — all repo methods share the same session.
    *
-   *  1. Service-auth JWT (V9.1 target) — if `SigningKeyResolver` and
-   *     `ServiceAuthClient` are wired AND `resolveRawBytes(did,
-   *     'atproto-signing')` returns a key, mint a fresh JWT and return
-   *     a **new** `AtpAgent` with `Authorization: Bearer <jwt>`. Never
-   *     cached.
-   *  2. Post-createDid session cache — if the DID was provisioned in
-   *     this process, return the cached session-bearing agent.
-   *  3. Admin Basic fallback — a new agent with `Authorization: Basic
-   *     admin:<password>`. Works for admin-only endpoints; empirically
-   *     rejected by the PDS for `com.atproto.repo.*` methods. The
-   *     rejection is the right operator signal to migrate the
-   *     cooperative's signing key (see scripts/migrate-coop-signing-key.ts).
+   * Decision order (also documented on the class):
+   *  1. App-password session (Path A, the V9.1 cooperative write path)
+   *  2. Post-`createDid` in-process session cache (V6 legacy)
+   *  3. Admin Basic fallback (terminal — works for admin endpoints, fails
+   *     loudly on repo writes)
    */
-  private async authFor(did: DID, lxm: string): Promise<AtpAgent> {
-    // Path 1: service-auth JWT.
-    const jwtAgent = await this.tryMintJwtAgent(did, lxm);
-    if (jwtAgent) return jwtAgent;
+  private async authFor(did: DID, _lxm: string): Promise<AtpAgent> {
+    // Path 1: app-password session.
+    const sessionAgent = await this.tryAppPasswordSession(did);
+    if (sessionAgent) return sessionAgent;
 
     // Path 2: cached session from createDid in this process.
     const cached = this.sessionCache.get(did);
@@ -325,45 +343,94 @@ export class AtprotoPdsService implements IPdsService {
   }
 
   /**
-   * Attempt to mint a service-auth JWT for the (`did`, `lxm`) pair and
-   * return a fresh agent bearing it. Returns `undefined` if the JWT path
-   * is unavailable (missing deps, or `resolveRawBytes` throws because no
-   * `atproto-signing` key exists for this DID). Isolated as its own method
-   * so the tryable/catchable shape is explicit at the call site.
+   * Look up the DID's stored app password and either return a cached
+   * session-bearing agent or open a new one via `agent.login`. Returns
+   * `undefined` if no credential resolver is wired, if the resolver
+   * throws (no `auth_credential` row), or if login fails — callers fall
+   * through to path 2 (the post-`createDid` session cache) and
+   * eventually path 3 (admin Basic).
+   *
+   * The cached agent holds the decrypted app password only inside its
+   * session manager (via `@atproto/api`'s internal `CredentialSession`)
+   * — the plaintext is not stored anywhere else in the service. Per the
+   * design decision: re-decrypt on each re-login rather than holding a
+   * long-lived plaintext.
    */
-  private async tryMintJwtAgent(
+  private async tryAppPasswordSession(
     did: DID,
-    lxm: string,
   ): Promise<AtpAgent | undefined> {
-    if (!this.signingKeyResolver || !this.serviceAuthClient) return undefined;
+    if (!this.authCredentialResolver) return undefined;
 
-    let signingKey: Uint8Array;
+    const cached = this.appPasswordSessionCache.get(did);
+    if (cached) return cached;
+
+    let appPassword: string;
     try {
-      signingKey = await this.signingKeyResolver.resolveRawBytes(
-        did,
-        'atproto-signing',
-      );
+      appPassword = await this.authCredentialResolver.resolveAppPassword(did);
     } catch {
-      // No atproto-signing key — member DIDs, unmigrated cooperatives,
-      // the standalone instance DID, etc. Fall through to cache/admin.
       return undefined;
     }
 
-    const audienceDid = await resolvePdsServiceDid(this.pdsUrl);
-    const jwt = await this.serviceAuthClient.createServiceAuth({
-      issuerDid: did,
-      audienceDid,
-      lxm,
-      signingKey,
-    });
-    return this.newAgentWithAuth(`Bearer ${jwt}`);
+    const agent = new AtpAgent({ service: this.pdsUrl });
+    try {
+      await agent.login({ identifier: did, password: appPassword });
+    } catch {
+      // Login failed (wrong password, account suspended, etc.) — don't
+      // cache; fall through so the caller can try path 2 or 3. The
+      // caller gets a clearer error from the subsequent path's failure.
+      return undefined;
+    }
+    this.appPasswordSessionCache.set(did, agent);
+    return agent;
+  }
+
+  /**
+   * Drop the cached app-password session for a DID so the next
+   * `authFor(did, ...)` call will re-login via the stored credential.
+   * Called from `withAuthForCoop` on retry-once after an auth error.
+   */
+  private invalidateAppPasswordSession(did: DID): void {
+    this.appPasswordSessionCache.delete(did);
+  }
+
+  /**
+   * Wrap a repo method call with "retry once on auth failure." If the
+   * first attempt throws an auth-class error AND the call was using a
+   * cached app-password session, drop the session, re-resolve the
+   * credential, and retry once before propagating. Handles the rare case
+   * where the cached agent's refresh token has been revoked or expired
+   * out-of-band.
+   *
+   * For calls that take paths 2 or 3 (no app-password session), auth
+   * errors propagate immediately — there's nothing to invalidate and
+   * retry against.
+   */
+  private async withAuthForCoop<T>(
+    did: DID,
+    lxm: string,
+    fn: (agent: AtpAgent) => Promise<T>,
+  ): Promise<T> {
+    const agent = await this.authFor(did, lxm);
+    try {
+      return await fn(agent);
+    } catch (err) {
+      if (
+        isAuthErrorClass(err) &&
+        this.appPasswordSessionCache.get(did) === agent
+      ) {
+        this.invalidateAppPasswordSession(did);
+        const freshAgent = await this.authFor(did, lxm);
+        return await fn(freshAgent);
+      }
+      throw err;
+    }
   }
 
   /**
    * Construct a fresh `AtpAgent` whose outbound fetch attaches the given
-   * `Authorization` header on every request. The agent is disposable —
-   * every call to `authFor` returns one — so header identity is entirely
-   * determined by the caller.
+   * `Authorization` header on every request. Used for paths 3 (admin
+   * Basic) — the agent is disposable, header identity is entirely
+   * caller-determined.
    */
   private newAgentWithAuth(authHeader: string): AtpAgent {
     return new AtpAgent({
@@ -375,6 +442,30 @@ export class AtprotoPdsService implements IPdsService {
       },
     });
   }
+}
+
+/**
+ * Heuristic for "this thrown error indicates auth failure that may be
+ * fixed by re-logging-in." We match against the error codes
+ * `@atproto/xrpc` uses for session-expired / auth-required responses.
+ * Any other error shape propagates untouched.
+ */
+function isAuthErrorClass(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as { error?: unknown; status?: unknown };
+  if (typeof e.error === 'string') {
+    if (
+      e.error === 'ExpiredToken' ||
+      e.error === 'InvalidToken' ||
+      e.error === 'AuthRequiredError' ||
+      e.error === 'AuthMissing' ||
+      e.error === 'AuthenticationRequired'
+    ) {
+      return true;
+    }
+  }
+  if (e.status === 401) return true;
+  return false;
 }
 
 // ─── Utilities ───────────────────────────────────────────────────────────────

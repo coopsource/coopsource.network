@@ -1,89 +1,95 @@
 import { AtpAgent } from '@atproto/api';
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
-import {
-  encryptKey,
-  generateKeyPair,
-  publicJwkToMultibase,
-} from './did-manager.js';
-import { generateRotationKeypair, signPlcOperationK256 } from './plc-signing.js';
-import type { UnsignedPlcOperation } from './plc-signing.js';
-import { PlcClient } from './plc-client.js';
+import { encryptKey } from './did-manager.js';
+import { ATPROTO_APP_PASSWORD_CREDENTIAL_TYPE } from '../http/auth-credential-resolver.js';
 
 /**
- * Options for provisioning a cooperative with a CSN-owned ATProto signing
- * key, pre-signed PLC genesis op, and `#coopsource` service entry.
+ * Options for provisioning a cooperative account on a PDS and storing a
+ * scoped app-password credential for ongoing CSN writes.
  *
- * The flow is a single atomic operation:
- *   1. Generate a fresh P-256 signing keypair + secp256k1 rotation keypair.
- *   2. Build and sign a PLC genesis op carrying both keys and the service
- *      entries (`atproto_pds` pointing at the PDS, `coopsource` pointing at
- *      `instanceUrl`).
- *   3. Compute the did:plc from the signed op.
- *   4. Call `com.atproto.server.createAccount({..., did, plcOp})` so the PDS
- *      submits the op to PLC and opens the account in one step.
- *   5. Write an `entity` row and an encrypted `entity_key` row with
- *      `key_purpose='atproto-signing'` for `AtprotoPdsService.authFor()` to
- *      read when minting service-auth JWTs.
+ * The V9.1 flow is intentionally simple:
+ *   1. Ask the PDS to create the account the normal way — let the PDS
+ *      generate its own `verificationMethods.atproto` signing key and
+ *      register the DID in PLC using its own rotation key. This is the
+ *      ecosystem-native "I want an account on this PDS" path, and
+ *      produces an activated account in one round-trip.
+ *   2. Using the session tokens returned by `createAccount`, immediately
+ *      call `com.atproto.server.createAppPassword({name:'coopsource-api',
+ *      privileged:true})` to mint a scoped, revocable credential.
+ *   3. Encrypt the app password at rest in `auth_credential` with
+ *      `credential_type='atproto-app-password'`. This is the credential
+ *      `AtprotoPdsService.authFor` uses for ongoing repo writes.
+ *   4. Write the matching `entity` row so the `auth_credential` FK holds.
  *
- * This replaces the V6-era "let the PDS generate the key, then retrofit via
- * a three-method PLC migration dance" flow. CSN has never been deployed, so
- * there are no existing cooperatives to migrate — fresh provisioning is the
- * only path V9.1 needs to support.
+ * Explicitly deferred (not V9.1 scope): CSN-owned PLC signing keys,
+ * client-signed PLC genesis operations, a `#coopsource` service entry in
+ * the cooperative's DID document. Each would require pre-registering the
+ * DID in PLC and importing it into the PDS — a path PDS 0.4 currently
+ * gates behind `getRecommendedDidCredentials` (which requires a session),
+ * a pre-provisioned rotation-key handshake we'd need to bootstrap via a
+ * throwaway account, or the `createAccount(plcOp)` param that 0.4
+ * rejects. See ARCHITECTURE-V9.md §2 for the full rationale.
+ *
+ * The V9.1 ship contract:
+ *   - Per-cooperative auth via app-password sessions ✅
+ *   - No shared `PDS_ADMIN_PASSWORD` on the cooperative write path ✅
+ *   - Revocable, scoped credentials ✅
+ *   - Ecosystem-aligned (app passwords are the atproto-native primitive) ✅
+ *   - CSN-owned PLC signing keys ⏭️ (deferred)
+ *   - `#coopsource` service entry in PLC doc ⏭️ (deferred to V9.2)
  */
 export interface ProvisionCooperativeOptions {
-  /** Kysely handle against the main CSN database (must include `entity` and `entity_key`). */
+  /** Kysely handle against the main CSN database (must include `entity` and `auth_credential`). */
   db: Kysely<Database>;
   /** PDS base URL, e.g. `http://localhost:2583`. */
   pdsUrl: string;
   /** Admin password for the PDS (used to create the invite code). */
   adminPassword: string;
-  /** CSN instance URL for the `#coopsource` service entry on the cooperative's DID document. */
-  instanceUrl: string;
-  /** Encryption key (base64) for encrypting the private JWK at rest in `entity_key`. */
+  /** Encryption key (base64) for encrypting the app password at rest in `auth_credential`. */
   keyEncKey: string;
   /** Initial handle (e.g. `mycoop.test`). */
   handle: string;
   /** Email address for the account (optional, defaults to `<handle>@coopsource.local`). */
   email?: string;
-  /** Display name for the `entity` row and the optional profile record. */
+  /** Display name for the `entity` row. */
   displayName?: string;
   /** Short description for the `entity` row. */
   description?: string;
 }
 
 /**
- * Summary of the provisioning outcome. Contains everything an operator needs
- * to wire the new cooperative into the API: the DID, the account password
- * (for any fallback `agent.login` paths), and the rotation key for future
- * PLC update operations.
+ * Summary of the provisioning outcome. Contains the DID, the handle, and
+ * both the random account password and the app password that were just
+ * created. The app password is the credential CSN retains ongoing via
+ * `auth_credential`; the account password is returned for operator
+ * reference but is not stored.
  */
 export interface ProvisionCooperativeResult {
   did: string;
   handle: string;
   email: string;
-  /** Randomly-generated account password. Store securely; lost = account lost. */
+  /** Randomly-generated account password. Operator-facing; not stored in CSN. */
   password: string;
-  /** `did:key:<multibase>` form of the signing public key, as it appears in PLC `verificationMethods.atproto`. */
-  signingKeyDidKey: string;
-  /** Raw hex-encoded secp256k1 rotation private key. Store in `COOP_ROTATION_KEY_HEX`. */
-  rotationPrivateKeyHex: string;
-  /** `did:key:<multibase>` form of the rotation public key (what's in PLC `rotationKeys[0]`). */
-  rotationDidKey: string;
+  /**
+   * The app password created via `com.atproto.server.createAppPassword`
+   * and stored (encrypted) in `auth_credential`. Returned by the library
+   * so the CLI wrapper can print it for the operator; the API reads it
+   * back from `auth_credential` via `AuthCredentialResolver`.
+   */
+  appPassword: string;
 }
 
 /**
- * Provision a cooperative identity and write the CSN-owned signing key to
- * `entity_key` so the API's `AtprotoPdsService` can mint service-auth JWTs
- * for all subsequent writes. See `ProvisionCooperativeOptions` for the full
- * flow description.
+ * Provision a cooperative account on a PDS via the normal `createAccount`
+ * flow, create a privileged app password, and persist it to
+ * `auth_credential` for `AtprotoPdsService.authFor` to pick up.
  *
- * This function is intentionally side-effectful — it performs multiple
- * network calls and database writes in sequence. If the PDS `createAccount`
- * step fails, no database writes have happened yet (safe retry). If the
- * database writes fail *after* the PDS account was created, the cooperative
- * exists in PLC + the PDS but has no `atproto-signing` key in CSN; the
- * operator must either delete the PDS account or manually insert the key
+ * Side effects: PDS `createAccount` XRPC call, PDS `createAppPassword`
+ * XRPC call, two database inserts (`entity` + `auth_credential`). On
+ * failure after `createAccount` succeeded but before the DB writes
+ * commit, the account exists in the PDS but is not known to CSN — the
+ * operator may want to delete it or manually write the `auth_credential`
  * row. This is an acceptable pre-deployment risk for a development-stage
  * project.
  */
@@ -94,7 +100,6 @@ export async function provisionCooperative(
     db,
     pdsUrl,
     adminPassword,
-    instanceUrl,
     keyEncKey,
     handle,
     displayName,
@@ -103,94 +108,73 @@ export async function provisionCooperative(
   const email =
     options.email ?? `${handle.replace(/\./g, '-')}@coopsource.local`;
 
-  // ─── Step 1: Generate keypairs ──────────────────────────────────────────
-  const { publicJwk, privateJwk } = await generateKeyPair();
-  const signingKeyMultibase = publicJwkToMultibase(publicJwk);
-  const signingKeyDidKey = `did:key:${signingKeyMultibase}`;
-
-  const { privateKeyHex: rotationPrivateKeyHex, publicKeyMultibase: rotationPublicMultibase } =
-    await generateRotationKeypair();
-  const rotationDidKey = `did:key:${rotationPublicMultibase}`;
-
-  // ─── Step 2: Build and sign the PLC genesis op ──────────────────────────
-  const unsignedOp: UnsignedPlcOperation = {
-    type: 'plc_operation',
-    rotationKeys: [rotationDidKey],
-    verificationMethods: {
-      atproto: signingKeyDidKey,
-    },
-    alsoKnownAs: [`at://${handle}`],
-    services: {
-      atproto_pds: {
-        type: 'AtprotoPersonalDataServer',
-        endpoint: pdsUrl,
+  // ─── Step 1: Create an invite code as PDS admin (HTTP Basic auth) ───────
+  const adminAuthHeader =
+    'Basic ' + Buffer.from(`admin:${adminPassword}`).toString('base64');
+  const inviteRes = await fetch(
+    `${pdsUrl}/xrpc/com.atproto.server.createInviteCode`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': adminAuthHeader,
       },
-      coopsource: {
-        type: 'CoopSourcePds',
-        endpoint: instanceUrl,
-      },
+      body: JSON.stringify({ useCount: 1 }),
     },
-    prev: null,
-  };
-  const signedOp = await signPlcOperationK256(unsignedOp, rotationPrivateKeyHex);
-  const did = PlcClient.computeDid(signedOp);
+  );
+  if (!inviteRes.ok) {
+    const text = await inviteRes.text().catch(() => 'unknown');
+    throw new Error(
+      `Failed to create invite code (${inviteRes.status}): ${text}`,
+    );
+  }
+  const invite = (await inviteRes.json()) as { code: string };
 
-  // ─── Step 3: Create the PDS account via createAccount(plcOp) ────────────
-  const adminAgent = new AtpAgent({ service: pdsUrl });
-  await adminAgent.login({ identifier: 'admin', password: adminPassword });
-  const invite = await adminAgent.api.com.atproto.server.createInviteCode({
-    useCount: 1,
-  });
-
+  // ─── Step 2: Create the account via the normal createAccount flow ───────
+  // Let the PDS generate everything: rotation key, signing key, PLC
+  // registration, local account. Returns an activated session.
   const password = `coop-${crypto.randomUUID()}`;
-
-  // Pin outbound requests to the configured pdsUrl (in case the PDS DID doc
-  // advertises an internal hostname that isn't reachable from the host).
-  const agent = new AtpAgent({
-    service: pdsUrl,
-    fetch: async (input, init) => {
-      let url: string;
-      if (typeof input === 'string') {
-        url = input;
-      } else if (input instanceof URL) {
-        url = input.toString();
-      } else if (input instanceof Request) {
-        url = input.url;
-      } else {
-        url = String(input);
-      }
-      const xrpcIdx = url.indexOf('/xrpc/');
-      if (xrpcIdx !== -1) {
-        url = pdsUrl + url.slice(xrpcIdx);
-      }
-      if (input instanceof Request && !init) {
-        return globalThis.fetch(new Request(url, input));
-      }
-      return globalThis.fetch(url, init);
-    },
-  });
-
+  const agent = new AtpAgent({ service: pdsUrl });
   const createResult = await agent.com.atproto.server.createAccount({
     handle,
     email,
     password,
-    inviteCode: invite.data.code,
-    did,
-    plcOp: signedOp as unknown as Record<string, unknown>,
+    inviteCode: invite.code,
   });
   const accountDid = createResult.data.did;
-  if (accountDid !== did) {
+
+  // ─── Step 3: Create an app password via the returned session ────────────
+  // `createAppPassword` requires an authenticated session. AtpAgent does
+  // not automatically adopt the session returned by createAccount — call
+  // it directly with the `accessJwt` as the Authorization header.
+  const appPasswordCreateRes = await fetch(
+    `${pdsUrl}/xrpc/com.atproto.server.createAppPassword`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${createResult.data.accessJwt}`,
+      },
+      body: JSON.stringify({
+        name: 'coopsource-api',
+        privileged: true,
+      }),
+    },
+  );
+  if (!appPasswordCreateRes.ok) {
+    const text = await appPasswordCreateRes.text().catch(() => 'unknown');
     throw new Error(
-      `Derived DID ${did} does not match PDS-returned DID ${accountDid} — ` +
-        `PlcClient.computeDid is out of sync with the PDS, which should never happen.`,
+      `Failed to create app password for ${accountDid} (${appPasswordCreateRes.status}): ${text}`,
     );
   }
+  const appPasswordResult = (await appPasswordCreateRes.json()) as {
+    password: string;
+    name: string;
+  };
+  const appPassword = appPasswordResult.password;
 
-  // ─── Step 4: Persist entity + entity_key rows ───────────────────────────
-  const encryptedPrivateJwk = await encryptKey(
-    JSON.stringify(privateJwk),
-    keyEncKey,
-  );
+  // ─── Step 4: Persist entity + auth_credential rows ──────────────────────
+  const encryptedAppPassword = await encryptKey(appPassword, keyEncKey);
 
   await db
     .insertInto('entity')
@@ -206,13 +190,14 @@ export async function provisionCooperative(
     .execute();
 
   await db
-    .insertInto('entity_key')
+    .insertInto('auth_credential')
     .values({
       entity_did: accountDid,
-      key_type: 'ES256',
-      public_key_jwk: JSON.stringify(publicJwk),
-      private_key_enc: encryptedPrivateJwk,
-      key_purpose: 'atproto-signing',
+      credential_type: ATPROTO_APP_PASSWORD_CREDENTIAL_TYPE,
+      // (credential_type, identifier) is uniquely indexed — use the DID
+      // as the identifier so there's at most one row per (type, DID).
+      identifier: accountDid,
+      secret_hash: encryptedAppPassword,
     })
     .execute();
 
@@ -221,8 +206,6 @@ export async function provisionCooperative(
     handle,
     email,
     password,
-    signingKeyDidKey,
-    rotationPrivateKeyHex,
-    rotationDidKey,
+    appPassword,
   };
 }
