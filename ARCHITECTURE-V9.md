@@ -111,9 +111,11 @@ The JWT payload uses `iss` (issuer DID), `aud` (target service DID), `exp`, `iat
 
 Two inaccuracies in earlier sketches of this phase:
 
-1. **CSN does not hold the cooperative's signing key today.** `AtprotoPdsService.createDid()` calls `com.atproto.server.createAccount` and the PDS internally generates the P-256 `verificationMethods.atproto` key. CSN never sees it; nothing is written to `entity_key` by this path. Signing a JWT with whatever CSN has in `entity_key` will not verify against the PDS-held key. V9.1 must put CSN in control of the cooperative's ATProto signing key via a PLC operation before service-auth JWTs can work in production.
+1. **CSN does not hold the cooperative's signing key in the default `createAccount` path.** When the PDS runs `com.atproto.server.createAccount` without a pre-signed PLC op, it generates the P-256 `verificationMethods.atproto` key internally and registers the DID with PLC using that key. CSN never sees the private key, so it cannot sign JWTs whose `iss` matches what's in the PLC doc.
 
-2. **The mode switch belongs inside `AtprotoPdsService`, not `OperatorWriteProxy`.** Many direct `pdsService.createRecord` / `putRecord` / `deleteRecord` calls target cooperative DIDs bypassing `OperatorWriteProxy` entirely (starter-pack-service, network-service, intercoop-agreement, membership, setup routes, federation routes, org/memberships routes). A switch inside `OperatorWriteProxy` would miss all of them. The ACL + audit layer in `OperatorWriteProxy` is orthogonal and unchanged.
+2. **`createAccount` accepts a client-side pre-signed PLC genesis op.** The `@atproto/api` type for `createAccount` declares `plcOp?: object` — "A signed DID PLC operation to be submitted as part of importing an existing account to this instance." This lets CSN generate the rotation and signing keys locally, build a signed PLC genesis op via the existing `packages/federation/src/local/plc-signing.ts` utility, and hand it to `createAccount` in one atomic call. Every cooperative is then provisioned with a CSN-controlled `verificationMethods.atproto` from the first commit of its PLC history — no retrofit migration, no email-token dance, no `signPlcOperation` + `submitPlcOperation` roundtrips.
+
+3. **The mode switch belongs inside `AtprotoPdsService`, not `OperatorWriteProxy`.** Many direct `pdsService.createRecord` / `putRecord` / `deleteRecord` calls target cooperative DIDs bypassing `OperatorWriteProxy` entirely (starter-pack-service, network-service, intercoop-agreement, membership, setup routes, federation routes, org/memberships routes). A switch inside `OperatorWriteProxy` would miss all of them. The ACL + audit layer in `OperatorWriteProxy` is orthogonal and unchanged.
 
 ### Implementation
 
@@ -124,13 +126,16 @@ Two inaccuracies in earlier sketches of this phase:
 
 2. **Modify `AtprotoPdsService`** to mint JWTs on the write path:
    - Add optional `signingKeyResolver` and `serviceAuthClient` constructor params.
-   - Replace `getAgentForDid(did)` with `authFor(did, lxm)`: try `SigningKeyResolver.resolveRawBytes(did, 'atproto-signing')`; on success, mint a JWT and return an `AtpAgent` with `Authorization: Bearer <jwt>`; on throw/missing, fall back to admin Basic (today's behavior).
-   - The resolver-lookup is the natural branch — cooperatives with a migrated key get JWTs; member DIDs, standalone-mode instance DIDs, and unmigrated cooperatives get admin Basic. **No `COOP_AUTH_MODE` env var** — the resolver miss-or-hit IS the switch.
-   - Remove the existing `sessionCache` — service-auth JWTs must not be reused across operations.
+   - Add `authFor(did, lxm)` decision path: (a) if the resolver has an `atproto-signing` key for the DID, mint a JWT and return `Bearer <jwt>`; (b) else if the DID was provisioned via `createDid()` in this process, return the cached session-bearing agent (narrow post-`createDid` optimization); (c) else fall back to admin Basic.
+   - Admin Basic is empirically rejected by `@atproto/pds` for `com.atproto.repo.*` methods ("Unexpected authorization type"), so in production every cooperative write goes through path (a) — the JWT path is the only reliable route. The cache in path (b) exists to keep in-process test ergonomics unchanged.
 
-3. **Update cooperative provisioning** to install a CSN-owned ATProto signing key and add CSN as a `#coopsource` service entry in the cooperative's DID document. This is a three-method PLC operation (`requestPlcOperationSignature` triggers an email with a confirmation token; `signPlcOperation` takes `{token, verificationMethods, services, rotationKeys, alsoKnownAs}` and returns a signed op; `submitPlcOperation` pushes it to PLC). Read-merge-write of current PLC state is required — dropping existing rotation keys bricks the cooperative's identity.
-
-4. **Provide a retrofit migration script** (`scripts/migrate-coop-signing-key.ts`) for cooperatives provisioned before V9.1, driven by a two-script flow: one to trigger the email, one to consume the token and run `signPlcOperation` + `submitPlcOperation`.
+3. **Rewrite `scripts/provision-cooperative.ts`** into a single atomic provisioning flow:
+   - Generate a P-256 signing keypair and a secp256k1 rotation keypair locally.
+   - Build a signed PLC genesis op via `signPlcOperationK256` (already exists in `packages/federation/src/local/plc-signing.ts`), carrying CSN's `verificationMethods.atproto`, rotation keys, and the `#coopsource` service entry.
+   - Derive the expected `did:plc:*` from the signed op.
+   - Call `agent.com.atproto.server.createAccount({handle, email, password, inviteCode, did, plcOp})`.
+   - Encrypt the signing private scalar and write it to `entity_key` with `key_purpose='atproto-signing'`.
+   - One command, no email, no migration. Because CSN has never been deployed, there are no existing cooperatives that need retrofitting.
 
 ### Deferred to V9.2 — OAuth scope rewrite
 

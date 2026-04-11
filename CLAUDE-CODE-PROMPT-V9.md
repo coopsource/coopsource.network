@@ -63,8 +63,10 @@ Today, every write to a cooperative's PDS repo in production (`PDS_URL` set) goe
 
 **Two scope realities** — neither reflected in the original sketch of this phase:
 
-1. **CSN does not hold the cooperative's signing key today.** `AtprotoPdsService.createDid()` calls `com.atproto.server.createAccount` and the PDS generates the `verificationMethods.atproto` key internally; CSN never sees it. V9.1 must put CSN in control of that key via a PLC operation before JWTs can verify in production.
+1. **CSN did not hold the cooperative's signing key under the default `createAccount` flow**, which lets the PDS generate `verificationMethods.atproto` internally. But `@atproto/api` `createAccount` accepts an optional `plcOp?: object` parameter — a client-side pre-signed PLC genesis operation. CSN can build that op locally using the existing `signPlcOperationK256` utility in `packages/federation/src/local/plc-signing.ts`, register a CSN-owned signing key in PLC from day one, and write the private scalar to `entity_key`. No email-token dance, no `signPlcOperation` / `submitPlcOperation` XRPC roundtrips, no retrofit migration. Because CSN has never been deployed, there are no existing cooperatives to migrate.
 2. **The mode switch belongs inside `AtprotoPdsService`, not `OperatorWriteProxy`.** Many direct `pdsService.createRecord` / `putRecord` / `deleteRecord` calls target cooperative DIDs and bypass `OperatorWriteProxy` entirely (starter-pack-service, network-service, intercoop-agreement, membership, setup routes, federation routes, org/memberships routes). The ACL + audit layer in `OperatorWriteProxy` is orthogonal — unchanged in V9.1.
+
+**Additional critical finding from step 5 implementation:** `@atproto/pds` rejects admin Basic for `com.atproto.repo.*` methods with `"Unexpected authorization type"`. V6 federation tests only passed because `createDid()` cached the post-`createAccount` session-bearing agent. This means the JWT path from task 1 below isn't a nice-to-have — it's the only reliable write path for cooperative repos in production. The `sessionCache` is retained as a narrow post-`createDid` optimization for in-process test ergonomics.
 
 The full implementation plan lives at `/Users/alan/.claude/plans/immutable-stirring-flamingo.md` (reference it for per-step detail and the validation gate).
 
@@ -102,10 +104,13 @@ export class ServiceAuthClient {
 
 5. **Wire DI** in `apps/api/src/container.ts` — instantiate `SigningKeyResolver` (with `KEY_ENC_KEY`) and `ServiceAuthClient`, pass to `AtprotoPdsService`. `OperatorWriteProxy` is unchanged. **No config changes** — no `COOP_AUTH_MODE`, no new env vars.
 
-6. **Provision cooperative signing key end-to-end.** Three scripts:
-   - `scripts/request-coop-plc-signature.ts` — logs in as the cooperative, calls `com.atproto.identity.requestPlcOperationSignature` (triggers an email with a confirmation token), prints "check email" and exits (~15 lines).
-   - `scripts/migrate-coop-signing-key.ts` — takes `--token <value>` (required), reads current PLC doc, merges in the new `verificationMethods.atproto` + `#coopsource` service entry, calls `signPlcOperation` + `submitPlcOperation`. Persists the new private key to `entity_key` with `key_purpose='atproto-signing'`.
-   - `scripts/provision-cooperative.ts` (modify) — after `agent.createAccount()`, generates a fresh P-256 keypair, writes it to `entity_key` BEFORE any PLC op, then drives the two-phase migration flow. In dev, developers copy the confirmation token from Mailpit at `http://localhost:8025`.
+6. **Rewrite `scripts/provision-cooperative.ts`** into a single atomic provisioning flow using `createAccount(plcOp)`:
+   - Generate a P-256 signing keypair and a secp256k1 rotation keypair locally.
+   - Build a signed PLC genesis operation via `signPlcOperationK256` (already in `packages/federation/src/local/plc-signing.ts`) carrying CSN's `verificationMethods.atproto`, rotation keys, and the `#coopsource` service entry.
+   - Derive the `did:plc:*` from the signed op.
+   - Authenticate as PDS admin, create an invite code, then call `agent.com.atproto.server.createAccount({handle, email, password, inviteCode, did, plcOp})`.
+   - Encrypt the signing private scalar and write it to `entity_key` with `key_purpose='atproto-signing'`.
+   - One atomic script, no email-token dance, no migration.
 
 7. **Do NOT rewrite OAuth scopes in V9.1.** The proposed narrow replacement (`rpc:network.coopsource.governance?aud=* rpc:network.coopsource.org?aud=*`) breaks 8+ feature areas (agreement, funding, alignment, commerce, ops, legal, connection, actor) that write records in namespaces outside the narrow set. Deferred to V9.2 where the full per-namespace scope audit happens alongside the governance AppView API. `apps/api/src/auth/oauth-client.ts:30` stays as `'atproto transition:generic'` for V9.1.
 
@@ -116,9 +121,7 @@ export class ServiceAuthClient {
 - `packages/federation/src/atproto/atproto-pds-service.ts` (modify — add `authFor`, remove `sessionCache`)
 - `packages/federation/src/index.ts` (export new pieces)
 - `apps/api/src/container.ts` (wire `SigningKeyResolver` + `ServiceAuthClient`)
-- `scripts/request-coop-plc-signature.ts` (new)
-- `scripts/migrate-coop-signing-key.ts` (new)
-- `scripts/provision-cooperative.ts` (modify — install CSN-owned atproto-signing key + PLC migration)
+- `scripts/provision-cooperative.ts` (rewrite — `createAccount(plcOp)` with CSN-owned signing key + `#coopsource` service entry, write private scalar to `entity_key`)
 
 ### Tests
 - Unit: `ServiceAuthClient` creates valid JWTs with correct claims, signature round-trips, `jti` unique across 100 calls.
