@@ -95,13 +95,15 @@ async function dropTestDb(): Promise<void> {
   const client = new pg.Client({ connectionString: PG_ADMIN_URL });
   await client.connect();
   try {
-    await client.query(
-      `SELECT pg_terminate_backend(pid)
-       FROM pg_stat_activity
-       WHERE datname = $1 AND pid <> pg_backend_pid()`,
-      [TEST_DB_NAME],
-    );
-    await client.query(`DROP DATABASE IF EXISTS ${TEST_DB_NAME}`);
+    // DROP DATABASE ... WITH (FORCE) (PG 13+) atomically terminates any
+    // remaining sessions and drops the database, which is cleaner than the
+    // older pg_terminate_backend + DROP pattern (that pattern races under
+    // load because pg_terminate_backend returns before sessions are gone).
+    // Even with FORCE, this query can still take ~10s when the shared
+    // Postgres instance is under contention from a prior test run (PLC
+    // activity, other test databases). The afterAll hookTimeout is set
+    // generously to absorb that variance.
+    await client.query(`DROP DATABASE IF EXISTS ${TEST_DB_NAME} WITH (FORCE)`);
   } finally {
     await client.end();
   }
@@ -184,7 +186,7 @@ describe('V9.1 validation gate — app-password session write path', () => {
       await db.destroy();
     }
     await dropTestDb();
-  });
+  }, 30_000);
 
   describe('provisioning outcome', () => {
     it('writes an entity row (type=cooperative, status=active)', async () => {
