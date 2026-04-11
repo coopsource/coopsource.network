@@ -16,29 +16,74 @@ import type {
 } from '../types.js';
 import { AtpAgent } from '@atproto/api';
 import { decodeFirehoseMessage } from './firehose-decoder.js';
+import type { ServiceAuthClient } from './service-auth-client.js';
+import type { SigningKeyResolver } from '../http/signing-key-resolver.js';
+import { resolvePdsServiceDid } from './pds-did-resolver.js';
 
 /**
  * Stage 2: Wraps @atproto/api to talk to a real ATProto PDS via XRPC.
  *
- * Each entity (person/cooperative) has its own account on the PDS.
- * The API server authenticates as the PDS admin to create accounts,
- * and uses per-entity session tokens for record operations.
+ * Each entity (person/cooperative) has its own account on the PDS. Writes
+ * go through `authFor(did, lxm)`, which picks an auth header in this order:
+ *
+ * 1. **Service-auth JWT (V9.1 — the target path)**: if a `SigningKeyResolver`
+ *    and `ServiceAuthClient` are wired and the target DID has an
+ *    `atproto-signing` key in `entity_key` (written by the provisioning or
+ *    migration scripts once CSN controls the cooperative's PLC
+ *    `verificationMethods.atproto` key), mint a short-lived ES256 JWT bound
+ *    to the XRPC method and attach it as `Authorization: Bearer <jwt>`. A
+ *    fresh JWT is minted per operation; no caching.
+ *
+ * 2. **Post-createDid session cache (V6 legacy, narrow scope)**: if a write
+ *    happens immediately after `createDid()` in the same process, use the
+ *    account-session-bearing `AtpAgent` we cached at that point. This is
+ *    what the V6 implementation always relied on for freshly-provisioned
+ *    cooperatives — it's the only pre-V9.1 path that actually worked for
+ *    `com.atproto.repo.*` methods.
+ *
+ * 3. **Admin Basic fallback (broken for repo writes, kept for back-compat)**:
+ *    attach `Authorization: Basic admin:<password>`. This is what the V6
+ *    code advertised as the universal fallback, but empirically a real
+ *    `@atproto/pds` rejects admin Basic for `com.atproto.repo.*` methods
+ *    ("Unexpected authorization type"). This branch is kept for
+ *    non-repo methods (admin endpoints, identity updates) and for DIDs
+ *    that don't exist in either the cache or `entity_key` — the call
+ *    will fail if it's a repo write, and the failure is the right
+ *    operator signal to run the migration script.
+ *
+ * V9.1's operational goal is to make path 1 the dominant one for every
+ * cooperative write. Path 2 stays as a narrow in-process optimization for
+ * test ergonomics. Path 3 is legacy and will fail loudly on real repo
+ * writes — which is the correct signal.
  */
 export class AtprotoPdsService implements IPdsService {
   private adminAgent: AtpAgent;
   private plcUrl: string;
-  private sessionCache = new Map<string, AtpAgent>();
   private adminAuthHeader: string;
+  private signingKeyResolver?: SigningKeyResolver;
+  private serviceAuthClient?: ServiceAuthClient;
+
+  /**
+   * Cache of session-bearing `AtpAgent` instances from `createDid()`.
+   * Narrow-scope: only populated by `createDid` for freshly-provisioned
+   * DIDs in the current process. Not a general-purpose auth cache; not a
+   * JWT cache; JWTs are always minted fresh in `authFor()`.
+   */
+  private sessionCache = new Map<string, AtpAgent>();
 
   constructor(
     private pdsUrl: string,
     private adminPassword: string,
     plcUrl?: string,
+    signingKeyResolver?: SigningKeyResolver,
+    serviceAuthClient?: ServiceAuthClient,
   ) {
     this.adminAgent = new AtpAgent({ service: pdsUrl });
     this.plcUrl = plcUrl ?? 'https://plc.directory';
     // PDS admin API uses HTTP Basic auth: admin:<password>
     this.adminAuthHeader = 'Basic ' + Buffer.from(`admin:${adminPassword}`).toString('base64');
+    this.signingKeyResolver = signingKeyResolver;
+    this.serviceAuthClient = serviceAuthClient;
   }
 
   // ─── DID Operations ──────────────────────────────────────────────────────
@@ -104,7 +149,12 @@ export class AtprotoPdsService implements IPdsService {
 
     const did = result.data.did as DID;
 
-    // Cache the session for future record operations
+    // Cache the session-bearing agent from createAccount. `authFor(did, lxm)`
+    // checks this cache AFTER trying the service-auth JWT path — so when a
+    // migrated cooperative has an atproto-signing key in `entity_key`, the
+    // JWT takes precedence. The cache is only useful for freshly-provisioned
+    // DIDs whose keys haven't been written yet, and for non-repo methods
+    // where admin Basic is still accepted.
     this.sessionCache.set(did, agent);
 
     return this.resolveDid(did);
@@ -126,7 +176,7 @@ export class AtprotoPdsService implements IPdsService {
     // DID document updates on a real PDS are done via the PDS admin or
     // the account holder's rotation key. For now, we only support handle updates.
     if (_updates.handle) {
-      const agent = await this.getAgentForDid(did);
+      const agent = await this.authFor(did, 'com.atproto.identity.updateHandle');
       await agent.api.com.atproto.identity.updateHandle({
         handle: _updates.handle,
       });
@@ -137,7 +187,7 @@ export class AtprotoPdsService implements IPdsService {
   // ─── Record Operations ───────────────────────────────────────────────────
 
   async createRecord(params: CreateRecordParams): Promise<RecordRef> {
-    const agent = await this.getAgentForDid(params.did);
+    const agent = await this.authFor(params.did, 'com.atproto.repo.createRecord');
     const result = await agent.api.com.atproto.repo.createRecord({
       repo: params.did,
       collection: params.collection,
@@ -154,7 +204,7 @@ export class AtprotoPdsService implements IPdsService {
   }
 
   async putRecord(params: PutRecordParams): Promise<RecordRef> {
-    const agent = await this.getAgentForDid(params.did);
+    const agent = await this.authFor(params.did, 'com.atproto.repo.putRecord');
     const result = await agent.api.com.atproto.repo.putRecord({
       repo: params.did,
       collection: params.collection,
@@ -171,7 +221,7 @@ export class AtprotoPdsService implements IPdsService {
   }
 
   async deleteRecord(params: DeleteRecordParams): Promise<void> {
-    const agent = await this.getAgentForDid(params.did);
+    const agent = await this.authFor(params.did, 'com.atproto.repo.deleteRecord');
     await agent.api.com.atproto.repo.deleteRecord({
       repo: params.did,
       collection: params.collection,
@@ -181,7 +231,7 @@ export class AtprotoPdsService implements IPdsService {
 
   async getRecord(uri: string): Promise<PdsRecord> {
     const { did, collection, rkey } = parseAtUri(uri);
-    const agent = await this.getAgentForDid(did as DID);
+    const agent = await this.authFor(did as DID, 'com.atproto.repo.getRecord');
     const result = await agent.api.com.atproto.repo.getRecord({
       repo: did,
       collection,
@@ -200,7 +250,7 @@ export class AtprotoPdsService implements IPdsService {
     collection: string,
     options?: ListRecordsOptions,
   ): Promise<PdsRecord[]> {
-    const agent = await this.getAgentForDid(did);
+    const agent = await this.authFor(did, 'com.atproto.repo.listRecords');
     const result = await agent.api.com.atproto.repo.listRecords({
       repo: did,
       collection,
@@ -244,24 +294,86 @@ export class AtprotoPdsService implements IPdsService {
 
   // ─── Private Helpers ─────────────────────────────────────────────────────
 
-  private async getAgentForDid(did: DID): Promise<AtpAgent> {
+  /**
+   * Return an `AtpAgent` configured to authenticate to the PDS for the
+   * given `did` + XRPC method. Decision order:
+   *
+   *  1. Service-auth JWT (V9.1 target) — if `SigningKeyResolver` and
+   *     `ServiceAuthClient` are wired AND `resolveRawBytes(did,
+   *     'atproto-signing')` returns a key, mint a fresh JWT and return
+   *     a **new** `AtpAgent` with `Authorization: Bearer <jwt>`. Never
+   *     cached.
+   *  2. Post-createDid session cache — if the DID was provisioned in
+   *     this process, return the cached session-bearing agent.
+   *  3. Admin Basic fallback — a new agent with `Authorization: Basic
+   *     admin:<password>`. Works for admin-only endpoints; empirically
+   *     rejected by the PDS for `com.atproto.repo.*` methods. The
+   *     rejection is the right operator signal to migrate the
+   *     cooperative's signing key (see scripts/migrate-coop-signing-key.ts).
+   */
+  private async authFor(did: DID, lxm: string): Promise<AtpAgent> {
+    // Path 1: service-auth JWT.
+    const jwtAgent = await this.tryMintJwtAgent(did, lxm);
+    if (jwtAgent) return jwtAgent;
+
+    // Path 2: cached session from createDid in this process.
     const cached = this.sessionCache.get(did);
     if (cached) return cached;
 
-    // No cached session — use admin auth to operate on the repo.
-    // PDS admin can perform repo operations on any account.
-    // Inject admin Basic auth via the AtpAgent's fetch handler.
-    const adminAuth = this.adminAuthHeader;
-    const agent = new AtpAgent({
+    // Path 3: admin Basic fallback (broken for repo writes — see class doc).
+    return this.newAgentWithAuth(this.adminAuthHeader);
+  }
+
+  /**
+   * Attempt to mint a service-auth JWT for the (`did`, `lxm`) pair and
+   * return a fresh agent bearing it. Returns `undefined` if the JWT path
+   * is unavailable (missing deps, or `resolveRawBytes` throws because no
+   * `atproto-signing` key exists for this DID). Isolated as its own method
+   * so the tryable/catchable shape is explicit at the call site.
+   */
+  private async tryMintJwtAgent(
+    did: DID,
+    lxm: string,
+  ): Promise<AtpAgent | undefined> {
+    if (!this.signingKeyResolver || !this.serviceAuthClient) return undefined;
+
+    let signingKey: Uint8Array;
+    try {
+      signingKey = await this.signingKeyResolver.resolveRawBytes(
+        did,
+        'atproto-signing',
+      );
+    } catch {
+      // No atproto-signing key — member DIDs, unmigrated cooperatives,
+      // the standalone instance DID, etc. Fall through to cache/admin.
+      return undefined;
+    }
+
+    const audienceDid = await resolvePdsServiceDid(this.pdsUrl);
+    const jwt = await this.serviceAuthClient.createServiceAuth({
+      issuerDid: did,
+      audienceDid,
+      lxm,
+      signingKey,
+    });
+    return this.newAgentWithAuth(`Bearer ${jwt}`);
+  }
+
+  /**
+   * Construct a fresh `AtpAgent` whose outbound fetch attaches the given
+   * `Authorization` header on every request. The agent is disposable —
+   * every call to `authFor` returns one — so header identity is entirely
+   * determined by the caller.
+   */
+  private newAgentWithAuth(authHeader: string): AtpAgent {
+    return new AtpAgent({
       service: this.pdsUrl,
       fetch: async (input, init) => {
         const headers = new Headers(init?.headers);
-        headers.set('Authorization', adminAuth);
+        headers.set('Authorization', authHeader);
         return globalThis.fetch(input, { ...init, headers });
       },
     });
-    this.sessionCache.set(did, agent);
-    return agent;
   }
 }
 
