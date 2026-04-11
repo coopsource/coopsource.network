@@ -42,7 +42,7 @@ You are implementing the Co-op Source Network V9 — ecosystem composability and
 
 | Phase | Branch | Priority | Goal |
 |-------|--------|----------|------|
-| V9.1 | `feature/v9.1-service-auth` | Immediate | Replace OperatorWriteProxy app-passwords with service-auth JWTs |
+| V9.1 | `feature/v9.1-service-auth` | Immediate | Replace shared admin-Basic with CSN-owned PLC signing keys + app-password sessions |
 | V9.2 | `feature/v9.2-governance-api` | Immediate | XRPC query endpoints for external ATProto apps |
 | V9.3 | `feature/v9.3-inlay-components` | After V9.2 | Composable governance widgets for cross-app embedding |
 | V9.4 | `feature/v9.4-content-wrappers` | Medium | Cooperative-curated content via strongRef wrappers |
@@ -55,78 +55,71 @@ You are implementing the Co-op Source Network V9 — ecosystem composability and
 
 ---
 
-## Phase V9.1: Service-Auth JWT Migration
+## Phase V9.1: Cooperative Write Path — PLC-Owned Signing Keys + App-Password Sessions
 
 ### Context
 
-Today, every write to a cooperative's PDS repo in production (`PDS_URL` set) goes through `AtprotoPdsService.getAgentForDid()` at `packages/federation/src/atproto/atproto-pds-service.ts:247-265`, which attaches `Authorization: Basic admin:${PDS_ADMIN_PASSWORD}` on every XRPC call — a shared admin credential with full control over every repo on the PDS. V9.1 replaces this with short-lived service-auth JWTs (`iss=cooperativeDid`, `aud=<pds service DID>`, `lxm=<xrpc method>`, `exp=now+60`) signed by the cooperative's own `verificationMethods.atproto` key. The Roomy/OpenMeet pattern (March 2026) proves the underlying JWT flow works across apps.
+Today, every write to a cooperative's PDS repo in production (`PDS_URL` set) routes through `AtprotoPdsService.getAgentForDid()` at `packages/federation/src/atproto/atproto-pds-service.ts:247-265`, which attaches `Authorization: Basic admin:${PDS_ADMIN_PASSWORD}` on every XRPC call — a shared admin credential with full control over every repo on the PDS. That mechanism is **also empirically broken**: `@atproto/pds` rejects admin Basic on `com.atproto.repo.*` methods with `"Unexpected authorization type"`. V6 federation tests only passed because `createDid()` cached the post-`createAccount` session-bearing agent and every test happened to reuse it.
 
-**Two scope realities** — neither reflected in the original sketch of this phase:
+V9.1 replaces admin-Basic with an ecosystem-native two-path design:
 
-1. **CSN did not hold the cooperative's signing key under the default `createAccount` flow**, which lets the PDS generate `verificationMethods.atproto` internally. But `@atproto/api` `createAccount` accepts an optional `plcOp?: object` parameter — a client-side pre-signed PLC genesis operation. CSN can build that op locally using the existing `signPlcOperationK256` utility in `packages/federation/src/local/plc-signing.ts`, register a CSN-owned signing key in PLC from day one, and write the private scalar to `entity_key`. No email-token dance, no `signPlcOperation` / `submitPlcOperation` XRPC roundtrips, no retrofit migration. Because CSN has never been deployed, there are no existing cooperatives to migrate.
-2. **The mode switch belongs inside `AtprotoPdsService`, not `OperatorWriteProxy`.** Many direct `pdsService.createRecord` / `putRecord` / `deleteRecord` calls target cooperative DIDs and bypass `OperatorWriteProxy` entirely (starter-pack-service, network-service, intercoop-agreement, membership, setup routes, federation routes, org/memberships routes). The ACL + audit layer in `OperatorWriteProxy` is orthogonal — unchanged in V9.1.
+- **Path A (one-time per cooperative):** CSN-owned PLC signing keys registered from day one + service-auth JWT to import the pre-registered DID into the PDS via `createAccount` + immediate app-password creation via `com.atproto.server.createAppPassword`.
+- **Path B (every subsequent repo write):** `AtpAgent.login({identifier: coopDid, password: storedAppPassword})` → session Bearer token. Session tokens are what `authVerifier.authorization()` expects for `com.atproto.repo.*` methods.
 
-**Additional critical finding from step 5 implementation:** `@atproto/pds` rejects admin Basic for `com.atproto.repo.*` methods with `"Unexpected authorization type"`. V6 federation tests only passed because `createDid()` cached the post-`createAccount` session-bearing agent. This means the JWT path from task 1 below isn't a nice-to-have — it's the only reliable write path for cooperative repos in production. The `sessionCache` is retained as a narrow post-`createDid` optimization for in-process test ergonomics.
+**Critical verification**: service-auth JWTs signed by the repo owner are NOT accepted by `@atproto/pds` (current main 0.4.218) for `com.atproto.repo.createRecord`, `putRecord`, or `deleteRecord`. The `authorization()` verifier used by those handlers routes Bearer tokens to the legacy `access()` verifier (which expects PDS-issued session tokens) and DPoP tokens to OAuth; it has no service-auth branch. The ecosystem-native path for server-to-server writes is app-password login, not service-auth — see [bluesky-social/atproto discussion #4118](https://github.com/bluesky-social/atproto/discussions/4118) for the current permission-set state.
 
 The full implementation plan lives at `/Users/alan/.claude/plans/immutable-stirring-flamingo.md` (reference it for per-step detail and the validation gate).
 
 ### Tasks
 
-1. **Create `ServiceAuthClient`** at `packages/federation/src/atproto/service-auth-client.ts`:
+1. **Create `ServiceAuthClient`** at `packages/federation/src/atproto/service-auth-client.ts`. Pure class, no IO. Used ONLY by the provisioning flow for the `createAccount` import JWT — not wired into `AtprotoPdsService.authFor`. Builds ES256 JWTs signed via `@atproto/crypto` `P256Keypair.sign()`.
 
-```typescript
-export class ServiceAuthClient {
-  async createServiceAuth(params: {
-    issuerDid: string;      // Cooperative DID (the repo owner)
-    audienceDid: string;    // PDS service DID (from describeServer)
-    lxm: string;            // XRPC method being called
-    signingKey: Uint8Array; // Cooperative's atproto-signing key (32 raw bytes)
-  }): Promise<string> {
-    // Build JWT: header {alg:'ES256',typ:'JWT'}, payload {iss,aud,exp,iat,jti,lxm}
-    // Sign via @atproto/crypto P256Keypair.sign() (returns 64-byte raw r||s)
-    // Assemble three-part base64url token
-  }
-}
-```
+2. **Extend `SigningKeyResolver`** at `packages/federation/src/http/signing-key-resolver.ts` with `resolveRawBytes(entityDid, purpose): Promise<Uint8Array>`. Returns the decrypted JWK's `d` field as 32 raw bytes. Used by `provisionCooperative` to load a cooperative's atproto signing key for the import JWT. Throws when no matching row exists.
 
-2. **Extend `SigningKeyResolver`** (`packages/federation/src/http/signing-key-resolver.ts`) with `resolveRawBytes(entityDid, purpose): Promise<Uint8Array>`. Returns the decrypted JWK's `d` field as 32 raw bytes. Keep the existing `resolve()` method (used for federation HTTP signing) unchanged. Throws when no matching row exists — the throw IS the fallback signal.
+3. **Add `resolvePdsServiceDid(pdsUrl)`** at `packages/federation/src/atproto/pds-did-resolver.ts`. Single exported function, module-level cache. Calls `com.atproto.server.describeServer` and returns `data.did`. Used by `provisionCooperative` to set the `aud` claim on the import JWT.
 
-3. **Add `resolvePdsServiceDid(pdsUrl)`** at `packages/federation/src/atproto/pds-did-resolver.ts` — single exported function backed by a module-level `Map<string,string>` cache. Calls `com.atproto.server.describeServer` and returns `data.did`. No class.
+4. **Add `AuthCredentialResolver`** at `packages/federation/src/http/auth-credential-resolver.ts`. Mirror of `SigningKeyResolver` — single method `resolveAppPassword(did): Promise<string>` reads the `auth_credential` row with `credential_type='atproto-app-password'`, decrypts via `KEY_ENC_KEY`, returns plaintext. Throws when no row exists.
 
-4. **Modify `AtprotoPdsService`** at `packages/federation/src/atproto/atproto-pds-service.ts`:
-   - Add optional constructor params `signingKeyResolver?`, `serviceAuthClient?`. Back-compat: positional extension `(pdsUrl, adminPassword, plcUrl?, signingKeyResolver?, serviceAuthClient?)`.
-   - Replace `getAgentForDid(did)` with per-method `authFor(did, lxm)`:
-     - Try `signingKeyResolver.resolveRawBytes(did, 'atproto-signing')`.
-     - On success: resolve `audienceDid`, mint JWT, return fresh `AtpAgent` with `Authorization: Bearer <jwt>`.
-     - On throw/missing/no-deps: return fresh `AtpAgent` with `Authorization: Basic admin:...` (today's behavior).
-   - Call per operation from each of `createRecord`, `putRecord`, `deleteRecord`.
-   - **Remove `sessionCache`** — service-auth JWTs must not be reused.
+5. **Build `provisionCooperative`** at `packages/federation/src/local/cooperative-provisioning.ts`. Single library function:
+   - Generate P-256 signing + secp256k1 rotation keypairs.
+   - Build + sign a PLC genesis op with CSN's `verificationMethods.atproto`, rotation keys, and the `#coopsource` service entry. POST directly to the PLC directory.
+   - Mint a service-auth JWT (`lxm='com.atproto.server.createAccount'`) via `ServiceAuthClient`.
+   - Call `agent.com.atproto.server.createAccount({did, handle, email, password, inviteCode}, {headers: {Authorization: \`Bearer ${jwt}\`}})` to import the DID into the PDS. Returns `accessJwt` + `refreshJwt`.
+   - Using the returned session, call `agent.com.atproto.server.createAppPassword({name: 'coopsource-api', privileged: true})`. Store the returned app password encrypted in `auth_credential`.
+   - Write `entity` + `entity_key` + `auth_credential` rows. Discard the random account password.
 
-5. **Wire DI** in `apps/api/src/container.ts` — instantiate `SigningKeyResolver` (with `KEY_ENC_KEY`) and `ServiceAuthClient`, pass to `AtprotoPdsService`. `OperatorWriteProxy` is unchanged. **No config changes** — no `COOP_AUTH_MODE`, no new env vars.
+6. **Modify `AtprotoPdsService`** at `packages/federation/src/atproto/atproto-pds-service.ts`:
+   - Add optional constructor param `authCredentialResolver?`. Back-compat positional extension.
+   - Add `authFor(did, lxm)` with this decision order:
+     1. **App-password session (the V9.1 win).** Look up stored app password via `authCredentialResolver.resolveAppPassword(did)`. If present, return a cached `AtpAgent` logged in as `did`. On auth failure, drop cache + re-login once.
+     2. **Post-`createDid` session cache.** Narrow in-process fallback, as today.
+     3. **Admin Basic.** Terminal fallback, still broken for repo writes but kept for admin endpoints + clear error signal.
+   - **Retain** `sessionCache` as the narrow V6-era post-`createDid` optimization — its V6 use pattern was correct.
+   - Do NOT wire `ServiceAuthClient` into `authFor` — `com.atproto.repo.*` don't accept service-auth and no PDS version does.
 
-6. **Rewrite `scripts/provision-cooperative.ts`** into a single atomic provisioning flow using `createAccount(plcOp)`:
-   - Generate a P-256 signing keypair and a secp256k1 rotation keypair locally.
-   - Build a signed PLC genesis operation via `signPlcOperationK256` (already in `packages/federation/src/local/plc-signing.ts`) carrying CSN's `verificationMethods.atproto`, rotation keys, and the `#coopsource` service entry.
-   - Derive the `did:plc:*` from the signed op.
-   - Authenticate as PDS admin, create an invite code, then call `agent.com.atproto.server.createAccount({handle, email, password, inviteCode, did, plcOp})`.
-   - Encrypt the signing private scalar and write it to `entity_key` with `key_purpose='atproto-signing'`.
-   - One atomic script, no email-token dance, no migration.
+7. **Wire DI** in `apps/api/src/container.ts` — instantiate `AuthCredentialResolver` and pass it to `AtprotoPdsService`. `SigningKeyResolver` and `ServiceAuthClient` stay instantiated (used by `provisionCooperative`) but are no longer passed to `AtprotoPdsService`. `OperatorWriteProxy` unchanged. **No config changes** — no new env vars.
 
-7. **Do NOT rewrite OAuth scopes in V9.1.** The proposed narrow replacement (`rpc:network.coopsource.governance?aud=* rpc:network.coopsource.org?aud=*`) breaks 8+ feature areas (agreement, funding, alignment, commerce, ops, legal, connection, actor) that write records in namespaces outside the narrow set. Deferred to V9.2 where the full per-namespace scope audit happens alongside the governance AppView API. `apps/api/src/auth/oauth-client.ts:30` stays as `'atproto transition:generic'` for V9.1.
+8. **CLI wrapper** at `apps/api/scripts/provision-cooperative.ts` — thin arg parser that calls `provisionCooperative`. Lives inside `apps/api/scripts/` (not top-level `scripts/`) so tsx resolves workspace package imports against `apps/api/node_modules/@coopsource/*`.
+
+9. **Do NOT rewrite OAuth scopes in V9.1.** The proposed narrow replacement breaks 8+ feature areas. Deferred to V9.2 with the full per-namespace audit. `apps/api/src/auth/oauth-client.ts:30` stays as `'atproto transition:generic'`.
 
 ### Key Files
-- `packages/federation/src/atproto/service-auth-client.ts` (new)
+
+- `packages/federation/src/atproto/service-auth-client.ts` (new — used by provisioning import JWT only)
 - `packages/federation/src/atproto/pds-did-resolver.ts` (new)
-- `packages/federation/src/http/signing-key-resolver.ts` (modify — add `resolveRawBytes`)
-- `packages/federation/src/atproto/atproto-pds-service.ts` (modify — add `authFor`, remove `sessionCache`)
+- `packages/federation/src/http/signing-key-resolver.ts` (extend with `resolveRawBytes`)
+- `packages/federation/src/http/auth-credential-resolver.ts` (new — app-password lookup for `authFor`)
+- `packages/federation/src/local/cooperative-provisioning.ts` (new — `provisionCooperative` library function)
+- `packages/federation/src/atproto/atproto-pds-service.ts` (modify — add `authFor`, retain `sessionCache`)
 - `packages/federation/src/index.ts` (export new pieces)
-- `apps/api/src/container.ts` (wire `SigningKeyResolver` + `ServiceAuthClient`)
-- `scripts/provision-cooperative.ts` (rewrite — `createAccount(plcOp)` with CSN-owned signing key + `#coopsource` service entry, write private scalar to `entity_key`)
+- `apps/api/src/container.ts` (wire `AuthCredentialResolver`)
+- `apps/api/scripts/provision-cooperative.ts` (new CLI wrapper, moved from top-level `scripts/`)
 
 ### Tests
+
 - Unit: `ServiceAuthClient` creates valid JWTs with correct claims, signature round-trips, `jti` unique across 100 calls.
 - Unit: `SigningKeyResolver.resolveRawBytes` returns 32 bytes, throws on missing, round-trips through `P256Keypair`.
-- **Integration — validation gate**: `packages/federation/tests/coop-write-auth-mode.test.ts` runs under `make test:pds` against a real PDS auto-started by `global-setup.ts`. Asserts happy-path JWT write (Bearer header, decoded claims match), method binding, fallback to admin Basic for member DIDs, post-`createDid` ordering, and negative tests (expired JWT, wrong iss, wrong aud all rejected). **If the real PDS rejects `iss=repo.did` JWTs for `com.atproto.repo.createRecord`, stop V9.1 and write a new plan.**
+- **Integration — validation gate**: `packages/federation/tests/coop-write-auth-mode.test.ts` runs under `make test:pds` against a real PDS auto-started by `global-setup.ts`. Provisions a test cooperative via `provisionCooperative`, then asserts `createRecord`/`putRecord`/`deleteRecord` succeed via the app-password session path. Includes negative tests that verify the PDS is actually running signature verification.
 - All 339 E2E tests pass.
 
 ---
