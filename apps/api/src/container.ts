@@ -5,8 +5,8 @@ import { SystemClock } from '@coopsource/federation';
 import type { IPdsService } from '@coopsource/federation';
 import { LocalPdsService, LocalBlobStore, LocalPlcClient, PlcClient } from '@coopsource/federation/local';
 import type { FederationDatabase } from '@coopsource/federation/local';
-import { DidWebResolver } from '@coopsource/federation/http';
-import { AtprotoPdsService } from '@coopsource/federation/atproto';
+import { DidWebResolver, SigningKeyResolver } from '@coopsource/federation/http';
+import { AtprotoPdsService, ServiceAuthClient } from '@coopsource/federation/atproto';
 import { SmtpEmailService, NoopEmailService } from '@coopsource/federation/email';
 import type { IEmailService } from '@coopsource/federation';
 import { logger } from './middleware/logger.js';
@@ -156,6 +156,20 @@ export function createContainer(config: AppConfig): Container {
 
   // V6: When PDS_URL (or COOP_PDS_URL) is set, use AtprotoPdsService (real ATProto PDS).
   // LocalPdsService fallback is for dev/test only — deprecated V3 scaffolding.
+  //
+  // V9.1: Wire SigningKeyResolver + ServiceAuthClient into AtprotoPdsService so that
+  // cooperative writes use short-lived ES256 service-auth JWTs instead of the
+  // (empirically broken) admin Basic fallback. The resolver loads the cooperative's
+  // `atproto-signing` key from `entity_key`, which provision-cooperative.ts writes
+  // during fresh provisioning via createAccount(plcOp). On a resolver miss (member
+  // DIDs, instance DID), AtprotoPdsService falls back to the post-createDid session
+  // cache or admin Basic — see AtprotoPdsService class doc for the full decision order.
+  const signingKeyResolver = new SigningKeyResolver(
+    db as unknown as import('kysely').Kysely<FederationDatabase>,
+    config.KEY_ENC_KEY,
+  );
+  const serviceAuthClient = new ServiceAuthClient();
+
   const effectivePdsUrl = config.COOP_PDS_URL ?? config.PDS_URL;
   const effectivePdsPassword = config.COOP_PDS_ADMIN_PASSWORD ?? config.PDS_ADMIN_PASSWORD;
   const pdsService: IPdsService = effectivePdsUrl
@@ -163,6 +177,8 @@ export function createContainer(config: AppConfig): Container {
         effectivePdsUrl,
         effectivePdsPassword,
         config.PLC_URL === 'local' ? undefined : config.PLC_URL,
+        signingKeyResolver,
+        serviceAuthClient,
       )
     : new LocalPdsService(
         db as unknown as import('kysely').Kysely<FederationDatabase>,
