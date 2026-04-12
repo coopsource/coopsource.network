@@ -7,16 +7,14 @@
  *   2. Provisions a test cooperative via `provisionCooperative()` — the
  *      same library function `apps/api/scripts/provision-cooperative.ts`
  *      uses. Provisioning:
- *        - Generates CSN-owned P-256 signing + secp256k1 rotation
- *          keypairs.
- *        - Registers the DID in PLC with the signing key as
- *          `verificationMethods.atproto` and a `#coopsource` service
- *          entry.
- *        - Imports the DID into the PDS via `createAccount` with a
- *          service-auth JWT signed by the signing key.
+ *        - Creates an account on the PDS via `createAccount` (PDS
+ *          generates keys and registers DID in PLC).
  *        - Creates a privileged app password via
  *          `com.atproto.server.createAppPassword` and stores it
  *          encrypted in `auth_credential`.
+ *        - Optionally (V9.2.1+, when `serviceEndpoint` is provided)
+ *          adds a `#coopsource` service entry to the DID document via
+ *          the PDS identity email-token flow.
  *   3. Wires an `AtprotoPdsService` with an `AuthCredentialResolver` and
  *      asserts that `createRecord`, `putRecord`, and `deleteRecord` on
  *      the cooperative DID all succeed. Under the hood these route

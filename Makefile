@@ -82,12 +82,12 @@ pds-down: ## Stop PDS + PLC containers
 
 test\:pds: pds-up ## Run PDS integration tests (starts PDS containers, waits for health)
 	@echo "Waiting for PDS to be healthy..."
-	@docker compose -f infrastructure/docker-compose.yml up -d --wait plc pds
-	PDS_URL=http://localhost:2583 PLC_URL=http://localhost:2582 pnpm --filter @coopsource/federation test
+	@docker compose -f infrastructure/docker-compose.yml up -d --wait plc pds mailpit
+	PDS_URL=http://localhost:2583 PLC_URL=http://localhost:2582 MAILPIT_URL=http://localhost:8025 pnpm --filter @coopsource/federation test
 
 test\:all: pds-reset start ## Run ALL tests with real PDS (Docker required, resets volumes)
 	@echo "Waiting for PDS + PLC to be healthy..."
-	@docker compose -f infrastructure/docker-compose.yml up -d --wait plc pds
+	@docker compose -f infrastructure/docker-compose.yml up -d --wait plc pds mailpit
 	pnpm test
 	PDS_URL=http://localhost:2583 PLC_URL=http://localhost:2582 pnpm --filter @coopsource/federation test
 

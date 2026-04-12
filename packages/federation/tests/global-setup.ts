@@ -70,7 +70,7 @@ export async function setup(): Promise<void> {
     }
 
     execSync(
-      `docker compose -f "${COMPOSE_FILE}" up -d plc pds`,
+      `docker compose -f "${COMPOSE_FILE}" up -d plc pds mailpit`,
       { stdio: 'pipe' },
     );
     startedByUs = true;
@@ -95,6 +95,7 @@ export async function setup(): Promise<void> {
   // Set env vars for tests
   process.env.PDS_URL = PDS_URL;
   process.env.PLC_URL = PLC_URL;
+  process.env.MAILPIT_URL = 'http://localhost:8025';
 }
 
 export async function teardown(): Promise<void> {
@@ -104,7 +105,7 @@ export async function teardown(): Promise<void> {
   console.log('[global-setup] Stopping PDS + PLC containers...');
   try {
     execSync(
-      `docker compose -f "${COMPOSE_FILE}" stop plc pds`,
+      `docker compose -f "${COMPOSE_FILE}" stop plc pds mailpit`,
       { stdio: 'pipe' },
     );
   } catch {
