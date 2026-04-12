@@ -76,9 +76,13 @@ services:
       PDS_REPORT_SERVICE_URL: https://mod.bsky.app
       PDS_REPORT_SERVICE_DID: did:plc:ar7c4by46qjdydhdevvrndac
       PDS_CRAWLERS: https://bsky.network
+      PDS_EMAIL_SMTP_URL: smtp://mailpit:1025
+      PDS_EMAIL_FROM_ADDRESS: noreply@coopsource.local
     depends_on:
       plc:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/xrpc/_health || exit 1"]
       interval: 5s
