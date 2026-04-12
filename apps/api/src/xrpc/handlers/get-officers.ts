@@ -1,9 +1,14 @@
 import type { XrpcContext } from '../dispatcher.js';
-import { assertOpenGovernance } from './open-governance-gate.js';
+import { assertGovernanceAccess } from './open-governance-gate.js';
 
 export async function handleGetOfficers(ctx: XrpcContext): Promise<unknown> {
   const cooperativeDid = ctx.params.cooperative as string;
-  await assertOpenGovernance(ctx.container.db, cooperativeDid);
+  await assertGovernanceAccess(
+    ctx.container.db,
+    cooperativeDid,
+    ctx.viewer,
+    ctx.container.membershipService,
+  );
 
   const officers = await ctx.container.officerRecordService.getCurrent(cooperativeDid);
 

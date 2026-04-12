@@ -1,9 +1,22 @@
 import type { XrpcContext } from '../dispatcher.js';
-import { assertOpenGovernance } from './open-governance-gate.js';
+import { NotFoundError } from '@coopsource/common';
 
 export async function handleGetMembership(ctx: XrpcContext): Promise<unknown> {
   const cooperativeDid = ctx.params.cooperative as string;
-  await assertOpenGovernance(ctx.container.db, cooperativeDid);
+
+  // Verify the cooperative exists and is active (no governance gate —
+  // an authenticated person asking "am I a member?" should get
+  // { isMember: false } for a closed coop, not 404).
+  const coop = await ctx.container.db
+    .selectFrom('entity')
+    .where('did', '=', cooperativeDid)
+    .where('type', '=', 'cooperative')
+    .where('status', '=', 'active')
+    .select('did')
+    .executeTakeFirst();
+  if (!coop) {
+    throw new NotFoundError('Cooperative not found');
+  }
 
   const viewerDid = ctx.viewer!.did;
   const member = await ctx.container.membershipService.getMember(
