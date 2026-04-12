@@ -64,6 +64,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn('joined_at', 'timestamptz')
     .addColumn('departed_at', 'timestamptz')
     .addColumn('status_reason', 'text')
+    .addColumn('directory_visible', 'boolean', (col) => col.notNull().defaultTo(false))
     .addColumn('created_at', 'timestamptz', (col) =>
       col.notNull().defaultTo(sql`NOW()`),
     )
