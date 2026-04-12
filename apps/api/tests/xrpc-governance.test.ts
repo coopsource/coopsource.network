@@ -161,4 +161,127 @@ describe('XRPC governance handlers', () => {
         .expect(404);
     });
   });
+
+  describe('network.coopsource.governance.getProposal', () => {
+    it('returns proposal with tally', async () => {
+      const proposal = await createProposal({ title: 'Tally test' });
+
+      const res = await testApp.agent
+        .get('/xrpc/network.coopsource.governance.getProposal')
+        .query({ id: proposal.id })
+        .expect(200);
+
+      expect(res.body).toMatchObject({
+        id: proposal.id,
+        title: 'Tally test',
+        body: 'Proposal body text.',
+        status: 'draft',
+        votingType: 'binary',
+        cooperativeDid: coopDid,
+        authorDid: adminDid,
+      });
+      expect(res.body.createdAt).toBeDefined();
+      expect(res.body.tally).toEqual([]);
+    });
+
+    it('returns 404 for nonexistent proposal ID', async () => {
+      const res = await testApp.agent
+        .get('/xrpc/network.coopsource.governance.getProposal')
+        .query({ id: '00000000-0000-0000-0000-000000000000' })
+        .expect(404);
+
+      expect(res.body.error).toBe('NotFound');
+    });
+
+    it('returns 404 when proposal belongs to closed-governance coop', async () => {
+      const proposal = await createProposal();
+
+      await testApp.container.db
+        .updateTable('cooperative_profile')
+        .set({ governance_visibility: 'closed' })
+        .where('entity_did', '=', coopDid)
+        .execute();
+
+      await testApp.agent
+        .get('/xrpc/network.coopsource.governance.getProposal')
+        .query({ id: proposal.id })
+        .expect(404);
+    });
+  });
+
+  describe('network.coopsource.org.getMembership', () => {
+    it('returns isMember true with roles for active member', async () => {
+      const res = await testApp.agent
+        .get('/xrpc/network.coopsource.org.getMembership')
+        .query({ cooperative: coopDid })
+        .expect(200);
+
+      expect(res.body.isMember).toBe(true);
+      expect(res.body.status).toBe('active');
+      expect(Array.isArray(res.body.roles)).toBe(true);
+    });
+
+    it('returns isMember false when viewer has no membership in the cooperative', async () => {
+      // Insert a second cooperative directly — admin is NOT a member of it
+      const otherCoopDid = 'did:web:other-coop.example';
+      const now = new Date();
+      await testApp.container.db
+        .insertInto('entity')
+        .values({
+          did: otherCoopDid,
+          type: 'cooperative',
+          display_name: 'Other Coop',
+          status: 'active',
+          created_at: now,
+          indexed_at: now,
+        })
+        .execute();
+      await testApp.container.db
+        .insertInto('cooperative_profile')
+        .values({
+          entity_did: otherCoopDid,
+          cooperative_type: 'worker',
+          membership_policy: 'open',
+          governance_visibility: 'open',
+          is_network: false,
+          anon_discoverable: true,
+          public_description: true,
+          public_members: false,
+          public_activity: false,
+          public_agreements: false,
+          public_campaigns: false,
+        })
+        .execute();
+
+      const res = await testApp.agent
+        .get('/xrpc/network.coopsource.org.getMembership')
+        .query({ cooperative: otherCoopDid })
+        .expect(200);
+
+      expect(res.body.isMember).toBe(false);
+    });
+
+    it('returns 401 without session', async () => {
+      const bare = supertest(testApp.app);
+      const res = await bare
+        .get('/xrpc/network.coopsource.org.getMembership')
+        .query({ cooperative: coopDid })
+        .expect(401);
+
+      expect(res.body.error.code).toBe('UNAUTHORIZED');
+    });
+
+    it('returns 404 for closed-governance cooperative', async () => {
+      await testApp.container.db
+        .updateTable('cooperative_profile')
+        .set({ governance_visibility: 'closed' })
+        .where('entity_did', '=', coopDid)
+        .execute();
+
+      await testApp.agent
+        .get('/xrpc/network.coopsource.org.getMembership')
+        .query({ cooperative: coopDid })
+        .expect(404);
+    });
+  });
 });
