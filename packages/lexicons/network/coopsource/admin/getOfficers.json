@@ -1,0 +1,48 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.admin.getOfficers",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Get current officers of an open-governance cooperative.",
+      "parameters": {
+        "type": "params",
+        "required": ["cooperative"],
+        "properties": {
+          "cooperative": {
+            "type": "string",
+            "format": "did",
+            "description": "DID of the cooperative whose officers to list."
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["officers"],
+          "properties": {
+            "officers": {
+              "type": "array",
+              "items": {
+                "type": "ref",
+                "ref": "#officer"
+              }
+            }
+          }
+        }
+      }
+    },
+    "officer": {
+      "type": "object",
+      "required": ["did", "title", "appointedAt"],
+      "properties": {
+        "did": { "type": "string", "format": "did" },
+        "displayName": { "type": "string" },
+        "title": { "type": "string" },
+        "appointedAt": { "type": "string", "format": "datetime" },
+        "termEndsAt": { "type": "string", "format": "datetime" }
+      }
+    }
+  }
+}
