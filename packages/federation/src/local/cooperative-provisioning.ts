@@ -84,6 +84,9 @@ export interface ProvisionCooperativeResult {
    * back from `auth_credential` via `AuthCredentialResolver`.
    */
   appPassword: string;
+  /** True if the optional PLC `#coopsource` service entry step failed.
+   *  The cooperative is fully functional but not discoverable via DID. */
+  plcServiceEntryFailed?: boolean;
 }
 
 /**
@@ -92,12 +95,19 @@ export interface ProvisionCooperativeResult {
  * `auth_credential` for `AtprotoPdsService.authFor` to pick up.
  *
  * Side effects: PDS `createAccount` XRPC call, PDS `createAppPassword`
- * XRPC call, two database inserts (`entity` + `auth_credential`). On
- * failure after `createAccount` succeeded but before the DB writes
- * commit, the account exists in the PDS but is not known to CSN — the
- * operator may want to delete it or manually write the `auth_credential`
- * row. This is an acceptable pre-deployment risk for a development-stage
- * project.
+ * XRPC call, two database inserts (`entity` + `auth_credential`),
+ * and optionally a PLC DID document update (when `serviceEndpoint` is
+ * provided).
+ *
+ * Failure modes (all acceptable pre-deployment):
+ *   - Steps 1-3 fail → no side effects beyond a partial PDS account.
+ *   - Step 4 (DB writes) fails after PDS account created → account
+ *     exists in PDS but not in CSN. Operator can re-provision or
+ *     manually insert the rows.
+ *   - Step 5 (PLC service entry) fails after DB writes → cooperative
+ *     is fully functional but its DID document lacks `#coopsource`.
+ *     The result is returned with `plcServiceEntryFailed: true` so
+ *     the caller/operator knows. The PLC step can be retried manually.
  */
 export async function provisionCooperative(
   options: ProvisionCooperativeOptions,
@@ -204,43 +214,57 @@ export async function provisionCooperative(
     .execute();
 
   // ─── Step 5: Add #coopsource service entry to PLC (optional) ─────────
+  // Wrapped in try/catch so a PLC failure does not prevent the caller
+  // from receiving the provisioning result. The cooperative is fully
+  // functional without the service entry — it just won't be discoverable
+  // via DID document resolution until the entry is added manually.
+  let plcServiceEntryFailed = false;
   if (options.serviceEndpoint) {
-    const mailpit = new MailpitClient(options.mailpitUrl!);
+    try {
+      const mailpit = new MailpitClient(options.mailpitUrl!);
 
-    // 5a. Get current DID credentials for the defensive services map
-    const recommended =
-      await agent.com.atproto.identity.getRecommendedDidCredentials();
-    const currentServices = (recommended.data.services ?? {}) as Record<
-      string,
-      { type: string; endpoint: string }
-    >;
+      // 5a. Get current DID credentials for the defensive services map
+      const recommended =
+        await agent.com.atproto.identity.getRecommendedDidCredentials();
+      const currentServices = (recommended.data.services ?? {}) as Record<
+        string,
+        { type: string; endpoint: string }
+      >;
 
-    // 5b. Request PLC operation signature — PDS emails a confirmation token
-    const beforeEmail = new Date();
-    await agent.com.atproto.identity.requestPlcOperationSignature();
+      // 5b. Request PLC operation signature — PDS emails a confirmation token
+      const beforeEmail = new Date();
+      await agent.com.atproto.identity.requestPlcOperationSignature();
 
-    // 5c. Extract token from Mailpit
-    const emailBody = await mailpit.waitForEmail(email, {
-      afterTimestamp: beforeEmail,
-    });
-    const token = mailpit.extractPlcToken(emailBody);
+      // 5c. Extract token from Mailpit
+      const emailBody = await mailpit.waitForEmail(email, {
+        afterTimestamp: beforeEmail,
+      });
+      const token = mailpit.extractPlcToken(emailBody);
 
-    // 5d. Sign the PLC operation with defensive services map
-    const signResult = await agent.com.atproto.identity.signPlcOperation({
-      token,
-      services: {
-        ...currentServices,
-        coopsource: {
-          type: 'CoopSourceNetwork',
-          endpoint: options.serviceEndpoint,
+      // 5d. Sign the PLC operation with defensive services map
+      const signResult = await agent.com.atproto.identity.signPlcOperation({
+        token,
+        services: {
+          ...currentServices,
+          coopsource: {
+            type: 'CoopSourceNetwork',
+            endpoint: options.serviceEndpoint,
+          },
         },
-      },
-    });
+      });
 
-    // 5e. Submit the signed operation to PLC
-    await agent.com.atproto.identity.submitPlcOperation({
-      operation: signResult.data.operation,
-    });
+      // 5e. Submit the signed operation to PLC
+      await agent.com.atproto.identity.submitPlcOperation({
+        operation: signResult.data.operation,
+      });
+    } catch (err) {
+      plcServiceEntryFailed = true;
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(
+        `PLC #coopsource service entry failed for ${accountDid}: ${message}. ` +
+        'Cooperative is functional but not discoverable via DID.',
+      );
+    }
   }
 
   return {
@@ -249,5 +273,6 @@ export async function provisionCooperative(
     email,
     password,
     appPassword,
+    ...(plcServiceEntryFailed ? { plcServiceEntryFailed } : {}),
   };
 }

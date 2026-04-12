@@ -64,21 +64,21 @@ test\:e2e\:real: start ## Run real (non-mocked) E2E tests only
 test\:e2e\:mocked: ## Run mocked E2E tests (no services needed)
 	pnpm --filter @coopsource/web exec playwright test --project=mocked
 
-pds-up: ## Start PDS + PLC via Docker Compose
-	docker compose -f infrastructure/docker-compose.yml up -d plc pds
+pds-up: ## Start PDS + PLC + Mailpit via Docker Compose
+	docker compose -f infrastructure/docker-compose.yml up -d plc pds mailpit
 
-pds-reset: ## Reset PDS + PLC containers (drops volumes for clean state)
-	docker compose -f infrastructure/docker-compose.yml down -v plc pds 2>/dev/null || true
-	docker compose -f infrastructure/docker-compose.yml up -d plc pds
+pds-reset: ## Reset PDS + PLC + Mailpit containers (drops volumes for clean state)
+	docker compose -f infrastructure/docker-compose.yml down -v plc pds mailpit 2>/dev/null || true
+	docker compose -f infrastructure/docker-compose.yml up -d plc pds mailpit
 
-pds-status: ## Check PDS + PLC container status
-	@docker compose -f infrastructure/docker-compose.yml ps plc pds
+pds-status: ## Check PDS + PLC + Mailpit container status
+	@docker compose -f infrastructure/docker-compose.yml ps plc pds mailpit
 
 pds-logs: ## Tail PDS + PLC logs
 	docker compose -f infrastructure/docker-compose.yml logs -f plc pds
 
-pds-down: ## Stop PDS + PLC containers
-	docker compose -f infrastructure/docker-compose.yml stop plc pds
+pds-down: ## Stop PDS + PLC + Mailpit containers
+	docker compose -f infrastructure/docker-compose.yml stop plc pds mailpit
 
 test\:pds: pds-up ## Run PDS integration tests (starts PDS containers, waits for health)
 	@echo "Waiting for PDS to be healthy..."
