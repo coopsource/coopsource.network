@@ -1,0 +1,72 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.org.getCooperative",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Get public metadata for an open-governance cooperative by DID.",
+      "parameters": {
+        "type": "params",
+        "required": ["cooperative"],
+        "properties": {
+          "cooperative": {
+            "type": "string",
+            "format": "did",
+            "description": "DID of the cooperative to look up."
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["did", "displayName", "cooperativeType", "membershipPolicy", "governanceVisibility", "isNetwork"],
+          "properties": {
+            "did": {
+              "type": "string",
+              "format": "did"
+            },
+            "handle": {
+              "type": "string"
+            },
+            "displayName": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "avatarCid": {
+              "type": "string"
+            },
+            "cooperativeType": {
+              "type": "string"
+            },
+            "membershipPolicy": {
+              "type": "string"
+            },
+            "maxMembers": {
+              "type": "integer"
+            },
+            "location": {
+              "type": "string"
+            },
+            "website": {
+              "type": "string"
+            },
+            "foundedDate": {
+              "type": "string"
+            },
+            "governanceVisibility": {
+              "type": "string",
+              "knownValues": ["open", "closed"]
+            },
+            "isNetwork": {
+              "type": "boolean",
+              "description": "Whether this cooperative is a network (a cooperative of cooperatives)."
+            }
+          }
+        }
+      }
+    }
+  }
+}

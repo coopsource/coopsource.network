@@ -1,0 +1,66 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.governance.getProposal",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Get a governance proposal by ID, including the current vote tally. The ID is a proposal UUID (app-layer entity), not an AT-URI. AT-URIs exist only for proposals written to a PDS; the UUID is the stable cross-tier identifier.",
+      "parameters": {
+        "type": "params",
+        "required": ["id"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Proposal UUID."
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["id", "title", "body", "status", "votingType", "cooperativeDid", "authorDid", "createdAt", "tally"],
+          "properties": {
+            "id": { "type": "string" },
+            "title": { "type": "string" },
+            "body": { "type": "string" },
+            "status": { "type": "string" },
+            "votingType": { "type": "string" },
+            "options": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "quorumType": { "type": "string" },
+            "quorumBasis": { "type": "string" },
+            "cooperativeDid": { "type": "string", "format": "did" },
+            "authorDid": { "type": "string", "format": "did" },
+            "createdAt": { "type": "string", "format": "datetime" },
+            "resolvedAt": { "type": "string", "format": "datetime" },
+            "tally": {
+              "type": "array",
+              "description": "Vote tally entries — one per choice with its count.",
+              "items": {
+                "type": "ref",
+                "ref": "#tallyEntry"
+              }
+            }
+          }
+        }
+      }
+    },
+    "tallyEntry": {
+      "type": "object",
+      "required": ["choice", "count"],
+      "properties": {
+        "choice": {
+          "type": "string",
+          "description": "The vote choice (e.g. 'yes', 'no', 'abstain')."
+        },
+        "count": {
+          "type": "integer",
+          "description": "Number of votes for this choice."
+        }
+      }
+    }
+  }
+}

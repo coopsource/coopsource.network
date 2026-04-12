@@ -1,0 +1,68 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.governance.listProposals",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "List governance proposals for an open-governance cooperative, with cursor-based pagination.",
+      "parameters": {
+        "type": "params",
+        "required": ["cooperative"],
+        "properties": {
+          "cooperative": {
+            "type": "string",
+            "format": "did",
+            "description": "DID of the cooperative whose proposals to list."
+          },
+          "status": {
+            "type": "string",
+            "description": "Filter by proposal status.",
+            "knownValues": ["draft", "discussion", "voting", "passed", "failed", "withdrawn"]
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 50
+          },
+          "cursor": {
+            "type": "string"
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["proposals"],
+          "properties": {
+            "proposals": {
+              "type": "array",
+              "items": {
+                "type": "ref",
+                "ref": "#proposalSummary"
+              }
+            },
+            "cursor": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "proposalSummary": {
+      "type": "object",
+      "required": ["id", "title", "status", "votingType", "cooperativeDid", "authorDid", "createdAt"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "status": { "type": "string" },
+        "votingType": { "type": "string" },
+        "cooperativeDid": { "type": "string", "format": "did" },
+        "authorDid": { "type": "string", "format": "did" },
+        "createdAt": { "type": "string", "format": "datetime" },
+        "resolvedAt": { "type": "string", "format": "datetime" }
+      }
+    }
+  }
+}

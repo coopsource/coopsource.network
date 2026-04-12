@@ -1,6 +1,272 @@
 export const lexicons = [
   {
     "lexicon": 1,
+    "id": "network.coopsource.admin.complianceItem",
+    "defs": {
+      "main": {
+        "type": "record",
+        "description": "A compliance calendar item tracking regulatory deadlines and filings.",
+        "key": "tid",
+        "record": {
+          "type": "object",
+          "required": [
+            "cooperativeDid",
+            "title",
+            "dueDate",
+            "filingType",
+            "status",
+            "createdAt"
+          ],
+          "properties": {
+            "cooperativeDid": {
+              "type": "string",
+              "format": "did",
+              "description": "The cooperative this compliance item belongs to."
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 3000
+            },
+            "dueDate": {
+              "type": "string",
+              "format": "datetime",
+              "description": "When this filing or report is due."
+            },
+            "filingType": {
+              "type": "string",
+              "knownValues": [
+                "annual_report",
+                "tax_filing",
+                "state_report",
+                "other"
+              ]
+            },
+            "status": {
+              "type": "string",
+              "knownValues": [
+                "pending",
+                "completed",
+                "overdue"
+              ]
+            },
+            "completedAt": {
+              "type": "string",
+              "format": "datetime",
+              "description": "When this item was completed."
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "datetime"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
+    "id": "network.coopsource.admin.fiscalPeriod",
+    "defs": {
+      "main": {
+        "type": "record",
+        "description": "A fiscal period (e.g. fiscal year) for a cooperative.",
+        "key": "tid",
+        "record": {
+          "type": "object",
+          "required": [
+            "cooperativeDid",
+            "label",
+            "startsAt",
+            "endsAt",
+            "status",
+            "createdAt"
+          ],
+          "properties": {
+            "cooperativeDid": {
+              "type": "string",
+              "format": "did",
+              "description": "The cooperative this fiscal period belongs to."
+            },
+            "label": {
+              "type": "string",
+              "maxLength": 100,
+              "description": "Human-readable label (e.g. FY2026)."
+            },
+            "startsAt": {
+              "type": "string",
+              "format": "datetime",
+              "description": "Start of the fiscal period."
+            },
+            "endsAt": {
+              "type": "string",
+              "format": "datetime",
+              "description": "End of the fiscal period."
+            },
+            "status": {
+              "type": "string",
+              "knownValues": [
+                "open",
+                "closed"
+              ]
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "datetime"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
+    "id": "network.coopsource.admin.memberNotice",
+    "defs": {
+      "main": {
+        "type": "record",
+        "description": "A notice sent to members of a cooperative.",
+        "key": "tid",
+        "record": {
+          "type": "object",
+          "required": [
+            "cooperativeDid",
+            "title",
+            "body",
+            "noticeType",
+            "targetAudience",
+            "createdAt"
+          ],
+          "properties": {
+            "cooperativeDid": {
+              "type": "string",
+              "format": "did",
+              "description": "The cooperative sending the notice."
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "body": {
+              "type": "string",
+              "maxLength": 10000,
+              "description": "The full text of the notice."
+            },
+            "noticeType": {
+              "type": "string",
+              "knownValues": [
+                "general",
+                "election",
+                "meeting",
+                "policy_change",
+                "other"
+              ]
+            },
+            "targetAudience": {
+              "type": "string",
+              "knownValues": [
+                "all",
+                "board",
+                "officers"
+              ]
+            },
+            "sentAt": {
+              "type": "string",
+              "format": "datetime",
+              "description": "When the notice was sent."
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "datetime"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
+    "id": "network.coopsource.admin.officer",
+    "defs": {
+      "main": {
+        "type": "record",
+        "description": "An officer appointment record for a cooperative.",
+        "key": "tid",
+        "record": {
+          "type": "object",
+          "required": [
+            "cooperativeDid",
+            "officerDid",
+            "title",
+            "appointedAt",
+            "appointmentType",
+            "status",
+            "createdAt"
+          ],
+          "properties": {
+            "cooperativeDid": {
+              "type": "string",
+              "format": "did",
+              "description": "The cooperative this officer serves."
+            },
+            "officerDid": {
+              "type": "string",
+              "format": "did",
+              "description": "The DID of the officer."
+            },
+            "title": {
+              "type": "string",
+              "knownValues": [
+                "president",
+                "secretary",
+                "treasurer",
+                "director",
+                "other"
+              ]
+            },
+            "appointedAt": {
+              "type": "string",
+              "format": "datetime",
+              "description": "When the officer was appointed or elected."
+            },
+            "termEndsAt": {
+              "type": "string",
+              "format": "datetime",
+              "description": "When the officer's term ends."
+            },
+            "appointmentType": {
+              "type": "string",
+              "knownValues": [
+                "elected",
+                "appointed"
+              ]
+            },
+            "responsibilities": {
+              "type": "string",
+              "maxLength": 3000,
+              "description": "Description of the officer's responsibilities."
+            },
+            "status": {
+              "type": "string",
+              "knownValues": [
+                "active",
+                "ended"
+              ]
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "datetime"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
     "id": "network.coopsource.agreement.amendment",
     "defs": {
       "main": {
@@ -1108,6 +1374,334 @@ export const lexicons = [
   },
   {
     "lexicon": 1,
+    "id": "network.coopsource.commerce.collaborativeProject",
+    "defs": {
+      "main": {
+        "type": "record",
+        "description": "Cross-cooperative project record. Shows ecosystem that cooperatives are collaborating.",
+        "key": "tid",
+        "record": {
+          "type": "object",
+          "required": [
+            "hostCooperativeDid",
+            "title",
+            "participantDids",
+            "createdBy",
+            "createdAt"
+          ],
+          "properties": {
+            "hostCooperativeDid": {
+              "type": "string",
+              "format": "did"
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 10000
+            },
+            "participantDids": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "did"
+              },
+              "maxLength": 50
+            },
+            "status": {
+              "type": "string",
+              "knownValues": [
+                "planning",
+                "active",
+                "completed",
+                "cancelled"
+              ]
+            },
+            "createdBy": {
+              "type": "string",
+              "format": "did"
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "datetime"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
+    "id": "network.coopsource.commerce.intercoopAgreement",
+    "defs": {
+      "main": {
+        "type": "record",
+        "description": "Bilateral B2B agreement between cooperatives. Each co-op writes their copy to their PDS.",
+        "key": "tid",
+        "record": {
+          "type": "object",
+          "required": [
+            "initiatorDid",
+            "responderDid",
+            "title",
+            "agreementType",
+            "createdAt"
+          ],
+          "properties": {
+            "initiatorDid": {
+              "type": "string",
+              "format": "did"
+            },
+            "responderDid": {
+              "type": "string",
+              "format": "did"
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 10000
+            },
+            "agreementType": {
+              "type": "string",
+              "knownValues": [
+                "service",
+                "supply",
+                "joint_venture",
+                "procurement",
+                "resource_sharing",
+                "other"
+              ]
+            },
+            "status": {
+              "type": "string",
+              "knownValues": [
+                "proposed",
+                "negotiating",
+                "active",
+                "completed",
+                "cancelled"
+              ]
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "datetime"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
+    "id": "network.coopsource.commerce.listing",
+    "defs": {
+      "main": {
+        "type": "record",
+        "description": "A service or product offering published by a cooperative. Discoverable across the ATProto ecosystem via firehose.",
+        "key": "tid",
+        "record": {
+          "type": "object",
+          "required": [
+            "cooperativeDid",
+            "title",
+            "category",
+            "createdBy",
+            "createdAt"
+          ],
+          "properties": {
+            "cooperativeDid": {
+              "type": "string",
+              "format": "did"
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 5000
+            },
+            "category": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "availability": {
+              "type": "string",
+              "knownValues": [
+                "available",
+                "limited",
+                "unavailable"
+              ]
+            },
+            "location": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "cooperativeType": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 50
+              },
+              "maxLength": 20
+            },
+            "createdBy": {
+              "type": "string",
+              "format": "did"
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "datetime"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
+    "id": "network.coopsource.commerce.need",
+    "defs": {
+      "main": {
+        "type": "record",
+        "description": "A request for services or products published by a cooperative. Enables proactive matching across the ecosystem.",
+        "key": "tid",
+        "record": {
+          "type": "object",
+          "required": [
+            "cooperativeDid",
+            "title",
+            "category",
+            "createdBy",
+            "createdAt"
+          ],
+          "properties": {
+            "cooperativeDid": {
+              "type": "string",
+              "format": "did"
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 5000
+            },
+            "category": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "urgency": {
+              "type": "string",
+              "knownValues": [
+                "low",
+                "normal",
+                "high",
+                "urgent"
+              ]
+            },
+            "location": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 50
+              },
+              "maxLength": 20
+            },
+            "createdBy": {
+              "type": "string",
+              "format": "did"
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "datetime"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
+    "id": "network.coopsource.commerce.resource",
+    "defs": {
+      "main": {
+        "type": "record",
+        "description": "Shared resource listing. Discoverable by network members for booking.",
+        "key": "tid",
+        "record": {
+          "type": "object",
+          "required": [
+            "cooperativeDid",
+            "title",
+            "resourceType",
+            "createdBy",
+            "createdAt"
+          ],
+          "properties": {
+            "cooperativeDid": {
+              "type": "string",
+              "format": "did"
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 5000
+            },
+            "resourceType": {
+              "type": "string",
+              "knownValues": [
+                "equipment",
+                "space",
+                "expertise",
+                "vehicle",
+                "other"
+              ]
+            },
+            "location": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "status": {
+              "type": "string",
+              "knownValues": [
+                "available",
+                "reserved",
+                "unavailable"
+              ]
+            },
+            "createdBy": {
+              "type": "string",
+              "format": "did"
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "datetime"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
     "id": "network.coopsource.connection.binding",
     "defs": {
       "main": {
@@ -1249,41 +1843,47 @@ export const lexicons = [
   },
   {
     "lexicon": 1,
-    "id": "network.coopsource.connection.sync",
+    "id": "network.coopsource.finance.expenseApproval",
     "defs": {
       "main": {
         "type": "record",
-        "description": "A synchronization event for a connection binding (placeholder for Phase 3).",
+        "description": "Cooperative approval or rejection of an expense claim. Tier 2 private record.",
         "key": "tid",
         "record": {
           "type": "object",
           "required": [
-            "bindingUri",
-            "eventType",
-            "timestamp"
+            "cooperativeDid",
+            "expenseId",
+            "action",
+            "reviewedBy",
+            "createdAt"
           ],
           "properties": {
-            "bindingUri": {
+            "cooperativeDid": {
               "type": "string",
-              "format": "at-uri",
-              "description": "The connection binding this sync event relates to."
+              "format": "did"
             },
-            "eventType": {
+            "expenseId": {
+              "type": "string"
+            },
+            "action": {
               "type": "string",
-              "description": "The type of sync event.",
               "knownValues": [
-                "push",
-                "pull",
-                "webhook"
+                "approve",
+                "reject"
               ]
             },
-            "timestamp": {
+            "reviewedBy": {
+              "type": "string",
+              "format": "did"
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "createdAt": {
               "type": "string",
               "format": "datetime"
-            },
-            "payload": {
-              "type": "object",
-              "description": "Event-specific data."
             }
           }
         }
@@ -1533,94 +2133,134 @@ export const lexicons = [
   },
   {
     "lexicon": 1,
-    "id": "network.coopsource.governance.proposal",
+    "id": "network.coopsource.governance.getProposal",
     "defs": {
       "main": {
-        "type": "record",
-        "description": "A governance proposal for cooperative decision-making.",
-        "key": "tid",
-        "record": {
-          "type": "object",
+        "type": "query",
+        "description": "Get a governance proposal by ID, including the current vote tally. The ID is a proposal UUID (app-layer entity), not an AT-URI. AT-URIs exist only for proposals written to a PDS; the UUID is the stable cross-tier identifier.",
+        "parameters": {
+          "type": "params",
           "required": [
-            "cooperativeDid",
-            "title",
-            "body",
-            "proposalType",
-            "votingMethod",
-            "status",
-            "createdAt"
+            "id"
           ],
           "properties": {
-            "cooperativeDid": {
+            "id": {
+              "type": "string",
+              "description": "Proposal UUID."
+            }
+          }
+        },
+        "output": {
+          "encoding": "application/json",
+          "schema": {
+            "type": "object",
+            "required": [
+              "id",
+              "title",
+              "body",
+              "status",
+              "votingType",
+              "cooperativeDid",
+              "authorDid",
+              "createdAt",
+              "tally"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "votingType": {
+                "type": "string"
+              },
+              "options": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "quorumType": {
+                "type": "string"
+              },
+              "quorumBasis": {
+                "type": "string"
+              },
+              "cooperativeDid": {
+                "type": "string",
+                "format": "did"
+              },
+              "authorDid": {
+                "type": "string",
+                "format": "did"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "datetime"
+              },
+              "resolvedAt": {
+                "type": "string",
+                "format": "datetime"
+              },
+              "tally": {
+                "type": "array",
+                "description": "Vote tally entries — one per choice with its count.",
+                "items": {
+                  "type": "ref",
+                  "ref": "#tallyEntry"
+                }
+              }
+            }
+          }
+        }
+      },
+      "tallyEntry": {
+        "type": "object",
+        "required": [
+          "choice",
+          "count"
+        ],
+        "properties": {
+          "choice": {
+            "type": "string",
+            "description": "The vote choice (e.g. 'yes', 'no', 'abstain')."
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of votes for this choice."
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
+    "id": "network.coopsource.governance.listProposals",
+    "defs": {
+      "main": {
+        "type": "query",
+        "description": "List governance proposals for an open-governance cooperative, with cursor-based pagination.",
+        "parameters": {
+          "type": "params",
+          "required": [
+            "cooperative"
+          ],
+          "properties": {
+            "cooperative": {
               "type": "string",
               "format": "did",
-              "description": "The cooperative this proposal belongs to."
-            },
-            "title": {
-              "type": "string",
-              "maxLength": 256
-            },
-            "body": {
-              "type": "string",
-              "maxLength": 10000,
-              "description": "The full text of the proposal."
-            },
-            "proposalType": {
-              "type": "string",
-              "description": "The category of the proposal.",
-              "knownValues": [
-                "amendment",
-                "budget",
-                "membership",
-                "policy",
-                "election",
-                "other"
-              ]
-            },
-            "votingMethod": {
-              "type": "string",
-              "description": "How votes are counted.",
-              "knownValues": [
-                "simple_majority",
-                "supermajority",
-                "consensus",
-                "ranked_choice"
-              ]
-            },
-            "options": {
-              "type": "array",
-              "description": "For ranked_choice or multi-option proposals, the list of options.",
-              "items": {
-                "type": "string",
-                "maxLength": 256
-              }
-            },
-            "quorumRequired": {
-              "type": "number",
-              "minimum": 0,
-              "maximum": 1,
-              "description": "Fraction of members required to vote (0-1)."
-            },
-            "quorumBasis": {
-              "type": "string",
-              "description": "Whether quorum is based on votes cast or total members.",
-              "knownValues": [
-                "votesCast",
-                "totalMembers"
-              ]
-            },
-            "discussionEndsAt": {
-              "type": "string",
-              "format": "datetime",
-              "description": "When the discussion period closes."
-            },
-            "votingEndsAt": {
-              "type": "string",
-              "format": "datetime",
-              "description": "When the voting period closes."
+              "description": "DID of the cooperative whose proposals to list."
             },
             "status": {
               "type": "string",
+              "description": "Filter by proposal status.",
               "knownValues": [
                 "draft",
                 "discussion",
@@ -1628,6 +2268,155 @@ export const lexicons = [
                 "passed",
                 "failed",
                 "withdrawn"
+              ]
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            },
+            "cursor": {
+              "type": "string"
+            }
+          }
+        },
+        "output": {
+          "encoding": "application/json",
+          "schema": {
+            "type": "object",
+            "required": [
+              "proposals"
+            ],
+            "properties": {
+              "proposals": {
+                "type": "array",
+                "items": {
+                  "type": "ref",
+                  "ref": "#proposalSummary"
+                }
+              },
+              "cursor": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "proposalSummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "status",
+          "votingType",
+          "cooperativeDid",
+          "authorDid",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "votingType": {
+            "type": "string"
+          },
+          "cooperativeDid": {
+            "type": "string",
+            "format": "did"
+          },
+          "authorDid": {
+            "type": "string",
+            "format": "did"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "resolvedAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
+    "id": "network.coopsource.legal.document",
+    "defs": {
+      "main": {
+        "type": "record",
+        "description": "A foundational legal document for a cooperative (bylaws, articles, policies, resolutions).",
+        "key": "tid",
+        "record": {
+          "type": "object",
+          "required": [
+            "cooperativeDid",
+            "title",
+            "documentType",
+            "version",
+            "status",
+            "createdAt"
+          ],
+          "properties": {
+            "cooperativeDid": {
+              "type": "string",
+              "format": "did",
+              "description": "The cooperative this document belongs to."
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "body": {
+              "type": "string",
+              "maxLength": 50000,
+              "description": "The full text of the document."
+            },
+            "documentType": {
+              "type": "string",
+              "knownValues": [
+                "bylaws",
+                "articles",
+                "policy",
+                "resolution",
+                "other"
+              ]
+            },
+            "version": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Monotonically increasing version number."
+            },
+            "previousVersion": {
+              "type": "string",
+              "format": "at-uri",
+              "description": "AT-URI of the previous version in the chain."
+            },
+            "bodyFormat": {
+              "type": "string",
+              "maxLength": 50,
+              "description": "Format of the body text.",
+              "knownValues": [
+                "markdown",
+                "plain",
+                "html"
+              ]
+            },
+            "status": {
+              "type": "string",
+              "knownValues": [
+                "draft",
+                "active",
+                "superseded",
+                "archived"
               ]
             },
             "createdAt": {
@@ -1641,50 +2430,348 @@ export const lexicons = [
   },
   {
     "lexicon": 1,
-    "id": "network.coopsource.governance.vote",
+    "id": "network.coopsource.legal.meetingRecord",
     "defs": {
       "main": {
         "type": "record",
-        "description": "A vote cast on a governance proposal.",
+        "description": "A record of a cooperative meeting with minutes, attendance, and resolutions.",
         "key": "tid",
         "record": {
           "type": "object",
           "required": [
-            "proposalUri",
-            "voterDid",
-            "choice",
+            "cooperativeDid",
+            "title",
+            "meetingDate",
+            "meetingType",
             "createdAt"
           ],
           "properties": {
-            "proposalUri": {
+            "cooperativeDid": {
+              "type": "string",
+              "format": "did",
+              "description": "The cooperative this meeting belongs to."
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "meetingDate": {
+              "type": "string",
+              "format": "datetime",
+              "description": "When the meeting took place."
+            },
+            "meetingType": {
+              "type": "string",
+              "knownValues": [
+                "board",
+                "general",
+                "special",
+                "committee"
+              ]
+            },
+            "attendees": {
+              "type": "array",
+              "description": "DIDs of members who attended.",
+              "items": {
+                "type": "string",
+                "format": "did"
+              }
+            },
+            "quorumMet": {
+              "type": "boolean",
+              "description": "Whether quorum was achieved."
+            },
+            "resolutions": {
+              "type": "array",
+              "description": "Resolutions passed during the meeting.",
+              "items": {
+                "type": "string",
+                "maxLength": 2000
+              }
+            },
+            "minutes": {
+              "type": "string",
+              "maxLength": 50000,
+              "description": "Full text of the meeting minutes."
+            },
+            "certifiedBy": {
+              "type": "string",
+              "format": "did",
+              "description": "DID of the person who certified the minutes."
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "datetime"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
+    "id": "network.coopsource.ops.schedule",
+    "defs": {
+      "main": {
+        "type": "record",
+        "description": "A shift or schedule entry in a cooperative's work schedule",
+        "key": "tid",
+        "record": {
+          "type": "object",
+          "required": [
+            "cooperativeDid",
+            "title",
+            "startsAt",
+            "endsAt",
+            "createdBy",
+            "createdAt"
+          ],
+          "properties": {
+            "cooperativeDid": {
+              "type": "string",
+              "format": "did"
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "assignedDid": {
+              "type": "string",
+              "format": "did"
+            },
+            "startsAt": {
+              "type": "string",
+              "format": "datetime"
+            },
+            "endsAt": {
+              "type": "string",
+              "format": "datetime"
+            },
+            "recurrence": {
+              "type": "string",
+              "maxLength": 50
+            },
+            "location": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "status": {
+              "type": "string",
+              "knownValues": [
+                "open",
+                "assigned",
+                "completed",
+                "cancelled"
+              ]
+            },
+            "calendarEventRef": {
               "type": "string",
               "format": "at-uri",
-              "description": "The proposal being voted on."
+              "description": "Reference to Smoke Signal calendar event"
             },
-            "voterDid": {
+            "createdBy": {
               "type": "string",
-              "format": "did",
-              "description": "The DID of the voter."
+              "format": "did"
             },
-            "choice": {
+            "createdAt": {
               "type": "string",
-              "description": "The vote choice. 'yes', 'no', 'abstain' for standard methods; JSON array for ranked_choice.",
-              "maxLength": 1000
-            },
-            "weight": {
-              "type": "number",
-              "minimum": 0,
-              "description": "Voting weight, defaults to 1.0. May be higher due to delegations."
-            },
-            "rationale": {
+              "format": "datetime"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
+    "id": "network.coopsource.ops.task",
+    "defs": {
+      "main": {
+        "type": "record",
+        "description": "A task definition in a cooperative's work coordination system",
+        "key": "tid",
+        "record": {
+          "type": "object",
+          "required": [
+            "cooperativeDid",
+            "title",
+            "status",
+            "priority",
+            "createdBy",
+            "createdAt"
+          ],
+          "properties": {
+            "cooperativeDid": {
               "type": "string",
-              "maxLength": 2000,
-              "description": "Optional explanation of the voter's reasoning."
+              "format": "did"
             },
-            "delegatedFrom": {
+            "projectId": {
               "type": "string",
-              "format": "did",
-              "description": "DID of the delegator, if this vote was cast on behalf of someone else."
+              "description": "Project entity ID"
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 10000
+            },
+            "status": {
+              "type": "string",
+              "knownValues": [
+                "backlog",
+                "todo",
+                "in_progress",
+                "in_review",
+                "done",
+                "cancelled"
+              ]
+            },
+            "priority": {
+              "type": "string",
+              "knownValues": [
+                "urgent",
+                "high",
+                "medium",
+                "low"
+              ]
+            },
+            "assigneeDids": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "did"
+              },
+              "maxLength": 20
+            },
+            "dueDate": {
+              "type": "string",
+              "format": "datetime"
+            },
+            "labels": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 50
+              },
+              "maxLength": 20
+            },
+            "linkedProposal": {
+              "type": "string",
+              "format": "at-uri"
+            },
+            "createdBy": {
+              "type": "string",
+              "format": "did"
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "datetime"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
+    "id": "network.coopsource.ops.taskAcceptance",
+    "defs": {
+      "main": {
+        "type": "record",
+        "description": "A member's acceptance of a task assignment. Written to member's PDS (bilateral pattern).",
+        "key": "tid",
+        "record": {
+          "type": "object",
+          "required": [
+            "taskUri",
+            "cooperativeDid",
+            "createdAt"
+          ],
+          "properties": {
+            "taskUri": {
+              "type": "string",
+              "format": "at-uri",
+              "description": "AT-URI of the task record"
+            },
+            "cooperativeDid": {
+              "type": "string",
+              "format": "did"
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "datetime"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
+    "id": "network.coopsource.ops.timeEntry",
+    "defs": {
+      "main": {
+        "type": "record",
+        "description": "A time entry recording work hours. Tier 2 private record — stored in private_record table, never on firehose.",
+        "key": "tid",
+        "record": {
+          "type": "object",
+          "required": [
+            "cooperativeDid",
+            "memberDid",
+            "startedAt",
+            "createdAt"
+          ],
+          "properties": {
+            "cooperativeDid": {
+              "type": "string",
+              "format": "did"
+            },
+            "memberDid": {
+              "type": "string",
+              "format": "did"
+            },
+            "taskId": {
+              "type": "string"
+            },
+            "projectId": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "startedAt": {
+              "type": "string",
+              "format": "datetime"
+            },
+            "endedAt": {
+              "type": "string",
+              "format": "datetime"
+            },
+            "durationMinutes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1440
+            },
+            "status": {
+              "type": "string",
+              "knownValues": [
+                "draft",
+                "submitted",
+                "approved",
+                "rejected"
+              ]
             },
             "createdAt": {
               "type": "string",
@@ -1740,6 +2827,150 @@ export const lexicons = [
             "createdAt": {
               "type": "string",
               "format": "datetime"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
+    "id": "network.coopsource.org.getCooperative",
+    "defs": {
+      "main": {
+        "type": "query",
+        "description": "Get public metadata for an open-governance cooperative by DID.",
+        "parameters": {
+          "type": "params",
+          "required": [
+            "cooperative"
+          ],
+          "properties": {
+            "cooperative": {
+              "type": "string",
+              "format": "did",
+              "description": "DID of the cooperative to look up."
+            }
+          }
+        },
+        "output": {
+          "encoding": "application/json",
+          "schema": {
+            "type": "object",
+            "required": [
+              "did",
+              "displayName",
+              "cooperativeType",
+              "membershipPolicy",
+              "governanceVisibility",
+              "isNetwork"
+            ],
+            "properties": {
+              "did": {
+                "type": "string",
+                "format": "did"
+              },
+              "handle": {
+                "type": "string"
+              },
+              "displayName": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "avatarCid": {
+                "type": "string"
+              },
+              "cooperativeType": {
+                "type": "string"
+              },
+              "membershipPolicy": {
+                "type": "string"
+              },
+              "maxMembers": {
+                "type": "integer"
+              },
+              "location": {
+                "type": "string"
+              },
+              "website": {
+                "type": "string"
+              },
+              "foundedDate": {
+                "type": "string"
+              },
+              "governanceVisibility": {
+                "type": "string",
+                "knownValues": [
+                  "open",
+                  "closed"
+                ]
+              },
+              "isNetwork": {
+                "type": "boolean",
+                "description": "Whether this cooperative is a network (a cooperative of cooperatives)."
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
+    "id": "network.coopsource.org.getMembership",
+    "defs": {
+      "main": {
+        "type": "query",
+        "description": "Check the authenticated viewer's membership status in an open-governance cooperative. The viewer's DID is implicit from the session.",
+        "parameters": {
+          "type": "params",
+          "required": [
+            "cooperative"
+          ],
+          "properties": {
+            "cooperative": {
+              "type": "string",
+              "format": "did",
+              "description": "DID of the cooperative to check membership in."
+            }
+          }
+        },
+        "output": {
+          "encoding": "application/json",
+          "schema": {
+            "type": "object",
+            "required": [
+              "isMember"
+            ],
+            "properties": {
+              "isMember": {
+                "type": "boolean",
+                "description": "Whether the viewer has an active membership in this cooperative."
+              },
+              "status": {
+                "type": "string",
+                "description": "Membership status, if a relationship exists.",
+                "knownValues": [
+                  "active",
+                  "pending_member",
+                  "pending_approval",
+                  "revoked"
+                ]
+              },
+              "roles": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Roles assigned to the viewer via memberApproval authority. Only present when active."
+              },
+              "joinedAt": {
+                "type": "string",
+                "format": "datetime",
+                "description": "When the membership became active."
+              }
             }
           }
         }
