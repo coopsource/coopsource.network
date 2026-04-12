@@ -111,16 +111,46 @@ describe('network.coopsource.org.listMembers', () => {
     });
   });
 
-  it('returns 404 for closed-governance cooperative', async () => {
+  it('returns 404 for closed-governance cooperative (unauthenticated)', async () => {
     await testApp.container.db
       .updateTable('cooperative_profile')
       .set({ governance_visibility: 'closed' })
       .where('entity_did', '=', coopDid)
       .execute();
 
-    await testApp.agent
+    const bare = supertest(testApp.app);
+    await bare
       .get('/xrpc/network.coopsource.org.listMembers')
       .query({ cooperative: coopDid })
       .expect(404);
+  });
+
+  it('returns members for closed-governance cooperative when authenticated as member', async () => {
+    await insertMember({
+      did: 'did:plc:closedmember',
+      displayName: 'Closed Coop Fellow',
+      directoryVisible: true,
+    });
+
+    await testApp.container.db
+      .updateTable('cooperative_profile')
+      .set({ governance_visibility: 'closed' })
+      .where('entity_did', '=', coopDid)
+      .execute();
+
+    const res = await testApp.agent
+      .get('/xrpc/network.coopsource.org.listMembers')
+      .query({ cooperative: coopDid })
+      .expect(200);
+
+    // Admin (from setupAndLogin) + the inserted member = 2
+    expect(res.body.members).toHaveLength(2);
+    const fellow = res.body.members.find(
+      (m: { did: string }) => m.did === 'did:plc:closedmember',
+    );
+    expect(fellow).toMatchObject({
+      did: 'did:plc:closedmember',
+      displayName: 'Closed Coop Fellow',
+    });
   });
 });
