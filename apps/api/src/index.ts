@@ -90,7 +90,9 @@ import { createMentionRoutes } from './routes/notifications/mentions.js';
 import { createAdminScriptRoutes } from './routes/admin-scripts.js';
 import { startAppViewLoop } from './appview/loop.js';
 import { createOAuthClient } from './auth/oauth-client.js';
-import { createXrpcLabelRoutes, setupLabelWebSocket } from './routes/xrpc-labels.js';
+import { setupLabelWebSocket } from './routes/xrpc-labels.js';
+import { createXrpcRoutes } from './xrpc/dispatcher.js';
+import { buildXrpcHandlers } from './xrpc/index.js';
 
 const config = loadConfig();
 const app: Express = express();
@@ -295,8 +297,8 @@ async function start(): Promise<void> {
   // Governance label routes
   app.use(createLabelRoutes(container.governanceLabeler));
 
-  // XRPC label routes (ATProto com.atproto.label.queryLabels)
-  app.use(createXrpcLabelRoutes(container.db));
+  // XRPC query dispatcher (V9.2 governance AppView + migrated label query)
+  app.use(createXrpcRoutes(container, buildXrpcHandlers(container)));
 
   // Onboarding routes (Phase 7)
   app.use(createOnboardingRoutes(container));

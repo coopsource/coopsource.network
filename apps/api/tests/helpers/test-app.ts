@@ -107,7 +107,8 @@ import { createMemberClassRoutes } from '../../src/routes/governance/member-clas
 import { createCooperativeLinkRoutes } from '../../src/routes/governance/cooperative-links.js';
 import { createAdminLexiconRoutes } from '../../src/routes/admin-lexicons.js';
 import { createAdminScriptRoutes } from '../../src/routes/admin-scripts.js';
-import { createXrpcLabelRoutes } from '../../src/routes/xrpc-labels.js';
+import { createXrpcRoutes } from '../../src/xrpc/dispatcher.js';
+import { buildXrpcHandlers } from '../../src/xrpc/index.js';
 import { errorHandler } from '../../src/middleware/error-handler.js';
 import { getTestDb, getTestConnectionString } from './test-db.js';
 
@@ -350,7 +351,7 @@ export function createTestApp(): TestApp {
   app.use(createCooperativeLinkRoutes(container));
   app.use(createAdminLexiconRoutes(container));
   app.use(createAdminScriptRoutes(container));
-  app.use(createXrpcLabelRoutes(db));
+  app.use(createXrpcRoutes(container, buildXrpcHandlers(container)));
 
   // Error handler (must be last)
   app.use(errorHandler);

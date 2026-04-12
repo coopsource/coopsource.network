@@ -1,0 +1,49 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.org.getMembership",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Check the authenticated viewer's membership status in an open-governance cooperative. The viewer's DID is implicit from the session.",
+      "parameters": {
+        "type": "params",
+        "required": ["cooperative"],
+        "properties": {
+          "cooperative": {
+            "type": "string",
+            "format": "did",
+            "description": "DID of the cooperative to check membership in."
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["isMember"],
+          "properties": {
+            "isMember": {
+              "type": "boolean",
+              "description": "Whether the viewer has an active membership in this cooperative."
+            },
+            "status": {
+              "type": "string",
+              "description": "Membership status, if a relationship exists.",
+              "knownValues": ["active", "pending_member", "pending_approval", "revoked"]
+            },
+            "roles": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Roles assigned to the viewer via memberApproval authority. Only present when active."
+            },
+            "joinedAt": {
+              "type": "string",
+              "format": "datetime",
+              "description": "When the membership became active."
+            }
+          }
+        }
+      }
+    }
+  }
+}

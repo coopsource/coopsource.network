@@ -31,7 +31,7 @@ Meanwhile, **permission spaces remain in design phase** with no implementation t
 | Phase | Name | Priority | Status |
 |-------|------|----------|--------|
 | V9.1 | Cooperative write path (app-password sessions) | Immediate | Shipped — validation gate green against atproto main 0.4.218 |
-| V9.2 | Governance AppView API | Immediate | Ready — model after Blacksky's Acorn |
+| V9.2 | Governance AppView API | Immediate | Shipped — 4 XRPC query endpoints, shared dispatcher |
 | V9.3 | Inlay governance components | Summer 2026 | Inlay is live at inlay.at |
 | V9.4 | Content wrapper pattern | Summer 2026 | Sound design, no ecosystem blockers |
 | V9.5 | Governance transparency logs | Summer 2026 | Valsorda PoC from ATmosphereConf |
@@ -421,25 +421,34 @@ The anchor+sidecar pattern (public governance anchors paired with private delibe
 - `packages/federation/src/http/signing-key-resolver.ts` `resolveRawBytes` method + unit tests
 - `packages/federation/src/atproto/pds-did-resolver.ts`
 
-### Phase V9.2: Governance AppView API
+### Phase V9.2: Governance AppView API (shipped 2026-04-12)
 
 **Branch**: `feature/v9.2-governance-api`
-**Effort**: 2-3 weeks
-**Dependencies**: V9.1 (service-auth for external caller authentication)
 
-**Tasks:**
-1. Define 8 XRPC query lexicons in `packages/lexicons/network/coopsource/query/`
-2. Build XRPC route handlers in `apps/api/src/routes/xrpc-governance.ts`
-3. Build XRPC auth middleware (verify ATProto OAuth, resolve DID, check membership/visibility)
-4. Add per-DID rate limiting
-5. Mount routes under `/xrpc/network.coopsource.query.*`
-6. Document API for external developers
+**What shipped (MVP — 4 XRPC query endpoints):**
+- `network.coopsource.org.getCooperative` — public cooperative profile
+- `network.coopsource.governance.listProposals` — cursor-paginated, status filter
+- `network.coopsource.governance.getProposal` — includes vote tally
+- `network.coopsource.org.getMembership` — auth: cookie session via `requireViewer`
+
+**Architecture decisions (diverged from original design):**
+- Shared XRPC dispatcher (`apps/api/src/xrpc/dispatcher.ts`) with handler registry, not a monolithic route file. `@atproto/xrpc-server` rejected due to Express 4/5 incompatibility.
+- `requireViewer` middleware for lightweight session identity, not full ATProto OAuth (deferred to V9.2.2)
+- Open-governance gate: closed-governance cooperatives return 404 (deferred to V9.2.4)
+- `com.atproto.label.queryLabels` migrated from standalone route into the dispatcher
+- CORS on `/xrpc/*` for cross-origin Inlay widget embedding
+- Lexicon param/output validation via `lexicons.getDef()` guard (skips non-coopsource methods)
 
 **Key files:**
-- `packages/lexicons/network/coopsource/query/` (new directory, 8 lexicons)
-- `apps/api/src/routes/xrpc-governance.ts` (new)
-- `apps/api/src/middleware/xrpc-auth.ts` (new)
-- `apps/api/src/index.ts` (mount routes)
+- `packages/lexicons/src/lexicons/` — 4 query schemas (getCooperative, listProposals, getProposal, getMembership)
+- `apps/api/src/xrpc/dispatcher.ts` — Express router, param validation, rate limiting, CORS
+- `apps/api/src/xrpc/index.ts` — handler registry (`buildXrpcHandlers`)
+- `apps/api/src/xrpc/handlers/` — 5 handler files (4 governance + migrated label query)
+- `apps/api/src/auth/middleware.ts` — `requireViewer` export
+- `apps/api/tests/xrpc-dispatcher.test.ts` — dispatcher routing tests
+- `apps/api/tests/xrpc-governance.test.ts` — handler integration tests
+
+**Followup sub-phases (unchanged):** V9.2.1 (PLC service entry), V9.2.2 (OAuth scope rewrite), V9.2.3 (remaining endpoints for V9.3 Inlay), V9.2.4 (closed-governance), V9.2.5 (DPoP cross-service auth)
 
 ### Phase V9.3: Inlay Governance Components
 
