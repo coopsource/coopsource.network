@@ -3,6 +3,7 @@ import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
 import { encryptKey } from './did-manager.js';
 import { ATPROTO_APP_PASSWORD_CREDENTIAL_TYPE } from '../http/auth-credential-resolver.js';
+import { MailpitClient } from '../email/mailpit-client.js';
 
 /**
  * Options for provisioning a cooperative account on a PDS and storing a
@@ -56,6 +57,11 @@ export interface ProvisionCooperativeOptions {
   displayName?: string;
   /** Short description for the `entity` row. */
   description?: string;
+  /** CSN service endpoint URL for the #coopsource PLC entry (e.g. 'https://coopsource.network').
+   *  If omitted, no PLC service entry is added (V9.1 behavior). */
+  serviceEndpoint?: string;
+  /** Mailpit base URL for email token extraction (required when serviceEndpoint is set). */
+  mailpitUrl?: string;
 }
 
 /**
@@ -108,6 +114,13 @@ export async function provisionCooperative(
   const email =
     options.email ?? `${handle.replace(/\./g, '-')}@coopsource.local`;
 
+  if (options.serviceEndpoint && !options.mailpitUrl) {
+    throw new Error(
+      'mailpitUrl is required when serviceEndpoint is set — ' +
+      'no production email path exists yet, only Mailpit-based dev/test',
+    );
+  }
+
   // ─── Step 1: Create an invite code as PDS admin (HTTP Basic auth) ───────
   const adminAuthHeader =
     'Basic ' + Buffer.from(`admin:${adminPassword}`).toString('base64');
@@ -143,35 +156,24 @@ export async function provisionCooperative(
   });
   const accountDid = createResult.data.did;
 
-  // ─── Step 3: Create an app password via the returned session ────────────
-  // `createAppPassword` requires an authenticated session. AtpAgent does
-  // not automatically adopt the session returned by createAccount — call
-  // it directly with the `accessJwt` as the Authorization header.
-  const appPasswordCreateRes = await fetch(
-    `${pdsUrl}/xrpc/com.atproto.server.createAppPassword`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${createResult.data.accessJwt}`,
-      },
-      body: JSON.stringify({
-        name: 'coopsource-api',
-        privileged: true,
-      }),
-    },
-  );
-  if (!appPasswordCreateRes.ok) {
-    const text = await appPasswordCreateRes.text().catch(() => 'unknown');
-    throw new Error(
-      `Failed to create app password for ${accountDid} (${appPasswordCreateRes.status}): ${text}`,
-    );
-  }
-  const appPasswordResult = (await appPasswordCreateRes.json()) as {
-    password: string;
-    name: string;
-  };
-  const appPassword = appPasswordResult.password;
+  // Resume the session on the agent so it can be used for subsequent
+  // authenticated calls (createAppPassword, identity endpoints).
+  // AtpAgent does not auto-adopt the createAccount session.
+  await agent.resumeSession({
+    did: createResult.data.did,
+    handle: createResult.data.handle,
+    accessJwt: createResult.data.accessJwt,
+    refreshJwt: createResult.data.refreshJwt,
+    active: true,
+  });
+
+  // ─── Step 3: Create an app password via the agent session ─────────────
+  const appPasswordResult =
+    await agent.com.atproto.server.createAppPassword({
+      name: 'coopsource-api',
+      privileged: true,
+    });
+  const appPassword = appPasswordResult.data.password;
 
   // ─── Step 4: Persist entity + auth_credential rows ──────────────────────
   const encryptedAppPassword = await encryptKey(appPassword, keyEncKey);
@@ -200,6 +202,46 @@ export async function provisionCooperative(
       secret_hash: encryptedAppPassword,
     })
     .execute();
+
+  // ─── Step 5: Add #coopsource service entry to PLC (optional) ─────────
+  if (options.serviceEndpoint) {
+    const mailpit = new MailpitClient(options.mailpitUrl!);
+
+    // 5a. Get current DID credentials for the defensive services map
+    const recommended =
+      await agent.com.atproto.identity.getRecommendedDidCredentials();
+    const currentServices = (recommended.data.services ?? {}) as Record<
+      string,
+      { type: string; endpoint: string }
+    >;
+
+    // 5b. Request PLC operation signature — PDS emails a confirmation token
+    const beforeEmail = new Date();
+    await agent.com.atproto.identity.requestPlcOperationSignature();
+
+    // 5c. Extract token from Mailpit
+    const emailBody = await mailpit.waitForEmail(email, {
+      afterTimestamp: beforeEmail,
+    });
+    const token = mailpit.extractPlcToken(emailBody);
+
+    // 5d. Sign the PLC operation with defensive services map
+    const signResult = await agent.com.atproto.identity.signPlcOperation({
+      token,
+      services: {
+        ...currentServices,
+        coopsource: {
+          type: 'CoopSourceNetwork',
+          endpoint: options.serviceEndpoint,
+        },
+      },
+    });
+
+    // 5e. Submit the signed operation to PLC
+    await agent.com.atproto.identity.submitPlcOperation({
+      operation: signResult.data.operation,
+    });
+  }
 
   return {
     did: accountDid,
