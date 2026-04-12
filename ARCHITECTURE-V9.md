@@ -34,6 +34,7 @@ Meanwhile, **permission spaces remain in design phase** with no implementation t
 | V9.2 | Governance AppView API | Immediate | Shipped — 4 XRPC query endpoints, shared dispatcher |
 | V9.2.1 | PLC service entry | Immediate | Shipped — `#coopsource` / `CoopSourceNetwork` in cooperative DID docs |
 | V9.2.2 | OAuth scope rewrite | Immediate | Shipped — per-namespace scopes replace `transition:generic` |
+| V9.2.3 | Remaining XRPC endpoints | Immediate | Shipped — listMembers (three-tier privacy), getVoteEligibility, getOfficers |
 | V9.3 | Inlay governance components | Summer 2026 | Inlay is live at inlay.at |
 | V9.4 | Content wrapper pattern | Summer 2026 | Sound design, no ecosystem blockers |
 | V9.5 | Governance transparency logs | Summer 2026 | Valsorda PoC from ATmosphereConf |
