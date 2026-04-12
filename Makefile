@@ -89,7 +89,7 @@ test\:all: pds-reset start ## Run ALL tests with real PDS (Docker required, rese
 	@echo "Waiting for PDS + PLC to be healthy..."
 	@docker compose -f infrastructure/docker-compose.yml up -d --wait plc pds mailpit
 	pnpm test
-	PDS_URL=http://localhost:2583 PLC_URL=http://localhost:2582 pnpm --filter @coopsource/federation test
+	PDS_URL=http://localhost:2583 PLC_URL=http://localhost:2582 MAILPIT_URL=http://localhost:8025 pnpm --filter @coopsource/federation test
 
 pds-dev: start pds-up ## Start all services + PDS for V6 development
 	pnpm turbo dev --filter=@coopsource/api --filter=@coopsource/web

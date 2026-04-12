@@ -37,7 +37,7 @@ export class MailpitClient {
     const res = await fetch(`${this.baseUrl}/api/v1/messages`, {
       method: 'DELETE',
     });
-    if (!res.ok && res.status !== 200) {
+    if (!res.ok) {
       throw new Error(`Mailpit clearInbox failed (${res.status})`);
     }
   }
