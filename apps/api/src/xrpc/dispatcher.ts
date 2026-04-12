@@ -96,15 +96,18 @@ export function createXrpcRoutes(
         if (res.headersSent) return;
       }
 
-      // Parse and validate params
+      // Parse and validate params against lexicon schema.
+      // Skip validation for methods not in our lexicons (e.g. com.atproto.label.queryLabels).
       const params = parseQueryParams(req);
-      try {
-        lexicons.assertValidXrpcParams(methodId, params);
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Invalid parameters';
-        res.status(400).json({ error: 'InvalidRequest', message });
-        return;
+      if (lexicons.getDef(methodId)) {
+        try {
+          lexicons.assertValidXrpcParams(methodId, params);
+        } catch (err) {
+          const message =
+            err instanceof Error ? err.message : 'Invalid parameters';
+          res.status(400).json({ error: 'InvalidRequest', message });
+          return;
+        }
       }
 
       // Build context and call handler
@@ -117,19 +120,19 @@ export function createXrpcRoutes(
       try {
         const output = await handler.handler(ctx);
 
-        // Validate output against lexicon schema
-        try {
-          lexicons.assertValidXrpcOutput(methodId, output);
-        } catch (err) {
-          // In dev, throw so we catch response drift early.
-          // In production, log a warning but still return the response.
-          if (process.env.NODE_ENV === 'development') {
-            throw err;
+        // Validate output against lexicon schema (skip for non-coopsource methods)
+        if (lexicons.getDef(methodId)) {
+          try {
+            lexicons.assertValidXrpcOutput(methodId, output);
+          } catch (err) {
+            if (process.env.NODE_ENV === 'development') {
+              throw err;
+            }
+            logger.warn(
+              { methodId, err },
+              'XRPC output validation failed — response returned anyway',
+            );
           }
-          logger.warn(
-            { methodId, err },
-            'XRPC output validation failed — response returned anyway',
-          );
         }
 
         res.json(output);
