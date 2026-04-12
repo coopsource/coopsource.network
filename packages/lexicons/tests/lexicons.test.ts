@@ -2,13 +2,17 @@ import { describe, it, expect } from 'vitest';
 import { lexiconSchemas, LEXICON_IDS } from '../src/index.js';
 
 describe('lexicon schemas', () => {
-  it('should export all 23 lexicon schemas', () => {
-    expect(lexiconSchemas).toHaveLength(23);
+  it('should export all 40 lexicon schemas', () => {
+    expect(lexiconSchemas).toHaveLength(40);
   });
 
   it('should contain all expected lexicon IDs', () => {
     const ids = lexiconSchemas.map((l: { id: string }) => l.id).sort();
     expect(ids).toEqual([
+      'network.coopsource.admin.complianceItem',
+      'network.coopsource.admin.fiscalPeriod',
+      'network.coopsource.admin.memberNotice',
+      'network.coopsource.admin.officer',
       'network.coopsource.agreement.amendment',
       'network.coopsource.agreement.contribution',
       'network.coopsource.agreement.master',
@@ -18,15 +22,28 @@ describe('lexicon schemas', () => {
       'network.coopsource.alignment.interestMap',
       'network.coopsource.alignment.outcome',
       'network.coopsource.alignment.stakeholder',
+      'network.coopsource.commerce.collaborativeProject',
+      'network.coopsource.commerce.intercoopAgreement',
+      'network.coopsource.commerce.listing',
+      'network.coopsource.commerce.need',
+      'network.coopsource.commerce.resource',
       'network.coopsource.connection.binding',
       'network.coopsource.connection.link',
-      'network.coopsource.connection.sync',
+      'network.coopsource.finance.expenseApproval',
       'network.coopsource.funding.campaign',
       'network.coopsource.funding.pledge',
       'network.coopsource.governance.delegation',
-      'network.coopsource.governance.proposal',
-      'network.coopsource.governance.vote',
+      'network.coopsource.governance.getProposal',
+      'network.coopsource.governance.listProposals',
+      'network.coopsource.legal.document',
+      'network.coopsource.legal.meetingRecord',
+      'network.coopsource.ops.schedule',
+      'network.coopsource.ops.task',
+      'network.coopsource.ops.taskAcceptance',
+      'network.coopsource.ops.timeEntry',
       'network.coopsource.org.cooperative',
+      'network.coopsource.org.getCooperative',
+      'network.coopsource.org.getMembership',
       'network.coopsource.org.memberApproval',
       'network.coopsource.org.membership',
       'network.coopsource.org.project',
