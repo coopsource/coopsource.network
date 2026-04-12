@@ -11,10 +11,16 @@ export interface Actor {
   hasRole: (...roles: string[]) => boolean;
 }
 
+export interface Viewer {
+  did: string;
+  displayName: string;
+}
+
 declare global {
   namespace Express {
     interface Request {
       actor?: Actor;
+      viewer?: Viewer;
     }
   }
 }
@@ -129,6 +135,50 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
 };
 
 export const requireMember: RequestHandler = requireAuth;
+
+export const requireViewer: RequestHandler = async (req, res, next) => {
+  try {
+    const did = req.session?.did;
+    if (!did) {
+      res
+        .status(401)
+        .json({
+          error: { code: 'UNAUTHORIZED', message: 'Not authenticated' },
+        });
+      return;
+    }
+
+    const entity = await _db
+      .selectFrom('entity')
+      .where('did', '=', did)
+      .where('status', '=', 'active')
+      .select(['did', 'display_name'])
+      .executeTakeFirst();
+
+    if (!entity) {
+      req.session.destroy(() => {});
+      res
+        .status(401)
+        .json({
+          error: { code: 'UNAUTHORIZED', message: 'Account not found' },
+        });
+      return;
+    }
+
+    req.viewer = {
+      did: entity.did,
+      displayName: entity.display_name,
+    };
+
+    next();
+  } catch {
+    res
+      .status(401)
+      .json({
+        error: { code: 'UNAUTHORIZED', message: 'Session invalid' },
+      });
+  }
+};
 
 export const requireAdmin: RequestHandler = (req, res, next) => {
   if (!req.actor?.hasRole('admin', 'owner')) {
