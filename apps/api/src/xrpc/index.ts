@@ -4,6 +4,7 @@ import { handleGetCooperative } from './handlers/get-cooperative.js';
 import { handleListProposals } from './handlers/list-proposals.js';
 import { handleGetProposal } from './handlers/get-proposal.js';
 import { handleGetMembership } from './handlers/get-membership.js';
+import { handleListMembers } from './handlers/list-members.js';
 import { handleGetOfficers } from './handlers/get-officers.js';
 import { handleQueryLabels } from './handlers/query-labels.js';
 
@@ -42,6 +43,12 @@ export function buildXrpcHandlers(
     auth: 'viewer',
     rateLimit: { windowMs: FIFTEEN_MINUTES, limit: 200 },
     handler: handleGetMembership,
+  });
+
+  handlers.set('network.coopsource.org.listMembers', {
+    auth: 'optional',
+    rateLimit: { windowMs: FIFTEEN_MINUTES, limit: 60 },
+    handler: handleListMembers,
   });
 
   handlers.set('network.coopsource.admin.getOfficers', {
