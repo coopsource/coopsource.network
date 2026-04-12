@@ -185,6 +185,7 @@ export interface MembershipTable {
   joined_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
   departed_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
   status_reason: string | null;
+  directory_visible: ColumnType<boolean, boolean | undefined, boolean>;
   created_at: ColumnType<Date, Date | string | undefined, Date | string>;
   created_by: string | null;
   invalidated_at: ColumnType<Date | null, Date | string | null, Date | string | null>;

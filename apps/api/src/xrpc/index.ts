@@ -4,6 +4,9 @@ import { handleGetCooperative } from './handlers/get-cooperative.js';
 import { handleListProposals } from './handlers/list-proposals.js';
 import { handleGetProposal } from './handlers/get-proposal.js';
 import { handleGetMembership } from './handlers/get-membership.js';
+import { handleGetVoteEligibility } from './handlers/get-vote-eligibility.js';
+import { handleListMembers } from './handlers/list-members.js';
+import { handleGetOfficers } from './handlers/get-officers.js';
 import { handleQueryLabels } from './handlers/query-labels.js';
 
 const FIFTEEN_MINUTES = 15 * 60 * 1000;
@@ -37,10 +40,28 @@ export function buildXrpcHandlers(
     handler: handleGetProposal,
   });
 
+  handlers.set('network.coopsource.governance.getVoteEligibility', {
+    auth: 'viewer',
+    rateLimit: { windowMs: FIFTEEN_MINUTES, limit: 200 },
+    handler: handleGetVoteEligibility,
+  });
+
   handlers.set('network.coopsource.org.getMembership', {
     auth: 'viewer',
     rateLimit: { windowMs: FIFTEEN_MINUTES, limit: 200 },
     handler: handleGetMembership,
+  });
+
+  handlers.set('network.coopsource.org.listMembers', {
+    auth: 'optional',
+    rateLimit: { windowMs: FIFTEEN_MINUTES, limit: 60 },
+    handler: handleListMembers,
+  });
+
+  handlers.set('network.coopsource.admin.getOfficers', {
+    auth: 'none',
+    rateLimit: { windowMs: FIFTEEN_MINUTES, limit: 60 },
+    handler: handleGetOfficers,
   });
 
   // --- Migrated from xrpc-labels.ts (review finding C1) ---

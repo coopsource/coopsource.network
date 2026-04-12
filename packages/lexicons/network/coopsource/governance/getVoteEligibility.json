@@ -1,0 +1,40 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.governance.getVoteEligibility",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Check the authenticated viewer's eligibility to vote on a governance proposal. Returns weight (including delegated votes) and whether the viewer has already voted.",
+      "parameters": {
+        "type": "params",
+        "required": ["proposal"],
+        "properties": {
+          "proposal": {
+            "type": "string",
+            "description": "Proposal UUID."
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["eligible", "weight", "hasVoted"],
+          "properties": {
+            "eligible": { "type": "boolean" },
+            "weight": {
+              "type": "integer",
+              "description": "Vote weight including delegated votes. 0 when ineligible."
+            },
+            "hasVoted": { "type": "boolean" },
+            "reason": {
+              "type": "string",
+              "description": "Reason for ineligibility, if applicable.",
+              "knownValues": ["not_active_member", "proposal_not_voting", "already_voted"]
+            }
+          }
+        }
+      }
+    }
+  }
+}

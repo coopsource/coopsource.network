@@ -124,6 +124,75 @@ export const lexicons = [
   },
   {
     "lexicon": 1,
+    "id": "network.coopsource.admin.getOfficers",
+    "defs": {
+      "main": {
+        "type": "query",
+        "description": "Get current officers of an open-governance cooperative.",
+        "parameters": {
+          "type": "params",
+          "required": [
+            "cooperative"
+          ],
+          "properties": {
+            "cooperative": {
+              "type": "string",
+              "format": "did",
+              "description": "DID of the cooperative whose officers to list."
+            }
+          }
+        },
+        "output": {
+          "encoding": "application/json",
+          "schema": {
+            "type": "object",
+            "required": [
+              "officers"
+            ],
+            "properties": {
+              "officers": {
+                "type": "array",
+                "items": {
+                  "type": "ref",
+                  "ref": "#officer"
+                }
+              }
+            }
+          }
+        }
+      },
+      "officer": {
+        "type": "object",
+        "required": [
+          "did",
+          "title",
+          "appointedAt"
+        ],
+        "properties": {
+          "did": {
+            "type": "string",
+            "format": "did"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "appointedAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "termEndsAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
     "id": "network.coopsource.admin.memberNotice",
     "defs": {
       "main": {
@@ -2242,6 +2311,60 @@ export const lexicons = [
   },
   {
     "lexicon": 1,
+    "id": "network.coopsource.governance.getVoteEligibility",
+    "defs": {
+      "main": {
+        "type": "query",
+        "description": "Check the authenticated viewer's eligibility to vote on a governance proposal. Returns weight (including delegated votes) and whether the viewer has already voted.",
+        "parameters": {
+          "type": "params",
+          "required": [
+            "proposal"
+          ],
+          "properties": {
+            "proposal": {
+              "type": "string",
+              "description": "Proposal UUID."
+            }
+          }
+        },
+        "output": {
+          "encoding": "application/json",
+          "schema": {
+            "type": "object",
+            "required": [
+              "eligible",
+              "weight",
+              "hasVoted"
+            ],
+            "properties": {
+              "eligible": {
+                "type": "boolean"
+              },
+              "weight": {
+                "type": "integer",
+                "description": "Vote weight including delegated votes. 0 when ineligible."
+              },
+              "hasVoted": {
+                "type": "boolean"
+              },
+              "reason": {
+                "type": "string",
+                "description": "Reason for ineligibility, if applicable.",
+                "knownValues": [
+                  "not_active_member",
+                  "proposal_not_voting",
+                  "already_voted"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
     "id": "network.coopsource.governance.listProposals",
     "defs": {
       "main": {
@@ -2972,6 +3095,89 @@ export const lexicons = [
                 "description": "When the membership became active."
               }
             }
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
+    "id": "network.coopsource.org.listMembers",
+    "defs": {
+      "main": {
+        "type": "query",
+        "description": "List members of an open-governance cooperative with cursor-based pagination. Visibility depends on caller: unauthenticated callers see only directory-visible members; authenticated non-members see all members but private ones are redacted; fellow members see full detail.",
+        "parameters": {
+          "type": "params",
+          "required": [
+            "cooperative"
+          ],
+          "properties": {
+            "cooperative": {
+              "type": "string",
+              "format": "did",
+              "description": "DID of the cooperative whose members to list."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            },
+            "cursor": {
+              "type": "string"
+            }
+          }
+        },
+        "output": {
+          "encoding": "application/json",
+          "schema": {
+            "type": "object",
+            "required": [
+              "members"
+            ],
+            "properties": {
+              "members": {
+                "type": "array",
+                "items": {
+                  "type": "ref",
+                  "ref": "#member"
+                }
+              },
+              "cursor": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "member": {
+        "type": "object",
+        "required": [
+          "did",
+          "private"
+        ],
+        "properties": {
+          "did": {
+            "type": "string",
+            "format": "did"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "joinedAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "private": {
+            "type": "boolean",
+            "description": "Whether this member's details are redacted due to directory visibility settings."
           }
         }
       }

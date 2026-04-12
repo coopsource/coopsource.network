@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { lexiconSchemas, LEXICON_IDS } from '../src/index.js';
 
 describe('lexicon schemas', () => {
-  it('should export all 40 lexicon schemas', () => {
-    expect(lexiconSchemas).toHaveLength(40);
+  it('should export all 43 lexicon schemas', () => {
+    expect(lexiconSchemas).toHaveLength(43);
   });
 
   it('should contain all expected lexicon IDs', () => {
@@ -11,6 +11,7 @@ describe('lexicon schemas', () => {
     expect(ids).toEqual([
       'network.coopsource.admin.complianceItem',
       'network.coopsource.admin.fiscalPeriod',
+      'network.coopsource.admin.getOfficers',
       'network.coopsource.admin.memberNotice',
       'network.coopsource.admin.officer',
       'network.coopsource.agreement.amendment',
@@ -34,6 +35,7 @@ describe('lexicon schemas', () => {
       'network.coopsource.funding.pledge',
       'network.coopsource.governance.delegation',
       'network.coopsource.governance.getProposal',
+      'network.coopsource.governance.getVoteEligibility',
       'network.coopsource.governance.listProposals',
       'network.coopsource.legal.document',
       'network.coopsource.legal.meetingRecord',
@@ -44,6 +46,7 @@ describe('lexicon schemas', () => {
       'network.coopsource.org.cooperative',
       'network.coopsource.org.getCooperative',
       'network.coopsource.org.getMembership',
+      'network.coopsource.org.listMembers',
       'network.coopsource.org.memberApproval',
       'network.coopsource.org.membership',
       'network.coopsource.org.project',

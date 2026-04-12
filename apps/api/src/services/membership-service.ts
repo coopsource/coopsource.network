@@ -17,6 +17,7 @@ export interface MemberWithRoles {
   roles: string[];
   membershipId: string;
   joinedAt: Date | null;
+  directoryVisible: boolean;
 }
 
 export class MembershipService {
@@ -43,6 +44,7 @@ export class MembershipService {
         'membership.status',
         'membership.joined_at',
         'membership.created_at',
+        'membership.directory_visible',
         'entity.display_name',
       ])
       .orderBy('membership.created_at', 'desc')
@@ -81,6 +83,7 @@ export class MembershipService {
         roles: roleRows.map((r) => r.role),
         membershipId: row.id,
         joinedAt: row.joined_at,
+        directoryVisible: row.directory_visible,
       });
     }
 
@@ -107,6 +110,7 @@ export class MembershipService {
         'membership.member_did',
         'membership.status',
         'membership.joined_at',
+        'membership.directory_visible',
         'entity.display_name',
       ])
       .executeTakeFirst();
@@ -126,6 +130,7 @@ export class MembershipService {
       roles: roleRows.map((r) => r.role),
       membershipId: row.id,
       joinedAt: row.joined_at,
+      directoryVisible: row.directory_visible,
     };
   }
 

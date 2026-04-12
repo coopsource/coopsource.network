@@ -8,7 +8,7 @@ import { logger } from '../middleware/logger.js';
 import type { Container } from '../container.js';
 
 export interface XrpcQueryHandler {
-  auth: 'none' | 'viewer';
+  auth: 'none' | 'viewer' | 'optional';
   rateLimit: { windowMs: number; limit: number };
   handler: (ctx: XrpcContext) => Promise<unknown>;
 }
@@ -83,6 +83,27 @@ export function createXrpcRoutes(
           );
         });
         if (res.headersSent) return;
+      }
+
+      // Optional auth: resolve viewer if session exists, but don't 401 on failure.
+      // We cannot reuse requireViewer here because it sends a 401 response
+      // directly (never calling next()), which would leave the Promise hanging.
+      if (handler.auth === 'optional') {
+        const did = req.session?.did;
+        if (did) {
+          const entity = await container.db
+            .selectFrom('entity')
+            .where('did', '=', did)
+            .where('status', '=', 'active')
+            .select(['did', 'display_name'])
+            .executeTakeFirst();
+          if (entity) {
+            req.viewer = {
+              did: entity.did,
+              displayName: entity.display_name,
+            };
+          }
+        }
       }
 
       // Rate limiting

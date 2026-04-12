@@ -1,0 +1,56 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.org.listMembers",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "List members of an open-governance cooperative with cursor-based pagination. Visibility depends on caller: unauthenticated callers see only directory-visible members; authenticated non-members see all members but private ones are redacted; fellow members see full detail.",
+      "parameters": {
+        "type": "params",
+        "required": ["cooperative"],
+        "properties": {
+          "cooperative": {
+            "type": "string",
+            "format": "did",
+            "description": "DID of the cooperative whose members to list."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 50
+          },
+          "cursor": { "type": "string" }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["members"],
+          "properties": {
+            "members": {
+              "type": "array",
+              "items": { "type": "ref", "ref": "#member" }
+            },
+            "cursor": { "type": "string" }
+          }
+        }
+      }
+    },
+    "member": {
+      "type": "object",
+      "required": ["did", "private"],
+      "properties": {
+        "did": { "type": "string", "format": "did" },
+        "displayName": { "type": "string" },
+        "roles": { "type": "array", "items": { "type": "string" } },
+        "joinedAt": { "type": "string", "format": "datetime" },
+        "private": {
+          "type": "boolean",
+          "description": "Whether this member's details are redacted due to directory visibility settings."
+        }
+      }
+    }
+  }
+}
