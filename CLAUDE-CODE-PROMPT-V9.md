@@ -93,7 +93,7 @@ The full implementation plan lives at `/Users/alan/.claude/plans/immutable-stirr
 
 5. **CLI wrapper** at `apps/api/scripts/provision-cooperative.ts` — thin arg parser that opens a `@coopsource/db` Kysely connection and calls `provisionCooperative`. Lives inside `apps/api/scripts/` (not top-level `scripts/`) so tsx resolves workspace package imports against `apps/api/node_modules/@coopsource/*`.
 
-6. **Do NOT rewrite OAuth scopes in V9.1.** The proposed narrow replacement (`rpc:network.coopsource.governance?aud=* rpc:network.coopsource.org?aud=*`) breaks 8+ feature areas. Deferred to V9.2 with the full per-namespace audit. `apps/api/src/auth/oauth-client.ts:30` stays as `'atproto transition:generic'`.
+6. **OAuth scopes — V9.2.2 shipped.** `transition:generic` replaced with per-namespace `rpc:` scope tokens for the 6 member-write namespaces (alignment, agreement, funding, governance, org, connection). The scope constant is `OAUTH_SCOPE` in `apps/api/src/auth/oauth-client.ts`. These are forward-compatible declarations — the PDS does not enforce per-namespace scopes yet (as of @atproto 0.6.x / PDS 0.4).
 
 ### Deferred from V9.1 (see ARCHITECTURE-V9.md §2 "What V9.1 ships vs. defers")
 

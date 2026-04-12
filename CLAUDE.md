@@ -379,7 +379,7 @@ All 4 phases merged to main. See [ARCHITECTURE-V6.md](./ARCHITECTURE-V6.md) for 
 13. **AT URI as PK for PDS tables; UUID for app tables.** Don't mix these
 14. **Cursor-based pagination everywhere.** Not offset-based
 15. **Don't add `role` to membership lexicon.** Roles are ONLY in memberApproval
-16. **Don't rely on Auth Scopes being available** — they're partially rolled out; use `transition:generic` for now
+16. **OAuth scopes are declared per-namespace** — `OAUTH_SCOPE` in `apps/api/src/auth/oauth-client.ts` lists the 6 member-write namespaces. PDS enforcement is forward-compatible (not enforced in PDS 0.4). Don't add new member-write namespaces without updating the scope constant
 17. **Don't rely on Buckets** — still in design; use Tier 2 PostgreSQL for private data
 18. **Don't run your own relay** — use `bsky.network`; running a relay costs $150+/mo
 
