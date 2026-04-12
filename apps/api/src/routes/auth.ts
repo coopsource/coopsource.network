@@ -5,6 +5,7 @@ import { asyncHandler } from '../lib/async-handler.js';
 import { requireAuth, requireSetup } from '../auth/middleware.js';
 import { ValidationError, RegisterSchema, LoginSchema } from '@coopsource/common';
 import type { NodeOAuthClient } from '@atproto/oauth-client-node';
+import { OAUTH_SCOPE } from '../auth/oauth-client.js';
 
 export interface AuthRoutesOptions {
   oauthClient?: NodeOAuthClient;
@@ -274,7 +275,7 @@ export function createAuthRoutes(
         }
 
         const url = await oauthClient.authorize(handle, {
-          scope: 'atproto transition:generic',
+          scope: OAUTH_SCOPE,
         });
 
         res.json({ redirectUrl: url.toString() });
