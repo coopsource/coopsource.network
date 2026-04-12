@@ -1,6 +1,7 @@
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
 import { NotFoundError } from '@coopsource/common';
+import type { MembershipService, MemberWithRoles } from '../../services/membership-service.js';
 
 export interface CooperativeRow {
   did: string;
@@ -26,15 +27,26 @@ export interface CooperativeRow {
   public_campaigns: boolean;
 }
 
+export interface GovernanceAccessResult {
+  coop: CooperativeRow;
+  viewerMembership?: MemberWithRoles;
+}
+
 /**
- * Verify a cooperative exists, is active, and uses open governance.
- * Returns the full joined row so handlers can reuse it without a second query.
- * Throws NotFoundError for nonexistent, inactive, or closed-governance cooperatives.
+ * Verify a cooperative exists and is active, then enforce governance visibility.
+ *
+ * - open / mixed: return immediately (backward compatible, no membership check)
+ * - closed: require an authenticated viewer who is an active member
+ *
+ * Returns the full joined row plus optional viewer membership so handlers can
+ * reuse both without redundant queries.
  */
-export async function assertOpenGovernance(
+export async function assertGovernanceAccess(
   db: Kysely<Database>,
   cooperativeDid: string,
-): Promise<CooperativeRow> {
+  viewer?: { did: string; displayName: string },
+  membershipService?: MembershipService,
+): Promise<GovernanceAccessResult> {
   const row = await db
     .selectFrom('entity')
     .innerJoin(
@@ -70,9 +82,26 @@ export async function assertOpenGovernance(
     ])
     .executeTakeFirst();
 
-  if (!row || row.governance_visibility !== 'open') {
+  if (!row) {
     throw new NotFoundError('Cooperative not found');
   }
 
-  return row as CooperativeRow;
+  const coop = row as CooperativeRow;
+
+  // Open and mixed governance: public access, no membership check needed
+  if (coop.governance_visibility === 'open' || coop.governance_visibility === 'mixed') {
+    return { coop };
+  }
+
+  // Closed governance: require authenticated viewer with active membership
+  if (!viewer || !membershipService) {
+    throw new NotFoundError('Cooperative not found');
+  }
+
+  const member = await membershipService.getMember(cooperativeDid, viewer.did);
+  if (!member || member.status !== 'active') {
+    throw new NotFoundError('Cooperative not found');
+  }
+
+  return { coop, viewerMembership: member };
 }

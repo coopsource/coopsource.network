@@ -1,23 +1,28 @@
 import type { XrpcContext } from '../dispatcher.js';
-import { assertOpenGovernance } from './open-governance-gate.js';
+import { assertGovernanceAccess } from './open-governance-gate.js';
 
 export async function handleGetCooperative(ctx: XrpcContext): Promise<unknown> {
   const cooperativeDid = ctx.params.cooperative as string;
-  const row = await assertOpenGovernance(ctx.container.db, cooperativeDid);
+  const { coop } = await assertGovernanceAccess(
+    ctx.container.db,
+    cooperativeDid,
+    ctx.viewer,
+    ctx.container.membershipService,
+  );
 
   return {
-    did: row.did,
-    handle: row.handle ?? row.did,
-    displayName: row.display_name,
-    description: row.description ?? undefined,
-    avatarCid: row.avatar_cid ?? undefined,
-    cooperativeType: row.cooperative_type,
-    membershipPolicy: row.membership_policy,
-    maxMembers: row.max_members ?? undefined,
-    location: row.location ?? undefined,
-    website: row.website ?? undefined,
-    foundedDate: row.founded_date ?? undefined,
-    governanceVisibility: row.governance_visibility,
-    isNetwork: row.is_network,
+    did: coop.did,
+    handle: coop.handle ?? coop.did,
+    displayName: coop.display_name,
+    description: coop.description ?? undefined,
+    avatarCid: coop.avatar_cid ?? undefined,
+    cooperativeType: coop.cooperative_type,
+    membershipPolicy: coop.membership_policy,
+    maxMembers: coop.max_members ?? undefined,
+    location: coop.location ?? undefined,
+    website: coop.website ?? undefined,
+    foundedDate: coop.founded_date ?? undefined,
+    governanceVisibility: coop.governance_visibility,
+    isNetwork: coop.is_network,
   };
 }

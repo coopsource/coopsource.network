@@ -72,17 +72,48 @@ describe('network.coopsource.admin.getOfficers', () => {
     expect(res.body.officers).toEqual([]);
   });
 
-  it('returns 404 for closed-governance cooperative', async () => {
+  it('returns 404 for closed-governance cooperative (unauthenticated)', async () => {
     await testApp.container.db
       .updateTable('cooperative_profile')
       .set({ governance_visibility: 'closed' })
       .where('entity_did', '=', coopDid)
       .execute();
 
-    await testApp.agent
+    const bare = supertest(testApp.app);
+    await bare
       .get('/xrpc/network.coopsource.admin.getOfficers')
       .query({ cooperative: coopDid })
       .expect(404);
+  });
+
+  it('returns officers for closed-governance cooperative when authenticated as member', async () => {
+    const now = new Date();
+    const termEnds = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+
+    await testApp.container.officerRecordService.appoint(coopDid, {
+      officerDid: adminDid,
+      title: 'Treasurer',
+      appointedAt: now.toISOString(),
+      termEndsAt: termEnds.toISOString(),
+      appointmentType: 'elected',
+    });
+
+    await testApp.container.db
+      .updateTable('cooperative_profile')
+      .set({ governance_visibility: 'closed' })
+      .where('entity_did', '=', coopDid)
+      .execute();
+
+    const res = await testApp.agent
+      .get('/xrpc/network.coopsource.admin.getOfficers')
+      .query({ cooperative: coopDid })
+      .expect(200);
+
+    expect(res.body.officers).toHaveLength(1);
+    expect(res.body.officers[0]).toMatchObject({
+      did: adminDid,
+      title: 'Treasurer',
+    });
   });
 
   it('does not require authentication', async () => {

@@ -1,6 +1,6 @@
 import type { XrpcContext } from '../dispatcher.js';
 import { NotFoundError } from '@coopsource/common';
-import { assertOpenGovernance } from './open-governance-gate.js';
+import { assertGovernanceAccess } from './open-governance-gate.js';
 
 export async function handleGetVoteEligibility(
   ctx: XrpcContext,
@@ -16,8 +16,13 @@ export async function handleGetVoteEligibility(
 
   const { proposal } = result;
 
-  // Verify the cooperative has open governance
-  await assertOpenGovernance(ctx.container.db, proposal.cooperative_did);
+  // Verify the cooperative allows governance access
+  const { viewerMembership } = await assertGovernanceAccess(
+    ctx.container.db,
+    proposal.cooperative_did,
+    ctx.viewer,
+    ctx.container.membershipService,
+  );
 
   // Check proposal is in voting phase (status 'open' in DB)
   if (proposal.status !== 'open') {
@@ -29,8 +34,8 @@ export async function handleGetVoteEligibility(
     };
   }
 
-  // Check viewer is an active member
-  const member = await ctx.container.membershipService.getMember(
+  // Reuse the membership from the gate if available (closed coop already checked)
+  const member = viewerMembership ?? await ctx.container.membershipService.getMember(
     proposal.cooperative_did,
     viewerDid,
   );

@@ -23,19 +23,19 @@ export function buildXrpcHandlers(
   // --- Governance AppView queries (V9.2) ---
 
   handlers.set('network.coopsource.org.getCooperative', {
-    auth: 'none',
+    auth: 'optional',
     rateLimit: { windowMs: FIFTEEN_MINUTES, limit: 60 },
     handler: handleGetCooperative,
   });
 
   handlers.set('network.coopsource.governance.listProposals', {
-    auth: 'none',
+    auth: 'optional',
     rateLimit: { windowMs: FIFTEEN_MINUTES, limit: 60 },
     handler: handleListProposals,
   });
 
   handlers.set('network.coopsource.governance.getProposal', {
-    auth: 'none',
+    auth: 'optional',
     rateLimit: { windowMs: FIFTEEN_MINUTES, limit: 60 },
     handler: handleGetProposal,
   });
@@ -59,7 +59,7 @@ export function buildXrpcHandlers(
   });
 
   handlers.set('network.coopsource.admin.getOfficers', {
-    auth: 'none',
+    auth: 'optional',
     rateLimit: { windowMs: FIFTEEN_MINUTES, limit: 60 },
     handler: handleGetOfficers,
   });

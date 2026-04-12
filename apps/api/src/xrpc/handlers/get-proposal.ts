@@ -1,6 +1,6 @@
 import type { XrpcContext } from '../dispatcher.js';
 import { NotFoundError } from '@coopsource/common';
-import { assertOpenGovernance } from './open-governance-gate.js';
+import { assertGovernanceAccess } from './open-governance-gate.js';
 
 export async function handleGetProposal(ctx: XrpcContext): Promise<unknown> {
   const id = ctx.params.id as string;
@@ -12,8 +12,13 @@ export async function handleGetProposal(ctx: XrpcContext): Promise<unknown> {
 
   const { proposal, voteSummary } = result;
 
-  // Verify the proposal's cooperative has open governance
-  await assertOpenGovernance(ctx.container.db, proposal.cooperative_did);
+  // Verify the proposal's cooperative allows governance access
+  await assertGovernanceAccess(
+    ctx.container.db,
+    proposal.cooperative_did,
+    ctx.viewer,
+    ctx.container.membershipService,
+  );
 
   // Convert voteSummary map to tally array
   const tally = Object.entries(voteSummary).map(([choice, count]) => ({

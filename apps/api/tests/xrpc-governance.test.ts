@@ -57,7 +57,23 @@ describe('XRPC governance handlers', () => {
       expect(res.body.error).toBe('NotFound');
     });
 
-    it('returns 404 for closed-governance cooperative', async () => {
+    it('returns 404 for closed-governance cooperative (unauthenticated)', async () => {
+      await testApp.container.db
+        .updateTable('cooperative_profile')
+        .set({ governance_visibility: 'closed' })
+        .where('entity_did', '=', coopDid)
+        .execute();
+
+      const bare = supertest(testApp.app);
+      const res = await bare
+        .get('/xrpc/network.coopsource.org.getCooperative')
+        .query({ cooperative: coopDid })
+        .expect(404);
+
+      expect(res.body.error).toBe('NotFound');
+    });
+
+    it('returns data for closed-governance cooperative when authenticated as member', async () => {
       await testApp.container.db
         .updateTable('cooperative_profile')
         .set({ governance_visibility: 'closed' })
@@ -67,9 +83,11 @@ describe('XRPC governance handlers', () => {
       const res = await testApp.agent
         .get('/xrpc/network.coopsource.org.getCooperative')
         .query({ cooperative: coopDid })
-        .expect(404);
+        .expect(200);
 
-      expect(res.body.error).toBe('NotFound');
+      expect(res.body.did).toBe(coopDid);
+      expect(res.body.displayName).toBe('Test Cooperative');
+      expect(res.body.governanceVisibility).toBe('closed');
     });
   });
 
@@ -148,17 +166,36 @@ describe('XRPC governance handlers', () => {
       expect(res.body.proposals[0].title).toBe('Open one');
     });
 
-    it('returns 404 for closed-governance cooperative', async () => {
+    it('returns 404 for closed-governance cooperative (unauthenticated)', async () => {
       await testApp.container.db
         .updateTable('cooperative_profile')
         .set({ governance_visibility: 'closed' })
         .where('entity_did', '=', coopDid)
         .execute();
 
-      await testApp.agent
+      const bare = supertest(testApp.app);
+      await bare
         .get('/xrpc/network.coopsource.governance.listProposals')
         .query({ cooperative: coopDid })
         .expect(404);
+    });
+
+    it('returns proposals for closed-governance cooperative when authenticated as member', async () => {
+      await createProposal({ title: 'Closed coop proposal' });
+
+      await testApp.container.db
+        .updateTable('cooperative_profile')
+        .set({ governance_visibility: 'closed' })
+        .where('entity_did', '=', coopDid)
+        .execute();
+
+      const res = await testApp.agent
+        .get('/xrpc/network.coopsource.governance.listProposals')
+        .query({ cooperative: coopDid })
+        .expect(200);
+
+      expect(res.body.proposals).toHaveLength(1);
+      expect(res.body.proposals[0].title).toBe('Closed coop proposal');
     });
   });
 
@@ -193,7 +230,7 @@ describe('XRPC governance handlers', () => {
       expect(res.body.error).toBe('NotFound');
     });
 
-    it('returns 404 when proposal belongs to closed-governance coop', async () => {
+    it('returns 404 when proposal belongs to closed-governance coop (unauthenticated)', async () => {
       const proposal = await createProposal();
 
       await testApp.container.db
@@ -202,10 +239,29 @@ describe('XRPC governance handlers', () => {
         .where('entity_did', '=', coopDid)
         .execute();
 
-      await testApp.agent
+      const bare = supertest(testApp.app);
+      await bare
         .get('/xrpc/network.coopsource.governance.getProposal')
         .query({ id: proposal.id })
         .expect(404);
+    });
+
+    it('returns proposal for closed-governance coop when authenticated as member', async () => {
+      const proposal = await createProposal({ title: 'Closed coop detail' });
+
+      await testApp.container.db
+        .updateTable('cooperative_profile')
+        .set({ governance_visibility: 'closed' })
+        .where('entity_did', '=', coopDid)
+        .execute();
+
+      const res = await testApp.agent
+        .get('/xrpc/network.coopsource.governance.getProposal')
+        .query({ id: proposal.id })
+        .expect(200);
+
+      expect(res.body.id).toBe(proposal.id);
+      expect(res.body.title).toBe('Closed coop detail');
     });
   });
 
@@ -271,17 +327,42 @@ describe('XRPC governance handlers', () => {
       expect(res.body.error.code).toBe('UNAUTHORIZED');
     });
 
-    it('returns 404 for closed-governance cooperative', async () => {
+    it('returns isMember true for closed-governance cooperative when authenticated as member', async () => {
       await testApp.container.db
         .updateTable('cooperative_profile')
         .set({ governance_visibility: 'closed' })
         .where('entity_did', '=', coopDid)
         .execute();
 
-      await testApp.agent
+      const res = await testApp.agent
         .get('/xrpc/network.coopsource.org.getMembership')
         .query({ cooperative: coopDid })
-        .expect(404);
+        .expect(200);
+
+      expect(res.body).toMatchObject({ isMember: true, status: 'active' });
+    });
+
+    it('returns isMember false for closed-governance cooperative when not a member', async () => {
+      await testApp.container.db
+        .updateTable('cooperative_profile')
+        .set({ governance_visibility: 'closed' })
+        .where('entity_did', '=', coopDid)
+        .execute();
+
+      // Remove admin's membership so they are no longer a member
+      await testApp.container.db
+        .updateTable('membership')
+        .set({ invalidated_at: new Date() })
+        .where('member_did', '=', adminDid)
+        .where('cooperative_did', '=', coopDid)
+        .execute();
+
+      const res = await testApp.agent
+        .get('/xrpc/network.coopsource.org.getMembership')
+        .query({ cooperative: coopDid })
+        .expect(200);
+
+      expect(res.body).toMatchObject({ isMember: false });
     });
   });
 });

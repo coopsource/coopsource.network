@@ -115,4 +115,41 @@ describe('network.coopsource.governance.getVoteEligibility', () => {
 
     expect(res.body.error).toBe('NotFound');
   });
+
+  it('returns 401 for closed-governance cooperative (unauthenticated)', async () => {
+    const proposalId = await createOpenProposal();
+
+    await testApp.container.db
+      .updateTable('cooperative_profile')
+      .set({ governance_visibility: 'closed' })
+      .where('entity_did', '=', coopDid)
+      .execute();
+
+    const bare = supertest(testApp.app);
+    await bare
+      .get('/xrpc/network.coopsource.governance.getVoteEligibility')
+      .query({ proposal: proposalId })
+      .expect(401);
+  });
+
+  it('returns eligibility for closed-governance cooperative when authenticated as member', async () => {
+    const proposalId = await createOpenProposal();
+
+    await testApp.container.db
+      .updateTable('cooperative_profile')
+      .set({ governance_visibility: 'closed' })
+      .where('entity_did', '=', coopDid)
+      .execute();
+
+    const res = await testApp.agent
+      .get('/xrpc/network.coopsource.governance.getVoteEligibility')
+      .query({ proposal: proposalId })
+      .expect(200);
+
+    expect(res.body).toMatchObject({
+      eligible: true,
+      weight: 1,
+      hasVoted: false,
+    });
+  });
 });
