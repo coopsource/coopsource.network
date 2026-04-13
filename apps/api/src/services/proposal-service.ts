@@ -158,6 +158,31 @@ export class ProposalService {
     return { proposal, votes, voteSummary };
   }
 
+  async getProposalByUri(uri: string): Promise<ProposalWithVotes | null> {
+    const proposal = await this.db
+      .selectFrom('proposal')
+      .where('uri', '=', uri)
+      .where('invalidated_at', 'is', null)
+      .selectAll()
+      .executeTakeFirst();
+
+    if (!proposal) return null;
+
+    const votes = await this.db
+      .selectFrom('vote')
+      .where('proposal_id', '=', proposal.id)
+      .where('retracted_at', 'is', null)
+      .selectAll()
+      .execute();
+
+    const voteSummary: Record<string, number> = {};
+    for (const v of votes) {
+      voteSummary[v.choice] = (voteSummary[v.choice] ?? 0) + 1;
+    }
+
+    return { proposal, votes, voteSummary };
+  }
+
   async createProposal(
     authorDid: string,
     data: CreateProposalInput,

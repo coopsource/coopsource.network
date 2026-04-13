@@ -37,7 +37,7 @@ Meanwhile, **permission spaces remain in design phase** with no implementation t
 | V9.2.3 | Remaining XRPC endpoints | Immediate | Shipped — listMembers (three-tier privacy), getVoteEligibility, getOfficers |
 | V9.2.4 | Closed-governance visibility | Immediate | Shipped — members of closed coops can access all XRPC endpoints |
 | V9.2.5 | Service-auth JWTs | Immediate | Shipped — external ATProto apps authenticate via Bearer JWT |
-| V9.3 | Inlay governance components | Summer 2026 | Shipped — ProposalCard template + MembershipStatus external component, InlayAuthVerifier, POST dispatcher |
+| V9.3 | Inlay governance components | Summer 2026 | Shipped — all 5 components: ProposalCard (template), MembershipStatus, OfficerList, GovernanceFeed, VoteWidget (external). InlayAuthVerifier, POST dispatcher, shared checkVoteEligibility |
 | V9.4 | Content wrapper pattern | Summer 2026 | Sound design, no ecosystem blockers |
 | V9.5 | Governance transparency logs | Summer 2026 | Valsorda PoC from ATmosphereConf |
 | V9.6 | opensocial.community bridge | Fall 2026 | Track Ellich's multi-app integration |
@@ -455,18 +455,18 @@ The anchor+sidecar pattern (public governance anchors paired with private delibe
 
 **Followup sub-phases:** V9.2.1 (PLC service entry) [SHIPPED], V9.2.2 (OAuth scope rewrite) [SHIPPED], V9.2.3 (remaining endpoints for V9.3 Inlay) [SHIPPED], V9.2.4 (closed-governance) [SHIPPED], V9.2.5 (service-auth JWTs) [SHIPPED]
 
-### Phase V9.3: Inlay Governance Components
+### Phase V9.3: Inlay Governance Components [SHIPPED]
 
-**Branch**: `feature/v9.3-inlay-components`
-**Effort**: 3-4 weeks
 **Dependencies**: V9.2 (Governance API as data backend)
 
-**Tasks:**
-1. Study Inlay component contract model (`tangled.org/danabra.mov/inlay`)
-2. Design 5 governance components: VoteWidget, MembershipStatus, ProposalCard, OfficerList, GovernanceFeed
-3. Build server-side rendering endpoints producing Inlay-compatible output
-4. Register components with Inlay registry
-5. Test embedding in Bluesky / other ATProto clients
+**Shipped components** (all 5):
+1. **ProposalCard** — `bodyTemplate`. Serialized element tree with `at.inlay.Binding` placeholders. No server endpoint.
+2. **MembershipStatus** — `bodyExternal`, personalized. Viewer JWT auth, bilateral membership lookup.
+3. **OfficerList** — `bodyExternal`, non-personalized. Closed-governance fallback tree.
+4. **GovernanceFeed** — `bodyExternal`, non-personalized. Uses `listPublicProposals` (excludes drafts).
+5. **VoteWidget** — `bodyExternal`, personalized. AT-URI lookup via `getProposalByUri`, shared `checkVoteEligibility`, deep link to CSN web UI.
+
+**Infrastructure**: `InlayAuthVerifier` (no trusted-issuer whitelist), POST dispatcher, `#inlay` DID doc service entry, `@inlay/core` v0.0.13, component registration CLI.
 
 ### Phase V9.4: Content Wrapper Pattern
 

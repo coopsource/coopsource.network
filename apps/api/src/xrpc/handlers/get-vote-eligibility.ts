@@ -1,6 +1,7 @@
 import type { XrpcContext } from '../dispatcher.js';
 import { NotFoundError } from '@coopsource/common';
 import { assertGovernanceAccess } from './open-governance-gate.js';
+import { checkVoteEligibility } from './check-vote-eligibility.js';
 
 export async function handleGetVoteEligibility(
   ctx: XrpcContext,
@@ -24,61 +25,12 @@ export async function handleGetVoteEligibility(
     ctx.container.membershipService,
   );
 
-  // Check proposal is in voting phase (status 'open' in DB)
-  if (proposal.status !== 'open') {
-    return {
-      eligible: false,
-      weight: 0,
-      hasVoted: false,
-      reason: 'proposal_not_voting',
-    };
-  }
-
-  // Reuse the membership from the gate if available (closed coop already checked)
-  const member = viewerMembership ?? await ctx.container.membershipService.getMember(
-    proposal.cooperative_did,
+  return checkVoteEligibility(
+    ctx.container.db,
+    ctx.container.membershipService,
+    ctx.container.delegationVotingService,
+    proposal,
     viewerDid,
+    viewerMembership,
   );
-  if (!member || member.status !== 'active') {
-    return {
-      eligible: false,
-      weight: 0,
-      hasVoted: false,
-      reason: 'not_active_member',
-    };
-  }
-
-  // Calculate vote weight (includes delegations)
-  const weight =
-    await ctx.container.delegationVotingService.calculateVoteWeight(
-      proposal.cooperative_did,
-      viewerDid,
-      proposalId,
-    );
-
-  // Check if viewer has already voted (active vote = retracted_at IS NULL)
-  const existingVote = await ctx.container.db
-    .selectFrom('vote')
-    .where('proposal_id', '=', proposalId)
-    .where('voter_did', '=', viewerDid)
-    .where('retracted_at', 'is', null)
-    .select('id')
-    .executeTakeFirst();
-
-  const hasVoted = !!existingVote;
-
-  if (hasVoted) {
-    return {
-      eligible: false,
-      weight,
-      hasVoted: true,
-      reason: 'already_voted',
-    };
-  }
-
-  return {
-    eligible: true,
-    weight,
-    hasVoted: false,
-  };
 }

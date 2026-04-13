@@ -61,6 +61,48 @@ const COMPONENTS: Array<{ rkey: string; record: Record<string, unknown> }> = [
       },
     },
   },
+  {
+    rkey: 'OfficerList',
+    record: {
+      $type: 'at.inlay.component',
+      bodyExternal: {
+        did: 'did:web:coopsource.network',
+        personalized: false,
+      },
+      view: {
+        prop: 'did',
+        accepts: [{ type: 'string', format: 'did' }],
+      },
+    },
+  },
+  {
+    rkey: 'GovernanceFeed',
+    record: {
+      $type: 'at.inlay.component',
+      bodyExternal: {
+        did: 'did:web:coopsource.network',
+        personalized: false,
+      },
+      view: {
+        prop: 'did',
+        accepts: [{ type: 'string', format: 'did' }],
+      },
+    },
+  },
+  {
+    rkey: 'VoteWidget',
+    record: {
+      $type: 'at.inlay.component',
+      bodyExternal: {
+        did: 'did:web:coopsource.network',
+        personalized: true,
+      },
+      view: {
+        prop: 'uri',
+        accepts: [{ collection: 'network.coopsource.governance.proposal' }],
+      },
+    },
+  },
 ];
 
 async function main() {

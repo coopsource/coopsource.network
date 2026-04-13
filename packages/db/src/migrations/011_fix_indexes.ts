@@ -23,10 +23,12 @@ export async function up(db: Kysely<unknown>): Promise<void> {
   await sql`CREATE INDEX IF NOT EXISTS idx_auth_credential_identifier ON auth_credential (identifier)`.execute(db);
   await sql`CREATE INDEX IF NOT EXISTS idx_invitation_token ON invitation (token)`.execute(db);
   await sql`CREATE INDEX IF NOT EXISTS idx_proposal_coop_status ON proposal (cooperative_did, status) WHERE invalidated_at IS NULL`.execute(db);
+  await sql`CREATE INDEX IF NOT EXISTS idx_proposal_uri ON proposal (uri) WHERE uri IS NOT NULL AND invalidated_at IS NULL`.execute(db);
 }
 
 export async function down(db: Kysely<unknown>): Promise<void> {
   // Remove performance indexes
+  await sql`DROP INDEX IF EXISTS idx_proposal_uri`.execute(db);
   await sql`DROP INDEX IF EXISTS idx_proposal_coop_status`.execute(db);
   await sql`DROP INDEX IF EXISTS idx_invitation_token`.execute(db);
   await sql`DROP INDEX IF EXISTS idx_auth_credential_identifier`.execute(db);

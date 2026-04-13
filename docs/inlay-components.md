@@ -82,15 +82,89 @@ Shows a viewer's own membership state in a cooperative.
 
 ---
 
-## Planned Components
+### OfficerList
 
-These are planned for follow-up releases:
+Shows current officers for a cooperative.
 
-| Component | Type | Personalized | Description |
-|---|---|---|---|
-| OfficerList | External | No | Current officers for a cooperative |
-| GovernanceFeed | External | No | Stream of recent governance activity |
-| VoteWidget | External | Yes | Proposal tally + vote eligibility (display-only — voting requires deep link to CSN UI) |
+| Property | Value |
+|---|---|
+| Type | External (`bodyExternal`) |
+| Personalized | No |
+| Auth required | No |
+| Input | Cooperative DID |
+| XRPC method | `network.coopsource.inlay.OfficerList` (POST) |
+
+**What it shows**:
+- Cooperative name
+- List of current officers: display name, title, appointment date, term end date
+- Empty state: "No officers appointed"
+- Closed-governance cooperatives: "This cooperative's governance is private"
+
+**Request format** (POST body):
+```json
+{ "did": "did:plc:cooperative-did-here" }
+```
+
+**Cache**: `life: "hours"` — officer lists change infrequently.
+
+---
+
+### GovernanceFeed
+
+Stream of recent governance activity for a cooperative.
+
+| Property | Value |
+|---|---|
+| Type | External (`bodyExternal`) |
+| Personalized | No |
+| Auth required | No |
+| Input | Cooperative DID |
+| XRPC method | `network.coopsource.inlay.GovernanceFeed` (POST) |
+
+**What it shows**:
+- Cooperative name
+- Up to 5 recent non-draft proposals: title, status ("Open for voting", "Voting closed", "Resolved"), creation date
+- Empty state: "No governance activity yet"
+- Closed-governance cooperatives: "This cooperative's governance is private"
+
+**Request format** (POST body):
+```json
+{ "did": "did:plc:cooperative-did-here" }
+```
+
+**Cache**: `life: "minutes"` — proposal statuses change as votes come in.
+
+---
+
+### VoteWidget
+
+Proposal details with live vote tally and viewer's eligibility status.
+
+| Property | Value |
+|---|---|
+| Type | External (`bodyExternal`) |
+| Personalized | Yes |
+| Auth required | Viewer JWT |
+| Input | Proposal AT-URI |
+| XRPC method | `network.coopsource.inlay.VoteWidget` (POST) |
+
+**How auth works**: Same as MembershipStatus — viewer JWT obtained via `com.atproto.server.getServiceAuth`.
+
+**What it shows**:
+- Proposal title and status
+- Live vote tally (choices + counts)
+- Viewer's eligibility: "You can vote" / "Already voted" / "Members only" / "Voting ended"
+- Delegation weight (if > 1)
+- Deep link to CSN's web UI for actual voting
+
+**Display-only**: VoteWidget does not support casting votes through Inlay — voting requires visiting CSN's web UI via the provided deep link. This is by design: Inlay has no mutation model (RFC 008 stage-1).
+
+**Request format** (POST body):
+```json
+{ "uri": "at://did:plc:coop/network.coopsource.governance.proposal/rkey" }
+```
+
+**Cache**: `life: "seconds"` — tallies change with each vote.
 
 ---
 
