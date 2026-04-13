@@ -9,6 +9,9 @@ import { handleListMembers } from './handlers/list-members.js';
 import { handleGetOfficers } from './handlers/get-officers.js';
 import { handleQueryLabels } from './handlers/query-labels.js';
 import { handleInlayMembershipStatus } from './handlers/inlay-membership-status.js';
+import { handleInlayOfficerList } from './handlers/inlay-officer-list.js';
+import { handleInlayGovernanceFeed } from './handlers/inlay-governance-feed.js';
+import { handleInlayVoteWidget } from './handlers/inlay-vote-widget.js';
 
 const FIFTEEN_MINUTES = 15 * 60 * 1000;
 
@@ -72,6 +75,27 @@ export function buildXrpcHandlers(
     auth: 'inlay-viewer',
     rateLimit: { windowMs: FIFTEEN_MINUTES, limit: 200 },
     handler: handleInlayMembershipStatus,
+  });
+
+  handlers.set('network.coopsource.inlay.OfficerList', {
+    method: 'procedure',
+    auth: 'none',
+    rateLimit: { windowMs: FIFTEEN_MINUTES, limit: 60 },
+    handler: handleInlayOfficerList,
+  });
+
+  handlers.set('network.coopsource.inlay.GovernanceFeed', {
+    method: 'procedure',
+    auth: 'none',
+    rateLimit: { windowMs: FIFTEEN_MINUTES, limit: 60 },
+    handler: handleInlayGovernanceFeed,
+  });
+
+  handlers.set('network.coopsource.inlay.VoteWidget', {
+    method: 'procedure',
+    auth: 'inlay-viewer',
+    rateLimit: { windowMs: FIFTEEN_MINUTES, limit: 200 },
+    handler: handleInlayVoteWidget,
   });
 
   // --- Migrated from xrpc-labels.ts (review finding C1) ---
