@@ -87,6 +87,11 @@ export function createWellKnownRoutes(
             type: 'CoopSourcePds',
             serviceEndpoint: config.INSTANCE_URL,
           },
+          {
+            id: '#inlay',
+            type: 'InlayComponentServer',
+            serviceEndpoint: config.INSTANCE_URL,
+          },
         ],
       };
 

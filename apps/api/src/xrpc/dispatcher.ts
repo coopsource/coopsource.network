@@ -2,14 +2,16 @@ import { Router, type Request, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import { lexicons } from '@coopsource/lexicons';
 import { AppError } from '@coopsource/common';
-import type { ServiceAuthVerifier } from '@coopsource/federation/atproto';
+import type { ServiceAuthVerifier, InlayAuthVerifier } from '@coopsource/federation/atproto';
 import { requireViewer } from '../auth/middleware.js';
 import { asyncHandler } from '../lib/async-handler.js';
 import { logger } from '../middleware/logger.js';
 import type { Container } from '../container.js';
 
 export interface XrpcQueryHandler {
-  auth: 'none' | 'viewer' | 'optional';
+  /** 'query' = GET (default), 'procedure' = POST (Inlay external components). */
+  method?: 'query' | 'procedure';
+  auth: 'none' | 'viewer' | 'optional' | 'inlay-viewer';
   rateLimit: { windowMs: number; limit: number };
   handler: (ctx: XrpcContext) => Promise<unknown>;
 }
@@ -22,6 +24,7 @@ export interface XrpcContext {
 
 export interface XrpcRouteOptions {
   serviceAuthVerifier?: ServiceAuthVerifier;
+  inlayAuthVerifier?: InlayAuthVerifier;
 }
 
 /**
@@ -77,6 +80,15 @@ export function createXrpcRoutes(
         res.status(404).json({
           error: 'MethodNotFound',
           message: `Method not found: ${methodId}`,
+        });
+        return;
+      }
+
+      // Reject GET for procedure handlers (must use POST)
+      if ((handler.method ?? 'query') === 'procedure') {
+        res.status(405).json({
+          error: 'InvalidMethod',
+          message: `${methodId} is a procedure — use POST`,
         });
         return;
       }
@@ -192,12 +204,91 @@ export function createXrpcRoutes(
     }),
   );
 
-  // Fallback for non-GET methods — return clean XRPC error
+  // POST handler for XRPC procedures (Inlay external components)
+  router.post(
+    '/xrpc/:methodId',
+    asyncHandler(async (req: Request, res: Response) => {
+      setCorsHeaders(res);
+
+      const methodId = String(req.params.methodId);
+      const handler = handlers.get(methodId);
+      if (!handler) {
+        res.status(404).json({
+          error: 'MethodNotFound',
+          message: `Method not found: ${methodId}`,
+        });
+        return;
+      }
+
+      // Reject POST for query handlers (must use GET)
+      if ((handler.method ?? 'query') === 'query') {
+        res.status(405).json({
+          error: 'InvalidMethod',
+          message: `${methodId} is a query — use GET`,
+        });
+        return;
+      }
+
+      // Auth for Inlay procedures: verify viewer JWT via InlayAuthVerifier.
+      // resolveInlayAuth returns false (no Bearer header) or true (verified).
+      // Invalid JWTs throw AppError(401) caught by the error handler below.
+      if (handler.auth === 'inlay-viewer') {
+        if (!await resolveInlayAuth(req, options?.inlayAuthVerifier, methodId)) {
+          throw new AppError(
+            'Personalized component requires Authorization: Bearer <viewer-jwt>',
+            401,
+            'AuthenticationRequired',
+          );
+        }
+      }
+
+      // Rate limiting
+      const limiter = limiters.get(methodId);
+      if (limiter) {
+        await new Promise<void>((resolve, reject) => {
+          limiter(req, res, (err?: unknown) =>
+            err ? reject(err) : resolve(),
+          );
+        });
+        if (res.headersSent) return;
+      }
+
+      // Parse body as params (POST sends JSON body, not query params)
+      const params = (req.body as Record<string, unknown>) ?? {};
+
+      // Build context and call handler
+      const ctx: XrpcContext = {
+        params,
+        viewer: req.viewer,
+        container,
+      };
+
+      try {
+        const output = await handler.handler(ctx);
+        res.json(output);
+      } catch (err) {
+        if (err instanceof AppError) {
+          res.status(err.statusCode).json({
+            error: err.code,
+            message: err.message,
+          });
+          return;
+        }
+        logger.error({ err, methodId }, 'XRPC procedure handler error');
+        res.status(500).json({
+          error: 'InternalServerError',
+          message: 'Internal server error',
+        });
+      }
+    }),
+  );
+
+  // Fallback for unsupported methods
   router.all('/xrpc/:methodId', (_req: Request, res: Response) => {
     setCorsHeaders(res);
     res.status(405).json({
       error: 'InvalidMethod',
-      message: 'XRPC queries must use GET',
+      message: 'XRPC endpoints accept GET (queries) or POST (procedures)',
     });
   });
 
@@ -207,7 +298,7 @@ export function createXrpcRoutes(
 function setCorsHeaders(res: Response): void {
   res.set({
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   });
 }
@@ -245,6 +336,41 @@ async function resolveServiceAuth(
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Service auth verification failed';
     logger.warn({ err, methodId }, 'Service-auth JWT rejected');
+    throw new AppError(message, 401, 'AuthenticationRequired');
+  }
+}
+
+/**
+ * Verify an Inlay viewer JWT for personalized procedure handlers.
+ * Returns true if a valid JWT was found and req.viewer was set.
+ * Returns false if no Bearer header is present.
+ * Throws on invalid JWTs.
+ */
+async function resolveInlayAuth(
+  req: Request,
+  verifier: InlayAuthVerifier | undefined,
+  methodId: string,
+): Promise<boolean> {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return false;
+  }
+
+  if (!verifier) {
+    throw new AppError('Inlay authentication is not configured', 501, 'InlayAuthNotConfigured');
+  }
+
+  const token = authHeader.slice(7);
+  try {
+    const result = await verifier.verify(token, methodId);
+    req.viewer = {
+      did: result.viewerDid,
+      displayName: '',
+    };
+    return true;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Inlay auth verification failed';
+    logger.warn({ err, methodId }, 'Inlay viewer JWT rejected');
     throw new AppError(message, 401, 'AuthenticationRequired');
   }
 }

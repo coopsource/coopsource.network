@@ -29,10 +29,9 @@ describe('XRPC dispatcher', () => {
       .send({})
       .expect(405);
 
-    expect(res.body).toEqual({
-      error: 'InvalidMethod',
-      message: 'XRPC queries must use GET',
-    });
+    expect(res.body.error).toBe('InvalidMethod');
+    expect(res.body.message).toContain('query');
+    expect(res.body.message).toContain('GET');
   });
 
   it('sets CORS headers on GET response', async () => {
@@ -40,7 +39,7 @@ describe('XRPC dispatcher', () => {
       .get('/xrpc/com.example.nonexistent');
 
     expect(res.headers['access-control-allow-origin']).toBe('*');
-    expect(res.headers['access-control-allow-methods']).toBe('GET, OPTIONS');
+    expect(res.headers['access-control-allow-methods']).toBe('GET, POST, OPTIONS');
   });
 
   it('handles OPTIONS preflight with CORS headers', async () => {
@@ -49,7 +48,7 @@ describe('XRPC dispatcher', () => {
       .expect(204);
 
     expect(res.headers['access-control-allow-origin']).toBe('*');
-    expect(res.headers['access-control-allow-methods']).toBe('GET, OPTIONS');
+    expect(res.headers['access-control-allow-methods']).toBe('GET, POST, OPTIONS');
     expect(res.headers['access-control-allow-headers']).toBe('Content-Type, Authorization');
   });
 

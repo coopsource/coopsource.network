@@ -1,0 +1,136 @@
+import { verifySignature } from '@atproto/crypto';
+import type { DidDocument } from '../types.js';
+
+export interface InlayAuthResult {
+  /** DID of the viewer (JWT issuer — the viewer's PDS signed this token). */
+  viewerDid: string;
+  /** XRPC method (Inlay component NSID) the token is bound to. */
+  lxm: string;
+}
+
+import type { DidResolver } from './service-auth-verifier.js';
+
+/**
+ * Verifies Inlay viewer-auth JWTs for personalized component rendering.
+ *
+ * Unlike ServiceAuthVerifier (which uses a trusted-issuer whitelist for
+ * service-to-service auth), this verifier accepts JWTs from **any** DID.
+ * The Inlay host obtains a viewer JWT via `com.atproto.server.getServiceAuth`
+ * from the viewer's PDS, where `iss` = viewer's DID and the token is signed
+ * by the viewer's PDS signing key.
+ *
+ * Trust is cryptographic: if the signature verifies against the `#atproto`
+ * key in the issuer's DID document, the viewer identity is authentic.
+ */
+export class InlayAuthVerifier {
+  private static readonly CLOCK_SKEW_SECONDS = 30;
+
+  constructor(
+    private readonly didResolver: DidResolver,
+    private readonly audienceDid: string,
+  ) {}
+
+  /**
+   * Verify an Inlay viewer JWT.
+   *
+   * @param token - The raw JWT string (from `Authorization: Bearer <token>`)
+   * @param expectedLxm - The Inlay component NSID being invoked
+   * @returns Verified viewer identity on success
+   * @throws Error with descriptive message on any verification failure
+   */
+  async verify(token: string, expectedLxm: string): Promise<InlayAuthResult> {
+    // 1. Parse JWT structure
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      throw new Error('Malformed JWT: expected three dot-separated segments');
+    }
+    const [encodedHeader, encodedPayload, encodedSignature] = parts as [string, string, string];
+
+    const header = parseBase64UrlJson(encodedHeader);
+    if (header.alg !== 'ES256' || header.typ !== 'JWT') {
+      throw new Error(`Unsupported JWT: expected alg=ES256 typ=JWT, got alg=${header.alg} typ=${header.typ}`);
+    }
+
+    const payload = parseBase64UrlJson(encodedPayload);
+
+    // 2. Validate claims
+    const { iss, aud, exp, iat, lxm } = payload;
+
+    if (typeof iss !== 'string' || !iss.startsWith('did:')) {
+      throw new Error('Invalid JWT: iss must be a DID');
+    }
+    if (typeof aud !== 'string') {
+      throw new Error('Invalid JWT: missing aud claim');
+    }
+    if (typeof exp !== 'number') {
+      throw new Error('Invalid JWT: missing or non-numeric exp claim');
+    }
+    if (typeof lxm !== 'string') {
+      throw new Error('Invalid JWT: missing lxm claim');
+    }
+
+    // Check audience
+    if (aud !== this.audienceDid) {
+      throw new Error(`JWT audience mismatch: expected ${this.audienceDid}, got ${aud}`);
+    }
+
+    // Check method binding
+    if (lxm !== expectedLxm) {
+      throw new Error(`JWT method mismatch: expected ${expectedLxm}, got ${lxm}`);
+    }
+
+    // Check expiration (with clock skew tolerance)
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    if (nowSeconds > exp + InlayAuthVerifier.CLOCK_SKEW_SECONDS) {
+      throw new Error('JWT expired');
+    }
+
+    // Check iat is not in the future (with clock skew tolerance)
+    if (typeof iat === 'number' && iat > nowSeconds + InlayAuthVerifier.CLOCK_SKEW_SECONDS) {
+      throw new Error('JWT iat is in the future');
+    }
+
+    // 3. Resolve issuer's DID document and extract signing key
+    // No trusted-issuer check — any DID with a valid signature is accepted
+    const didDoc = await this.didResolver.resolve(iss);
+    const didKey = extractAtprotoDidKey(didDoc);
+
+    // 4. Verify ES256 signature
+    const signingInput = new TextEncoder().encode(`${encodedHeader}.${encodedPayload}`);
+    const signatureBytes = new Uint8Array(Buffer.from(encodedSignature, 'base64url'));
+
+    const valid = await verifySignature(didKey, signingInput, signatureBytes);
+    if (!valid) {
+      throw new Error('JWT signature verification failed');
+    }
+
+    return { viewerDid: iss, lxm };
+  }
+}
+
+/**
+ * Extract the `#atproto` verification method from a resolved DID document
+ * and return it as a `did:key:z...` string suitable for `verifySignature`.
+ */
+function extractAtprotoDidKey(didDoc: DidDocument): string {
+  const vm = didDoc.verificationMethod.find(
+    (m) => m.id === `${didDoc.id}#atproto` || m.id === '#atproto',
+  );
+  if (!vm) {
+    throw new Error(`No #atproto verification method in DID document for ${didDoc.id}`);
+  }
+
+  if (!vm.publicKeyMultibase) {
+    throw new Error(`Verification method #atproto has no publicKeyMultibase for ${didDoc.id}`);
+  }
+
+  return `did:key:${vm.publicKeyMultibase}`;
+}
+
+function parseBase64UrlJson(encoded: string): Record<string, unknown> {
+  try {
+    return JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
+  } catch {
+    throw new Error('Malformed JWT: failed to decode base64url JSON segment');
+  }
+}

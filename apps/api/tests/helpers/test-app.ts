@@ -280,6 +280,7 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     scriptWorkerPool,
     scriptService,
     serviceAuthVerifier: undefined,
+    inlayAuthVerifier: undefined,
   };
 
   // Set the DB reference for auth middleware + permissions middleware

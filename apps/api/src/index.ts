@@ -300,6 +300,7 @@ async function start(): Promise<void> {
   // XRPC query dispatcher (V9.2 governance AppView + migrated label query)
   app.use(createXrpcRoutes(container, buildXrpcHandlers(container), {
     serviceAuthVerifier: container.serviceAuthVerifier,
+    inlayAuthVerifier: container.inlayAuthVerifier,
   }));
 
   // Onboarding routes (Phase 7)

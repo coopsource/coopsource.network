@@ -37,7 +37,7 @@ Meanwhile, **permission spaces remain in design phase** with no implementation t
 | V9.2.3 | Remaining XRPC endpoints | Immediate | Shipped — listMembers (three-tier privacy), getVoteEligibility, getOfficers |
 | V9.2.4 | Closed-governance visibility | Immediate | Shipped — members of closed coops can access all XRPC endpoints |
 | V9.2.5 | Service-auth JWTs | Immediate | Shipped — external ATProto apps authenticate via Bearer JWT |
-| V9.3 | Inlay governance components | Summer 2026 | Inlay is live at inlay.at |
+| V9.3 | Inlay governance components | Summer 2026 | Shipped — ProposalCard template + MembershipStatus external component, InlayAuthVerifier, POST dispatcher |
 | V9.4 | Content wrapper pattern | Summer 2026 | Sound design, no ecosystem blockers |
 | V9.5 | Governance transparency logs | Summer 2026 | Valsorda PoC from ATmosphereConf |
 | V9.6 | opensocial.community bridge | Fall 2026 | Track Ellich's multi-app integration |

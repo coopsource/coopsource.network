@@ -8,3 +8,5 @@ export type { CreateServiceAuthParams } from './service-auth-client.js';
 export { resolvePdsServiceDid } from './pds-did-resolver.js';
 export { ServiceAuthVerifier } from './service-auth-verifier.js';
 export type { ServiceAuthResult, DidResolver } from './service-auth-verifier.js';
+export { InlayAuthVerifier } from './inlay-auth-verifier.js';
+export type { InlayAuthResult } from './inlay-auth-verifier.js';

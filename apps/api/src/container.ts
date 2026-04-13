@@ -6,7 +6,7 @@ import type { IPdsService } from '@coopsource/federation';
 import { LocalPdsService, LocalBlobStore, LocalPlcClient, PlcClient } from '@coopsource/federation/local';
 import type { FederationDatabase } from '@coopsource/federation/local';
 import { DidWebResolver, AuthCredentialResolver } from '@coopsource/federation/http';
-import { AtprotoPdsService, ServiceAuthVerifier } from '@coopsource/federation/atproto';
+import { AtprotoPdsService, ServiceAuthVerifier, InlayAuthVerifier } from '@coopsource/federation/atproto';
 import { SmtpEmailService, NoopEmailService } from '@coopsource/federation/email';
 import type { IEmailService } from '@coopsource/federation';
 import { logger } from './middleware/logger.js';
@@ -149,6 +149,7 @@ export interface Container {
   scriptWorkerPool: ScriptWorkerPool;
   scriptService: ScriptService;
   serviceAuthVerifier: ServiceAuthVerifier | undefined;
+  inlayAuthVerifier: InlayAuthVerifier | undefined;
 }
 
 export function createContainer(config: AppConfig): Container {
@@ -220,6 +221,14 @@ export function createContainer(config: AppConfig): Container {
     serviceAuthAudienceDid && serviceAuthTrustedIssuers.size > 0
       ? new ServiceAuthVerifier(didResolver, serviceAuthAudienceDid, serviceAuthTrustedIssuers)
       : undefined;
+
+  // V9.3: Inlay viewer-auth verifier for personalized component rendering.
+  // Accepts JWTs from any DID (no trusted-issuer whitelist) — the viewer's
+  // PDS signs the JWT and CSN verifies against the viewer's DID document.
+  const inlayAudienceDid = serviceAuthAudienceDid;
+  const inlayAuthVerifier = inlayAudienceDid
+    ? new InlayAuthVerifier(didResolver, inlayAudienceDid)
+    : undefined;
 
   const blobStore = new LocalBlobStore({ blobDir: config.BLOB_DIR });
 
@@ -395,5 +404,6 @@ export function createContainer(config: AppConfig): Container {
     scriptWorkerPool,
     scriptService,
     serviceAuthVerifier,
+    inlayAuthVerifier,
   };
 }

@@ -68,6 +68,9 @@ importers:
       '@coopsource/lexicons':
         specifier: workspace:*
         version: link:../../packages/lexicons
+      '@inlay/core':
+        specifier: 0.0.13
+        version: 0.0.13
       '@ipld/dag-cbor':
         specifier: ^9.2.5
         version: 9.2.5
@@ -450,8 +453,14 @@ packages:
   '@atproto/jwk@0.6.0':
     resolution: {integrity: sha512-bDoJPvt7TrQVi/rBfBrSSpGykhtIriKxeYCYQTiPRKFfyRhbgpElF0wPXADjIswnbzZdOwbY63az4E/CFVT3Tw==}
 
+  '@atproto/lex-builder@0.0.16':
+    resolution: {integrity: sha512-z9h6kLiifyL0mBVzlHJ3cK3XwhHRttSePmk2XmhQ1gC0tfa7exUhvCMp9YpEv2N5oUVMItl00L8SLBsVsuMMtg==}
+
   '@atproto/lex-builder@0.0.20':
     resolution: {integrity: sha512-cbUvYw4KNHsdMTXQlJxzYA7HfJoY4a12a1m1J8GP0togIUDHSsNC/UGsTx2ieHfVkWhErElNyMWB2cAFZeyVWQ==}
+
+  '@atproto/lex-cbor@0.0.13':
+    resolution: {integrity: sha512-63nbzXJnQwV02XGpEa8WZxt7Zu87dnbzrUVL0Mqr55S1EGCzEF9U7Dauc9tKKLoZ88GmYrJN0irBsXtSi0VeWg==}
 
   '@atproto/lex-cbor@0.0.15':
     resolution: {integrity: sha512-3osDicK9bAMXJlKjLKqwYrhLQ60bOguWBNjE+fuNjMuizNzC0aqaClE3d+qMsFuFq9bjEHFw+4Vr9Qmd/m6VYg==}
@@ -460,6 +469,9 @@ packages:
     resolution: {integrity: sha512-0ebVyp12i3S8oE77+BxahbTmyrXcqeC9GTx2HGa/PA9KjnThapkGkgVQjIWw74DNQprzbg9EkiQsaKU2xFYhmA==}
     engines: {node: '>=18.7.0'}
     hasBin: true
+
+  '@atproto/lex-client@0.0.13':
+    resolution: {integrity: sha512-NftQ9SSIilMFFj99fBlv1hvZ6Oe4Bl+HYn4VkXrWsGrHeOIM3GLgVZSMWAlg33rCvd6bYfb+YnIdPxcV6lCU0g==}
 
   '@atproto/lex-client@0.0.18':
     resolution: {integrity: sha512-dCnlG9nxNY6ZkaNggSlOPhb9NqDt/H1nm16ZZhe81G2iV10Niq44OcxZdVtZVjszElW3+V9ZfsK04B0f3Rid0Q==}
@@ -470,8 +482,14 @@ packages:
   '@atproto/lex-data@0.0.14':
     resolution: {integrity: sha512-53DUa9664SS76nGAMYopWsO10OH0AAdf7P/HSKB6Wzx3iqe6lk/K61QZnKxOG1LreYl5CfvIJU6eNf4txI6GlQ==}
 
+  '@atproto/lex-document@0.0.14':
+    resolution: {integrity: sha512-BaCSZOZUIv3kQ23b3Lhe4sprJYHc0spSeWS3TLaMoVi6bFZ3RzeM8n7ROTzVP3BTNYxpRHPHtOarx9A8ZAAC4w==}
+
   '@atproto/lex-document@0.0.18':
     resolution: {integrity: sha512-nfBgMbFyQKZj8LSVe0leHhfsvn0kmIQMC1wPqzJb/M1jSv5266J8Jl7wWy8QsXhz/+EoxPXygFp4hTM+l09beQ==}
+
+  '@atproto/lex-installer@0.0.18':
+    resolution: {integrity: sha512-ukDMHIpoaqk6ph0kFnLsRnYr3TJ+rDsAyVRwTzdiLb29pPYgQHD+3wSMHH/rQ7XXUuPklv4SFBTKLTMeIeEgkg==}
 
   '@atproto/lex-installer@0.0.23':
     resolution: {integrity: sha512-bCob01wMRVyaLPnwBoEi6XXBiG7d7wioX217Lwr+wdg9/yDw61slh8AKI0o1pvQqmMxA980gGMpCrSiSj/jfog==}
@@ -482,11 +500,21 @@ packages:
   '@atproto/lex-json@0.0.14':
     resolution: {integrity: sha512-6lPkDKqe7teEu4WrN5q7400cvZKgYS3uwUMvzG3F9XkgVYhOwSDCtouV/nSLBbpvo3l9OP0kiigtclcNcyekww==}
 
+  '@atproto/lex-resolver@0.0.15':
+    resolution: {integrity: sha512-oNxcNCts3ReJ+A4hTPthQbPA68yMQ0ZrBUIiUTZwRazrmg/xkV15jtyYSnH4CGBjRdt420MV9aLR2s4qLSmyTQ==}
+
   '@atproto/lex-resolver@0.0.20':
     resolution: {integrity: sha512-ZmEvLW+1Yv5/eLIP0McOlgsUh1/FFCCy1BK6WaI1vM4IwsHZiqjmymOPfnn39WyOhyOBqvSZ7/8hzR03Yu5V/w==}
 
+  '@atproto/lex-schema@0.0.13':
+    resolution: {integrity: sha512-FeY4YBesEUO4Ey3BJhDRma0cZt6XxunSZPXny5Q/6ltc7pvyJGXXtJ8D7mHl7p5EXPwylEYOQkM6ck4IyfMP0A==}
+
   '@atproto/lex-schema@0.0.17':
     resolution: {integrity: sha512-WLeGIRgLQEhpTd5jpaplvKEtITS7PCygWHmCD645q0MFzQ+C2AM8KWwUqvhVHOgHNNRPZrYfMgnsq6gYmu2tEQ==}
+
+  '@atproto/lex@0.0.18':
+    resolution: {integrity: sha512-uHqtV2gZNYOkOYXq1t6wO2Nb0gFfGmi40AGCVbTNccIkHsZvxRuLlaNuNrBFB+5h/HzlVeMwjBUf0ny3jD4hXw==}
+    hasBin: true
 
   '@atproto/lex@0.0.23':
     resolution: {integrity: sha512-AjfuL2wzBASsMlhdfPBY/S1Vg9wOEJ8DnQM5TlmgVr7UmhQMiW+YVE9YC3RdKzaTbYBDTFr1HsUuarsPg+nvUg==}
@@ -494,6 +522,9 @@ packages:
 
   '@atproto/lexicon@0.6.1':
     resolution: {integrity: sha512-/vI1kVlY50Si+5MXpvOucelnYwb0UJ6Qto5mCp+7Q5C+Jtp+SoSykAPVvjVtTnQUH2vrKOFOwpb3C375vSKzXw==}
+
+  '@atproto/lexicon@0.6.2':
+    resolution: {integrity: sha512-p3Ly6hinVZW0ETuAXZMeUGwuMm3g8HvQMQ41yyEE6AL0hAkfeKFaZKos6BdBrr6CjkpbrDZqE8M+5+QOceysMw==}
 
   '@atproto/oauth-client-node@0.3.17':
     resolution: {integrity: sha512-67LNuKAlC35Exe7CB5S0QCAnEqr6fKV9Nvp64jAHFof1N+Vc9Ltt1K9oekE5Ctf7dvpGByrHRF0noUw9l9sWLA==}
@@ -504,6 +535,10 @@ packages:
 
   '@atproto/oauth-types@0.6.3':
     resolution: {integrity: sha512-jdKuoPknJuh/WjI+mYk7agSbx9mNVMbS6Dr3k1z2YMY2oRiCQjxYBuo4MLKATbxj05nMQaZRWlHRUazoAu5Cng==}
+
+  '@atproto/repo@0.8.13':
+    resolution: {integrity: sha512-VS8XHaBMGdq60xwRI5zQmXzsMF1hU7NKPjmkdr65tJdrv2z0VW77mG01Ui19Xh9O0mUc/LG6GEhwVrabB9Txow==}
+    engines: {node: '>=18.7.0'}
 
   '@atproto/repo@0.9.0':
     resolution: {integrity: sha512-hl85f7CJniLoJS5bwOSnLjN7X4kS1ETs5yetKJyJRVZE4SgM+nWPRd+D08dAzeU+VAZi4fjeZXOlOLJtS4Y0KQ==}
@@ -692,9 +727,15 @@ packages:
     peerDependencies:
       hono: '>=4.12.7'
 
+  '@inlay/core@0.0.13':
+    resolution: {integrity: sha512-UO3M3l96+Ed0RikY5SyDCP16yb+ceyYksQ2PLO3PyBZJ8EDvw9CfKIdbsOzraQp3lyUkmhrToJj1GED0tkvi1Q==}
+
   '@ipld/car@5.4.2':
     resolution: {integrity: sha512-gfyrJvePyXnh2Fbj8mPg4JYvEZ3izhk8C9WgAle7xIYbrJNSXmNQ6BxAls8Gof97vvGbCROdxbTWRmHJtTCbcg==}
     engines: {node: '>=16.0.0', npm: '>=7.0.0'}
+
+  '@ipld/dag-cbor@7.0.3':
+    resolution: {integrity: sha512-1VVh2huHsuohdXC1bGJNE8WR72slZ9XE2T3wbBBq31dm7ZBatmKLLxrB+XAqafxfRFjv08RZmj/W/ZqaM13AuA==}
 
   '@ipld/dag-cbor@9.2.5':
     resolution: {integrity: sha512-84wSr4jv30biui7endhobYhXBQzQE4c/wdoWlFrKcfiwH+ofaPg8fwsM8okX9cOzkkrsAsNdDyH3ou+kiLquwQ==}
@@ -1325,6 +1366,10 @@ packages:
   call-bound@1.0.4:
     resolution: {integrity: sha512-+ys997U96po4Kx/ABpBCqhA9EuxJaQWDQg7295H4hBphv3IZg0boBKuwYpt4YXp6MZ5AmZQnU/tyMTlRpaSejg==}
     engines: {node: '>= 0.4'}
+
+  cborg@1.10.2:
+    resolution: {integrity: sha512-b3tFPA9pUr2zCUiCfRd2+wok2/LBSNUMKOuRRok+WlvvAgEt/PlbgPTsZUcwCOs53IJvLgTp0eotwtosE6njug==}
+    hasBin: true
 
   cborg@4.5.8:
     resolution: {integrity: sha512-6/viltD51JklRhq4L7jC3zgy6gryuG5xfZ3kzpE+PravtyeQLeQmCYLREhQH7pWENg5pY4Yu/XCd6a7dKScVlw==}
@@ -2756,12 +2801,25 @@ snapshots:
       multiformats: 9.9.0
       zod: 3.25.76
 
+  '@atproto/lex-builder@0.0.16':
+    dependencies:
+      '@atproto/lex-document': 0.0.14
+      '@atproto/lex-schema': 0.0.13
+      prettier: 3.8.1
+      ts-morph: 27.0.2
+      tslib: 2.8.1
+
   '@atproto/lex-builder@0.0.20':
     dependencies:
       '@atproto/lex-document': 0.0.18
       '@atproto/lex-schema': 0.0.17
       prettier: 3.8.1
       ts-morph: 27.0.2
+      tslib: 2.8.1
+
+  '@atproto/lex-cbor@0.0.13':
+    dependencies:
+      '@atproto/lex-data': 0.0.12
       tslib: 2.8.1
 
   '@atproto/lex-cbor@0.0.15':
@@ -2779,6 +2837,13 @@ snapshots:
       ts-morph: 24.0.0
       yesno: 0.4.0
       zod: 3.25.76
+
+  '@atproto/lex-client@0.0.13':
+    dependencies:
+      '@atproto/lex-data': 0.0.12
+      '@atproto/lex-json': 0.0.12
+      '@atproto/lex-schema': 0.0.13
+      tslib: 2.8.1
 
   '@atproto/lex-client@0.0.18':
     dependencies:
@@ -2801,10 +2866,27 @@ snapshots:
       uint8arrays: 3.0.0
       unicode-segmenter: 0.14.5
 
+  '@atproto/lex-document@0.0.14':
+    dependencies:
+      '@atproto/lex-schema': 0.0.13
+      core-js: 3.48.0
+      tslib: 2.8.1
+
   '@atproto/lex-document@0.0.18':
     dependencies:
       '@atproto/lex-schema': 0.0.17
       core-js: 3.48.0
+      tslib: 2.8.1
+
+  '@atproto/lex-installer@0.0.18':
+    dependencies:
+      '@atproto/lex-builder': 0.0.16
+      '@atproto/lex-cbor': 0.0.13
+      '@atproto/lex-data': 0.0.12
+      '@atproto/lex-document': 0.0.14
+      '@atproto/lex-resolver': 0.0.15
+      '@atproto/lex-schema': 0.0.13
+      '@atproto/syntax': 0.4.3
       tslib: 2.8.1
 
   '@atproto/lex-installer@0.0.23':
@@ -2828,6 +2910,18 @@ snapshots:
       '@atproto/lex-data': 0.0.14
       tslib: 2.8.1
 
+  '@atproto/lex-resolver@0.0.15':
+    dependencies:
+      '@atproto-labs/did-resolver': 0.2.6
+      '@atproto/crypto': 0.4.5
+      '@atproto/lex-client': 0.0.13
+      '@atproto/lex-data': 0.0.12
+      '@atproto/lex-document': 0.0.14
+      '@atproto/lex-schema': 0.0.13
+      '@atproto/repo': 0.8.13
+      '@atproto/syntax': 0.4.3
+      tslib: 2.8.1
+
   '@atproto/lex-resolver@0.0.20':
     dependencies:
       '@atproto-labs/did-resolver': 0.2.6
@@ -2840,6 +2934,12 @@ snapshots:
       '@atproto/syntax': 0.5.3
       tslib: 2.8.1
 
+  '@atproto/lex-schema@0.0.13':
+    dependencies:
+      '@atproto/lex-data': 0.0.12
+      '@atproto/syntax': 0.4.3
+      tslib: 2.8.1
+
   '@atproto/lex-schema@0.0.17':
     dependencies:
       '@atproto/lex-data': 0.0.14
@@ -2847,6 +2947,17 @@ snapshots:
       '@standard-schema/spec': 1.1.0
       iso-datestring-validator: 2.2.2
       tslib: 2.8.1
+
+  '@atproto/lex@0.0.18':
+    dependencies:
+      '@atproto/lex-builder': 0.0.16
+      '@atproto/lex-client': 0.0.13
+      '@atproto/lex-data': 0.0.12
+      '@atproto/lex-installer': 0.0.18
+      '@atproto/lex-json': 0.0.12
+      '@atproto/lex-schema': 0.0.13
+      tslib: 2.8.1
+      yargs: 17.7.2
 
   '@atproto/lex@0.0.23':
     dependencies:
@@ -2863,6 +2974,14 @@ snapshots:
     dependencies:
       '@atproto/common-web': 0.4.17
       '@atproto/syntax': 0.4.3
+      iso-datestring-validator: 2.2.2
+      multiformats: 9.9.0
+      zod: 3.25.76
+
+  '@atproto/lexicon@0.6.2':
+    dependencies:
+      '@atproto/common-web': 0.4.19
+      '@atproto/syntax': 0.5.3
       iso-datestring-validator: 2.2.2
       multiformats: 9.9.0
       zod: 3.25.76
@@ -2899,6 +3018,18 @@ snapshots:
     dependencies:
       '@atproto/did': 0.3.0
       '@atproto/jwk': 0.6.0
+      zod: 3.25.76
+
+  '@atproto/repo@0.8.13':
+    dependencies:
+      '@atproto/common': 0.5.15
+      '@atproto/common-web': 0.4.19
+      '@atproto/crypto': 0.4.5
+      '@atproto/lexicon': 0.6.2
+      '@ipld/dag-cbor': 7.0.3
+      multiformats: 9.9.0
+      uint8arrays: 3.0.0
+      varint: 6.0.0
       zod: 3.25.76
 
   '@atproto/repo@0.9.0':
@@ -3030,12 +3161,22 @@ snapshots:
     dependencies:
       hono: 4.12.8
 
+  '@inlay/core@0.0.13':
+    dependencies:
+      '@atproto/lex': 0.0.18
+      '@atproto/syntax': 0.4.3
+
   '@ipld/car@5.4.2':
     dependencies:
       '@ipld/dag-cbor': 9.2.5
       cborg: 4.5.8
       multiformats: 13.4.2
       varint: 6.0.0
+
+  '@ipld/dag-cbor@7.0.3':
+    dependencies:
+      cborg: 1.10.2
+      multiformats: 9.9.0
 
   '@ipld/dag-cbor@9.2.5':
     dependencies:
@@ -3624,6 +3765,8 @@ snapshots:
     dependencies:
       call-bind-apply-helpers: 1.0.2
       get-intrinsic: 1.3.0
+
+  cborg@1.10.2: {}
 
   cborg@4.5.8: {}
 

@@ -8,6 +8,7 @@ import { handleGetVoteEligibility } from './handlers/get-vote-eligibility.js';
 import { handleListMembers } from './handlers/list-members.js';
 import { handleGetOfficers } from './handlers/get-officers.js';
 import { handleQueryLabels } from './handlers/query-labels.js';
+import { handleInlayMembershipStatus } from './handlers/inlay-membership-status.js';
 
 const FIFTEEN_MINUTES = 15 * 60 * 1000;
 
@@ -62,6 +63,15 @@ export function buildXrpcHandlers(
     auth: 'optional',
     rateLimit: { windowMs: FIFTEEN_MINUTES, limit: 60 },
     handler: handleGetOfficers,
+  });
+
+  // --- Inlay external components (V9.3) ---
+
+  handlers.set('network.coopsource.inlay.MembershipStatus', {
+    method: 'procedure',
+    auth: 'inlay-viewer',
+    rateLimit: { windowMs: FIFTEEN_MINUTES, limit: 200 },
+    handler: handleInlayMembershipStatus,
   });
 
   // --- Migrated from xrpc-labels.ts (review finding C1) ---
