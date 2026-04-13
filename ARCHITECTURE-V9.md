@@ -36,6 +36,7 @@ Meanwhile, **permission spaces remain in design phase** with no implementation t
 | V9.2.2 | OAuth scope rewrite | Immediate | Shipped — per-namespace scopes replace `transition:generic` |
 | V9.2.3 | Remaining XRPC endpoints | Immediate | Shipped — listMembers (three-tier privacy), getVoteEligibility, getOfficers |
 | V9.2.4 | Closed-governance visibility | Immediate | Shipped — members of closed coops can access all XRPC endpoints |
+| V9.2.5 | Service-auth JWTs | Immediate | Shipped — external ATProto apps authenticate via Bearer JWT |
 | V9.3 | Inlay governance components | Summer 2026 | Inlay is live at inlay.at |
 | V9.4 | Content wrapper pattern | Summer 2026 | Sound design, no ecosystem blockers |
 | V9.5 | Governance transparency logs | Summer 2026 | Valsorda PoC from ATmosphereConf |
@@ -452,7 +453,7 @@ The anchor+sidecar pattern (public governance anchors paired with private delibe
 - `apps/api/tests/xrpc-dispatcher.test.ts` — dispatcher routing tests
 - `apps/api/tests/xrpc-governance.test.ts` — handler integration tests
 
-**Followup sub-phases (unchanged):** V9.2.1 (PLC service entry), V9.2.2 (OAuth scope rewrite), V9.2.3 (remaining endpoints for V9.3 Inlay), V9.2.4 (closed-governance), V9.2.5 (DPoP cross-service auth)
+**Followup sub-phases:** V9.2.1 (PLC service entry) [SHIPPED], V9.2.2 (OAuth scope rewrite) [SHIPPED], V9.2.3 (remaining endpoints for V9.3 Inlay) [SHIPPED], V9.2.4 (closed-governance) [SHIPPED], V9.2.5 (service-auth JWTs) [SHIPPED]
 
 ### Phase V9.3: Inlay Governance Components
 

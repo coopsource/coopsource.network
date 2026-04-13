@@ -6,7 +6,7 @@ import type { IPdsService } from '@coopsource/federation';
 import { LocalPdsService, LocalBlobStore, LocalPlcClient, PlcClient } from '@coopsource/federation/local';
 import type { FederationDatabase } from '@coopsource/federation/local';
 import { DidWebResolver, AuthCredentialResolver } from '@coopsource/federation/http';
-import { AtprotoPdsService } from '@coopsource/federation/atproto';
+import { AtprotoPdsService, ServiceAuthVerifier } from '@coopsource/federation/atproto';
 import { SmtpEmailService, NoopEmailService } from '@coopsource/federation/email';
 import type { IEmailService } from '@coopsource/federation';
 import { logger } from './middleware/logger.js';
@@ -148,6 +148,7 @@ export interface Container {
   lexiconManagementService: LexiconManagementService;
   scriptWorkerPool: ScriptWorkerPool;
   scriptService: ScriptService;
+  serviceAuthVerifier: ServiceAuthVerifier | undefined;
 }
 
 export function createContainer(config: AppConfig): Container {
@@ -203,6 +204,22 @@ export function createContainer(config: AppConfig): Container {
   const didResolver = new DidWebResolver({
     fallbackResolve: (did) => plcFallback.resolve(did) as Promise<import('@coopsource/federation').DidDocument>,
   });
+
+  // V9.2.5: Service-auth JWT verifier for external ATProto apps.
+  // Only instantiated when an audience DID AND at least one trusted issuer
+  // are configured — an audience without issuers would reject every JWT
+  // with a confusing "Untrusted issuer" error.
+  const serviceAuthAudienceDid = config.SERVICE_AUTH_AUDIENCE_DID ?? config.INSTANCE_DID;
+  const serviceAuthTrustedIssuers = new Set(
+    (config.SERVICE_AUTH_TRUSTED_ISSUERS ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
+  const serviceAuthVerifier =
+    serviceAuthAudienceDid && serviceAuthTrustedIssuers.size > 0
+      ? new ServiceAuthVerifier(didResolver, serviceAuthAudienceDid, serviceAuthTrustedIssuers)
+      : undefined;
 
   const blobStore = new LocalBlobStore({ blobDir: config.BLOB_DIR });
 
@@ -377,5 +394,6 @@ export function createContainer(config: AppConfig): Container {
     lexiconManagementService,
     scriptWorkerPool,
     scriptService,
+    serviceAuthVerifier,
   };
 }

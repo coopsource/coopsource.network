@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import { lexicons } from '@coopsource/lexicons';
 import { AppError } from '@coopsource/common';
+import type { ServiceAuthVerifier } from '@coopsource/federation/atproto';
 import { requireViewer } from '../auth/middleware.js';
 import { asyncHandler } from '../lib/async-handler.js';
 import { logger } from '../middleware/logger.js';
@@ -19,6 +20,10 @@ export interface XrpcContext {
   container: Container;
 }
 
+export interface XrpcRouteOptions {
+  serviceAuthVerifier?: ServiceAuthVerifier;
+}
+
 /**
  * Create Express router for XRPC query endpoints.
  * All registered handlers are served under `/xrpc/:methodId`.
@@ -26,6 +31,7 @@ export interface XrpcContext {
 export function createXrpcRoutes(
   container: Container,
   handlers: Map<string, XrpcQueryHandler>,
+  options?: XrpcRouteOptions,
 ): Router {
   const router = Router();
 
@@ -75,33 +81,45 @@ export function createXrpcRoutes(
         return;
       }
 
-      // Auth: run requireViewer if needed
-      if (handler.auth === 'viewer') {
-        await new Promise<void>((resolve, reject) => {
-          requireViewer(req, res, (err?: unknown) =>
-            err ? reject(err) : resolve(),
-          );
-        });
-        if (res.headersSent) return;
-      }
+      // Service-auth: try Bearer JWT from external ATProto apps before session auth.
+      // If a valid Bearer token is present, set req.viewer from the JWT claims
+      // and skip session-based auth entirely. Note: this sets req.viewer even
+      // for auth:'none' handlers — those handlers simply ignore it.
+      const serviceAuthResolved = await resolveServiceAuth(
+        req, options?.serviceAuthVerifier, methodId,
+      );
 
-      // Optional auth: resolve viewer if session exists, but don't 401 on failure.
-      // We cannot reuse requireViewer here because it sends a 401 response
-      // directly (never calling next()), which would leave the Promise hanging.
-      if (handler.auth === 'optional') {
-        const did = req.session?.did;
-        if (did) {
-          const entity = await container.db
-            .selectFrom('entity')
-            .where('did', '=', did)
-            .where('status', '=', 'active')
-            .select(['did', 'display_name'])
-            .executeTakeFirst();
-          if (entity) {
-            req.viewer = {
-              did: entity.did,
-              displayName: entity.display_name,
-            };
+      if (!serviceAuthResolved) {
+        // No service-auth token — fall through to session-based auth
+
+        // Auth: run requireViewer if needed
+        if (handler.auth === 'viewer') {
+          await new Promise<void>((resolve, reject) => {
+            requireViewer(req, res, (err?: unknown) =>
+              err ? reject(err) : resolve(),
+            );
+          });
+          if (res.headersSent) return;
+        }
+
+        // Optional auth: resolve viewer if session exists, but don't 401 on failure.
+        // We cannot reuse requireViewer here because it sends a 401 response
+        // directly (never calling next()), which would leave the Promise hanging.
+        if (handler.auth === 'optional') {
+          const did = req.session?.did;
+          if (did) {
+            const entity = await container.db
+              .selectFrom('entity')
+              .where('did', '=', did)
+              .where('status', '=', 'active')
+              .select(['did', 'display_name'])
+              .executeTakeFirst();
+            if (entity) {
+              req.viewer = {
+                did: entity.did,
+                displayName: entity.display_name,
+              };
+            }
           }
         }
       }
@@ -190,8 +208,45 @@ function setCorsHeaders(res: Response): void {
   res.set({
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   });
+}
+
+/**
+ * Attempt to resolve a service-auth Bearer JWT from the request.
+ * Returns true if a valid JWT was found and req.viewer was set.
+ * Returns false if no Bearer header is present (fall through to session auth).
+ * Throws on invalid/expired/untrusted JWTs (the request should be rejected).
+ */
+async function resolveServiceAuth(
+  req: Request,
+  verifier: ServiceAuthVerifier | undefined,
+  methodId: string,
+): Promise<boolean> {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return false;
+  }
+
+  if (!verifier) {
+    // Service-auth is not configured — reject Bearer tokens rather than
+    // silently ignoring them (could mask a misconfiguration).
+    throw new AppError('Service authentication is not configured', 501, 'ServiceAuthNotConfigured');
+  }
+
+  const token = authHeader.slice(7);
+  try {
+    const result = await verifier.verify(token, methodId);
+    req.viewer = {
+      did: result.sub ?? result.iss,
+      displayName: '',
+    };
+    return true;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Service auth verification failed';
+    logger.warn({ err, methodId }, 'Service-auth JWT rejected');
+    throw new AppError(message, 401, 'AuthenticationRequired');
+  }
 }
 
 function parseQueryParams(req: Request): Record<string, unknown> {

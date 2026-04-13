@@ -107,7 +107,7 @@ import { createMemberClassRoutes } from '../../src/routes/governance/member-clas
 import { createCooperativeLinkRoutes } from '../../src/routes/governance/cooperative-links.js';
 import { createAdminLexiconRoutes } from '../../src/routes/admin-lexicons.js';
 import { createAdminScriptRoutes } from '../../src/routes/admin-scripts.js';
-import { createXrpcRoutes } from '../../src/xrpc/dispatcher.js';
+import { createXrpcRoutes, type XrpcRouteOptions } from '../../src/xrpc/dispatcher.js';
 import { buildXrpcHandlers } from '../../src/xrpc/index.js';
 import { errorHandler } from '../../src/middleware/error-handler.js';
 import { getTestDb, getTestConnectionString } from './test-db.js';
@@ -119,7 +119,11 @@ export interface TestApp {
   clock: MockClock;
 }
 
-export function createTestApp(): TestApp {
+export interface TestAppOptions {
+  xrpcRouteOptions?: XrpcRouteOptions;
+}
+
+export function createTestApp(options?: TestAppOptions): TestApp {
   const db = getTestDb();
   const clock = new MockClock();
 
@@ -275,6 +279,7 @@ export function createTestApp(): TestApp {
     lexiconManagementService,
     scriptWorkerPool,
     scriptService,
+    serviceAuthVerifier: undefined,
   };
 
   // Set the DB reference for auth middleware + permissions middleware
@@ -351,7 +356,7 @@ export function createTestApp(): TestApp {
   app.use(createCooperativeLinkRoutes(container));
   app.use(createAdminLexiconRoutes(container));
   app.use(createAdminScriptRoutes(container));
-  app.use(createXrpcRoutes(container, buildXrpcHandlers(container)));
+  app.use(createXrpcRoutes(container, buildXrpcHandlers(container), options?.xrpcRouteOptions));
 
   // Error handler (must be last)
   app.use(errorHandler);

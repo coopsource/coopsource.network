@@ -298,7 +298,9 @@ async function start(): Promise<void> {
   app.use(createLabelRoutes(container.governanceLabeler));
 
   // XRPC query dispatcher (V9.2 governance AppView + migrated label query)
-  app.use(createXrpcRoutes(container, buildXrpcHandlers(container)));
+  app.use(createXrpcRoutes(container, buildXrpcHandlers(container), {
+    serviceAuthVerifier: container.serviceAuthVerifier,
+  }));
 
   // Onboarding routes (Phase 7)
   app.use(createOnboardingRoutes(container));

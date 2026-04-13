@@ -50,7 +50,7 @@ describe('XRPC dispatcher', () => {
 
     expect(res.headers['access-control-allow-origin']).toBe('*');
     expect(res.headers['access-control-allow-methods']).toBe('GET, OPTIONS');
-    expect(res.headers['access-control-allow-headers']).toBe('Content-Type');
+    expect(res.headers['access-control-allow-headers']).toBe('Content-Type, Authorization');
   });
 
   it('returns 400 InvalidRequest for missing required param', async () => {
