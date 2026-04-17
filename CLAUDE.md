@@ -12,6 +12,14 @@ This monorepo is deployed to `coopsource.network`.
 
 **For cooperative lifecycle design, security model, lexicon schemas, and three-tier data model, see [ARCHITECTURE-V5.md](./ARCHITECTURE-V5.md).**
 
+## Working with Claude (Opus 4.7)
+
+- Claude Opus 4.7 follows instructions literally. If a rule in this file is load-bearing, state it imperatively ("Never X", "All Y must Z") — do not soften with "please" or "try to".
+- Default effort is `max` at session start. Override per-session with `/effort medium` for exploratory work or `/effort low` for trivial edits.
+- Claude tends to reason more and call tools less often than on 4.6. Don't pad instructions with "use tools liberally" — if more tool use is needed, raise effort or state the specific operation explicitly.
+- The 4.7 tokenizer produces ~1.35× more tokens than 4.6; monitor the statusline context percentage accordingly.
+- Do not add scaffolding like "summarize progress after each tool call" — 4.7 generates better interim updates unprompted.
+
 ## Git Workflow Rules
 
 - **All work must be done on feature branches**, never directly on `main`
@@ -382,6 +390,7 @@ All 4 phases merged to main. See [ARCHITECTURE-V6.md](./ARCHITECTURE-V6.md) for 
 16. **OAuth scopes are declared per-namespace** — `OAUTH_SCOPE` in `apps/api/src/auth/oauth-client.ts` lists the 6 member-write namespaces. PDS enforcement is forward-compatible (not enforced in PDS 0.4). Don't add new member-write namespaces without updating the scope constant
 17. **Don't rely on Buckets** — still in design; use Tier 2 PostgreSQL for private data
 18. **Don't run your own relay** — use `bsky.network`; running a relay costs $150+/mo
+19. **Don't hedge in CLAUDE.md or memory files** — 4.7 reads instructions literally. "please" and "try to" are noise. State rules as imperatives
 
 ## Troubleshooting
 

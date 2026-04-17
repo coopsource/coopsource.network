@@ -41,8 +41,9 @@ infrastructure/pgdata/
 # Session handoffs (local notes, not for the repo)
 HANDOFF.md
 
-# Claude Code memory (machine-local)
-.claude/
+# Claude Code project config — only settings.json is shared with the team
+.claude/*
+!.claude/settings.json
 
 # Superpowers skills (machine-local)
 .superpowers/
