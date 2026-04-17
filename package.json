@@ -27,9 +27,10 @@
     "onlyBuiltDependencies": ["bcrypt", "esbuild"],
     "overrides": {
       "kysely": "^0.28.14",
-      "hono": ">=4.12.7",
+      "hono": ">=4.12.14",
       "express-rate-limit": ">=8.2.2",
-      "@hono/node-server": ">=1.19.10",
+      "@hono/node-server": ">=1.19.13",
+      "path-to-regexp": ">=8.4.0",
       "undici": ">=6.24.0",
       "cookie": ">=0.7.0",
       "devalue": ">=5.6.4",

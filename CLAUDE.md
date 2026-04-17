@@ -33,7 +33,7 @@ Non-negotiable technology choices:
 - **Express 5** for backend (standard Express routes; `@atproto/xrpc-server` is NOT used in our codebase)
 - **Kysely 0.28+** for database (PostgreSQL 16+). NOT Prisma, NOT Drizzle, NOT TypeORM
 - **SvelteKit 2** with **Svelte 5** runes (`$state`, `$derived`, `$effect`, `$props`)
-- **Vite 7** with **@sveltejs/vite-plugin-svelte 6**
+- **Vite 8** with **@sveltejs/vite-plugin-svelte 7**
 - **Tailwind CSS 4** via `@tailwindcss/vite` — MUST come BEFORE `sveltekit()` in vite.config.ts
 - **pnpm 10+** workspace with **Turborepo 2+**
 - **Vitest 4** for all tests
@@ -159,8 +159,8 @@ Layer 3 — Frontend:    web (SvelteKit, design system)
 | `kysely` | ^0.28 |
 | `svelte` | ^5.53 |
 | `@sveltejs/kit` | ^2.53 |
-| `vite` | ^7.3 |
-| `@sveltejs/vite-plugin-svelte` | ^6.2 |
+| `vite` | ^8.0 |
+| `@sveltejs/vite-plugin-svelte` | ^7.0 |
 | `@sveltejs/adapter-auto` | ^7.0 |
 | `tailwindcss` | ^4.2 |
 | `vitest` | ^4.0 |
