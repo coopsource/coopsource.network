@@ -12,3 +12,4 @@ export type { PullRequest, RepoPuller } from './repo-puller.js';
 export { InMemoryRepoPuller } from './repo-puller.js';
 export type { CursorStore, SpacesConsumerOptions } from './consumer.js';
 export { SpacesConsumer } from './consumer.js';
+export { KyselyCursorStore } from './kysely-cursor-store.js';
