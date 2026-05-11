@@ -13,6 +13,10 @@ import { spaceRefKey, type SpaceRef } from './types.js';
  */
 export interface ArbiterMemberList {
   isMember(space: SpaceRef, did: DID): Promise<boolean>;
+  /**
+   * Returns the complete authoritative member list for the space.
+   * Pagination is the responsibility of the caller (puller layer), not this interface.
+   */
   list(space: SpaceRef): Promise<DID[]>;
 }
 
