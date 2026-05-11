@@ -11,10 +11,11 @@ export type EcmhVerifyResult =
 
 /**
  * Verifies the ECMH (Elliptic Curve Multiset Hash) digest over a batch of
- * pulled records. The real verifier requires the upstream spec finalization
- * (Holmgren Diary 4/5; bluesky-social/atproto permissioned-data branch).
- *
- * Stage 1 ships fail-closed and test-only sketch impls behind this interface.
+ * pulled records. A correct implementation returns ok=true if and only if
+ * the digest derived from the records (under the canonical encoding) equals
+ * expectedDigest; returns ok=false with reason='digest-mismatch' otherwise.
+ * reason='malformed-input' is reserved for records that cannot be canonically
+ * encoded.
  */
 export interface EcmhVerifier {
   readonly isSketch: boolean;
@@ -22,9 +23,11 @@ export interface EcmhVerifier {
 }
 
 /**
- * Default sketch — FAILS CLOSED. Returns ok: false so accidental wiring into
- * a production-like context can never silently bypass digest verification.
- * Wire this as the default in dispatch glue until the real verifier exists.
+ * Default sketch — FAILS CLOSED. Stage 1 ships this as the dispatch wiring
+ * default; the real verifier requires the upstream spec finalization
+ * (Holmgren Diary 4/5; bluesky-social/atproto permissioned-data branch).
+ * Returns ok: false so accidental wiring into a production-like context can
+ * never silently bypass digest verification.
  *
  * Research gates before a real impl:
  *   - Does @noble/curves or a sibling library expose the curve op surface
@@ -42,11 +45,12 @@ export class FailClosedEcmhVerifier implements EcmhVerifier {
 }
 
 /**
- * Test-only — accepts every input. Never wire into production. The name carries
- * the warning; the dispatch's UNSAFE_SKIP_ECMH config flag is the only path
- * that substitutes this in for FailClosedEcmhVerifier outside of tests.
+ * Test-only — accepts every input. Never wire into production. The Unsafe
+ * prefix parallels the dispatch's UNSAFE_SKIP_ECMH config flag (Task 11),
+ * which is the only path that substitutes this in for FailClosedEcmhVerifier
+ * outside of tests.
  */
-export class AlwaysOkEcmhVerifier implements EcmhVerifier {
+export class UnsafeAlwaysOkEcmhVerifier implements EcmhVerifier {
   readonly isSketch = true;
   async verify(_input: EcmhVerifyInput): Promise<EcmhVerifyResult> {
     return { ok: true };

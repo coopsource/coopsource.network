@@ -7,4 +7,4 @@ export { DenyAllArbiterMemberList, StaticArbiterMemberList } from './arbiter-mem
 export type { NotificationHandler, NotificationSubscriber } from './notification-subscriber.js';
 export { InMemoryNotificationSubscriber } from './notification-subscriber.js';
 export type { EcmhVerifyInput, EcmhVerifyResult, EcmhVerifier } from './ecmh-verifier.js';
-export { FailClosedEcmhVerifier, AlwaysOkEcmhVerifier } from './ecmh-verifier.js';
+export { FailClosedEcmhVerifier, UnsafeAlwaysOkEcmhVerifier } from './ecmh-verifier.js';

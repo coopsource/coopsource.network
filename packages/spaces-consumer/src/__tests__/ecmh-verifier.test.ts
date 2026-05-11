@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { FailClosedEcmhVerifier, AlwaysOkEcmhVerifier } from '../ecmh-verifier.js';
+import { FailClosedEcmhVerifier, UnsafeAlwaysOkEcmhVerifier } from '../ecmh-verifier.js';
 
 describe('FailClosedEcmhVerifier', () => {
   it('rejects every verification by default', async () => {
@@ -14,9 +14,9 @@ describe('FailClosedEcmhVerifier', () => {
   });
 });
 
-describe('AlwaysOkEcmhVerifier (test-only)', () => {
+describe('UnsafeAlwaysOkEcmhVerifier (test-only)', () => {
   it('returns ok for any input', async () => {
-    const v = new AlwaysOkEcmhVerifier();
+    const v = new UnsafeAlwaysOkEcmhVerifier();
     const r = await v.verify({ records: [], expectedDigest: 'abc' });
     expect(r.ok).toBe(true);
   });
