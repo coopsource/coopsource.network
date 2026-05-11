@@ -140,6 +140,8 @@ V11 follows the nine stages from ARCHITECTURE-V11.md §16. **No schedule. Work p
 **Key files to reference**:
 - `apps/api/src/appview/tap-consumer.ts` — analogous pattern for public firehose
 
+**Progress (2026-05-11):** Stage 1 substrate landed on `feature/v11-stage-1-spaces-consumer`. Package `@coopsource/spaces-consumer` ships the five interfaces (SpaceCredentialStore, ArbiterMemberList, NotificationSubscriber, RepoPuller, EcmhVerifier), the `SpacesConsumer` orchestrator with per-record defense-in-depth cross-check, and Kysely-backed `KyselyCursorStore`. 26 unit tests cover the security boundaries. apps/api wires the dispatch behind `SPACES_CONSUMER_ENABLED=false` with fail-closed sketch defaults; `UNSAFE_SKIP_ECMH=true` opt-in for dev. Real implementations (NotificationSubscriber XRPC, RepoPuller via @atproto/sync, ArbiterMemberList via XRPC) land in Stage 2 once upstream protocol details settle.
+
 ### Stage 2 — Arbiter Integration
 
 **Branch**: `feature/v11-stage-2-arbiter-integration`
