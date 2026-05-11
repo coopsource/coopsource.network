@@ -23,6 +23,7 @@ export class InMemorySpaceCredentialStore implements SpaceCredentialStore {
   async get(ref: SpaceRef): Promise<SpaceCredential | undefined> {
     const entry = this.map.get(spaceRefKey(ref));
     if (!entry) return undefined;
+    // Treat expiresAt as exclusive: expired at the boundary instant (per JWT §4.1.4).
     if (entry.cred.expiresAt.getTime() <= this.opts.clock().getTime()) return undefined;
     return entry.cred;
   }

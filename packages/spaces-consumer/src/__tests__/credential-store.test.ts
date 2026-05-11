@@ -30,4 +30,11 @@ describe('InMemorySpaceCredentialStore', () => {
     const live = await store.live();
     expect(live).toHaveLength(2);
   });
+
+  it('deletes a credential so get returns undefined', async () => {
+    const cred: SpaceCredential = { token: 't', expiresAt: new Date('2026-05-11T13:00:00Z') };
+    await store.put(ref, cred);
+    await store.delete(ref);
+    expect(await store.get(ref)).toBeUndefined();
+  });
 });
