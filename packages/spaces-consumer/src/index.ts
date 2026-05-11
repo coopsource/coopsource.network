@@ -1,4 +1,4 @@
-export type { SpaceRef, SpaceNotification, PulledRecord, ConsumerHealth } from './types.js';
+export type { SpaceRef, SpaceNotification, PulledRecord, ConsumerHealth, ClockedOptions } from './types.js';
 export { spaceRefKey, SpaceConsumerError } from './types.js';
 export type { SpaceCredential, SpaceCredentialStore } from './credential-store.js';
 export { InMemorySpaceCredentialStore } from './credential-store.js';

@@ -1,4 +1,4 @@
-import { spaceRefKey, type SpaceRef } from './types.js';
+import { spaceRefKey, type ClockedOptions, type SpaceRef } from './types.js';
 
 export interface SpaceCredential {
   readonly token: string;
@@ -12,13 +12,9 @@ export interface SpaceCredentialStore {
   live(): Promise<Array<{ ref: SpaceRef; cred: SpaceCredential }>>;
 }
 
-export interface InMemoryOptions {
-  clock: () => Date;
-}
-
 export class InMemorySpaceCredentialStore implements SpaceCredentialStore {
   private readonly map = new Map<string, { ref: SpaceRef; cred: SpaceCredential }>();
-  constructor(private readonly opts: InMemoryOptions) {}
+  constructor(private readonly opts: ClockedOptions) {}
 
   async get(ref: SpaceRef): Promise<SpaceCredential | undefined> {
     const entry = this.map.get(spaceRefKey(ref));

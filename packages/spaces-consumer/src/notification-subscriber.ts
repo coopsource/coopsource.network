@@ -1,4 +1,4 @@
-import { spaceRefKey, type SpaceNotification, type SpaceRef } from './types.js';
+import { spaceRefKey, type ClockedOptions, type SpaceNotification, type SpaceRef } from './types.js';
 
 export type NotificationHandler = (n: SpaceNotification) => Promise<void> | void;
 
@@ -12,10 +12,6 @@ export interface NotificationSubscriber {
   unsubscribe(space: SpaceRef): Promise<void>;
 }
 
-interface InMemoryOptions {
-  clock: () => Date;
-}
-
 /**
  * Test/dev-fixture sketch. emit() is part of the test surface; it is not on
  * the NotificationSubscriber interface because real implementations don't
@@ -23,7 +19,7 @@ interface InMemoryOptions {
  */
 export class InMemoryNotificationSubscriber implements NotificationSubscriber {
   private readonly handlers = new Map<string, NotificationHandler>();
-  constructor(private readonly opts: InMemoryOptions) {}
+  constructor(private readonly opts: ClockedOptions) {}
 
   async subscribe(space: SpaceRef, handler: NotificationHandler): Promise<void> {
     this.handlers.set(spaceRefKey(space), handler);

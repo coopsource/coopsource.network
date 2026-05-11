@@ -20,6 +20,14 @@ export interface SpaceNotification {
   readonly receivedAt: Date;
 }
 
+/**
+ * Options shared by all in-memory sketch implementations in this package.
+ * Lets tests inject a deterministic clock; production wiring uses `() => new Date()`.
+ */
+export interface ClockedOptions {
+  clock: () => Date;
+}
+
 export interface PulledRecord {
   readonly space: SpaceRef;
   readonly authorDid: DID;
