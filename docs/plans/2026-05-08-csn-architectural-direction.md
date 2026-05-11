@@ -128,7 +128,7 @@ The AT Protocol Spring 2026 Roadmap (March 24) is unambiguous: permissioned data
 
 ### 3.1 What the Arbiter is
 
-The Arbiter (Zicklag, April 18, 2026) is an interoperable group management service that hosts permissioned spaces and provides a standardized XRPC API for membership management. It sits *above* the spaces protocol — spaces are the storage and access primitive, the Arbiter is how an application community manages spaces.
+The Arbiter (formalized by Zicklag, April 18, 2026, building on the architectural critique Meri published April 10) is an interoperable group management service that hosts permissioned spaces and provides a standardized XRPC API for membership management. It sits *above* the spaces protocol — spaces are the storage and access primitive, the Arbiter is how an application community manages spaces.
 
 Five primitives:
 
@@ -202,7 +202,7 @@ The PostgreSQL six-tier ACL is a reasonable workaround for a protocol that lacks
 
 The Arbiter is two weeks old. Zicklag's published design says "some details of this design are new since about… 6 hours ago when I should have been sleeping." The XRPC API, the access levels, the delegation semantics, and the relationship to the underlying spaces protocol will all evolve. Building against the spec today means rebuilding when it changes. The cooperative use case provides a non-chat stress test that will surface design pressure the Roomy use case doesn't — see §11.
 
-The Arbiter is being designed primarily for Roomy. Roomy is a chat application. Cooperatives have governance, financial, and compliance requirements that aren't on Roomy's roadmap. CSN must either contribute the cooperative use case to the Arbiter design (the engagement plan in §11), or accept that the Arbiter may not cover everything CSN needs and supplement at the GovernanceView / CoopView layer (acceptable; that's the layered architecture's purpose).
+The Arbiter is being designed by Meri and Zicklag primarily for Roomy. Roomy is a chat application. Cooperatives have governance, financial, and compliance requirements that aren't on Roomy's roadmap. CSN must either contribute the cooperative use case to the Arbiter design (the engagement plan in §11), or accept that the Arbiter may not cover everything CSN needs and supplement at the GovernanceView / CoopView layer (acceptable; that's the layered architecture's purpose).
 
 The arbiter-vs-spaces boundary is still being negotiated. Some things in the Arbiter design (the 8 access levels, public access settings) may end up in the spaces protocol itself. Other things (role inheritance, cross-arbiter delegation) almost certainly stay in the arbiter layer. Until that settles, CSN's GovernanceView code has to be flexible about which layer it's calling. Concretely: the Arbiter integration (§6.7) should live behind an interface that lets it slide between "this is a protocol primitive" and "this is an arbiter XRPC call" as the boundary moves.
 
@@ -949,7 +949,7 @@ Building V11 is half code and half ecosystem participation. CSN's design choices
 
 ### 11.1 The Arbiter cooperative use case document
 
-CSN should write a parallel design document framed as "the cooperative use case for the Arbiter pattern." This is a separate Leaflet post (or whatever venue Zicklag prefers) that frames CSN's needs in language Zicklag can incorporate into the Arbiter design.
+CSN should write a parallel design document framed as "the cooperative use case for the Arbiter pattern." This is a separate Leaflet post (or whatever venue Meri and Zicklag prefer) that frames CSN's needs in language the Arbiter's authors can incorporate into the design.
 
 The document should cover:
 
@@ -961,7 +961,9 @@ The document should cover:
 - Concrete questions: how arbiter access levels (8 levels) compose with cooperative role meanings; how `$admin` fits with cooperative bylaws-mandated officer authority; whether arbiter audit logging is sufficient for cooperative compliance requirements.
 - Open questions that are uniquely visible from the cooperative use case (e.g., what happens to space ownership when a cooperative dissolves).
 
-This document is a contribution, not a critique. It frames the cooperative use case as a generalization the Arbiter benefits from supporting, not as a divergence the Arbiter needs to accommodate. Zicklag is building the Arbiter for Roomy; the cooperative use case helps Zicklag see how the Arbiter generalizes to harder use cases.
+A direct architectural payoff for the upstream conversation: Meri's April 10 post asked whether the `(DID, read|write)` ACL primitive could be expanded — *"perhaps a lexicon that accompanies the space type NSID"* — to express richer permissions. V11's GovernanceView/CoopView plugin set (§13.3) is the cooperative use case's affirmative answer to that question. The space-type NSID is paired with a typed plugin contract (ten interfaces covering vote weight, eligibility, quorum, action authorization, anchor summary, historical state, patronage allocation, surplus distribution, meeting-minutes canonicalization, delegate-chain resolution) that resolves the fine-grained ACL/authority/eligibility/weighting questions the bare member-list primitive doesn't address. The cooperative use case document should articulate this pattern explicitly: NSID-as-substrate plus typed-plugin-as-superstructure is what makes a single arbiter mechanism work for chat moderation, cooperative governance, federated trust networks, and anything else the protocol stack needs to support without putting application logic into the protocol layer.
+
+This document is a contribution, not a critique. It frames the cooperative use case as a generalization the Arbiter benefits from supporting, not as a divergence the Arbiter needs to accommodate. Meri and Zicklag are building the Arbiter for Roomy; the cooperative use case helps the Arbiter's authors see how the design generalizes to harder use cases.
 
 ### 11.2 Lexicon Community engagement: `community.lexicon.governance.*`
 
@@ -1047,7 +1049,7 @@ The design questions surfaced through this report have been resolved. This secti
 
 If Bluesky ships permissioned data with significant deviations from Diaries 4 and 5, CSN treats the following as *load-bearing* (would force replanning):
 
-- `ats://`-vs-`at://` URI semantics (or whatever URI scheme replaces it),
+- The *semantic distinction* between permissioned and public URI resolution. The specific scheme token (`ats://` is the leading candidate per Diary 5, but Holmgren is explicit that it's not yet decided) is substrate; the *fact* that permissioned URIs resolve through a different protocol and must be visually distinct from public URIs is load-bearing.
 - `(DID, read|write)` ACL minimality as the protocol-layer access model,
 - Cooperative-DID-as-distinct-from-user-DID.
 
@@ -1663,6 +1665,7 @@ Everything else — specific class names, the exact factoring of late-bound plug
 
 - Trezy, "Releasing HappyView 2 Into the Wild", April 24, 2026 — `https://trezy.com/blog/releasing-happyview-2-into-the-wild`
 - HappyView v2.5.0 — "The Permissioned Data Release", May 5, 2026 — `https://github.com/gamesgamesgamesgamesgames/happyview/releases/tag/v2.5.0`
+- Meri, "Evaluating permissioned spaces for community contexts", April 10, 2026 — `https://meri.leaflet.pub/3mj4qwvypq22a` (architectural critique that motivated the Arbiter design; co-authored with Zicklag)
 - Zicklag, "The Arbiter — Group Management for Permissioned Spaces and Beyond", April 18, 2026 — `https://zicklag.leaflet.pub/3mjrvb5pul224`
 - Zicklag, "Making Roomy More ATProto-Native", March 13, 2026 — `https://zicklag.leaflet.pub/3mgy2sbswl22f`
 

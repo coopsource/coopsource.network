@@ -228,7 +228,110 @@ The 2-week refresh cadence stands, with one process change: **direct URL fetches
 
 ---
 
-## 6. Process note (for future scans)
+## 6. Assessment: addendum findings against the architecture direction document
+
+The §5 recommendations were drafted before a careful read of `2026-05-08-csn-architectural-direction.md`. On re-reading, most of §5 is either already incorporated in the architecture doc or is premature to act on. This section assesses each finding against the doc's actual content and identifies the small set of additions that are worth making now. **Where §6 and §5 conflict, §6 supersedes.**
+
+The architecture direction document was written on May 8, 2026 — the same day Diary 5 was published — and cites Diary 5 eight times across §§2.1, 2.2, 6.1, 6.6, and 12.3. HappyView v2.5.0 is cited in §§0, 2.3, and 5.6. The §13 strawman's `SpaceRef = { arbiter, type, skey }` is already order-agnostic and scheme-agnostic. The §12.3 substrate-vs-load-bearing framing already does most of the conceptual isolation work this addendum's findings imply. The doc anticipates almost everything Diary 5 settled.
+
+### 6.1 Already in the doc (no action needed)
+
+| Addendum finding | Where it's already addressed in the architecture doc |
+|---|---|
+| Diary 5 settles URI order SPACE-first | §2.1, §13 strawman uses `SpaceRef` consistent with SPACE-first |
+| Spaces have their own DIDs | §2.1, §6.1 |
+| Controlled DIDs scoped tightly | §2.2, §6.1 |
+| Space type as NSID = OAuth consent boundary | §2.1, §4.1 |
+| URI scheme still undecided | §2.2 explicitly notes "taking suggestions" |
+| Skey / multiple spaces per DID | §3.3 mapping table, §6.6 |
+| Sketch implementation branch exists | §2.2 |
+| HappyView v2.5.0 with permissioned-spaces flag | §2.3, §5.6 |
+| Sync protocol details may shift | §2.2, §12.3 marks sync as substrate |
+| Spaces ≠ circles (modality-bound) | Implicit in §4.1, §6 — space types are NSIDs |
+
+### 6.2 Worth folding in now (small, mechanical, no design risk) — **COMPLETE**
+
+**Status: COMPLETE.** All four additions applied to `2026-05-08-csn-architectural-direction.md` on May 11, 2026. The recommendations below are preserved for traceability, each annotated with where it was applied.
+
+1. ✅ **Meri's co-authorship of the Arbiter pattern.** Applied to §3.1 (opening sentence now reads *"The Arbiter (formalized by Zicklag, April 18, 2026, building on the architectural critique Meri published April 10)..."*) and §3.5 (paragraph 2 now reads *"The Arbiter is being designed by Meri and Zicklag primarily for Roomy."*). §11.1 opening and closing also updated to name Meri and Zicklag jointly.
+
+2. ✅ **§11.1 reframe: position the plugin set as the cooperative use case's answer to Meri's open question.** New paragraph inserted into §11.1 before the closing "contribution not critique" paragraph, explicitly quoting Meri's *"perhaps a lexicon that accompanies the space type NSID"* and framing V11's plugin set (§13.3) as the affirmative answer — with the NSID-as-substrate-plus-typed-plugin-as-superstructure pattern named as a generalizable contribution.
+
+3. ✅ **§12.3 refinement: URI scheme token is substrate; semantic distinction is load-bearing.** The load-bearing bullet about `ats://`-vs-`at://` was replaced with: *"The semantic distinction between permissioned and public URI resolution. The specific scheme token (ats:// is the leading candidate per Diary 5, but Holmgren is explicit that it's not yet decided) is substrate; the fact that permissioned URIs resolve through a different protocol and must be visually distinct from public URIs is load-bearing."*
+
+4. ✅ **Meri's April 10 post added to References section** under Ecosystem sources, chronologically positioned before the Zicklag April 18 Arbiter post. Annotated as *"architectural critique that motivated the Arbiter design; co-authored with Zicklag."*
+
+All edits applied via a single `Filesystem:edit_file` call. No conflicts, no manual cleanup required. The architecture direction document is now current with the May 11 ecosystem scan findings.
+
+### 6.3 Premature to fold in (genuinely waiting on upstream)
+
+The following §5 recommendations are either already implicitly handled by the doc's existing posture or depend on upstream signal that hasn't arrived:
+
+- **URI authority contestation (§5.3 item from §2.2).** Diary 5 settled SPACE-first/space-DID-authority. Meri's user-DID argument is real but not unanimous upstream. Acting on this would mean committing to a side. The §13 strawman's `SpaceRef` and plugin interfaces don't depend on URI authority semantics — CSN is already insulated. **Don't fold in.** If upstream flips, the §13 strawman absorbs the change.
+
+- **§5.3 item 9 (founder-personal-DID → cooperative-DID transition).** Real upstream gap. But §12.2 already commits CSN to "cooperatives own their DIDs" from provisioning. CSN sidesteps the problem by never letting cooperatives accumulate state under a founder's personal DID. The doc's existing posture is correct; the gap is not CSN's to solve. **Optional one-sentence note in §12** acknowledging the sidestep is deliberate; otherwise no action.
+
+- **§5.3 item 10 (space-migration cost documentation).** §9.6 covers the easy case (PDS move with DID unchanged). The hard case (DID itself changes) isn't addressed. But this is upstream's problem and may never be solved at the protocol level. **Better to note as a known limitation than design around it.** Optional addition to §9.6; no action otherwise.
+
+- **§5.3 item 11 (NSID permanence).** §13's plugin set abstracts over NSIDs. **No action needed.**
+
+- **§5.3 item 12 (multi-space record reference question).** Genuine open question, but speculative for V11. Should be flagged in §12.8 (items still genuinely open) only if explicit listing helps; otherwise wait until upstream surfaces a concrete proposal.
+
+- **§5.3 item 13 (ACL visibility commitment).** Pick a default when implementation reaches the relevant code, not now. The doc's existing posture (per-space placement, no binary visibility) already provides flexibility.
+
+- **§5.3 item 14 (engagement plan addition for Meri/Zicklag).** Subsumed by §6.2 item 1 above — naming Meri across §11 covers this without a separate items list.
+
+The pattern: most of the §5.3 "new from Meri's post" items reinforce existing doc posture rather than overturning it. The doc is more current than the §5.3 framing implied.
+
+### 6.4 How key decisions are likely to go
+
+Predicting upstream design outcomes is a probability exercise. Best estimates based on the current state of Diary 5, the Roomy/Meri/Zicklag axis, and Bluesky's stated direction:
+
+| Open question | Likely outcome | Confidence | Risk to V11 if wrong |
+|---|---|---|---|
+| URI scheme | `ats://` survives | 70–80% | Low — URI helpers abstract the scheme |
+| URI order | SPACE-first (per Diary 5) | 80–85% | Low — `SpaceRef` is swappable |
+| URI authority | space-DID (per Diary 5) | 65–70% | Low — plugins don't depend on URI authority semantics |
+| Controlled-DID API scope | Minimal (transfer + rotation only) | 85% | Low — V11 already doesn't depend on rich PDS APIs |
+| Personal-to-community transition | No upstream solution in 12 months | 80% | Low — CSN sidesteps via cooperative-DID-at-provisioning |
+| Fine-grained ACL expansion | 50/50 upstream solution in 18 months | — | None — V11's plugin set is the CSN-side answer regardless |
+| ACL visibility convention | 50/50 consistent answer in 12 months | — | Low — CSN picks default, adjusts if upstream lands different |
+| Public-read permissioned spaces | ~35% upstream support | — | None — V11 doesn't need it |
+| Sync protocol substrate (ECMH, post-quantum) | ~50% probability of substrate changes | — | Low — §12.3 already marks sync as substrate |
+| `$publish` / `$labeler` formalization | ~70% formalized in some form | — | Low — §6.9 plans for CSN to do standardization work if needed |
+| OAuth-spaces seam (app auth within space) | ~50% resolution in 6 months | — | **Medium** — but §12.7 plans seam writeup with sketchable parts now |
+
+The pattern is clear: **most genuinely-load-bearing decisions for V11 have already gone the way the architecture doc assumes.** The residual risk concentrates in the OAuth-spaces seam (§4.2), which §12.7 already identifies as the most important parallel work item. Everything else is either substrate (insulated by abstraction) or sidestepped by V11's existing posture.
+
+### 6.5 How CSN isolates itself from changes in the spaces domain
+
+The architecture doc already does most of the insulation work. Six layers of isolation, with one small refinement recommended:
+
+1. **Substrate vs. surface distinction (§12.3 design pivot policy).** The doc's distinction between "load-bearing" (would force replanning) and "substrate" (abstracted behind ports) is the right framing. The one refinement is §6.2 item 3: move `ats://`-vs-`at://` URI semantics from load-bearing to "the *semantic distinction* between permissioned and public URI resolution is load-bearing; the specific scheme token is substrate." Diary 5 explicitly leaves the token open.
+
+2. **No dependence on rich PDS-level APIs (§6.1, §6.7).** §6.1 commits cooperative DID management to a minimal controlled-DID API. §6.7 puts operator auth in the Arbiter layer, not the PDS. Anything that wants generic managed-account capability lives in CSN's AppView. Solid.
+
+3. **The plugin set IS the isolation layer (§13).** The 10 plugin interfaces are CSN's contract with itself; upstream space mechanics are implementation details behind them. If Bluesky changes how spaces work, only `GovernanceView`'s internals change; plugin interfaces stay stable; `CoopView` is unaffected. **This is the single most important insulation property V11 has.** The §13.8 "what this strawman commits to" language is good but could be sharper: the plugin boundary is not just a layer separation — it's the abstraction that survives upstream protocol pivots.
+
+4. **Cooperative DIDs from provisioning (§12.2).** Sidesteps the personal-to-cooperative transition problem entirely. Founders never accumulate cooperative state under their personal DID. This is a CSN-side design choice that doesn't depend on upstream resolution.
+
+5. **Defer where upstream is arguing (§12.8).** Genuinely open items are listed honestly. §12.7 plans parallel work that doesn't depend on upstream resolution. The posture is correctly "code against substrate, defer surface."
+
+6. **Make every NSID / scheme / syntax choice a variable, not a constant.** §13.3's `SpaceRef` is the pattern. URI helpers, scheme tokens, ACL syntax should all follow it: encapsulated in one place, swappable.
+
+The insulation strategy can be summarized in one sentence: **CSN codes against the durable substrate (DIDs, signing keys, cryptographic commits, lexicons-as-NSIDs, OAuth+DPoP, space-as-perimeter, member-list-as-(DID, R|W)), not the changing surface (specific URI token, exact ACL syntax, exact sync wire format, exact permission set list).** The four-layer architecture (Spaces → Arbiter → GovernanceView → CoopView) means each layer can churn without forcing the layer above it to change.
+
+### 6.6 Recommendation
+
+**Don't fold the addendum into the architecture direction document as a major edit.** The doc is already current with the protocol design as of May 8, 2026, and most of the addendum's findings (Diary 5 substance, HappyView v2.5.0 details, design pivot policy) are already incorporated.
+
+**Do make the four small additions identified in §6.2** — **COMPLETE** as of May 11, 2026. All four edits have been applied to the architecture direction document; see §6.2 for details on each.
+
+**Treat this addendum as a watchlist artifact going forward** (see §7). The 2-week refresh cadence with direct URL fetches (now including `meri.leaflet.pub`) catches new upstream signal. The architecture doc only needs to change when a watchlist refresh surfaces something load-bearing — not on every diary or post. The OAuth-spaces seam (§4.2 in the architecture doc) is the most likely source of upstream signal that forces real edits; everything else is substrate or already sidestepped.
+
+---
+
+## 7. Process note (for future scans)
 
 The failure mode in the earlier draft is recurring: **search-driven research misses fresh content and content on niche infrastructure**, and conclusions of the form "X does not exist" from search-misses are unreliable.
 
