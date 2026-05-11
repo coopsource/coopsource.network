@@ -69,6 +69,9 @@ importers:
       '@coopsource/lexicons':
         specifier: workspace:*
         version: link:../../packages/lexicons
+      '@coopsource/spaces-consumer':
+        specifier: workspace:*
+        version: link:../../packages/spaces-consumer
       '@inlay/core':
         specifier: 0.0.13
         version: 0.0.13
