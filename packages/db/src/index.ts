@@ -105,4 +105,7 @@ export type {
   HookDeadLetterTable,
   // Registered lexicons (053)
   RegisteredLexiconTable,
+  // V11 Stage 1 — Spaces consumer
+  DidRotationHistoryTable,
+  SpacesConsumerCursorTable,
 } from './schema.js';

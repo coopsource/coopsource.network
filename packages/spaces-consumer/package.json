@@ -22,7 +22,6 @@
   "dependencies": {
     "@coopsource/common": "workspace:*",
     "@coopsource/db": "workspace:*",
-    "@coopsource/federation": "workspace:*",
     "kysely": "^0.28"
   },
   "devDependencies": {

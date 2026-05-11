@@ -365,9 +365,6 @@ importers:
       '@coopsource/db':
         specifier: workspace:*
         version: link:../db
-      '@coopsource/federation':
-        specifier: workspace:*
-        version: link:../federation
       kysely:
         specifier: ^0.28.14
         version: 0.28.14
