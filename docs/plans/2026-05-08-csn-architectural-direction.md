@@ -728,16 +728,16 @@ CoopView is CSN's cooperative-specific extension of GovernanceView. Lexicons liv
 
 CoopView implements the following GovernanceView plugins:
 
-- **`vote-weight-resolver`.** Resolves vote weight from voter DID + proposal context. CoopView's resolver consults patronage history, member class, multi-stakeholder weights, and cooperative-specific rules.
+- **`vote-weight-calculator`.** Calculates vote weight from voter DID + proposal context. CoopView's calculator consults patronage history, member class, multi-stakeholder weights, and cooperative-specific rules.
 - **`proposal-eligibility-checker`.** Determines whether a member is eligible to vote on a given proposal. CoopView checks probation completion, member-class restrictions, fiscal-period membership, and good-standing status.
-- **`quorum-resolver`.** Determines whether quorum has been met. CoopView applies multi-stakeholder per-class quorum rules, patronage-weighted minimums, and statutory requirements.
-- **`role-permission-resolver`.** Translates application-level permission queries ("can this user create proposals about bylaws?") into role-space membership lookups, with cooperative-specific composition.
+- **`quorum-checker`.** Checks whether quorum has been met. CoopView applies multi-stakeholder per-class quorum rules, patronage-weighted minimums, and statutory requirements.
+- **`action-authorizer`.** Translates application-level permission queries ("can this user create proposals about bylaws?") into role-space membership lookups, with cooperative-specific composition.
 - **`anchor-summary-builder`.** Adds cooperative-specific fields to GovernanceView's anchor records (cooperative type, ICA principle declarations).
-- **`historical-state-resolver`.** Returns governance state as of a given timestamp — "who was a member of the `members` space on the fiscal-year close?", "what was the role-space composition at the time of this proposal?". Subchapter T patronage allocation and 1099-PATR generation both require snapshot semantics: patronage is computed against the membership-as-of-fiscal-period, not membership-as-of-now. GovernanceView retains time-series snapshots (§12.6); CoopView's resolver reads them. §13.3 defines the interface shape.
+- **`historical-state-reader`.** Returns governance state as of a given timestamp — "who was a member of the `members` space on the fiscal-year close?", "what was the role-space composition at the time of this proposal?". Subchapter T patronage allocation and 1099-PATR generation both require snapshot semantics: patronage is computed against the membership-as-of-fiscal-period, not membership-as-of-now. GovernanceView retains time-series snapshots (§12.6); CoopView's reader consumes them. §13.3 defines the interface shape.
 - **`patronage-allocator`.** Computes per-member patronage allocations for a fiscal period. Subchapter T-specific: separates patronage-sourced from non-patronage-sourced income, applies the cooperative's patronage allocation policy (per-unit-of-business, weighted-by-class, etc.), produces a per-member allocation record that gets written to each member's personal space.
 - **`surplus-distributor`.** Distributes cooperative surplus per cooperative-type rules. Distinct from patronage in some cooperative forms; required for Subchapter T qualified vs. non-qualified notices. May produce both cash distributions (within 8.5 months for qualified-dividend treatment) and equity allocations (capital account credits).
 - **`meeting-minutes-canonicalizer`.** Produces canonical, signed meeting-minute records that satisfy legal record-keeping requirements (presence quorum, motions, votes, resolutions). Input is the raw deliberation thread; output is a `network.coopsource.legal.meetingRecord`.
-- **`delegate-resolver`.** Resolves proxy votes and delegation chains. For representative-democracy modes (large cooperatives, federations of cooperatives), a member may delegate voting authority to a representative; the resolver computes effective vote weight after delegation, detects delegation cycles, and applies cooperative-specific delegation limits.
+- **`delegate-chain-resolver`.** Resolves proxy votes and delegation chains. For representative-democracy modes (large cooperatives, federations of cooperatives), a member may delegate voting authority to a representative; the resolver computes effective vote weight after delegation, detects delegation cycles, and applies cooperative-specific delegation limits.
 
 Each plugin is a typed TypeScript interface; CoopView registers concrete implementations at process startup.
 
@@ -1143,12 +1143,13 @@ packages/
       lexicons/                       network.coopsource.* (CoopView subset)
       services/                       PatronageService, CapitalAccountService, etc.
       plugins/
-        vote-weight.ts                CoopView's vote-weight-resolver impl
-        eligibility.ts                CoopView's proposal-eligibility impl
-        quorum.ts                     CoopView's quorum impl
-        historical-state.ts           CoopView's historical-state-resolver impl
-        patronage-allocator.ts        CoopView's patronage allocator impl
-        anchor-summary.ts             CoopView's anchor-summary-builder impl
+        vote-weight.ts                CoopView's VoteWeightCalculator impl
+        eligibility.ts                CoopView's ProposalEligibilityChecker impl
+        quorum.ts                     CoopView's QuorumChecker impl
+        action-authorizer.ts          CoopView's ActionAuthorizer impl
+        historical-state.ts           CoopView's HistoricalStateReader impl
+        patronage-allocator.ts        CoopView's PatronageAllocator impl
+        anchor-summary.ts             CoopView's AnchorSummaryBuilder impl
       indexers/                       CoopView-specific indexers
       xrpc/                           network.coopsource.* XRPC handlers
       index.ts                        public API: CoopView class
@@ -1276,8 +1277,8 @@ export interface QuorumResult {
 
 // ---------- Plugin interfaces ----------
 
-export interface VoteWeightResolver {
-  resolveWeight(args: {
+export interface VoteWeightCalculator {
+  calculateWeight(args: {
     voterDid: DID;
     proposalRef: ProposalRef;
     cooperativeDid: DID;
@@ -1292,20 +1293,20 @@ export interface ProposalEligibilityChecker {
   }): Promise<EligibilityResult>;
 }
 
-export interface QuorumResolver {
-  resolveQuorum(args: {
+export interface QuorumChecker {
+  checkQuorum(args: {
     proposalRef: ProposalRef;
     cooperativeDid: DID;
     votesAndWeights: Array<{ voter: DID; choice: string; weight: number }>;
   }): Promise<QuorumResult>;
 }
 
-export interface RolePermissionResolver {
+export interface ActionAuthorizer {
   /**
    * Translates an application-level permission query to a yes/no.
    * Example: action = 'create-proposal-about-bylaws'.
    */
-  resolvePermission(args: {
+  authorize(args: {
     actorDid: DID;
     cooperativeDid: DID;
     action: string;
@@ -1325,12 +1326,12 @@ export interface AnchorSummaryBuilder {
   }): Promise<Record<string, unknown>>;
 }
 
-export interface HistoricalStateResolver {
+export interface HistoricalStateReader {
   /**
    * Retrieves the snapshot of a role-space's member list as of a given timestamp.
    * Returns the most recent snapshot at-or-before `at`.
    */
-  resolveAt(args: {
+  readAt(args: {
     space: SpaceRef;
     at: Date;
   }): Promise<RoleSnapshot | null>;
@@ -1394,12 +1395,12 @@ export interface MeetingMinutesCanonicalizer {
   }>;
 }
 
-export interface DelegateResolver {
+export interface DelegateChainResolver {
   /**
    * Resolves proxy votes and delegation chains. Computes effective vote weight
    * after delegation, detects delegation cycles, applies cooperative-specific limits.
    */
-  resolveDelegations(args: {
+  resolveChains(args: {
     cooperativeDid: DID;
     proposalRef: ProposalRef;
     explicitVoters: DID[];
@@ -1412,16 +1413,16 @@ export interface DelegateResolver {
 
 /** The full set of plugins GovernanceView accepts. All optional; defaults are no-ops. */
 export interface GovernancePluginSet {
-  voteWeight: VoteWeightResolver;
+  voteWeight: VoteWeightCalculator;
   eligibility: ProposalEligibilityChecker;
-  quorum: QuorumResolver;
-  rolePermission: RolePermissionResolver;
+  quorum: QuorumChecker;
+  actionAuthorizer: ActionAuthorizer;
   anchorSummary: AnchorSummaryBuilder;
-  historicalState: HistoricalStateResolver;
+  historicalState: HistoricalStateReader;
   patronageAllocator: PatronageAllocator;
   surplusDistributor: SurplusDistributor;
   meetingMinutes: MeetingMinutesCanonicalizer;
-  delegateResolver: DelegateResolver;
+  delegateChains: DelegateChainResolver;
 }
 ```
 
@@ -1429,8 +1430,8 @@ Design notes on the plugin shape:
 
 - **All async, returning `Promise<T>`.** Matches the existing async style of `ProposalService`, `MembershipService`, etc. CoopView plugin impls usually hit Kysely; making them sync would force awkward in-memory caches.
 - **All inputs are plain values (DIDs, refs, snapshots), not service handles.** A plugin doesn't get a reference to GovernanceView or to other plugins. If it needs more data, it gets it from its own injected dependencies (CoopView holds its own `db`, `arbiterClient`, etc.). This keeps the call graph one-way: GovernanceView calls plugins; plugins don't call GovernanceView back.
-- **Defaults are no-ops, not errors.** `defaultPluginSet.voteWeight.resolveWeight()` returns `{ weight: 1 }`. `defaultPluginSet.eligibility.checkEligibility()` returns `{ eligible: true }`. This lets Roomy ship GovernanceView without implementing anything; the no-op behaviors give a working one-member-one-vote system out of the box.
-- **`HistoricalStateResolver` is the only plugin that GovernanceView *writes* to.** GovernanceView records snapshots at cadence boundaries; CoopView reads them. This is the load-bearing primitive for Subchapter T patronage allocation, which has to consume membership-as-of-fiscal-period not membership-as-of-now (§12.6).
+- **Defaults are no-ops, not errors.** `defaultPluginSet.voteWeight.calculateWeight()` returns `{ weight: 1 }`. `defaultPluginSet.eligibility.checkEligibility()` returns `{ eligible: true }`. `defaultPluginSet.actionAuthorizer.authorize()` returns `true`. This lets Roomy ship GovernanceView without implementing anything; the no-op behaviors give a working one-member-one-vote system out of the box.
+- **`HistoricalStateReader` is the only plugin that GovernanceView *writes* to.** GovernanceView records snapshots at cadence boundaries; CoopView reads them. This is the load-bearing primitive for Subchapter T patronage allocation, which has to consume membership-as-of-fiscal-period not membership-as-of-now (§12.6).
 - **`SpaceRef` is independent of the URI scheme decision.** `{ arbiter: DID, type: string, skey: string }` survives `ats://` becoming something else; only the URI helpers need rewriting.
 
 ### 13.4 Hook composition between layers
@@ -1446,9 +1447,10 @@ import type { Database } from '@coopsource/db';
 import { PatronageService } from './services/patronage-service.js';
 import { registerCoopHooks } from './hooks/index.js';
 import {
-  CoopVoteWeightResolver,
+  CoopVoteWeightCalculator,
   CoopEligibilityChecker,
-  CoopQuorumResolver,
+  CoopQuorumChecker,
+  CoopActionAuthorizer,
   // ... etc
 } from './plugins/index.js';
 
@@ -1473,16 +1475,16 @@ export class CoopView {
   /** Build the GovernancePluginSet that CSN passes to GovernanceView's constructor. */
   static buildPluginSet(cfg: CoopViewConfig): GovernancePluginSet {
     return {
-      voteWeight: new CoopVoteWeightResolver(cfg),
+      voteWeight: new CoopVoteWeightCalculator(cfg),
       eligibility: new CoopEligibilityChecker(cfg),
-      quorum: new CoopQuorumResolver(cfg),
-      rolePermission: new CoopRolePermissionResolver(cfg),
+      quorum: new CoopQuorumChecker(cfg),
+      actionAuthorizer: new CoopActionAuthorizer(cfg),
       anchorSummary: new CoopAnchorSummaryBuilder(cfg),
-      historicalState: new CoopHistoricalStateResolver(cfg),
+      historicalState: new CoopHistoricalStateReader(cfg),
       patronageAllocator: new CoopPatronageAllocator(cfg),
       surplusDistributor: new CoopSurplusDistributor(cfg),
       meetingMinutes: new CoopMeetingMinutesCanonicalizer(cfg),
-      delegateResolver: new CoopDelegateResolver(cfg),
+      delegateChains: new CoopDelegateChainResolver(cfg),
     };
   }
 }
@@ -1633,7 +1635,7 @@ The V11 architecture document refines this strawman but treats the following as 
 
 - **GovernanceView is its own package**, with its own database tables (`gv_*`) and its own lexicons (`community.lexicon.governance.*`).
 - **Plugins are constructor-injected, not globally registered.** Per-cooperative runtime extensibility goes through `apps/api/src/scripting/`, not through plugins.
-- **The ten plugin interfaces in §13.3** are the boundary. New cooperative-specific concerns that aren't covered by an existing plugin interface require adding a new plugin, not reaching around the boundary.
+- **The ten plugin interfaces in §13.3** are the boundary. New cooperative-specific concerns that aren't covered by an existing plugin interface require adding a new plugin, not reaching around the boundary. The interface names follow a verb-noun convention (`VoteWeightCalculator`, `ProposalEligibilityChecker`, `QuorumChecker`, `ActionAuthorizer`, `AnchorSummaryBuilder`, `HistoricalStateReader`, `PatronageAllocator`, `SurplusDistributor`, `MeetingMinutesCanonicalizer`, `DelegateChainResolver`); names describe what the plugin produces, not what it's plugged into.
 - **Hook composition uses the existing registry shape** from `apps/api/src/appview/hooks/`, lifted into GovernanceView.
 - **Lexicon extension via wrapping** (`generic` field nested inside CSN-extended record). The alternative (flat extension) is on the table for V11 if the Lexicon Community settles a different convention.
 
