@@ -55,11 +55,11 @@ describe('SpacesConsumer', () => {
     expect(cursorStore.get(cursorKey)).toBe('1');
   });
 
-  it('counts member-cross-check failures in health (defense in depth even though eve is not iterated as a member)', async () => {
-    // Eve is in the puller's records but not on the member list, so memberList.list returns only alice.
-    // alice is iterated; eve's record never reaches the per-record cross-check in this configuration.
-    // To force the defense-in-depth path, we need a puller that returns a non-member record while
-    // iterating alice. That requires a different puller setup.
+  it('rejects records whose authorDid is not on the member list (defense in depth)', async () => {
+    // A compromised member PDS could return records authored by non-members.
+    // Simulate by constructing a puller that returns an eve-authored record
+    // when pulling for alice. The member list only contains alice, so the
+    // per-record cross-check catches eve and increments memberCrossCheckFailures.
     const treacherousMemberList = new StaticArbiterMemberList({
       [`${ref.arbiter}|${ref.type}|${ref.skey}`]: [fakeDid('did:plc:alice')],
     });
@@ -116,5 +116,35 @@ describe('SpacesConsumer', () => {
     await subscriber.emit(ref, '0');
     expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: 'puller-boom' }), expect.any(Object));
     expect(throwConsumer.health().errorCount).toBe(1);
+  });
+
+  it('continues to subsequent members when one members pull throws', async () => {
+    const onError = vi.fn<(err: unknown, context: { space: SpaceRef; memberDid?: string }) => void>();
+    const aliceDid = fakeDid('did:plc:alice');
+    const bobDid = fakeDid('did:plc:bob');
+    const bobRecord = buildPulledRecord({ space: ref, authorDid: bobDid, rkey: 'b1', rev: '1' });
+    const twoMemberList = new StaticArbiterMemberList({
+      [`${ref.arbiter}|${ref.type}|${ref.skey}`]: [aliceDid, bobDid],
+    });
+    // Alice's pull throws; Bob's pull returns one record.
+    const pullerForBoth = {
+      pull: async (req: { memberDid: string }) => {
+        if (req.memberDid === aliceDid) throw new Error('alice-pull-fail');
+        return [bobRecord];
+      },
+    };
+    const c3 = new SpacesConsumer({
+      subscriber, memberList: twoMemberList, puller: pullerForBoth,
+      verifier: new UnsafeAlwaysOkEcmhVerifier(),
+      cursors: { get: async () => '', set: async () => {} },
+      onAccepted, onError,
+      clock: () => new Date('2026-05-11T12:00:00Z'),
+    });
+    await c3.start([ref]);
+    await subscriber.emit(ref, '0');
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onAccepted).toHaveBeenCalledWith(bobRecord);
+    expect(c3.health().errorCount).toBe(1);
+    expect(c3.health().recordsAccepted).toBe(1);
   });
 });

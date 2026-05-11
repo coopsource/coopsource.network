@@ -1,3 +1,4 @@
+import type { DID } from '@coopsource/common';
 import type { ArbiterMemberList } from './arbiter-member-list.js';
 import type { EcmhVerifier } from './ecmh-verifier.js';
 import type { NotificationSubscriber } from './notification-subscriber.js';
@@ -84,11 +85,17 @@ export class SpacesConsumer {
   }
 
   private async handleNotification(n: SpaceNotification): Promise<void> {
-    let currentMember: string | undefined;
+    let members: ReadonlyArray<DID>;
     try {
-      const members = await this.opts.memberList.list(n.space);
-      for (const memberDid of members) {
-        currentMember = memberDid;
+      members = await this.opts.memberList.list(n.space);
+    } catch (err) {
+      this.errorCount += 1;
+      await this.opts.onError(err, { space: n.space });
+      return;
+    }
+
+    for (const memberDid of members) {
+      try {
         const cursorKey = `${spaceRefKey(n.space)}|${memberDid}`;
         const since = await this.opts.cursors.get(cursorKey);
         const pulled = await this.opts.puller.pull({ space: n.space, memberDid, since });
@@ -121,14 +128,16 @@ export class SpacesConsumer {
           }
           await this.opts.onAccepted(r);
           this.recordsAccepted += 1;
+          // String comparison: revs are TID-format and lex-ordered (see repo-puller.ts).
           if (r.rev > maxRev) maxRev = r.rev;
         }
         if (maxRev !== since) await this.opts.cursors.set(cursorKey, maxRev);
+      } catch (err) {
+        this.errorCount += 1;
+        await this.opts.onError(err, { space: n.space, memberDid });
+        // continue to next member
       }
-      this.lastPullAt = this.opts.clock().toISOString();
-    } catch (err) {
-      this.errorCount += 1;
-      await this.opts.onError(err, { space: n.space, memberDid: currentMember });
     }
+    this.lastPullAt = this.opts.clock().toISOString();
   }
 }
