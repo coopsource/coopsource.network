@@ -8,3 +8,5 @@ export type { NotificationHandler, NotificationSubscriber } from './notification
 export { InMemoryNotificationSubscriber } from './notification-subscriber.js';
 export type { EcmhVerifyInput, EcmhVerifyResult, EcmhVerifier } from './ecmh-verifier.js';
 export { FailClosedEcmhVerifier, UnsafeAlwaysOkEcmhVerifier } from './ecmh-verifier.js';
+export type { PullRequest, RepoPuller } from './repo-puller.js';
+export { InMemoryRepoPuller } from './repo-puller.js';
