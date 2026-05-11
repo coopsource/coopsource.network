@@ -4,6 +4,7 @@ import { spaceRefKey, type PulledRecord, type SpaceRef } from './types.js';
 export interface PullRequest {
   readonly space: SpaceRef;
   readonly memberDid: DID;
+  /** Cursor rev. Use '' (empty string) to pull from the beginning of the repo. */
   readonly since: string;
 }
 
@@ -24,6 +25,11 @@ export interface RepoPuller {
  * Sketch — pulls from an in-memory record store. Useful for tests and dev
  * fixtures. Stage 2's real RepoPuller will require the permissioned-data
  * wire format to be stable upstream.
+ *
+ * Rev format: the sketch accepts any string-comparable rev (e.g., '1', '2'),
+ * which is convenient for unit tests but does not exercise the TID-format
+ * lex-order behavior the real impl will see. Tests that need to validate
+ * TID semantics should use zero-padded numeric strings or real TIDs.
  */
 export class InMemoryRepoPuller implements RepoPuller {
   constructor(private readonly records: ReadonlyArray<PulledRecord>) {}

@@ -13,6 +13,8 @@ export const fakeDid = (s: string) => s as unknown as DID;
 export function buildPulledRecord(
   overrides: { space: SpaceRef; authorDid: DID; rev: string } & Partial<PulledRecord>,
 ): PulledRecord {
+  // Note: `uri` and `rkey` are independent fields. If you pass `uri` explicitly,
+  // also pass `rkey` — they are not derived from each other after construction.
   return {
     space: overrides.space,
     authorDid: overrides.authorDid,
