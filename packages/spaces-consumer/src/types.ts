@@ -45,12 +45,11 @@ export interface ConsumerHealth {
 
 /**
  * Internal error taxonomy for the spaces consumer.
- * Distinct from the V11 5-axis authorization model (OAuth/spaces/application/labels/service-auth).
- * These axes classify consumer-internal failure modes, not caller-facing authorization failures.
+ * Distinct from the V11 5-axis authorization model (CLAUDE.md / ARCHITECTURE-V11.md §3).
  */
 export class SpaceConsumerError extends Error {
   constructor(
-    public readonly axis: 'credential' | 'digest' | 'member-list' | 'protocol' | 'schema',
+    public readonly kind: 'credential' | 'digest' | 'member-list' | 'protocol' | 'schema',
     message: string,
   ) {
     super(message);
