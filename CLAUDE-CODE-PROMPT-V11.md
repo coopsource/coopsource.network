@@ -600,7 +600,7 @@ docs/
 
 ARCHITECTURE-V11.md                    # Active architecture spec
 CLAUDE-CODE-PROMPT-V11.md              # (this file)
-CLAUDE.md                              # Repo-level Claude guidance (needs V11 alignment)
+CLAUDE.md                              # Repo-level Claude guidance (V11-aligned as of May 2026)
 ```
 
 ---
@@ -622,7 +622,7 @@ The architecture document's §17 lists what is committed; §18 lists what is sti
 
 ### When CLAUDE.md disagrees with this prompt
 
-The repo's `CLAUDE.md` is currently aligned with V9 (references V5/V6/V7, includes "Bilateral membership is non-negotiable" etc.). After V11 stabilizes, `CLAUDE.md` will need updating to align with V11. Until then, **V11 architecture spec wins over `CLAUDE.md`** for V11 work; `CLAUDE.md` wins for any work that touches V9 surviving services unchanged. If you encounter a conflict, surface it to the user.
+`CLAUDE.md` is V11-aligned. If a discrepancy arises between `CLAUDE.md`, this prompt, and `ARCHITECTURE-V11.md`, `ARCHITECTURE-V11.md` wins. Surface conflicts to the user rather than reconciling unilaterally.
 
 ### Ecosystem engagement
 
