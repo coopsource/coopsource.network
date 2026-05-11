@@ -1768,6 +1768,9 @@ export interface MentionTable {
  * Per ARCHITECTURE-V11.md §17.2, all DID-comparing code consults this table.
  * `current_did` is the DID after rotation; `prior_did` is the one that rotated away.
  * `evidence_uri` optionally points to a PLC operation or audit record.
+ *
+ * Stage 1 declares the table but does not yet read it. Stage 3+ services
+ * that perform DID equality must consult this table per CLAUDE.md "Identity security".
  */
 export interface DidRotationHistoryTable {
   id: Generated<string>;

@@ -35,11 +35,13 @@ export class InMemoryRepoPuller implements RepoPuller {
   constructor(private readonly records: ReadonlyArray<PulledRecord>) {}
 
   async pull(req: PullRequest): Promise<PulledRecord[]> {
-    return this.records.filter(
-      (r) =>
-        spaceRefKey(r.space) === spaceRefKey(req.space) &&
-        r.authorDid === req.memberDid &&
-        r.rev > req.since,
-    );
+    return this.records
+      .filter(
+        (r) =>
+          spaceRefKey(r.space) === spaceRefKey(req.space) &&
+          r.authorDid === req.memberDid &&
+          r.rev > req.since,
+      )
+      .sort((a, b) => a.rev.localeCompare(b.rev));
   }
 }

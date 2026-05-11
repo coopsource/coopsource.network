@@ -31,12 +31,20 @@ export class DenyAllArbiterMemberList implements ArbiterMemberList {
 }
 
 /**
- * Test/development sketch. Accepts a static map keyed by spaceRefKey(SpaceRef).
+ * Test/development sketch. Accepts an array of { space, members } entries
+ * and computes keys internally.
  * Useful for fixtures and for dev setups where an arbiter XRPC client doesn't
  * exist yet.
  */
 export class StaticArbiterMemberList implements ArbiterMemberList {
-  constructor(private readonly map: Record<string, DID[]>) {}
+  private readonly map: Record<string, DID[]>;
+
+  constructor(entries: ReadonlyArray<{ space: SpaceRef; members: DID[] }> = []) {
+    this.map = {};
+    for (const e of entries) {
+      this.map[spaceRefKey(e.space)] = e.members;
+    }
+  }
 
   async isMember(space: SpaceRef, did: DID): Promise<boolean> {
     return (this.map[spaceRefKey(space)] ?? []).includes(did);

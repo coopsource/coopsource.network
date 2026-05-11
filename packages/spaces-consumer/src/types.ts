@@ -61,12 +61,12 @@ export interface ConsumerHealth {
  * Internal error taxonomy for the spaces consumer.
  * Distinct from the V11 5-axis authorization model (CLAUDE.md / ARCHITECTURE-V11.md §3).
  */
-export class SpaceConsumerError extends Error {
+export class SpacesConsumerError extends Error {
   constructor(
     public readonly kind: 'credential' | 'digest' | 'member-list' | 'protocol' | 'schema',
     message: string,
   ) {
     super(message);
-    this.name = 'SpaceConsumerError';
+    this.name = 'SpacesConsumerError';
   }
 }

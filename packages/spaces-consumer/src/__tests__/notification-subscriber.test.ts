@@ -1,8 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { InMemoryNotificationSubscriber } from '../notification-subscriber.js';
 import type { SpaceRef } from '../types.js';
+import { fakeDid } from './helpers/factories.js';
 
-const ref: SpaceRef = { arbiter: 'did:plc:coop' as SpaceRef['arbiter'], type: 'X', skey: 'members' };
+const ref: SpaceRef = { arbiter: fakeDid('did:plc:coop'), type: 'X', skey: 'members' };
 
 describe('InMemoryNotificationSubscriber', () => {
   it('delivers an emitted notification to a subscribed handler', async () => {

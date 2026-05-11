@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { InMemorySpaceCredentialStore, type SpaceCredential } from '../credential-store.js';
 import type { SpaceRef } from '../types.js';
+import { fakeDid } from './helpers/factories.js';
 
-const ref: SpaceRef = { arbiter: 'did:plc:abc' as SpaceRef['arbiter'], type: 'X', skey: 'members' };
+const ref: SpaceRef = { arbiter: fakeDid('did:plc:abc'), type: 'X', skey: 'members' };
 
 describe('InMemorySpaceCredentialStore', () => {
   let store: InMemorySpaceCredentialStore;

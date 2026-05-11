@@ -4,11 +4,11 @@ import type { CursorStore } from './cursor-store.js';
 import type { EcmhVerifier } from './ecmh-verifier.js';
 import type { NotificationSubscriber } from './notification-subscriber.js';
 import type { RepoPuller } from './repo-puller.js';
-import { type ConsumerHealth, type PulledRecord, type SpaceNotification, type SpaceRef } from './types.js';
+import { type ClockedOptions, type ConsumerHealth, type PulledRecord, type SpaceNotification, type SpaceRef } from './types.js';
 
 export type { CursorStore } from './cursor-store.js';
 
-export interface SpacesConsumerOptions {
+export interface SpacesConsumerOptions extends ClockedOptions {
   readonly subscriber: NotificationSubscriber;
   readonly memberList: ArbiterMemberList;
   readonly puller: RepoPuller;
@@ -22,7 +22,7 @@ export interface SpacesConsumerOptions {
    * errorCount metric increments before this callback fires.
    */
   readonly onError: (err: unknown, context: { space: SpaceRef; memberDid?: string }) => Promise<void> | void;
-  readonly clock: () => Date;
+  // clock is inherited from ClockedOptions
 }
 
 /**
@@ -120,6 +120,9 @@ export class SpacesConsumer {
           // String comparison: revs are TID-format and lex-ordered (see repo-puller.ts).
           if (r.rev > maxRev) maxRev = r.rev;
         }
+        // Intentional: a batch of all-rejected records does not advance the cursor.
+        // The rejections might be transient (member-list inconsistency during pull); the next
+        // notification re-evaluates.
         if (maxRev !== since) await this.opts.cursors.set(n.space, memberDid, maxRev);
       } catch (err) {
         this.errorCount += 1;

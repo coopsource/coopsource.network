@@ -32,7 +32,7 @@ Persistence:
 - Sketches default to fail-closed (`DenyAllArbiterMemberList`, `FailClosedEcmhVerifier`) so accidental production wiring cannot silently bypass verification.
 - `UnsafeAlwaysOkEcmhVerifier` is reachable only via the explicit `UNSAFE_SKIP_ECMH=true` config flag, which logs a loud startup warning.
 - Per CLAUDE-CODE-PROMPT-V11.md "Distinguishing Authorization Failures": this consumer touches **Axis 2 (space membership)** — never collapse it with Axis 1 (OAuth scope) or Axis 3 (application logic).
-- Internal error taxonomy uses `kind` (not `axis`) to avoid overloading the V11 reserved term. See `SpaceConsumerError`.
+- Internal error taxonomy uses `kind` (not `axis`) to avoid overloading the V11 reserved term. See `SpacesConsumerError`.
 
 ## Health surface
 
