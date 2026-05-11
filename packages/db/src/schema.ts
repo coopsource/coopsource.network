@@ -1105,6 +1105,10 @@ export interface Database {
   // Cooperative scripts (054)
   cooperative_script: CooperativeScriptTable;
   script_execution_log: ScriptExecutionLogTable;
+
+  // V11 Stage 1 — Spaces consumer (no migration files; schema-only addition)
+  did_rotation_history: DidRotationHistoryTable;
+  spaces_consumer_cursor: SpacesConsumerCursorTable;
 }
 
 // ──────────────────────────────────────────────
@@ -1753,4 +1757,37 @@ export interface MentionTable {
   mentioned_by: string;
   created_at: ColumnType<Date, Date | string | undefined, Date | string>;
   read_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+}
+
+// ──────────────────────────────────────────────
+// V11 Stage 1 — Spaces consumer
+// ──────────────────────────────────────────────
+
+/**
+ * Tracks DID rotations so DID-equality code can resolve historical DIDs.
+ * Per ARCHITECTURE-V11.md §17.2, all DID-comparing code consults this table.
+ * `current_did` is the DID after rotation; `prior_did` is the one that rotated away.
+ * `evidence_uri` optionally points to a PLC operation or audit record.
+ */
+export interface DidRotationHistoryTable {
+  id: Generated<string>;
+  current_did: string;
+  prior_did: string;
+  rotated_at: ColumnType<Date, Date | string, Date | string>;
+  evidence_uri: string | null;
+  recorded_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+/**
+ * Per-(cooperative space, member) pull cursor for the V11 spaces consumer.
+ * Composite PK: (cooperative_did, space_type, space_skey, member_did).
+ * `cursor` is a rev string (TID-format upstream); '' means "from the beginning".
+ */
+export interface SpacesConsumerCursorTable {
+  cooperative_did: string;
+  space_type: string;
+  space_skey: string;
+  member_did: string;
+  cursor: string;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }
