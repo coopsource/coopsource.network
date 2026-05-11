@@ -15,7 +15,7 @@ The protocol gaps are closing now. Permissioned data ("spaces") have moved from 
 
 Five architectural commitments fall out of this analysis:
 
-1. **CSN treats authority as three orthogonal axes.** OAuth scopes govern *app-to-user* authority (which apps can act on a user's behalf for which lexicons). Spaces govern *user-to-user* authority (which users can read or write within a permissioned context). Application logic governs *user-to-action* authority (whether a particular user, in the appropriate space, may perform a particular governance action). All three apply to every operation. Conflating them is the root cause of most authorization confusion in the V9/V10 codebase.
+1. **CSN treats authority as a small set of distinct axes rather than a single ACL.** OAuth scopes govern *app-to-user* authority (which apps can act on a user's behalf for which lexicons). Spaces govern *user-to-user* authority (which users can read or write within a permissioned context). Application logic governs *user-to-action* authority (whether a particular user, in the appropriate space, may perform a particular governance action). Labels and service-auth JWTs sit alongside as adjacent axes. The axes are not strictly orthogonal — they interact at write checkpoints — but separating them in code is what distinguishes a debuggable authorization model from V9's tangled one.
 
 2. **CSN adopts the Arbiter pattern as its group-management substrate.** A cooperative is an arbiter. Roles (board, officers, treasurer, member classes, custom roles) are spaces. Networks of cooperatives are arbiters whose `members` space contains other arbiter DIDs (recursion), giving the recursive cooperative model a protocol-level expression. CSN stops inventing access control; it expresses cooperative governance in terms of arbiter primitives.
 
@@ -84,7 +84,9 @@ This is exactly the design CSN already accepts. CSN's cooperative DIDs are delib
 
 **The URI structure is six-component.** From Diary 5: `ats://{space_did}/{space_type}/{skey}/{author_did}/{collection}/{rkey}`. The six pieces are space owner DID, space type NSID, space key, author DID, collection NSID, and record key. The space DID is the URI authority because the user's authority to write into the space is downstream of the space granting them membership. The scheme is *probably* `ats://`; Holmgren is taking suggestions. It is *not* `at://` — permissioned data resolves through a different protocol from public data and gets a different scheme to avoid leaking permissioned URIs into public contexts.
 
-**Sync uses ECMH commits, not MSTs.** Permissioned repos use Elliptic Curve Multiset Hash — a set hash where adding/removing an element is a single point operation. Lower overhead than MSTs but doesn't support partial sync or single-record proofs, so consumers fall back to a full repo resync if their oplog falls behind. Sync is pull-based: PDSes notify the space owner of writes, the space owner notifies syncing services, services pull from each member PDS. Member-list authority is the space owner. Write enforcement is performed by readers, not by member PDSes — any user can write any record claiming any space membership on their own PDS, but readers compare incoming records against the authoritative member list and discard what doesn't match.
+**Sync uses ECMH commits, not MSTs.** Permissioned repos use Elliptic Curve Multiset Hash — a set hash where adding/removing an element is a single point operation. Lower overhead than MSTs, but with a real limitation: ECMH commitments **do not support partial sync or single-record proofs**. Any consumer that falls behind on its oplog must fall back to a full-repo resync and verify the whole-repo digest. This shapes CSN's indexer design (see §7).
+
+Sync is pull-based: PDSes notify the space owner of writes, the space owner notifies syncing services, services pull from each member PDS. Member-list authority is the space owner. Write enforcement is performed by readers, not by member PDSes — any user can write any record claiming any space membership on their own PDS, but readers compare incoming records against the authoritative member list and discard what doesn't match. Zicklag's Arbiter post puts this directly: "any user, at any time, can write records to a space in their own permissioned repo. We can't stop them, it's on their PDS."
 
 ### 2.2 What's still open
 
@@ -96,9 +98,11 @@ Several decisions remain unresolved and could affect a CSN adapter:
 
 **The scheme name.** `ats://` is the leading candidate but not final. CSN should not bake `ats://` into lexicons or protocol-facing code as a constant; URI helpers should abstract the scheme.
 
-**Whether the implementation matches the design.** Holmgren has committed sketch code to the `permissioned-data` branch and explicitly says "please don't over-index on it." The spec and the implementation are co-developing.
+**The controlled-DID system is future, not present.** Diary 5 defers it: "This does imply that we'll need a lightweight 'controlled DID' system on the PDS so user accounts can manage (and transfer!) space DIDs. For expediency's sake, we want to keep that scoped as tightly as possible and resist the pull toward building a generic managed-account system. But again, that's a topic for another post." This is a hard dependency for CSN — cooperative DIDs, role-space DIDs, and personal-space DIDs all need it — and it is not yet specified. Treat as a future capability when planning.
 
-**Sync protocol details.** Diary 5 floats a possible move away from ECMH if the cryptographic landscape changes, but as far as CSN is concerned this is a sync-engine implementation detail handled by HappyView 2 or whatever the AppView layer is.
+**Whether the implementation matches the design.** Holmgren has committed sketch code to the `permissioned-data` branch in `bluesky-social/atproto`. Diary 5 closes with: "I have some very rough sketches of an implementation on a public branch in the atproto repo. Please don't over-index on it!" The spec and the implementation are co-developing; treat the branch as evidence of feasibility, not as an interface contract.
+
+**Sync protocol details may shift.** Diary 5 ends with Holmgren saying he thought sync was settled but is reconsidering as the cryptographic landscape evolves. CSN should treat the ECMH choice and the pull-based notification topology as the current best understanding, not as load-bearing assumptions. The shape of CSN's indexer (pull from member PDSes, verify digests, fall back to full resync) survives whatever Bluesky picks; the specific commitment scheme does not.
 
 ### 2.3 Reference implementations
 
@@ -136,9 +140,17 @@ Five primitives:
 
 **Spaces can have member lists that include other spaces.** This is the bombshell. A `moderator` space being a member of a `team` space means anyone in `moderator` is also in `team`. The arbiter resolves member lists transitively. Combined with the ability for *spaces from different arbiters to be members of each other*, this enables federated channels and cross-community trust. The Roomy general channel can include the Muni Town `members` space, so any Muni Town member automatically has access. (For CSN, this *is* the recursive cooperative model: a network's `members` space contains other cooperative DIDs, which are themselves arbiter DIDs.)
 
-**Optional infrastructure spaces.** A `$publish` space, if present, allows members with Configure Space access to write records to the arbiter's *public* repo (this is the cooperative's public-record path under the Arbiter pattern). A `$labeler` space, if present, allows members with Configure Space access to create labels.
+**Eight access levels for member-list management.** The Arbiter defines an ordered ladder (each level builds on the ones below): Read Member List, Member, Add Members, Remove Members, Configure Space, Create Spaces (only meaningful in `$admin`), Remove Space, Owner. These govern *member-list management*, not record-content access. Application-level concepts (what `moderator` means in a chat app, what `treasurer` means in a cooperative) are up to the app to define and enforce — this is precisely the orthogonality CSN wants. Note that several of these levels (Read Member List, Member) are about whether you appear in the protocol's space member list at all; the higher levels are about who can modify it.
 
-The Arbiter has 8 access levels (from Read Member List through Owner) governing *member-list management*, not record-content access. Application-level concepts (what `moderator` means in a chat app, what `treasurer` means in a cooperative) are up to the app to define and enforce — this is precisely the orthogonality CSN wants.
+**Optional infrastructure spaces (addendum).** Zicklag's main post commits to `$admin`; an addendum to the same post (from discussion with `@flo-bit.dev`) proposes optional spaces that arbiter implementations may or may not support:
+
+- `$publish` — if present, members with Configure Space access can write records to the arbiter's *public* repo. Requires the arbiter to have public-repo capabilities; not all implementations will.
+- `$labeler` — if present, members with Configure Space access can create labels under the arbiter's identity.
+- "Adopt an existing DID" — an arbiter can take over an existing PDS account via app password and use that PDS's public and permissioned repos rather than implementing PDS features itself. This is a deployment pattern, not a primitive.
+
+CSN should treat `$publish` and `$labeler` as proposed and probably-coming-but-not-guaranteed. If they ship as standardized, CSN uses them. If they don't, CSN runs its own labeler and publishes public records directly to the cooperative's PDS — §6.8 and §6.9 cover both paths.
+
+A further structural fact from the Arbiter post that shapes CSN's design: **write enforcement is reader-side**. The space owner can *list* who is authoritatively a member, but cannot prevent any user from writing claimed-membership records to their own PDS. Readers compare incoming records against the arbiter's authoritative member list and discard non-matches. This means CSN's indexer must always treat raw permissioned-repo records as unauthenticated until cross-checked against the arbiter; the membership list is the trust anchor, not the records themselves.
 
 ### 3.2 The Arbiter's relationship to the spaces protocol
 
@@ -188,11 +200,13 @@ The PostgreSQL six-tier ACL is a reasonable workaround for a protocol that lacks
 
 ### 3.5 Honest concerns about the Arbiter's maturity
 
-The Arbiter is two weeks old. Zicklag's published design says "some details of this design are new since about… 6 hours ago when I should have been sleeping." The XRPC API, the access levels, the delegation semantics, and the relationship to the underlying spaces protocol will all evolve. Building against the spec today means rebuilding when it changes.
+The Arbiter is two weeks old. Zicklag's published design says "some details of this design are new since about… 6 hours ago when I should have been sleeping." The XRPC API, the access levels, the delegation semantics, and the relationship to the underlying spaces protocol will all evolve. Building against the spec today means rebuilding when it changes. The cooperative use case provides a non-chat stress test that will surface design pressure the Roomy use case doesn't — see §11.
 
-The Arbiter is being designed primarily for Roomy. Roomy is a chat application. Cooperatives have governance, financial, and compliance requirements that aren't on Roomy's roadmap. CSN must either contribute the cooperative use case to the Arbiter design (the engagement plan in Section 11), or accept that the Arbiter may not cover everything CSN needs and supplement at the GovernanceView / CoopView layer (acceptable; that's the layered architecture's purpose).
+The Arbiter is being designed primarily for Roomy. Roomy is a chat application. Cooperatives have governance, financial, and compliance requirements that aren't on Roomy's roadmap. CSN must either contribute the cooperative use case to the Arbiter design (the engagement plan in §11), or accept that the Arbiter may not cover everything CSN needs and supplement at the GovernanceView / CoopView layer (acceptable; that's the layered architecture's purpose).
 
-The arbiter-vs-spaces boundary is still being negotiated. Some things in the Arbiter design (the 8 access levels, public access settings) may end up in the spaces protocol itself. Other things (role inheritance, cross-arbiter delegation) almost certainly stay in the arbiter layer. Until that settles, CSN's GovernanceView code has to be flexible about which layer it's calling.
+The arbiter-vs-spaces boundary is still being negotiated. Some things in the Arbiter design (the 8 access levels, public access settings) may end up in the spaces protocol itself. Other things (role inheritance, cross-arbiter delegation) almost certainly stay in the arbiter layer. Until that settles, CSN's GovernanceView code has to be flexible about which layer it's calling. Concretely: the Arbiter integration (§6.7) should live behind an interface that lets it slide between "this is a protocol primitive" and "this is an arbiter XRPC call" as the boundary moves.
+
+**Failure-mode scenarios.** If the Arbiter design pivots significantly, CSN either vendors the Arbiter behind the same interface or implements the Arbiter pattern internally and accepts diverging from whatever standard ships. Either is recoverable because CSN's mapping in §3.3 is to *primitives* (community DID, role-as-space, recursive membership) that any conceivable arbiter design will preserve. If Zicklag abandons the Arbiter entirely, CSN ships the same pattern under its own namespace. If the Arbiter ships unchanged, CSN integrates as a first consumer beyond Roomy.
 
 These concerns are real but they don't argue for a different model. They argue for engaging with the design while building, not after.
 
@@ -254,7 +268,21 @@ This is a real seam, and it's the one place CSN must track closely. The current 
 
 CSN's design should be agnostic about which mechanism wins. The integration point is the same regardless: when CSN tries to write a vote into a space's permissioned repo on a member's behalf, the failure modes are "OAuth scope not granted," "user not in space," and "app not authorized for this space." Code should distinguish all three and surface the appropriate error.
 
-### 4.3 What CSN gains from making the axes explicit
+### 4.3 Two more axes that matter, with caveats
+
+The three axes above are the load-bearing ones. Two more sit alongside them and shouldn't be ignored, even though they don't appear in every operation:
+
+**Axis 4: Labeler-emitted moderation labels.** Subjective judgments from labelers (Ozone, CSN's own governance labeler, third-party labelers) aren't strictly authority but materially affect what CSN does. A label like `member-suspended` gates a member from voting eligibility, even though Axis 2 says they're still in the space. A `proposal-archived` label changes how a proposal renders. Labels are public, signed records emitted by labeler DIDs and consumed by clients (and CSN's indexers). They interact with Axes 1–3: CSN's labeler emits labels based on governance state (Axis 3 inputs), the labels affect application behavior (Axis 3 outputs), and the labeler itself is an actor whose writes are governed by OAuth (Axis 1).
+
+**Axis 5: Service-to-service authentication.** Service-auth JWTs (`com.atproto.server.getServiceAuth`) are the path AppViews use to authenticate to each other and to PDSes, separately from user-OAuth flow. They have different lifetime, key, and scope semantics from user tokens. Cross-arbiter operations (CSN's AppView reading state from another cooperative's arbiter), federation operations, and labeler operations all use this path. Brittany Ellich's opensocial.community writeup foregrounds it. CSN's V11 design must allocate it a real seat at the table; conflating it with user OAuth (Axis 1) produces broken auth boundaries.
+
+### 4.4 The axes are not strictly orthogonal
+
+The "three axes" framing is useful as scaffolding but it understates the interaction. At every write checkpoint, OAuth scope (Axis 1) and space membership (Axis 2) are *both* checked, in different places, by different services. A write that satisfies Axis 1 (app has the scope) and Axis 2 (user is in the space) can still fail if the space's app allow/deny policy rejects this particular OAuth client; that's the seam from §4.2. A read that satisfies Axis 2 (user is in the space) doesn't bypass Axis 3 application rules (eligibility, quorum, voting period). Axis 4 (labels) feeds into Axis 3 logic. Axis 5 (service auth) sometimes substitutes for Axis 1 when one CSN service calls another.
+
+The code's job isn't to enforce orthogonality. The code's job is to identify, at each checkpoint, *which* axes apply and route the failure mode correctly. The taxonomy is for debuggability: when authorization fails, knowing which axis failed is the difference between fixing in five minutes and fixing in three days. The V9 codebase tangles these together; V11 separates them explicitly.
+
+### 4.5 What CSN gains from making the axes explicit
 
 The V9 codebase has authorization concerns scattered across `MemberWriteProxy` (OAuth-flavored), `OperatorWriteProxy` (operator auth), `VisibilityRouter` (custom ACL), `private-record-service.ts` (Tier 2 ACL), and various service-level role checks. This is fine but it tangles three different concerns.
 
@@ -389,7 +417,11 @@ This is the cleanest extension model and the one to lead with.
 
 **Hook pipeline composition.** GovernanceView exposes its hook pipeline (pre-storage, post-storage, dead-letter); CoopView composes its own hooks into the generic pipeline. CoopView hooks can transform records, derive additional state, write to CoopView's CSN-specific tables, all without modifying GovernanceView's code.
 
-These three mechanisms are deliberately not WASM-plugin or Lua-script-shaped (HappyView's model). CSN's GovernanceView and CoopView are co-developed and live in the same TypeScript codebase, so the lighter-weight in-process plugin registration model fits. WASM/Lua plugins are the right choice when the generic substrate has unknown third-party extenders; CSN's GovernanceView is open-source TypeScript that anyone can extend by writing TypeScript against its API.
+These three mechanisms are deliberately layered for *in-process composition between GovernanceView and CoopView*. They are not GovernanceView's only extension story.
+
+**CSN already has runtime scripting for cooperative-defined hooks.** `apps/api/src/scripting/` (script-service, transpiler, worker, worker-pool) runs cooperative-authored scripts in a sandboxed worker pool, registered against the hook pipeline at `apps/api/src/appview/hooks/`. Phases: `pre-storage`, `post-storage`, `domain-event`. Per-script `cooperativeDid`, collection patterns, event types, timeout. This is the right substrate for *user-of-CSN extensibility* (a cooperative writing a custom proposal-eligibility rule), and it survives into V11. Typed plugins are the right substrate for *co-developer extensibility* (CoopView extending GovernanceView, in the same TypeScript codebase).
+
+The HappyView analogy applies here as a developer-experience aspiration, not a deployment model: HappyView ships WASM + Lua because its extender audience is unknown third parties. GovernanceView's two extender audiences are CoopView (typed plugins, in-process, co-developed) and per-cooperative scripts (sandboxed at the existing scripting layer). When the GovernanceView interface stabilizes enough to expose to *external* third parties (different TypeScript projects, or non-TypeScript implementers), CSN can add a WASM-shaped extension story. That's not a V11 commitment.
 
 ### 5.6 Where CSN's existing AppView sits
 
@@ -403,7 +435,7 @@ Concretely:
 - The existing OAuth client and `MemberWriteProxy` become the OAuth axis (Axis 1) implementation, used by both GovernanceView and CoopView.
 - The existing Tap consumer continues handling public records; a new spaces consumer handles permissioned-repo events.
 
-**HappyView 2.5+ as a reference, not as substrate.** HappyView's experimental spaces support is the most concrete spaces code today. CSN should run an instance to read records, validate behavior, and stress-test the design. CSN should not migrate `apps/api`'s 14k+ lines of cooperative-specific TypeScript onto HappyView's Lua + WASM model — the translation cost vastly exceeds the benefit. Use HappyView as the reference; keep the custom AppView as the substrate.
+**HappyView 2.5+ as a reference, not as substrate.** HappyView's experimental spaces support is the most concrete spaces code today. CSN should run an instance to read records, validate behavior, and stress-test the design. CSN should not migrate `apps/api`'s 14k+ lines of cooperative-specific TypeScript onto HappyView's Lua + WASM model — the translation cost vastly exceeds the benefit, and CSN already has its own sandboxed-script substrate (§5.5) for the case where cooperatives need late-bound logic. Use HappyView as a reference implementation for spaces protocol behavior; keep the custom AppView as production substrate.
 
 ---
 
@@ -443,19 +475,27 @@ This section walks through the V9 patterns and shows what each becomes under the
 
 ### 6.3 Membership replacing bilateral
 
-**V9 today:** Bilateral membership. Member writes `membership` to their PDS; cooperative writes `memberApproval` to its PDS; status is `active` only when both exist; the `MembershipService` state machine handles out-of-order arrival.
+**V9 today:** Bilateral membership. The member writes `network.coopsource.org.membership` (only `cooperative` + `createdAt`) to their PDS; the cooperative writes `network.coopsource.org.memberApproval` (`member`, `roles`, `createdAt`) to its PDS; status is `active` only when both exist. CSN's `membership` table already materializes this as a clean projection: every row has both `member_record_uri` and `approval_record_uri` columns (currently nullable while one side or the other lands), plus `member_record_cid` and `approval_record_cid` for content-addressed pinning, plus `status`, `joined_at`, `member_class`, `directory_visible`. The `MembershipService` state machine handles out-of-order arrival.
 
 **V11 direction:** Membership is space membership. The cooperative's `members` space has an authoritative member list. A member is in or out — no two-record state machine, no out-of-order arrival problem. The space owner (the cooperative's arbiter, ultimately backed by the cooperative's PDS) controls the list.
 
 **Lexicon changes:**
+
 - `network.coopsource.org.memberApproval` retires entirely. Its role authority moves to role-space membership.
-- `network.coopsource.org.membership` either retires (because the space's member list is the authority) or shrinks to an optional member-side preferences record (display name in this cooperative, contact preferences, opt-in flags).
+- `network.coopsource.org.membership` currently carries only `cooperative` + `createdAt` — nothing worth preserving on the member side. It can retire entirely. If member-side preferences are wanted later (display-name override, contact preferences, opt-in flags), they get a new lexicon (`network.coopsource.org.memberPreferences`) stored in the member's personal space (§6.6), not on the cooperative's record-of-truth path.
 
-**The CSN-side concerns the bilateral pattern was getting at — that membership requires cooperative consent, that role authority is centralized — are preserved natively by spaces, just expressed differently.** The cooperative consents by adding the member to the `members` space. Role authority is centralized at the arbiter (you can't self-add yourself to the `treasurer` space; only members with Configure Space access for that space can).
+**The schema migration is concrete.** Because the V9 `membership` table already tracks both records as columns (not via JOIN), the migration to arbiter-backed membership is mechanical:
 
-**Indexer:** A CoopView indexer pulls `members` space membership into a `cooperative_membership` projection table. The existing `MembershipService` becomes a thin wrapper around this projection plus arbiter membership operations.
+1. The spaces consumer subscribes to the cooperative's `members` space and writes membership state into the existing `membership` table.
+2. `member_record_uri` and `approval_record_uri` columns become historical evidence — nullable, populated for migrated records, NULL for arbiter-native ones.
+3. The `MembershipService` state machine drops its "wait for both records" branch and becomes a thin projection over arbiter state.
+4. Out-of-band consent is captured via the OAuth flow that authorizes the cooperative to add the member to the `members` space (see below).
 
-**Out-of-band consent capture.** V9 used the bilateral pattern partly to enforce that members had explicitly agreed to join (the act of writing the `membership` record was the consent signal). Under spaces, the equivalent is the OAuth flow — when a member signs into CSN with their ATProto identity and authorizes CSN to add them to the cooperative's `members` space, that's explicit consent, captured in the OAuth grant. The consent is *more* explicit than V9's pattern, not less.
+**The CSN-side concerns the bilateral pattern was getting at — membership requires cooperative consent, role authority is centralized — are preserved natively by spaces.** The cooperative consents by adding the member to the `members` space. Role authority is centralized at the arbiter (you can't self-add yourself to the `treasurer` space; only members with appropriate Configure Space access on the role-space can).
+
+**Indexer:** A CoopView indexer pulls `members` space membership into the `membership` table as before. The existing `MembershipService` continues to read from this table; its callers don't notice the substrate change.
+
+**Out-of-band consent capture.** V9 used the bilateral pattern partly to enforce that members had explicitly agreed to join (the act of writing the `membership` record was the consent signal). Under spaces, the equivalent is the OAuth flow — when a member signs into CSN with their ATProto identity and authorizes CSN to add them to the cooperative's `members` space, that's explicit consent, captured in the OAuth grant and recorded in the OAuth provider's session store. The consent is *more* explicit than V9's pattern, not less.
 
 ### 6.4 The anchor + sidecar pattern reshaping
 
@@ -506,7 +546,7 @@ The same anchor pattern applies to other cooperative state: `cooperativeProfileS
 
 **The benefit over V10's `private_record + owner_did` approach:** Access control is delegated to the protocol. The existing `PatronageService` and `CapitalAccountService` no longer have to enforce "officer can read this if they're in the financial-officer role"; the space membership does it for free.
 
-**Question to raise with Holmgren:** Whether the controlled-DID system makes per-(coop, member) personal spaces cheap enough to provision at scale. A 5,000-member cooperative would have 5,000 personal spaces. If each requires a separate DID with its own rotation-key bookkeeping, that's a real cost. If personal spaces can be cheaper (a single user-personal-DID with multiple cooperative-scoped personal repos under it), the model scales better. Section 12 captures this as an open question.
+**Cost optimization is deferred.** A 5,000-member cooperative has 5,000 personal spaces under this model. Whether that scales depends on the controlled-DID system's per-space costs, which aren't fully specified yet. CSN ships the cleaner abstraction now and optimizes later — once the end-to-end system is running and the actual cost shape is visible, alternative models (a single user-personal-DID with multiple cooperative-scoped permissioned repos under it; a per-cooperative shared `individual-records` space with cooperative-side filtering) become tractable engineering choices rather than speculative design alternatives. §12.1 records the decision.
 
 ### 6.7 Operator authority via $admin
 
@@ -531,13 +571,13 @@ For most cooperatives, the only members of `$publish` are operators in `$admin`,
 
 **V9 today:** A custom lightweight labeler emits governance labels (`csn-proposal-active`, `csn-proposal-approved`, `csn-member-suspended`, etc.) via `subscribeLabels` and `queryLabels`.
 
-**V11 direction:** Two options.
+**V11 direction:** Labels are emitted via the cooperative arbiter's `$labeler` space. The arbiter is already the cooperative's root of authority; making it the cooperative's labeler avoids an unnecessary parallel service with its own identity, audit trail, and operational surface. Members with Configure Space access on `$labeler` can emit labels under the arbiter's DID. Governance state changes (proposal status, member status, agreement ratification) trigger labels through hooks on GovernanceView's projection tables; the hook writes to `$labeler` rather than to a separate labeler service.
 
-**Option A: Continue running CSN's labeler.** The labeler subscribes to GovernanceView state changes and emits labels. This is unchanged from V9 except that the source of state changes is arbiter-derived rather than V9's bilateral-membership-derived state.
+**If the Arbiter spec for `$labeler` isn't ready.** `$labeler` is in the Arbiter addendum, not the core (§3.1). If the addendum hasn't been formalized by the time CSN reaches the labeler implementation stage, CSN does the standardization work: defines what `$labeler` means concretely, contributes the design back to Zicklag, and ships its own implementation as a reference. The principle is to avoid coupling CSN's release cadence to Zicklag's, not to be precious about whose name is on the spec. An expert protocol engineer in CSN's position would design the `$labeler` semantics that any arbiter could adopt, build CSN's implementation against that, and propose the design upstream — not wait.
 
-**Option B: Run the labeler via `$labeler` space.** The Arbiter provides a `$labeler` space; members with Configure Space access can create labels under the arbiter's identity. The cooperative's labeler is the Arbiter's labeler.
+**For network-level governance labels** (federation-level proposals, cross-cooperative trust signals), the network's arbiter has its own `$labeler` space. Recursive cooperatives compose naturally.
 
-Option A is simpler; Option B is more spaces-native. Probably start with Option A and migrate to Option B if the Arbiter's labeler API matures into a clean integration target.
+**What this retires.** V9's custom labeler implementation — a standalone DID with `subscribeLabels` and `queryLabels` endpoints and a lightweight PostgreSQL backing — retires. CSN doesn't run a separate labeler service.
 
 ### 6.10 What stays in CSN's V9 application layer
 
@@ -608,6 +648,38 @@ The contribution path is through the Lexicon Community (`community.lexicon.*`). 
 
 The three deployment shapes share the same code. Implementing once enables all three.
 
+### 7.6 Indexing and consistency model
+
+GovernanceView's projection of space state into queryable form is fundamentally different from V9's firehose-based indexing. V9 subscribes to the public ATProto firehose (or Tap) and writes records into `pds_record` plus per-NSID projection tables; ordering is the firehose's sequence number, consistency is at-least-once delivery, and recovery from gaps replays from a cursor. For permissioned spaces, none of this applies.
+
+**Sync source.** Per Diary 4, sync is pull-based and write notifications route through the space owner. CSN's spaces consumer (a new component alongside `apps/api/src/appview/loop.ts`) subscribes to write notifications from each arbiter the cooperative is connected to. The notification is a lightweight "this space changed" event; the consumer then pulls the changed records from the relevant member PDS.
+
+**Trust anchor.** Records pulled from a member PDS are *claimed* records until cross-checked against the space's authoritative member list (§3.1, "write enforcement is reader-side"). The consumer fetches the arbiter's current member list before accepting records; records from DIDs not on the list are discarded. The arbiter's member list is the trust anchor.
+
+**Consistency.** Eventually consistent. Staleness is bounded by pull cadence (target: under 5 seconds at p95 for active cooperatives, longer for idle ones) plus space-owner notification latency. ATProto's protocol-level guarantees don't extend to GovernanceView's projection tables; callers needing strict consistency must read through to the arbiter directly via XRPC, not the projection.
+
+**ECMH digest verification.** Per §2.1, ECMH commits don't support single-record proofs. After each pull batch, the consumer recomputes the ECMH digest of the received record set and compares against the arbiter's reported digest. Mismatch → the consumer falls back to a full-repo resync of that member's permissioned repo for that space. This is the cost of ECMH; it is significant for catching up after long downtime and negligible for steady-state operation.
+
+**Dropped-notification recovery.** Notifications can be dropped (the space owner is offline, network partition, CSN's consumer is down). Recovery is periodic full-resync on a slow timer (every N hours; tune to cost) plus on-demand resync triggered by digest mismatch. CSN's existing dead-letter pipeline (`apps/api/src/appview/hooks/dead-letter.ts`) extends naturally to capture pull failures.
+
+**Space credentials.** Per Zicklag's Arbiter post, the arbiter issues each member a temporary space credential they present to the space host to read data. CSN's consumer holds a credential per (cooperative, space). Lifetime, rotation, revocation policy are TBD pending Diary 6+ — see §12. The consumer must handle credential expiration by re-requesting; it must handle revocation by halting reads from that space until a fresh credential is obtained.
+
+**Composability with the existing Tap consumer.** The Tap consumer continues to handle the public firehose for public records. The spaces consumer is a new, parallel pipeline that writes into the same `pds_record` (or a sibling `space_record`) table. The hook pipeline at `apps/api/src/appview/hooks/` is the integration point: both consumers emit through the same pipeline, so post-storage hooks (anchor updates, tally aggregation, label emission) run regardless of source.
+
+### 7.7 Security model
+
+The shift to spaces introduces new threats the V9 security model didn't address:
+
+**Space-credential management.** Credentials are bearer tokens with no built-in proof of possession at the request layer. If leaked, the holder can read every record in the space until revocation. CSN's mitigations: short credential lifetimes (target: ≤ 1 hour, refresh on each batch), least-privilege per-space credentials (one credential per (cooperative, space) rather than a master credential), audit logging of credential issuance and use, rotation on member-list changes. Whether the arbiter standardizes credential format and rotation is TBD; CSN's design abstracts the lifecycle behind a `SpaceCredentialStore` interface.
+
+**Cross-arbiter trust verification.** When cooperative A's `members` space includes cooperative B's `members` space as a member (federated channels, recursive cooperatives, §9.1), reading B's member list requires authenticating to B's arbiter as A. The trust path is: A's arbiter DID is on B's `members` space allowlist; A's service-auth JWT (Axis 5, §4.3) authenticates to B; A receives B's member list. Forged JWTs would let an attacker impersonate A to B; mitigations are standard (signed JWTs with B's verification of A's signing key from the DID document, short JWT lifetimes, audience binding).
+
+**Replay protection in recursive cooperatives.** When a child cooperative's officer change triggers writes in the parent cooperative's space (e.g., a federation requires member cooperatives to publish anchor records on officer rotation), the parent must verify (a) the write is signed by the child's arbiter DID, (b) the write hasn't been seen before (nonce or timestamp + freshness window), (c) the child is still a member of the parent's `members` space at the moment of write. Replay attacks would let stale state from a former member-cooperative pollute the parent's view; the freshness check on (c) is the load-bearing mitigation.
+
+**Trust-anchor poisoning.** If an attacker compromises the arbiter (e.g., by getting Owner access to `$admin`), they can write arbitrary member-list state. Mitigations: arbiter rotation keys held offline by cooperative governance; multi-signature requirements for Owner-level operations (an arbiter feature CSN should push for); transparency-log of arbiter operations (§7.2) for after-the-fact detection.
+
+**Tier 3 still in scope, with caveats.** Tier 3 (E2EE via Germ DM / MLS) remains the right primitive for content that must be cryptographically confidential (board executive sessions, salary records, personnel matters, mediation proceedings, legal consultations). However, Germ DM is currently iOS-only via App Clip. **Production cooperative governance flows that depend on Tier 3 require Android and desktop parity that does not yet exist.** Until cross-platform E2EE substrate is available, CSN must not ship governance flows that *require* Tier 3 — only flows where Tier 3 is one option among others. Tier 3 is also the only path that's truly orthogonal to spaces; permissioned spaces give CSN's hosting infrastructure access to content, so anything that must be cryptographically opaque to CSN itself needs Tier 3.
+
 ---
 
 ## 8. CoopView design
@@ -661,6 +733,11 @@ CoopView implements the following GovernanceView plugins:
 - **`quorum-resolver`.** Determines whether quorum has been met. CoopView applies multi-stakeholder per-class quorum rules, patronage-weighted minimums, and statutory requirements.
 - **`role-permission-resolver`.** Translates application-level permission queries ("can this user create proposals about bylaws?") into role-space membership lookups, with cooperative-specific composition.
 - **`anchor-summary-builder`.** Adds cooperative-specific fields to GovernanceView's anchor records (cooperative type, ICA principle declarations).
+- **`historical-state-resolver`.** Returns governance state as of a given timestamp — "who was a member of the `members` space on the fiscal-year close?", "what was the role-space composition at the time of this proposal?". Subchapter T patronage allocation and 1099-PATR generation both require snapshot semantics: patronage is computed against the membership-as-of-fiscal-period, not membership-as-of-now. The plugin needs read access to historical arbiter state, which means either GovernanceView retains a time-series of member-list snapshots or CoopView is allowed to reach below GovernanceView into raw arbiter audit-log records. The latter is simpler; the former is cleaner. §12 captures this as an open question.
+- **`patronage-allocator`.** Computes per-member patronage allocations for a fiscal period. Subchapter T-specific: separates patronage-sourced from non-patronage-sourced income, applies the cooperative's patronage allocation policy (per-unit-of-business, weighted-by-class, etc.), produces a per-member allocation record that gets written to each member's personal space.
+- **`surplus-distributor`.** Distributes cooperative surplus per cooperative-type rules. Distinct from patronage in some cooperative forms; required for Subchapter T qualified vs. non-qualified notices. May produce both cash distributions (within 8.5 months for qualified-dividend treatment) and equity allocations (capital account credits).
+- **`meeting-minutes-canonicalizer`.** Produces canonical, signed meeting-minute records that satisfy legal record-keeping requirements (presence quorum, motions, votes, resolutions). Input is the raw deliberation thread; output is a `network.coopsource.legal.meetingRecord`.
+- **`delegate-resolver`.** Resolves proxy votes and delegation chains. For representative-democracy modes (large cooperatives, federations of cooperatives), a member may delegate voting authority to a representative; the resolver computes effective vote weight after delegation, detects delegation cycles, and applies cooperative-specific delegation limits.
 
 Each plugin is a typed TypeScript interface; CoopView registers concrete implementations at process startup.
 
@@ -797,43 +874,72 @@ There is no schedule. The work proceeds when the design is right. The sequencing
 
 ### 10.1 Concerns to settle before substantial implementation
 
-Before significant implementation effort, these decisions need to be either resolved or deliberately bracketed:
+Most of the concerns from earlier in this report have been resolved (§12). Two items remain as design work that produces the V11 architecture document:
 
-- **Personal space cost model.** Whether the controlled-DID system makes per-(coop, member) personal spaces feasible at scale, or whether the cost forces a different structure (e.g., a single user-personal-DID with multiple cooperative-scoped permissioned repos under it). Question for Holmgren.
-- **The OAuth-spaces seam.** How an app's right to write into a permissioned space is governed. Whether it's `repo:{nsid}` OAuth scopes plus space membership, or whether it requires a service-auth JWT issued by the space owner, or whether the space's app allow/deny policy is the gating mechanism. The seam will settle as Diary 6+ and the OAuth granular-scopes work cross-pollinate. CSN's design should support whatever wins; the abstraction in code is "is this write allowed?" with the answer composed from all three sources.
-- **Whether `network.coopsource.org.membership` retires entirely or shrinks to member-side preferences.** Section 6.3 sketches both options. Retiring entirely is cleaner; member-side preferences gives a place for "I prefer to be displayed by my legal name in this cooperative" or "do not include me in public membership lists." This is a CSN design choice and should be made explicitly.
-- **What Layer 3 vs Layer 4 boundaries actually look like in code.** The plugin interfaces, the lexicon-extension pattern, the hook composition. This is the architectural work that produces the V11 document.
+- **What Layer 3 vs Layer 4 boundaries actually look like in code.** The plugin interfaces, the lexicon-extension pattern, the hook composition. This is the substantive architectural work that produces the V11 document.
 - **Whether GovernanceView is published as a separate package now or extracted from `apps/api` later.** Either works. Extraction later (after the boundary has been validated by use) is probably less risky; early extraction risks shipping an interface that turns out to be wrong.
+
+The decisions captured in §12 — personal spaces, membership lexicon retirement, `governance_visibility` retirement, `$labeler` space adoption, RFC 9421 retirement, single AppView, the `community.lexicon.governance.*` namespace, cooperative DID rotation, Tier 3 platform handling, Subchapter T canonical source, historical-state-resolver shape — are commitments. They don't need re-litigation; they need implementation.
 
 ### 10.2 Logical sequencing of work
 
-Once the above are settled, the work has a natural order:
+Once the above are settled, the work has a natural order. Stages, not steps — each stage gated by protocol-readiness conditions, not calendar dates. CSN's no-schedule posture means later stages wait for earlier protocol decisions to land.
 
-**1. Get the spaces consumer running.** A spaces-aware consumer in `apps/api` that pulls records from cooperative-scoped permissioned repos (or, equivalently, runs HappyView 2.5+ alongside and queries it). This is the prerequisite for everything else, because it's how `apps/api` learns about state in spaces.
+**Stage 1. Get the spaces consumer running.** A spaces-aware consumer in `apps/api` that pulls records from cooperative-scoped permissioned repos (or, equivalently, runs HappyView 2.5+ alongside and queries it). This is the prerequisite for everything else, because it's how `apps/api` learns about state in spaces. *No gate*; safe to start now against the sketch implementation.
 
-**2. Implement an Arbiter integration.** A thin wrapper around the Arbiter's XRPC API, used by `apps/api` to provision cooperative arbiters, manage role spaces, and do membership operations. Contributions to the Arbiter design happen in parallel (Section 11).
+**Stage 2. Implement an Arbiter integration.** A thin wrapper around the Arbiter's XRPC API, used by `apps/api` to provision cooperative arbiters, manage role spaces, and do membership operations. Contributions to the Arbiter design happen in parallel (§11). *Gated by:* Arbiter XRPC API reaching a 0.x reference implementation in a usable form. May be CSN's own implementation if Zicklag's lags or pivots; see §3.5.
 
-**3. Migrate membership and roles to spaces.** The `members` space, role-spaces (`board`, `officers`, `treasurer`, member classes, custom roles) become the authority. The `MembershipService` becomes a thin wrapper around arbiter membership operations. The bilateral membership state machine retires. The `membership_role` and `role_definition.permissions` columns retire.
+**Stage 3. Migrate membership and roles to spaces.** The `members` space, role-spaces (`board`, `officers`, `treasurer`, member classes, custom roles) become the authority. The `MembershipService` becomes a thin wrapper around arbiter membership operations. The bilateral membership state machine retires. *Gated by:* (a) controlled-DID system reference implementation, (b) URI scheme decision finalized (so lexicons that reference space URIs don't need rewrites), (c) `ats://` vs `at://` resolution path settled. Until all three, V11 builds a CSN-internal model that *resembles* spaces but doesn't commit to wire format.
 
-**4. Migrate votes, proposals, deliberations.** These move to the appropriate spaces (public proposals via `$publish`; private proposals, votes, deliberations in `members` / `officers` / `board` spaces). The anchor pattern lifts from V10's design directly into GovernanceView. Aggregate tally anchors stay.
+**Stage 4. Migrate votes, proposals, deliberations.** These move to the appropriate spaces (public proposals via `$publish`; private proposals, votes, deliberations in `members` / `officers` / `board` spaces). The anchor pattern lifts from V10's design directly into GovernanceView. Aggregate tally anchors stay. *Gated by:* Stage 3 plus the OAuth-spaces seam settling (§4.2) — we need to know how CSN's writes into permissioned spaces are authorized at write time before generating real cooperative governance records under the new model.
 
-**5. Migrate individual records to personal spaces.** Patronage allocations, capital account balances, 1099-PATR forms, personal contact info move from `private_record` to per-(coop, member) personal spaces.
+**Stage 5. Migrate individual records to personal spaces.** Patronage allocations, capital account balances, 1099-PATR forms, personal contact info move from `private_record` to per-(coop, member) personal spaces. *Gated by:* Stage 4 done. Cost optimization is deliberately deferred (§12.1); the model ships as-designed and is optimized later if measurements show the need.
 
-**6. Extract GovernanceView.** Pull the generic governance code out of `apps/api` into a `governance-view` package. Make it standalone-deployable (binary + SQLite mode) for Roomy and other consumers. Publish lexicons under `community.lexicon.governance.*`.
+**Stage 6. Extract GovernanceView.** Pull the generic governance code out of `apps/api` into a `governance-view` package. Make it standalone-deployable (binary + SQLite mode) for Roomy and other consumers. Publish lexicons under `community.lexicon.governance.*`. *Not gated on Lexicon Community ratification* — CSN proceeds against the namespace; the forum post (§11.2) runs in parallel. If the community responds with substantive reshape requests, CSN incorporates; if rejected outright, the package ships under `network.coopsource.governance.*` with the same API.
 
-**7. Codify CoopView.** Pull the cooperative-specific code into a `coop-view` package. Register CoopView's plugins with GovernanceView. Lexicons stay in `network.coopsource.*`.
+**Stage 7. Codify CoopView.** Pull the cooperative-specific code into a `coop-view` package. Register CoopView's plugins with GovernanceView. Lexicons stay in `network.coopsource.*`. *Gated by:* Stage 6.
 
-**8. Retire V8 / V9 federation primitives that the layered architecture replaces.** `IFederationClient`, RFC 9421 HTTP signatures (except where genuinely needed for Tier 3 / closed-coop-to-closed-coop edge cases that spaces don't cover), federation outbox.
+**Stage 8. Retire V8 / V9 federation primitives that the layered architecture replaces.** `IFederationClient`, RFC 9421 HTTP signatures (except where genuinely needed for Tier 3 / closed-coop-to-closed-coop edge cases that spaces don't cover), federation outbox. *No gate*; pure cleanup after Stages 3–7 stabilize.
 
-**9. Implement future capabilities (Section 9) as they become independently valuable.** Recursive cooperatives, trust networks, cross-cooperative role delegation, multi-stakeholder governance, lifecycle events, personal portability, credential issuance. Each is its own design + implementation effort, but each builds on the layered foundation.
+**Stage 9. Implement future capabilities (§9) as they become independently valuable.** Recursive cooperatives, trust networks, cross-cooperative role delegation, multi-stakeholder governance, lifecycle events, personal portability, credential issuance. Each is its own design + implementation effort, but each builds on the layered foundation.
 
-The order is from foundation outward. Steps 1-3 establish the substrate. Steps 4-5 migrate the existing CSN data model onto it. Steps 6-7 do the architectural refactor that produces GovernanceView and CoopView as named layers. Step 8 cleans up. Step 9 is the open-ended capability development.
+Stages 1–2 establish the substrate. Stages 3–5 migrate the existing CSN data model onto it. Stages 6–7 do the architectural refactor that produces GovernanceView and CoopView as named layers. Stage 8 cleans up. Stage 9 is the open-ended capability development.
 
-### 10.3 What carries through unchanged
+### 10.3 V9 → V11 migration plan
 
-V9's application layer (governance, agreements, legal, finance, operations, commerce, alignment, agents) carries through with minimal modification. The services exist, the lexicons exist, the frontend pages exist. What changes is that they call into Arbiter / GovernanceView APIs for membership, role authority, and access control rather than implementing those concerns themselves. The cooperative-specific concerns these services encode (Subchapter T, ICA principles, etc.) were always cooperative-specific and stay where they are.
+There is no production data. There is, however, a substantial V9 codebase (594 source files, 47 lexicons, 100 database tables, 60+ services, 75 frontend pages) plus an associated test suite. The migration plan addresses code, schema, lexicons, and tests:
 
-The V9 frontend (SvelteKit 2 + Svelte 5 runes, 75 pages) carries through. The migration of the data layer happens behind the API surface; the frontend's ATProto OAuth flows, the CSN-specific UI components, the cooperative configuration and management screens all keep working as the substrate changes.
+**Schema.** The 100 V9 tables fall into three categories:
+
+- *Keep as-is.* The 60+ tables that materialize cooperative state for fast query — `proposal`, `vote`, `agreement`, `agreement_signature`, `funding_campaign`, `patronage_*`, `capital_account_*`, `fiscal_period`, `legal_document`, `meeting_record`, `officer_record`, etc. These don't change shape; they change *source*. Records flow into them from the spaces consumer or the Tap consumer (or both).
+- *Repurpose.* `membership` keeps its schema but `member_record_uri` and `approval_record_uri` columns become historical evidence rather than primary state (§6.3). `private_record` keeps its schema but is repopulated from spaces rather than directly written; eventually becomes a cache layer.
+- *Retire.* `membership_role` (authority moves to role-space membership). `role_definition.permissions` (semantics move to space-as-member-of-space). `cooperative_link` (replaced by space-as-member relationships). Anything tied to RFC 9421 federation outbox.
+
+The retiring happens in Stages 3 and 8. No data migration is required because there is no production data; schemas just change.
+
+**Services.** The 60+ services split four ways:
+
+- *Survive unchanged.* `AgreementService`, `LegalDocumentService`, `PatronageService`, `CapitalAccountService`, `AlignmentService`, `MeetingRecordService`, `FiscalPeriodService`, `FundingService`, `Tax1099Service`, and similar cooperative-specific services. They consume materialized state and produce cooperative-specific outputs. They don't know about spaces; they don't need to.
+- *Become thin wrappers.* `MembershipService` becomes a thin reader of arbiter-backed `members` space state (§6.3). `OperatorWriteProxy` becomes a thin wrapper around `$admin` space writes (§6.7). The internal logic retires; the external API stays.
+- *Move to GovernanceView package.* `ProposalService`, `VoteService`, the parts of various services that handle generic governance lifecycle, the hook pipeline at `appview/hooks/`.
+- *Retire.* `VisibilityRouter` (per-record placement replaces binary visibility). Parts of `private-record-service.ts` that aren't needed as a cache layer.
+
+**Lexicons.** Of the 47 V9 lexicons:
+
+- *Most carry through.* The 30+ `network.coopsource.*` lexicons for agreements, finance, legal, alignment, commerce, funding, onboarding, etc. They're cooperative-specific and stay in CoopView.
+- *Retire.* `network.coopsource.org.membership`, `network.coopsource.org.memberApproval` (replaced by space membership).
+- *Move into `community.lexicon.governance.*`.* Generic governance lexicons (proposal, vote, deliberation, summary, logHead, election). CSN's `network.coopsource.governance.*` becomes thin extensions or wrappers (§8.4).
+- *New.* Anchor record lexicons (`community.lexicon.governance.summary`), transparency-log signed-tree-head lexicon (`community.lexicon.governance.logHead`), optional `network.coopsource.org.memberPreferences` for member-side preferences if wanted (§6.3).
+
+**Tests.** V9's test suite is largely unit and integration tests against the service layer. Strategy:
+
+- Service-layer tests for surviving services (≈60–70% of suite) carry through unchanged; the substrate change is invisible to them.
+- Tests for retiring services (`VisibilityRouter`, parts of `MembershipService`'s state machine, `private-record-service`'s ACL paths) get deleted alongside the code.
+- New tests for the spaces consumer, arbiter integration, GovernanceView plugin contracts, and the seam where OAuth/spaces/application-logic interact.
+- The V9 integration-test fixtures (cooperatives, members, proposals, votes) re-run against the V11 substrate as smoke tests — if a V9 governance scenario doesn't work under V11, the architecture has a hole.
+- GovernanceView ships a conformance test suite; CoopView and any other consumer runs it against their integration.
+
+**Frontend.** The 75-page SvelteKit frontend carries through. The migration happens behind the API surface; the frontend's ATProto OAuth flows, the CSN-specific UI components, the cooperative configuration and management screens all keep working as the substrate changes. The exception is anything that surfaces V9's visibility-router-driven "open/mixed/closed" choice prominently — if §12 retires that binary, the corresponding UI moves to per-record placement controls.
 
 ---
 
@@ -868,43 +974,123 @@ The proposal includes:
 - The transparency-log pattern as a generic primitive.
 - An honest discussion of the cooperative-derived motivation: "These lexicons emerged from CSN's work on cooperative governance, but they generalize; here's how Roomy / opensocial.community / NorthSky could use them."
 
+**Process the Lexicon Community uses.** Per the `lexicon-community/lexicon` repo's established practice:
+
+1. **Open a Discussion thread first.** Precedent: the Profile Lexicon Discussion (#9) and Social Graph Discussion (#10) on `github.com/lexicon-community/lexicon`. Frame the discussion as "here's what we're seeing, here are the lexicons we propose, here's how we think they fit together." Get rough community feedback before drafting PRs.
+2. **Form a working group if scope warrants.** Precedent: the Polite Goshawk Lexicon Lenses WG. Governance lexicons may be scope-large enough that a small WG of CSN, Roomy, and one or two other interested parties produces better designs than a single proposer.
+3. **Submit PRs to `lexicon-community/lexicon`** after the Discussion converges on shape. The PRs include the lexicon JSON, a description doc, and at least one consumer implementation (CSN's own indexer is sufficient evidence of a consumer).
+4. **Iterate on TSC review.** The Lexicon Community has a TSC that reviews substantive proposals; expect revision rounds.
+
+**Fallback.** If the Lexicon Community rejects or significantly reshapes `community.lexicon.governance.*`, CSN ships under `network.coopsource.governance.*` with the same API. The package is still reusable by Roomy or others; it's just CSN-namespaced. Stage 6 of §10.2 accepts either outcome.
+
+**Who posts.** Alan posts the Discussion thread to the Lexicon Community forum. CSN proceeds in parallel — designing against `community.lexicon.governance.*` as the working namespace — without waiting for community response. If reshape requests come back, CSN incorporates; if rejection comes back, CSN falls back per above.
+
 The proposal should land *during the spaces design phase*, not after. The protocol team is actively soliciting feedback on permissioned data, and the generic governance vocabulary is exactly the kind of higher-level pattern that would benefit from being shaped in concert with the protocol primitives.
 
 ### 11.3 Direct feedback to Holmgren via Diary comments
 
 Each new Diary entry (Diary 6+) should get CSN's substantive feedback. The feedback agenda:
 
-- Personal-space cost model (Section 6.6 / 12.1).
-- The OAuth-spaces seam: how app authorization within spaces composes with OAuth scopes (Section 4.2).
-- Cooperative DID lifecycle events: what the controlled-DID system implies for transfers, merges, splits (Section 9.6).
+- The OAuth-spaces seam: how app authorization within spaces composes with OAuth scopes (§4.2).
+- Cooperative DID lifecycle events: what the controlled-DID system implies for transfers, merges, splits (§9.6).
 - The recursive arbiter pattern: whether the protocol or the Arbiter handles space-as-member-of-space recursion, and whether the protocol's approach to recursion has practical depth limits CSN should care about.
-- Whether per-(coop, member) personal spaces fit the personal-space use case Holmgren mentions or require something different.
+- Whether per-(coop, member) personal spaces fit the personal-space use case Holmgren mentions in Diary 5 or require something different in shape (not in cost — cost is deferred per §12.1).
+
+### 11.4 AT Protocol Private Data Working Group
+
+The `discourse.atprotocol.community/t/introductions-and-kick-off/37` thread is the kickoff for the Private Data WG — a venue for cross-implementation coordination on permissioned-data design. CSN should join as a participant, not a passive observer. The WG is the right place to:
+
+- Raise the cooperative use case as a stress test on the spaces design (recursive cooperatives, multi-stakeholder member classes, fiscal-period snapshot semantics).
+- Coordinate with other implementers (NorthSky, Habitat, Blacksky) whose permissioned-data approaches will need to interoperate with CSN's eventually.
+- Surface the OAuth-spaces seam questions (§4.2) that affect every consumer.
+- Argue for the controlled-DID system being scoped to also cover per-(coop, member) personal spaces, not just community spaces.
+
+Frequency of engagement: lurk weekly, comment when a thread touches CSN's concerns, post substantive material monthly. Don't dominate; do show up.
+
+### 11.5 opensocial.community, NorthSky, Habitat
+
+- **opensocial.community / Brittany Ellich.** Building "groups as a service" in ATProto with a service-auth JWT model that overlaps with CSN's Axis 5 (§4.3). Worth a coordination meeting; CSN's recursive cooperative model and opensocial.community's group model are related abstractions with different vocabularies. Either GovernanceView is interesting to her or CSN should learn from her group model — probably both.
+- **NorthSky.** Per the Spring 2026 Roadmap, working on permissioned-data extensions. Their interim approach is different from spaces (server-filtered visibility) but they'll converge on the spaces design as it ships. Engage on the WG forum.
+- **Habitat, Blacksky.** Same. Each has its own use case; each will surface design pressure CSN doesn't see from cooperatives alone.
+
+The pattern across all of these is the same: CSN's posture is *one ecosystem participant among many*, not a privileged convener. The Arbiter is Zicklag's. The protocol is Holmgren's. The Lexicon Community has its own TSC. CSN contributes the cooperative use case and accepts what the ecosystem produces.
 
 ---
 
-## 12. Open design questions (for V11 architecture document)
+## 12. Design decisions
 
-These are decisions the V11 architecture document should resolve explicitly. Some of them are about CSN's choices; some are about understanding the protocol's choices. The V11 document captures both.
+The design questions surfaced through this report have been resolved. This section records the decisions; the V11 architecture document carries them forward as commitments. The framing flipped from "open questions" to "commitments with rationale" deliberately — these don't need re-litigation, they need implementation.
 
-**Personal space cost model.** Per-(coop, member) personal spaces would mean a 5,000-member cooperative provisions 5,000 spaces. If the controlled-DID system makes this cheap (single PDS bookkeeping per personal space, no separate signing keys per space), the model scales. If each personal space requires its own keypair and rotation key, the cost compounds. Resolution depends on Diary 6+ details.
+### 12.1 Architectural commitments
 
-**Whether `network.coopsource.org.membership` retires or shrinks.** Section 6.3. CSN choice. Argument for retiring entirely: the space's member list is the single source of truth and a separate record is duplicate state. Argument for shrinking: provides a place for member-side preferences (display name, contact preferences, opt-in flags). Recommendation: retire entirely; treat preferences as separate, optional records (`network.coopsource.org.memberPreferences`) that members write to their personal space. Cleaner separation.
+**Per-(coop, member) personal spaces, with cost optimization deferred.** CSN ships per-(coop, member) personal spaces as the model for individual records (patronage, capital accounts, 1099-PATR forms, personal contact info). A 5,000-member cooperative would have 5,000 personal spaces. Whether that scales depends on the controlled-DID system's per-space cost shape, which isn't fully specified yet. The decision is to ship the cleaner abstraction now and optimize once the end-to-end system is running. Speculative cost simulation against an unspecified protocol would produce worse decisions than measurements against the real one.
 
-**OAuth-spaces seam mechanism.** Section 4.2. Protocol choice; CSN watches and adapts. Likely shape: `repo:{nsid}` scopes apply at the user's PDS level, space membership applies at the space owner level, and the space's app allow/deny policy gates which apps can write to the space. CSN's code abstracts the composition.
+**Membership lexicons retire.** Both `network.coopsource.org.membership` and `network.coopsource.org.memberApproval` retire entirely. The cooperative's `members` space is the single source of truth. If member-side preferences are wanted later, they get a new lexicon (`network.coopsource.org.memberPreferences`) stored in the member's personal space, not on the cooperative's record-of-truth path.
 
-**Whether GovernanceView is in `community.lexicon.governance.*` or a project-specific namespace.** Section 7, 11.2. Recommendation: `community.lexicon.governance.*`, owned by the Lexicon Community, with CSN as one of multiple contributors. Avoids the trap of CSN being the sole steward of lexicons that should be community-owned.
+**Binary `governance_visibility` retires.** V9's `open` / `mixed` / `closed` flag retires entirely. Per-record placement (which space a record lives in) is the visibility mechanism. The simplicity gain of the binary switch wasn't worth the loss of expressiveness.
 
-**Whether to keep V9's binary `governance_visibility` setting (`open` / `mixed` / `closed`).** V9's setting was a coarse switch for the `VisibilityRouter`. Under V11, the cooperative's effective visibility is determined by which records go in which spaces (public records in `$publish`, member-visible records in `members` space, etc.). The binary switch becomes either (a) sugar for "default placement of records goes to public vs. members" or (b) retired entirely with per-record placement specified explicitly. Recommendation: retire it; per-record placement is more flexible and the simplicity gain of the binary switch wasn't worth the loss of expressiveness.
+**Governance labels via `$labeler` space.** CSN does not run a separate labeler service. The cooperative arbiter owns its labels through the `$labeler` space (§6.9). If the Arbiter spec for `$labeler` hasn't been formalized by the time CSN reaches implementation, CSN does the standardization work rather than waiting on Roomy's roadmap. The principle is to avoid unnecessary coupling between CSN and a separate labeler service; the arbiter is the natural authority for cooperative labels because it's already the authority for everything else.
 
-**Where Tier 3 (E2EE) fits in the V11 model.** Tier 3 (Germ DM / MLS) remains the right primitive for content that must be cryptographically confidential (board executive sessions, salary records, personnel matters, mediation proceedings, legal consultations). It is orthogonal to spaces. CSN's UI should detect Germ DM availability for the relevant members and surface "start secure conversation" actions; the platform never handles message content. This is unchanged from V9.
+**RFC 9421 HTTP signatures retire.** V8's HTTP signatures retire in V11 unless a specific edge case emerges that spaces don't cover. Spaces with cross-arbiter space-as-member relationships subsume the closed-cooperative-to-closed-cooperative private exchange use case.
 
-**Whether to run a CSN labeler or use `$labeler` space.** Section 6.9. Both are valid. Recommendation: start with the existing CSN labeler architecture (continuity), evaluate `$labeler` space migration once the Arbiter ships its labeler integration cleanly.
+**Single custom AppView.** CSN runs one AppView (`apps/api` extended with a spaces consumer), not multiple. HappyView 2.5+ is used as a reference implementation for development and validation, not as production substrate.
 
-**Whether to retain RFC 9421 HTTP signatures.** V8 retained these for closed-cooperative-to-closed-cooperative private exchange. Spaces (with cross-arbiter space-as-member relationships) likely subsume this use case. Recommendation: retire RFC 9421 signing in V11 unless a specific edge case emerges that spaces don't cover. The cleanup simplifies the codebase; lose nothing by retiring it provisionally and reviving if needed.
+**`community.lexicon.governance.*` namespace.** CSN proceeds as if this is the namespace for generic governance lexicons. Alan posts the Discussion thread to the Lexicon Community forum (§11.2); CSN designs against the namespace without waiting for community ratification. If the community rejects or significantly reshapes the proposal, CSN falls back to `network.coopsource.governance.*` with the same API.
 
-**Multi-AppView architecture.** Should CSN run only one AppView (`apps/api` extended with a spaces consumer) or multiple (custom + HappyView 2.5+)? Recommendation: single custom AppView, with HappyView 2.5+ used as a reference implementation for development and validation but not as production substrate.
+### 12.2 Cooperative DID lifecycle
 
-**V11 architecture document scope.** Recommendation: the V11 document inherits V10's surviving phases (V10.4 content wrappers, V10.5 transparency logs) integrated into GovernanceView; archives V10.1 (PostgreSQL six-tier ACL) as a workaround that didn't make the cut; documents the layered architecture from Section 5; specifies GovernanceView and CoopView; sketches the transition from Section 10. V10 moves to `docs/archive/ARCHITECTURE-V10.md` alongside V3, V5, V6, V7, V8.
+**Cooperatives own their DIDs.** The cooperative owns its DID with rotation keys held offline by cooperative governance. CSN as hosting provider holds the signing key only — never the rotation key. This is documented explicitly in the cooperative onboarding flow and the bylaws templates. If CSN ceases operation, the cooperative can rotate to a new PDS without CSN's cooperation.
+
+**DID rotation aliasing.** V11 includes a `did_rotation_history` table that maps old DIDs to new ones, updated when CSN observes a `did:plc` rotation. All DID-comparing code in CSN consults this table; references to rotated DIDs resolve to current DIDs transparently. This covers member-list entries, federation links, anchor records, and labels.
+
+### 12.3 Bluesky design pivot policy
+
+If Bluesky ships permissioned data with significant deviations from Diaries 4 and 5, CSN treats the following as *load-bearing* (would force replanning):
+
+- `ats://`-vs-`at://` URI semantics (or whatever URI scheme replaces it),
+- `(DID, read|write)` ACL minimality as the protocol-layer access model,
+- Cooperative-DID-as-distinct-from-user-DID.
+
+Everything else is *substrate*, abstracted behind ports. ECMH commits, pull-based sync, notification topology, specific credential lifetimes — all can change without forcing CSN to replan. The abstraction in code is "did this read/write succeed?" with the answer composed from whatever the protocol settles on.
+
+### 12.4 Tier 3 (E2EE) integration
+
+CSN's UI detects Germ DM availability for relevant members and surfaces "start secure conversation" actions; the platform never handles message content. For platforms not supported by Germ (currently anything outside iOS via App Clip), affected flows either disable or fall back to the Germ web UI if available. The V11 architecture treats Tier 3 as an *optional secondary channel* rather than a required path. Cooperatives that need Tier 3 confidentiality (board executive sessions, salary records, personnel matters) are limited to whatever Germ supports until cross-platform parity exists.
+
+### 12.5 Subchapter T canonical record-of-truth
+
+CSN commits to ATProto-native records via the `patronage-allocator` and `1099-PATR` plugin contracts (§8.3) as the primary canonical source now. CSN consults cooperative legal counsel in parallel to validate this against IRS audit expectations. If a separate external accounting ledger turns out to be legally required, it is added at a later date as a foreign-key link on the ATProto record (e.g., `ledger_entry_id`). The ATProto record carries the primary state; any external ledger is supplementary, not the source of truth.
+
+### 12.6 Historical-state-resolver
+
+GovernanceView retains snapshots of arbiter member-list state at well-defined cadences:
+
+- Per fiscal-period close (Subchapter T patronage snapshot semantics).
+- Per role-space change (officer term boundaries, member admission/removal).
+- Periodic (configurable interval; baseline daily).
+
+Storage cost is manageable for cooperatives at CSN's target scale; the cleaner abstraction is worth it. CoopView's `historical-state-resolver` plugin reads from these snapshots. Reaching below GovernanceView into raw arbiter audit-log records is not the path; the snapshot abstraction is.
+
+### 12.7 Immediate work items
+
+The decisions above imply work to do now, in parallel with the rest of V11 design:
+
+- **OAuth-spaces seam writeup.** Per §4.2 and the Diary 4 space-credential exchange sketch, produce a sequence diagram, an interface contract for `MemberWriteProxy`, and the three failure modes. Treat residual ambiguity as the genuinely open part; treat the bulk as solvable now.
+- **`community.lexicon.governance.*` forum post.** Alan posts to the Lexicon Community forum. CSN proceeds against the namespace without waiting.
+- **Cooperative onboarding / bylaws documentation update.** Document the rotation-key custody model (cooperative governance holds rotation keys; CSN holds signing key only). Update onboarding flows and bylaws templates.
+- **`did_rotation_history` schema addition.** Add the table to `packages/db/src/schema.ts`. Add a utility (`resolveCurrentDid(did)`) and refactor DID-comparing code to use it. This is a small, safe change that can ship before the rest of V11.
+
+### 12.8 Items still genuinely open
+
+A few items still wait on signal from outside CSN:
+
+- **The full OAuth-spaces seam mechanism.** §4.2. Protocol choice. The bulk is sketchable now; the residual details (how `permissions:{nsid}` scopes compose with space allow/deny, service-auth JWT roles) settle as Diary 6+ and the OAuth granular-scopes work cross-pollinate. CSN's seam writeup explicitly identifies which parts are sketchable today vs which await protocol resolution.
+- **Lexicon Community response to `community.lexicon.governance.*`.** Alan's forum post starts the conversation. CSN proceeds in parallel; if the community comes back with substantive reshape requests, CSN incorporates.
+- **Subchapter T legal counsel consultation.** Whether ATProto-native records alone satisfy IRS audit expectations, or whether an external accounting ledger is required for legal sufficiency, awaits counsel. CSN's plugin contracts (`patronage-allocator`, `1099-PATR`) ship in the meantime with the ATProto record as canonical.
+
+### 12.9 V11 architecture document scope
+
+The V11 document inherits V10's surviving phases (V10.4 content wrappers, V10.5 transparency logs) integrated into GovernanceView; archives V10.1 (PostgreSQL six-tier ACL) as a workaround that didn't make the cut; documents the layered architecture from §5; specifies GovernanceView and CoopView; sketches the transition from §10; carries forward the decisions in this section as commitments. V10 moves to `docs/archive/ARCHITECTURE-V10.md` alongside V3, V5, V6, V7, V8.
 
 ---
 
