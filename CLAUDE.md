@@ -2,15 +2,18 @@
 
 ## Project Overview
 
-Co-op Source Network is a federated collaboration platform built on ATProtocol. The core design principle is the **recursive cooperative model**: everything is an entity (person or cooperative), and a network is just a cooperative whose members are other cooperatives. The same membership, governance, and agreement machinery works at every level.
+Co-op Source Network is a federated cooperative governance platform built on ATProtocol. The core design principle is the **recursive cooperative model**: everything is an entity (person or cooperative), and a network is just a cooperative whose members are other cooperatives. The same membership, governance, and agreement machinery works at every level.
 
-This monorepo is deployed to `coopsource.network`.
+This monorepo is deployed (in principle) to `coopsource.network`. CSN is a proof-of-concept project — no users, no production deployment, design-first posture.
 
-**For remaining work (Ozone labeler, DB cleanup, ecosystem proposals), see [ARCHITECTURE-V7.md](./ARCHITECTURE-V7.md).**
+**Active architecture: V11.**
 
-**For the ATProto federation migration design (complete, all 4 phases merged), see [ARCHITECTURE-V6.md](./ARCHITECTURE-V6.md).**
+- **[ARCHITECTURE-V11.md](./ARCHITECTURE-V11.md)** — canonical architectural specification (four-layer: Spaces → Arbiter → GovernanceView → CoopView)
+- **[CLAUDE-CODE-PROMPT-V11.md](./CLAUDE-CODE-PROMPT-V11.md)** — operational implementation guide for Claude Code agents
+- **`docs/plans/2026-05-08-csn-architectural-direction.md`** — research foundation behind V11's design decisions
+- **`docs/plans/2026-05-11-csn-research-addendum.md`** — May 2026 ecosystem scan with two-week refresh cadence
 
-**For cooperative lifecycle design, security model, lexicon schemas, and three-tier data model, see [ARCHITECTURE-V5.md](./ARCHITECTURE-V5.md).**
+V9 (the most recent shipped architecture) and V10 (designed April 16, 2026 but never implemented) are archived in `docs/archive/` alongside V3, V5, V6, V7, V8. **V11 supersedes both.** When this CLAUDE.md and ARCHITECTURE-V11.md disagree, ARCHITECTURE-V11.md wins.
 
 ## Working with Claude (Opus 4.7)
 
@@ -20,17 +23,19 @@ This monorepo is deployed to `coopsource.network`.
 - The 4.7 tokenizer produces ~1.35× more tokens than 4.6; monitor the statusline context percentage accordingly.
 - Do not add scaffolding like "summarize progress after each tool call" — 4.7 generates better interim updates unprompted.
 
-## Git Workflow Rules
+## Git Workflow
 
-- **All work must be done on feature branches**, never directly on `main`
-- **Clean up merged branches** — delete feature branches after they've been merged to `main`
+- **All work must be done on feature branches**, never directly on `main`.
+- **Branch naming for V11 work**: `feature/v11-stage-N-<short-description>` (matches the nine stages in ARCHITECTURE-V11.md §16).
+- **Never merge to `main` without explicit user approval.**
+- **Clean up merged branches** after they've been merged to `main`.
 
-## Critical Constraints
+## Critical Constraints (V11)
 
-Non-negotiable technology choices:
+### Technology stack (non-negotiable)
 
-- **TypeScript strict mode** for all application code — no `any`, no unsafe casts
-- **Express 5** for backend (standard Express routes; `@atproto/xrpc-server` is NOT used in our codebase)
+- **TypeScript strict mode** — no `any`, no unsafe casts
+- **Express 5** for backend (standard Express routes; `@atproto/xrpc-server` is NOT used in this codebase)
 - **Kysely 0.28+** for database (PostgreSQL 16+). NOT Prisma, NOT Drizzle, NOT TypeORM
 - **SvelteKit 2** with **Svelte 5** runes (`$state`, `$derived`, `$effect`, `$props`)
 - **Vite 8** with **@sveltejs/vite-plugin-svelte 7**
@@ -38,15 +43,34 @@ Non-negotiable technology choices:
 - **pnpm 10+** workspace with **Turborepo 2+**
 - **Vitest 4** for all tests
 - **Zod 4** for validation
-- **ATProtocol only** for federation. No cross-protocol bridges
+- **ATProtocol only** for federation — no cross-protocol bridges
 - **Node.js 24 LTS** runtime
-- **Bilateral membership is non-negotiable** — status = `active` ONLY when BOTH `membership` record (member's repo) AND `memberApproval` record (cooperative's repo) exist
-- **Role authority is ONLY in memberApproval** — never in the membership record, never self-declared
-- **DIDs are authoritative identifiers** — never use handles for security decisions
-- **Records of authority live in PDS repos** — PostgreSQL is a materialized index for queries
-- **Tier 2 private data NEVER touches the firehose** — stored in `private_record` table only
-- **Cross-cooperative public data flows through ATProto** — the network IS the federation bus
-- **Retain RFC 9421 HTTP signing ONLY for Tier 2 private data exchange** between closed cooperatives
+
+### V11 design principles (non-negotiable)
+
+- **DIDs are authoritative identifiers.** Never use handles for security decisions.
+- **Cooperatives own their DIDs.** Rotation keys are held offline by cooperative governance; CSN holds the signing key only.
+- **Authority is decomposed into distinct axes.** OAuth scope (Axis 1) governs app-to-user authority. Space membership (Axis 2) governs user-to-user authority. Application logic (Axis 3) governs user-to-action authority. Labels (Axis 4) and service-auth JWTs (Axis 5) are adjacent axes. At every write checkpoint, identify which axis applies and route failure modes correctly.
+- **Arbiter spaces are the membership substrate.** The cooperative's `members` space is the single source of truth for membership. Role-spaces (`board`, `treasurer`, `officers`, member classes, custom roles) carry role authority.
+- **GovernanceView and CoopView are separate layers.** Generic governance primitives live in GovernanceView (`community.lexicon.governance.*`). Cooperative-specific concerns live in CoopView (`network.coopsource.*`). The ten-plugin set (ARCHITECTURE-V11.md §9) is the contract between them.
+- **Records of authority live in PDS repos or arbiter-managed spaces.** PostgreSQL is a materialized projection cache for queries.
+- **Tier 2 data NEVER touches the public firehose.** It lives in members' permissioned repos for the appropriate space.
+
+### What V11 retires from V9/V10
+
+These were V9/V10 patterns; they are **no longer in force**:
+
+- **Bilateral membership.** `network.coopsource.org.membership` and `network.coopsource.org.memberApproval` lexicons retire. The `members` space replaces both.
+- **`VisibilityRouter` and `private_record` six-tier ACL.** V10's design was never implemented. Per-space placement at write time replaces visibility routing.
+- **RFC 9421 HTTP signatures.** Spaces with cross-arbiter space-as-member relationships subsume the closed-coop-to-closed-coop private exchange use case.
+- **Custom labeler service.** Governance labels live in the cooperative arbiter's `$labeler` space.
+- **`IFederationClient`, `cooperative_link` table, federation outbox.** Retire in V11 Stage 8.
+- **`LocalPdsService`, `LocalPlcClient`, `LocalFederationClient`.** Already retired by V6/V9; any residual references clean up in Stage 8.
+
+### Schema management
+
+- CSN is a PoC with no production data. **Schema changes go directly into `packages/db/src/schema.ts`** — do NOT create new migration files.
+- Existing migration files are archived under `packages/db/src/migrations/.archive/`.
 
 ## Build Commands
 
@@ -59,13 +83,12 @@ pnpm --filter @coopsource/web dev      # Start frontend only
 
 # Database
 docker compose -f infrastructure/docker-compose.yml up -d  # Start PostgreSQL + Redis + Mailpit
-pnpm --filter @coopsource/db migrate   # Run Kysely migrations
+pnpm --filter @coopsource/db migrate   # Run Kysely migrations (legacy migrations; schema lives in schema.ts)
 
 # Build & test
 pnpm build                             # Build all packages (turbo)
-pnpm test                              # Run all tests with local PDS fallback (no Docker needed)
+pnpm test                              # Run all tests with local PDS fallback
 make test:all                          # Full test suite with real PDS (Docker required, resets volumes)
-make test:pds                          # Federation PDS integration tests only
 
 # Federation development
 make dev                               # Standalone mode (one process, one DB)
@@ -89,56 +112,86 @@ make db-reset   # Drop DB, recreate, and re-migrate
 
 ## Architecture Overview
 
-### Current State
+### Current state of the codebase
 
-The application layer is complete: 594 source files, 75 pages, 44 services, 100 database tables, 279 E2E tests. All feature development (governance, agreements, legal, finance, operations, commerce, integrations, AI agents, alignment) is built and tested.
+The application layer is complete: 594 source files, 75 pages, 60+ services, 100 database tables, 47 lexicons, 279 E2E tests. All V9 feature development (governance, agreements, legal, finance, operations, commerce, integrations, AI agents, alignment) is built and tested. V6 federation infrastructure (`AtprotoPdsService`, `PlcClient`, `MemberWriteProxy`, `OperatorWriteProxy`, relay/Tap firehose consumers) is in place.
 
-**V6 federation migration is complete** (all 4 phases merged March 26, 2026). Real ATProto infrastructure (`AtprotoPdsService`, `PlcClient`, `MemberWriteProxy`, relay/Tap firehose consumers) is production-ready and activated via environment variables. `LocalPdsService` is retained as a dev-only fallback when `PDS_URL` is not set.
+**V11 is in early-stage implementation.** The application substance survives into V11; what changes is what it sits on. ARCHITECTURE-V11.md §15 details the migration plan from V9 to V11.
 
-### V6: ATProto Federation Migration (complete)
+### The Four-Layer Architecture (V11)
 
-V6 replaced the V3 simulation with real ATProto infrastructure. See [ARCHITECTURE-V6.md](./ARCHITECTURE-V6.md) for the full design.
+```
+Layer 4: CoopView          (network.coopsource.*)
+  Cooperative-specific: Subchapter T, patronage, capital accounts,
+  multi-stakeholder weighted voting, ICA principles, fiscal periods,
+  1099-PATR, agreements, alignment, agents.
 
-| Phase | Status | Scope |
-|-------|--------|-------|
-| F1 | Done | PDS + Identity: self-hosted `@atproto/pds`, `did:plc`, cooperative provisioning |
-| F2 | Done | Member OAuth: DPoP-bound write proxy, `private_record` table for Tier 2 |
-| F3 | Done | Firehose AppView: relay/Tap consumers, tri-mode AppView loop |
-| F4 | Done | Ecosystem: GovernanceLabeler, StarterPackService, retire V3 federation components |
+Layer 3: GovernanceView    (community.lexicon.governance.*)
+  Generic governance: proposals, votes, deliberations, anchor records,
+  transparency logs, role-state derivation. Co-designed for ecosystem use.
 
-### Three-Tier Data Model
+Layer 2: Arbiter           (Meri + Zicklag, Roomy team)
+  Generic group/role/space management: community DIDs, $admin,
+  role-spaces, space-as-member-of-space recursion, $publish, $labeler.
 
-**Tier 1 (Public ATProto)**: Cooperative profiles, public proposals, vote tallies, ratified agreements, membership directories. In PDS repos, on the firehose.
+Layer 1: ATProto Spaces    (Holmgren, Bluesky protocol)
+  Protocol primitives: permissioned repos, ats:// URIs, ECMH commit chains,
+  pull-based sync, (DID, read|write) member lists, controlled DIDs.
+```
 
-**Tier 2 (Private PostgreSQL)**: Closed deliberations, draft proposals, private membership details, financial records. In `private_record` table. Modeled as typed records by collection matching ATProto semantics for future Bucket migration.
+When deciding where a feature belongs, push it down a layer if doing so doesn't dilute its general-ness. The test: would Roomy or another non-cooperative group app use this feature without modification?
 
-**Tier 3 (E2EE)**: Board confidential discussions, salary records, personnel matters. Via Germ DM / MLS protocol. Platform facilitates but never handles content.
+### The Plugin Set is the Layer 3 / Layer 4 Contract
+
+GovernanceView accepts a `GovernancePluginSet` (ten typed interfaces) at construction. CoopView provides cooperative-specific implementations. All async, returning `Promise<T>`. Inputs are plain values, not service handles. Defaults are no-ops. The plugin interfaces stay stable as upstream protocol details change — this is V11's most important insulation property.
+
+| Field | Purpose |
+|---|---|
+| `voteWeight` | Compute per-voter vote weight (multi-stakeholder class, patronage share) |
+| `eligibility` | Check whether a voter may vote on a proposal |
+| `quorum` | Check quorum from collected votes |
+| `actionAuthorizer` | Authorize a governance action (propose, amend, suspend, etc.) |
+| `anchorSummary` | Build non-identifying public summary extensions for anchor records |
+| `historicalState` | Read/record arbiter member-list snapshots at cadence boundaries |
+| `patronageAllocator` | Compute per-member patronage allocations for a fiscal period |
+| `surplusDistributor` | Compute qualified vs. non-qualified, cash vs. equity surplus distribution |
+| `meetingMinutes` | Canonicalize deliberation threads into formal minutes |
+| `delegateChains` | Resolve vote delegation chains for proposal voting |
+
+Full type signatures in ARCHITECTURE-V11.md §9.
 
 ### Monorepo Layout
 
 ```
 coopsource.network/
 ├── apps/
-│   ├── api/          # @coopsource/api — Express backend (AppView + API)
-│   └── web/          # @coopsource/web — SvelteKit frontend
+│   ├── api/                  # @coopsource/api — Express backend (AppView + API)
+│   └── web/                  # @coopsource/web — SvelteKit frontend
 ├── packages/
-│   ├── lexicons/     # @coopsource/lexicons — ATProto lexicon JSON + generated TS
-│   ├── federation/   # @coopsource/federation — IPdsService, AtprotoPdsService,
-│   │                 #   PlcClient, firehose decoder, HTTP signing, blobs, email
-│   ├── db/           # @coopsource/db — Kysely database layer + migrations
-│   ├── common/       # @coopsource/common — Shared types, constants, errors, validation
-│   └── config/       # @coopsource/config — Shared tsconfig, eslint, prettier
-├── infrastructure/
-│   ├── docker-compose.yml              # PostgreSQL 16 + Redis 7 + Mailpit (dev)
-│   └── docker-compose.federation.yml   # Multi-instance federation dev environment
+│   ├── lexicons/             # @coopsource/lexicons — ATProto lexicon JSON + generated TS
+│   ├── federation/           # @coopsource/federation — IPdsService, AtprotoPdsService,
+│   │                         #   PlcClient, firehose decoder, HTTP signing
+│   │                         #   (RFC 9421 + outbox retire in Stage 8)
+│   ├── db/                   # @coopsource/db — Kysely schema + materialized projections
+│   ├── common/               # @coopsource/common — Shared types, errors, validation
+│   └── config/               # @coopsource/config — Shared tsconfig, eslint, prettier
+│
+│   # New V11 packages (added in stages):
+│   ├── spaces-consumer/      # Stage 1: pull-based consumer over permissioned repos
+│   ├── arbiter-client/       # Stage 2: XRPC wrapper around the Arbiter
+│   ├── governance-view/      # Stage 6: Layer 3 generic governance
+│   └── coop-view/            # Stage 7: Layer 4 cooperative-specific
+│
+├── infrastructure/           # Docker Compose for dev environments
 ├── docs/
-│   ├── operations.md               # Production ops: backups, logs, migrations
-│   └── archive/                    # Historical research & planning docs
+│   ├── plans/                # Active research and architecture-direction docs
+│   │   ├── 2026-05-08-csn-architectural-direction.md
+│   │   └── 2026-05-11-csn-research-addendum.md
+│   └── archive/              # Earlier architecture versions (V3, V5, V6, V7, V8, V9, V10)
 ├── scripts/
-│   └── dev-services.sh             # Homebrew-based local dev setup
-├── ARCHITECTURE-V7.md              # Remaining work: Ozone, DB cleanup, ecosystem proposals
-├── ARCHITECTURE-V6.md              # ATProto federation migration design (complete)
-├── ARCHITECTURE-V5.md              # Cooperative lifecycle design, security model, lexicon schemas
+├── ARCHITECTURE-V11.md       # Active architectural specification
+├── CLAUDE-CODE-PROMPT-V11.md # Operational implementation guide
+├── CLAUDE.md                 # This file
 ├── turbo.json
 └── pnpm-workspace.yaml
 ```
@@ -147,8 +200,9 @@ coopsource.network/
 
 ```
 Layer 1 — Foundation:  config → common → db → lexicons → federation
-Layer 2 — Core:        api (auth, entities, membership, governance, agreements, posts)
-Layer 3 — Frontend:    web (SvelteKit, design system)
+Layer 2 — V11 substrate: spaces-consumer, arbiter-client → governance-view → coop-view
+Layer 3 — Core:        api (auth, entities, membership, governance, agreements, posts, ...)
+Layer 4 — Frontend:    web (SvelteKit, design system)
 ```
 
 ### Key Library Versions
@@ -161,21 +215,21 @@ Layer 3 — Frontend:    web (SvelteKit, design system)
 | `@sveltejs/kit` | ^2.53 |
 | `vite` | ^8.0 |
 | `@sveltejs/vite-plugin-svelte` | ^7.0 |
-| `@sveltejs/adapter-auto` | ^7.0 |
 | `tailwindcss` | ^4.2 |
 | `vitest` | ^4.0 |
 | `zod` | ^4.3 |
 | `pino` | ^10.3 |
-| `pino-http` | ^11.0 |
-| `nodemailer` | ^8.0 |
 | `typescript` | ^5.9 |
 | `@atproto/api` | latest |
 | `@atproto/oauth-client-node` | latest |
+| `@atproto/oauth-scopes` | latest (watch version bumps for granular scope support) |
 | `@atproto/pds` | 0.4.212+ |
 | `@atproto/sync` | latest |
 | `stripe` | latest |
 | `pnpm` | 10.30+ |
 | `Node.js` | 24 LTS |
+
+**Do not use**: `@skyware/labeler` (archived Feb 2026; acceptable only for one-time DID bootstrapping); `vm2` (unfixable CVEs); Node's built-in `vm` module for sandboxing (insecure).
 
 ## The Recursive Cooperative Model
 
@@ -183,37 +237,81 @@ This is the central design principle. Everything is an entity: `person` or `coop
 
 ```
 Person -> Cooperative:       Alice is a member of Acme Tech Co-op
-Cooperative -> Network:      Acme Tech Co-op is a member of Co-op Source Network (is_network: true)
+Cooperative -> Network:      Acme Tech Co-op is a member of Co-op Source Network
 Person -> Network (direct):  Dave is a member of Co-op Source Network directly
 ```
 
 Same machinery at every level:
-- **Proposal**: An entity creates a record; others in the same co-op cast votes
-- **Agreement**: Entities co-sign a record; each signature in the signer's PDS
+- **Proposal**: An entity creates a record; eligible voters cast votes
+- **Agreement**: Entities co-sign a record; each signature lives with the signer
 - **Project**: A cooperative entity with its own membership (projects are mini-co-ops)
 
-The application supports legal entity types (cooperative corporation, cooperative LLC, LCA) and compliance workflows that also follow the recursive pattern.
+Under V11, the recursive model gets a protocol-level expression: a network of cooperatives is an arbiter whose `members` space contains other cooperative DIDs. Cross-cooperative trust is expressed by including one cooperative's `members` space as a member of another cooperative's space. The recursion is free, not invented.
 
-## Federation Architecture
+## V11 Federation Architecture
 
-Cooperatives are genuine ATProto accounts. Members bring their own Bluesky identities. Governance records flow through the real relay network alongside Bluesky posts, Tangled commits, Smoke Signal RSVPs, and WhiteWind blog entries.
-
-V6 federation is complete. In production (with `PDS_URL` set), records are written to a real `@atproto/pds` and consumed from the ATProto relay firehose. In local dev (without `PDS_URL`), `LocalPdsService` provides a PostgreSQL-backed fallback with `pg_notify` firehose.
+Cooperatives are genuine ATProto accounts with their own DIDs. Members bring their own ATProto identities. Public governance records flow through the relay firehose alongside Bluesky posts, Tangled commits, Smoke Signal RSVPs, and WhiteWind blog entries. **Private governance records live in members' permissioned repos** for the appropriate cooperative space, synced via pull-based notifications from the cooperative's arbiter.
 
 ### Identity
 
 | Environment | DID Method | Notes |
 |-------------|-----------|-------|
-| Production (V6) | `did:plc` | Portable, recoverable (72-hour rotation window), ecosystem standard |
+| Production | `did:plc` (controlled DID under cooperative's arbiter) | Cooperatives own rotation keys offline |
 | Local dev | `did:web` | Resolved via `/.well-known/did.json`, works with `localhost:PORT` |
 
-Cooperatives use domain-as-handle (e.g., `@mycoop.coop`) for branding. Members use their existing ATProto identities (e.g., their Bluesky handle).
+Cooperatives use domain-as-handle (e.g., `@mycoop.coop`). Members use their existing ATProto identities.
 
-### Record Ownership
+**DID rotation aliasing**: V11 introduces `did_rotation_history` table; all DID-comparing code consults it. When a `did:plc` rotates, references to the old DID resolve transparently to the new one.
 
-Members write to their own PDS: `membership`, `vote`, `delegation`, `signature`, `pledge`
+### Membership via Arbiter Spaces (replaces bilateral membership)
 
-Cooperatives write to their own PDS: `memberApproval`, `proposal`, `master agreement`, `legal.document`, `admin.officer`, `campaign`
+V9's bilateral membership pattern retires. The cooperative's `members` space is the single source of truth. Membership operations go through the Arbiter's XRPC API.
+
+```
+Member joins:
+  1. Member authenticates via OAuth, consents to be added to the cooperative's space
+  2. Operator (Configure Space access on $admin) adds member to cooperative's
+     `members` space via the Arbiter
+  3. Spaces consumer observes the member-list change
+  4. PostgreSQL `membership` table is updated as projection cache
+  5. Member can now write into space-permissioned repos
+```
+
+Roles live as separate spaces under the cooperative DID, distinguished by skey:
+
+| Role | Space (`did:plc:coop / nsid / skey`) |
+|---|---|
+| Active member roster | `network.coopsource.org.cooperative / members` |
+| Board | `network.coopsource.org.cooperative / board` |
+| Treasurer | `network.coopsource.org.cooperative / treasurer` |
+| Probationary | `network.coopsource.org.cooperative / probationary` |
+| Worker class | `network.coopsource.org.cooperative / class-worker` |
+| Custom roles | `network.coopsource.org.cooperative / <slug>` |
+
+`SpaceRef = { arbiter: DID, type: string, skey: string }` — independent of URI scheme decisions.
+
+### The Three-Tier Data Model (V11 reframing)
+
+**Tier 1 (Public ATProto)**: Cooperative profiles, public proposals, vote tallies, ratified agreements. In the cooperative's public repo (`$publish` space).
+
+**Tier 2 (Permissioned-space records)**: Closed deliberations, draft proposals, private votes, confidential agreements, private member directories, financial records. In members' **permissioned repos** for the appropriate space (`members`, `officers`, `board`). Access enforced at the protocol level by arbiter membership. **No more `private_record` table as authoritative storage** — it may persist as projection cache during transition or retire entirely.
+
+**Tier 3 (E2EE)**: Board confidential discussions, salary records, personnel matters. Via Germ DM / MLS. Platform never handles content. **Treat Tier 3 as optional secondary channel only** — Germ DM is iOS-only via App Clip as of May 2026; governance flows must not require Tier 3 until cross-platform substrate exists.
+
+### Lexicon Namespace
+
+| Namespace | Layer | Notes |
+|-----------|-------|-------|
+| `community.lexicon.governance.*` | Layer 3 (new in V11) | Proposed to Lexicon Community in parallel |
+| `network.coopsource.org.*` | Layer 4 | Cooperatives, teams, member classes (NOT `membership`/`memberApproval` — those retire) |
+| `network.coopsource.governance.*` | Layer 4 | CSN-specific wrappers around community lexicons |
+| `network.coopsource.agreement.*` | Layer 4 | Agreements, signatures, amendments |
+| `network.coopsource.legal.*` | Layer 4 | Foundational documents, meeting records |
+| `network.coopsource.admin.*` | Layer 4 | Officers, compliance, notices, fiscal periods |
+| `network.coopsource.finance.*` | Layer 4 | Patronage config/records/allocations, capital accounts, 1099-PATR |
+| `network.coopsource.funding.*` | Layer 4 | Campaigns, pledges |
+| `network.coopsource.alignment.*` | Layer 4 | Interests, outcomes |
+| `network.coopsource.onboarding.*` | Layer 4 | Probation, training, milestones |
 
 ### Instance Roles
 
@@ -221,83 +319,85 @@ Controlled by `INSTANCE_ROLE` env var:
 
 | Mode | What it runs | Use case |
 |------|-------------|----------|
-| `standalone` | Hub + Co-op + AppView in one process, one DB | Development, demos |
-| `hub` | Network directory, cross-co-op AppView | coopsource.network in production |
+| `standalone` | API + AppView + consumers in one process, one DB | Development, demos |
+| `hub` | Network directory, cross-coop AppView | coopsource.network in production |
 | `coop` | Single co-op's API, PDS, local AppView | Individual co-op server |
 
-### Federation Abstractions
+## ATProtocol Patterns (V11)
 
-- **`IPdsService`** — interface for PDS operations
-  - `AtprotoPdsService`: production implementation — real ATProto XRPC, activated by `PDS_URL` env var
-  - `LocalPdsService`: dev fallback — PostgreSQL-backed, `pg_notify` firehose (used when `PDS_URL` is not set)
-- **`MemberWriteProxy`** — proxies record writes to member's own PDS via DPoP-bound OAuth
-- **`OperatorWriteProxy`** — writes to cooperative's PDS with operator authorization and audit logging
-- **`PlcClient`** — HTTP client for plc.directory, activated by `PLC_URL` (falls back to `LocalPlcClient` when `PLC_URL=local`)
-- **`DidWebResolver`** — resolves `did:web` identifiers (local dev only)
+### Three axes of authorization at every checkpoint
 
-## ATProtocol Patterns
+At every write checkpoint, **OAuth scope (Axis 1)** and **space membership (Axis 2)** are both checked, by different services. **Application logic (Axis 3)** is the cooperative-specific layer that gates governance actions (eligibility, quorum, weighted voting). Labels (Axis 4) and service-auth JWTs (Axis 5) are adjacent axes.
 
-### Bilateral Membership (Non-Negotiable)
+When authorization fails, return errors that **name the axis** — that distinction is the difference between debuggable and tangled.
 
-Both sides must exist for ACTIVE status:
-1. **Member** creates `network.coopsource.org.membership` record in their PDS
-2. **Cooperative** creates `network.coopsource.org.memberApproval` record in its PDS
-3. AppView indexer checks both records exist → sets status to `active`
-
-**Role authority is ONLY in memberApproval**, never in the membership record.
-
-AppView state machine handles out-of-order arrival:
-- On membership create: index → check for matching approval → `active` or `pending_member`
-- On memberApproval create: index → check for matching membership → `active` or `pending_approval`
-- On either delete: transition to `revoked` state
-
-### Lexicon Namespace
-
-Active and planned lexicons under `network.coopsource.*`:
-
-```
-network.coopsource.org.*         — cooperatives, memberships, memberApprovals, teams
-network.coopsource.governance.*  — proposals, votes, delegations
-network.coopsource.agreement.*   — agreements, signatures, amendments
-network.coopsource.legal.*       — foundational documents, meeting records
-network.coopsource.admin.*       — officers, compliance items, member notices, fiscal periods
-network.coopsource.funding.*     — campaigns, pledges
-network.coopsource.alignment.*   — interests, outcomes, maps (future)
+```typescript
+async function castVote(actor: DID, proposal: ProposalRef): Promise<Result<void, VoteError>> {
+  // Axis 1: OAuth scope (handled by oauth middleware before this function)
+  // Axis 2: space membership
+  const inSpace = await spacesConsumer.isMember(actor, membersSpace);
+  if (!inSpace) return err({ kind: 'not_member', axis: 'spaces' });
+  // Axis 3: application eligibility
+  const eligible = await plugins.eligibility.checkEligibility({ ... });
+  if (!eligible.ok) return err({ kind: 'not_eligible', axis: 'application', reason: eligible.reason });
+  // Axis 4: labels
+  const labels = await labelService.labelsFor(actor);
+  if (labels.has('member-suspended')) return err({ kind: 'suspended', axis: 'labels' });
+  // ... proceed
+}
 ```
 
-### PDS Record Pattern
+### The OAuth-spaces seam
 
-Records of authority live in user PDS instances. PostgreSQL is a **materialized index**.
+A space declares which apps are permitted to operate on it (per Diary 4). An OAuth client gets a token from the user's PDS, but writes to a space's permissioned repo are only accepted if the space's app policy allows that client. **CSN's design is agnostic** about the specific mechanism (`permissions:{nsid}` scopes vs. service-auth JWTs vs. space-policy lookups) — the integration point is the same regardless. Code distinguishes all three failure modes: "OAuth scope not granted," "user not in space," "app not authorized for this space."
 
-Currently: `LocalPdsService` creates records and emits firehose events via `pg_notify`. AppView loop subscribes and indexes into PostgreSQL for fast queries.
+### Spaces consumer indexing
 
-After V6: Records written to real `@atproto/pds`. Tap binary consumes firehose from `bsky.network` relay, filtering for `network.coopsource.*` collections. Tap consumer service dispatches events to existing indexers.
+V11 sync is **pull-based**, not firehose-based. The spaces consumer subscribes to write notifications from each arbiter the cooperative is connected to. The notification is a lightweight "this space changed" event; the consumer then pulls the changed records from the relevant member PDS, cross-checks against the arbiter's member list, verifies ECMH digests, and projects into PostgreSQL.
+
+**Trust anchor**: records pulled from a member PDS are *claimed* until cross-checked against the space's authoritative member list. Records from DIDs not on the list are discarded.
+
+Public records continue to flow through Tap (the existing firehose consumer) alongside the spaces consumer.
 
 ## Security Requirements
 
-Implement these throughout all phases (see ARCHITECTURE-V5.md §8 for full security model):
-
-### AppView Validation (Every Record)
-1. Verify commit signature against DID document signing key
-2. Independently resolve DIDs (don't trust cached data for security)
-3. Validate record against lexicon schema
-4. Verify record authored by expected DID
-5. Bilateral match check before activating membership
-6. Per-DID rate limiting (max 100 operations/hour in cooperative namespaces)
+### AppView validation (every record)
+1. Cryptographic verification of commit signature against DID document
+2. Independent DID resolution — don't trust cached data for security decisions
+3. Schema validation against lexicon
+4. Authorization check — record authored by expected DID
+5. Cross-check against arbiter's authoritative member list (records from non-members discarded)
+6. Per-DID rate limiting
 7. Reject implausible timestamps
 8. Audit log every state transition with commit CID, rev, signature
 
-### Identity Security
-- Cooperatives MUST self-manage rotation keys with higher priority than PDS key
+### Identity security
+- Cooperatives self-manage rotation keys offline, with higher priority than the PDS's signing key
 - Monitor PLC directory for unexpected key rotations on all indexed cooperative DIDs
-- Display verified handle + DID together in UI
-- Never expose pending/unmatched memberships in member lists
+- All DID-comparing code consults `did_rotation_history`
 
-### Data Security
-- Tier 2 data NEVER stored in ATProto repo (would be broadcast on firehose)
+### Space-credential management
+- Space credentials are bearer tokens; treat as sensitive
+- Short credential lifetimes (target: ≤ 1 hour; refresh on each batch)
+- Least-privilege per-(cooperative, space) credentials — never a master credential
+- Audit logging of credential issuance and use
+- Rotation on member-list changes
+- Lifecycle behind `SpaceCredentialStore` interface
+
+### Cross-arbiter trust verification
+- Service-auth JWTs signed by reading arbiter's DID
+- Audience binding; short lifetimes
+- Verified against DID document's signing key
+
+### Replay protection in recursive cooperatives
+1. Write signed by child arbiter's DID
+2. Nonce or timestamp + freshness window
+3. Child still a member of parent's `members` space at moment of write (the load-bearing mitigation against stale state from former member cooperatives)
+
+### Data security
+- Tier 2 data NEVER in public repos (would broadcast on firehose)
 - Tier 3 data: only ciphertext on any server
-- Batch public record updates to reduce timing correlation
-- Randomized delays for non-time-sensitive public record creation
+- Tier 3 is **optional**, not required — current platform support is iOS-only
 
 ## Database
 
@@ -305,13 +405,14 @@ Implement these throughout all phases (see ARCHITECTURE-V5.md §8 for full secur
 
 - `Generated<T>` for auto-generated columns
 - `ColumnType<S, I, U>` for different select/insert/update types
-- PostgreSQL bigint returns string — use `Number()` conversion, not TypeScript cast
-- AT URI as PK for PDS tables; UUID for app tables — don't mix these
-- Cursor-based pagination everywhere, not offset-based
+- **PostgreSQL bigint returns string** — use `Number()` conversion, not TypeScript cast
+- **AT URI as PK for PDS tables; UUID for app tables** — don't mix
+- **Cursor-based pagination everywhere**, not offset-based
+- **Schema changes go into `packages/db/src/schema.ts`**, NOT new migration files (CSN is PoC, no production data; existing migrations archived under `.archive/`)
 
 ## API Routes
 
-All under `/api/v1/`. 61 route files covering: health, setup, auth, cooperatives, memberships, posts, proposals, agreements, networks, blobs, events (SSE), admin (officers, compliance, notices, fiscal periods), federation, legal (documents, meetings), finance (patronage, capital accounts, tax forms, expenses, revenue), operations (tasks, time tracking, schedules), commerce (listings, needs, procurement, shared resources, bookings), connectors, webhooks, reports, notifications, mentions, agents, alignment, onboarding, member classes, cooperative links, and AI providers/payments settings.
+All under `/api/v1/`. 60+ route files covering: health, setup, auth, cooperatives, memberships, posts, proposals, agreements, networks, blobs, events (SSE), admin (officers, compliance, notices, fiscal periods), federation, legal (documents, meetings), finance (patronage, capital accounts, tax forms, expenses, revenue), operations (tasks, time tracking, schedules), commerce (listings, needs, procurement, shared resources, bookings), connectors, webhooks, reports, notifications, mentions, agents, alignment, onboarding, member classes, cooperative links, and AI providers/payments settings.
 
 ## Frontend Patterns
 
@@ -342,55 +443,89 @@ export default defineConfig({
 
 ## DI Container
 
-`apps/api/src/container.ts` instantiates 44 services including:
-- **Infrastructure**: `db` (Kysely), `pdsService` (LocalPdsService), `blobStore`, `federationClient`, `didResolver`, `clock`, `emailService`
-- **Core**: `authService`, `entityService`, `membershipService`, `postService`, `proposalService`, `agreementService`, `networkService`
-- **Legal/Admin**: `legalDocumentService`, `meetingRecordService`, `officerRecordService`, `complianceCalendarService`, `memberNoticeService`, `fiscalPeriodService`
-- **Finance**: `patronageService`, `capitalAccountService`, `tax1099Service`, `expenseService`, `revenueService`
-- **Operations**: `taskService`, `timeTrackingService`, `scheduleService`
-- **Commerce**: `commerceListingService`, `commerceNeedService`, `procurementService`, `sharedResourceService`, `intercoopAgreementService`
-- **Platform**: `agentService`, `connectorRegistryService`, `eventBusService`, `webhookService`, `reportingService`, `dashboardService`, `mentionService`, `onboardingService`, `alignmentService`, `fundingService`, `connectionService`, `delegationVotingService`, `governanceFeedService`, `cooperativeLinkService`, `memberClassService`, `starterPackService`, `collaborativeProjectService`
+`apps/api/src/container.ts` instantiates 60+ services. The application-layer services survive into V11 unchanged. V11 adds the substrate consumers and layer wirings:
 
-V6 added: `tapConsumer`, `memberWriteProxy`, `operatorWriteProxy`, `governanceLabeler`, `starterPackService`, `visibilityRouter`, `privateRecordService`, and activated `PlcClient`/`AtprotoPdsService`.
+**Substrate (new in V11)**:
+- `spacesConsumer` (Stage 1) — pull-based consumer over permissioned repos
+- `arbiterClient` (Stage 2) — XRPC wrapper around the Arbiter
+- `governanceView` (Stage 6) — Layer 3 facade composing generic governance primitives
+- `coopView` (Stage 7) — Layer 4 facade registering cooperative-specific plugins
 
-## Implementation Phases
+**Surviving from V9**:
+- Infrastructure: `db`, `pdsService` (AtprotoPdsService when `PDS_URL` set), `blobStore`, `didResolver`, `clock`, `emailService`
+- Core: `authService`, `entityService`, `membershipService` (rewired to read from spacesConsumer's projection), `postService`, `proposalService`, `agreementService`, `networkService`
+- Legal/Admin: `legalDocumentService`, `meetingRecordService`, `officerRecordService`, `complianceCalendarService`, `memberNoticeService`, `fiscalPeriodService`
+- Finance: `patronageService`, `capitalAccountService`, `tax1099Service`, `expenseService`, `revenueService`
+- Operations: `taskService`, `timeTrackingService`, `scheduleService`
+- Commerce: `commerceListingService`, `commerceNeedService`, `procurementService`, `sharedResourceService`, `intercoopAgreementService`
+- Platform: `agentService`, `connectorRegistryService`, `eventBusService`, `webhookService`, `reportingService`, `dashboardService`, `mentionService`, `onboardingService`, `alignmentService`, `fundingService`, `connectionService`, `delegationVotingService`, `governanceFeedService`, `cooperativeLinkService` (retires in Stage 8), `memberClassService`, `starterPackService`, `collaborativeProjectService`
+- OAuth: `oauthClient`, `memberWriteProxy`, `operatorWriteProxy` (the proxies survive as the OAuth surface; the bilateral state machine inside them retires)
 
-### Completed: Application Layer (tagged `v3-final`)
+**Retiring across V11 stages**:
+- `visibilityRouter`, `privateRecordService` (ACL paths) — Stages 4–5
+- `governanceLabeler` (custom labeler service) — Stage 3 (replaced by cooperative's `$labeler` space)
+- `IFederationClient`, RFC 9421 HTTP signature paths, federation outbox — Stage 8
 
-All application features are built and tested on V3 federation plumbing. This includes governance, agreements, legal documents, meeting records, officers, compliance, fiscal periods, patronage, capital accounts, tax forms, expenses, revenue, tasks, time tracking, schedules, commerce, connectors, webhooks, reports, AI agents, onboarding, alignment, and delegation voting.
+## V11 Implementation Stages
 
-### Completed: V6 Federation Migration (March 26, 2026)
+Nine stages, sequenced logically (not by calendar). Full task lists in CLAUDE-CODE-PROMPT-V11.md and ARCHITECTURE-V11.md §16.
 
-All 4 phases merged to main. See [ARCHITECTURE-V6.md](./ARCHITECTURE-V6.md) for the full design.
-
-| Phase | Scope |
-|-------|-------|
-| F1 | Self-hosted `@atproto/pds`, `did:plc`, cooperative provisioning |
-| F2 | DPoP-bound OAuth proxy, member write routing, `private_record` table |
-| F3 | Relay/Tap firehose consumers, tri-mode AppView loop |
-| F4 | GovernanceLabeler, StarterPackService, retire V3 federation components |
+| Stage | Branch prefix | Gate |
+|---|---|---|
+| 1 | `feature/v11-stage-1-spaces-consumer` | None — safe to start now |
+| 2 | `feature/v11-stage-2-arbiter-integration` | Arbiter XRPC reference impl |
+| 3 | `feature/v11-stage-3-membership-roles` | Controlled-DID + URI decisions |
+| 4 | `feature/v11-stage-4-governance-to-spaces` | Stage 3 + OAuth-spaces seam |
+| 5 | `feature/v11-stage-5-personal-spaces` | Stage 4 |
+| 6 | `feature/v11-stage-6-extract-governance-view` | None |
+| 7 | `feature/v11-stage-7-coop-view` | Stage 6 |
+| 8 | `feature/v11-stage-8-retire-federation` | Cleanup after 3–7 stabilize |
+| 9 | (open-ended capabilities) | — |
 
 ## Pitfalls
 
-1. **Never generate fake DIDs.** Use real `did:plc` via PlcClient for production, `did:web` for local dev
-2. **Bilateral membership is non-negotiable.** Both member PDS record AND co-op approval record must exist
-3. **Role authority is ONLY in memberApproval**, never in the membership record
-4. **Never store Tier 2 data in ATProto repos** — it would be broadcast on the firehose
-5. **Never trust handles for security** — handles are mutable; DIDs are persistent
-6. **Never skip commit signature verification** on membership-relevant records
-7. **Never count votes without verifying active bilateral membership**
-8. **Never use Jetstream for security-critical data** — it strips cryptographic proofs
-9. **Never expose pending/unmatched memberships** in UI member lists
-10. **Build federation package after changes:** `pnpm --filter @coopsource/federation build`
-11. **PostgreSQL bigint returns string.** Use `Number()` conversion
-12. **Tailwind CSS 4 plugin order:** `tailwindcss()` MUST come before `sveltekit()` in vite.config.ts
-13. **AT URI as PK for PDS tables; UUID for app tables.** Don't mix these
-14. **Cursor-based pagination everywhere.** Not offset-based
-15. **Don't add `role` to membership lexicon.** Roles are ONLY in memberApproval
-16. **OAuth scopes are declared per-namespace** — `OAUTH_SCOPE` in `apps/api/src/auth/oauth-client.ts` lists the 6 member-write namespaces. PDS enforcement is forward-compatible (not enforced in PDS 0.4). Don't add new member-write namespaces without updating the scope constant
-17. **Don't rely on Buckets** — still in design; use Tier 2 PostgreSQL for private data
-18. **Don't run your own relay** — use `bsky.network`; running a relay costs $150+/mo
-19. **Don't hedge in CLAUDE.md or memory files** — 4.7 reads instructions literally. "please" and "try to" are noise. State rules as imperatives
+1. **Don't use bilateral membership.** V9's `membership` + `memberApproval` pattern retires entirely. The cooperative's `members` space is the single source of truth.
+2. **Don't six-tier ACL.** V10's `private_record` six-tier model was never implemented and should not be revived. Per-space placement replaces it.
+3. **Don't bake `ats://` as a constant.** Upstream has not finalized the URI scheme. URI handling goes through helpers. The substrate is `SpaceRef = { arbiter: DID, type: string, skey: string }`, not a URI string.
+4. **Don't migrate `apps/api` onto HappyView's Lua + WASM model.** HappyView v2.5+ is a reference implementation for development and validation, not a substrate to migrate onto.
+5. **Don't run a separate labeler service.** Governance labels live in the cooperative arbiter's `$labeler` space.
+6. **Don't use `@skyware/labeler` as a runtime dependency.** Archived February 2026. Acceptable only for one-time DID bootstrapping if needed.
+7. **Don't put application logic in the protocol layer.** The plugin set is what makes single-protocol-mechanism plus multiple-application-semantics work. Resist pushing cooperative-specific logic down into Arbiter or Spaces.
+8. **Don't conflate axes.** OAuth scope, space membership, and application eligibility are distinct. At every checkpoint, identify which axis applies. When authorization fails, return errors that name the axis.
+9. **Don't trust handles for security.** Handles are mutable; DIDs are persistent. All security decisions use DIDs.
+10. **Don't skip the `did_rotation_history` lookup.** DID equality checks must consult the rotation history table.
+11. **Don't trust records from non-members.** The spaces consumer cross-checks records against the arbiter's authoritative member list before accepting them.
+12. **Don't generate fake DIDs.** Use real `did:plc` via PlcClient.
+13. **Don't put Tier 2 data in the public firehose.** Use permissioned repos for the appropriate space.
+14. **Don't make Tier 3 (Germ DM) a required path** for governance flows until cross-platform E2EE substrate exists.
+15. **Don't run our own relay yet, but plan for it.** Use `bsky.network` for V11 Stages 1–7. Running a cooperative-owned relay is real ecosystem infrastructure (independence from Bluesky PBC per Hof's POSIWID argument, member-owned, bandwidth efficiency for cooperative-focused subscribers, resilience against deplatforming) but it's a distraction from getting Spaces/Arbiter/GovernanceView/CoopView right. Revisit in Stage 9 — see ARCHITECTURE-V11.md §11.4. **Access-controlled relays don't exist** — relays are public-firehose infrastructure by protocol design; access control belongs at the space layer (private data) or the AppView layer (filtered cooperative-ecosystem feeds).
+16. **Don't create new migration files.** CSN is a PoC with no production data; schema changes go into `packages/db/src/schema.ts`.
+17. **Don't add fields to `community.lexicon.governance.*` lexicons unilaterally.** CSN's extensions wrap community lexicons; they do not modify them in place.
+18. **Build federation package after structural changes:** `pnpm --filter @coopsource/federation build`.
+19. **PostgreSQL bigint returns string.** Use `Number()` conversion.
+20. **Tailwind CSS 4 plugin order:** `tailwindcss()` MUST come before `sveltekit()` in vite.config.ts.
+21. **AT URI as PK for PDS tables; UUID for app tables.** Don't mix.
+22. **Cursor-based pagination everywhere.** Not offset-based.
+23. **Don't hedge in CLAUDE.md or memory files.** 4.7 reads instructions literally. "please" and "try to" are noise. State rules as imperatives.
+
+## When upstream protocol details aren't settled
+
+ARCHITECTURE-V11.md §17 lists what is committed; §18 lists what is still open. When a stage gate depends on upstream resolution, **surface the dependency to the user before proceeding**. Acceptable patterns: build behind interfaces with sketch implementations; ship the CSN-internal model that resembles the protocol primitive; run against the `bluesky-social/atproto` `permissioned-data` branch with the understanding that the branch will evolve.
+
+## Ecosystem engagement
+
+V11 is half code and half ecosystem participation. The architecture's quality depends on CSN being a present participant in upstream conversations (Bluesky Diaries, the Arbiter design with Meri and Zicklag, the Lexicon Community for `community.lexicon.governance.*`, the Private Data WG, opensocial.community / NorthSky / Habitat / Blacksky). If you encounter a question that should be settled in those venues, surface it; don't decide unilaterally in code.
+
+Two-week refresh cadence on the ecosystem watchlist:
+- `dholms.leaflet.pub` (Holmgren's diaries)
+- `zicklag.leaflet.pub`, `meri.leaflet.pub` (Arbiter authors)
+- `happyview.dev`, `tangled.org/gamesgamesgamesgames.games/happyview`
+- `github.com/bluesky-social/atproto/compare/permissioned-data`
+- `discourse.atprotocol.community` Private Data WG
+- `@atproto/oauth-scopes` npm version
+- `blog.muni.town` (Roomy roadmap)
+
+Direct URL fetches of known endpoints, not search-driven discovery.
 
 ## Troubleshooting
 
@@ -398,3 +533,6 @@ All 4 phases merged to main. See [ARCHITECTURE-V6.md](./ARCHITECTURE-V6.md) for 
 - CORS errors in dev → API allows `http://localhost:5173` in dev
 - Session cookies not sent → `sameSite: 'lax'`, both on localhost
 - Federation build errors → `pnpm --filter @coopsource/federation build` before API
+- Spaces consumer not receiving notifications → check `SpaceCredentialStore` cache, verify arbiter notification subscription, fall back to periodic full-resync
+- ECMH digest mismatch → consumer triggers full-repo resync; if persistent, investigate the originating PDS
+- Authorization failure with unclear axis → check that the failing service returns errors naming Axis 1/2/3/4/5 explicitly
