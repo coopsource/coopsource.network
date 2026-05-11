@@ -18,7 +18,7 @@ export type EcmhVerifyResult =
  * encoded.
  */
 export interface EcmhVerifier {
-  readonly isSketch: boolean;
+  readonly kind: 'fail-closed' | 'unsafe-always-ok' | 'real';
   verify(input: EcmhVerifyInput): Promise<EcmhVerifyResult>;
 }
 
@@ -38,7 +38,7 @@ export interface EcmhVerifier {
  * Surface findings to the user before committing the real implementation.
  */
 export class FailClosedEcmhVerifier implements EcmhVerifier {
-  readonly isSketch = true;
+  readonly kind = 'fail-closed' as const;
   async verify(_input: EcmhVerifyInput): Promise<EcmhVerifyResult> {
     return { ok: false, reason: 'no-verifier-wired' };
   }
@@ -51,7 +51,7 @@ export class FailClosedEcmhVerifier implements EcmhVerifier {
  * outside of tests.
  */
 export class UnsafeAlwaysOkEcmhVerifier implements EcmhVerifier {
-  readonly isSketch = true;
+  readonly kind = 'unsafe-always-ok' as const;
   async verify(_input: EcmhVerifyInput): Promise<EcmhVerifyResult> {
     return { ok: true };
   }

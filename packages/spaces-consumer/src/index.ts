@@ -10,6 +10,7 @@ export type { EcmhVerifyInput, EcmhVerifyResult, EcmhVerifier } from './ecmh-ver
 export { FailClosedEcmhVerifier, UnsafeAlwaysOkEcmhVerifier } from './ecmh-verifier.js';
 export type { PullRequest, RepoPuller } from './repo-puller.js';
 export { InMemoryRepoPuller } from './repo-puller.js';
-export type { CursorStore, SpacesConsumerOptions } from './consumer.js';
+export type { CursorStore } from './cursor-store.js';
+export type { SpacesConsumerOptions } from './consumer.js';
 export { SpacesConsumer } from './consumer.js';
 export { KyselyCursorStore } from './kysely-cursor-store.js';

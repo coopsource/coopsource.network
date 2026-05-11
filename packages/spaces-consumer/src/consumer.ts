@@ -1,19 +1,12 @@
 import type { DID } from '@coopsource/common';
 import type { ArbiterMemberList } from './arbiter-member-list.js';
+import type { CursorStore } from './cursor-store.js';
 import type { EcmhVerifier } from './ecmh-verifier.js';
 import type { NotificationSubscriber } from './notification-subscriber.js';
 import type { RepoPuller } from './repo-puller.js';
-import { spaceRefKey, type ConsumerHealth, type PulledRecord, type SpaceNotification, type SpaceRef } from './types.js';
+import { type ConsumerHealth, type PulledRecord, type SpaceNotification, type SpaceRef } from './types.js';
 
-/**
- * Persistence interface for per-(space, member) pull cursors.
- * Key format: `${spaceRefKey(space)}|${memberDid}`.
- * Returns '' (empty string) when no cursor has been stored yet.
- */
-export interface CursorStore {
-  get(key: string): Promise<string>;
-  set(key: string, value: string): Promise<void>;
-}
+export type { CursorStore } from './cursor-store.js';
 
 export interface SpacesConsumerOptions {
   readonly subscriber: NotificationSubscriber;
@@ -96,18 +89,14 @@ export class SpacesConsumer {
 
     for (const memberDid of members) {
       try {
-        const cursorKey = `${spaceRefKey(n.space)}|${memberDid}`;
-        const since = await this.opts.cursors.get(cursorKey);
+        const since = await this.opts.cursors.get(n.space, memberDid);
         const pulled = await this.opts.puller.pull({ space: n.space, memberDid, since });
         if (pulled.length === 0) continue;
 
-        // expectedDigest is upstream-dependent. When the notification protocol
-        // settles, the digest will arrive on the notification itself. Until
-        // then the verifier interface is in place but the wired default
-        // (FailClosed) refuses anyway, so the placeholder is safe.
+        // See SpaceNotification.digest for why this is n.digest ?? ''.
         const digestResult = await this.opts.verifier.verify({
           records: pulled,
-          expectedDigest: n.since,
+          expectedDigest: n.digest ?? '',
         });
         if (!digestResult.ok) {
           this.digestMismatches += 1;
@@ -131,7 +120,7 @@ export class SpacesConsumer {
           // String comparison: revs are TID-format and lex-ordered (see repo-puller.ts).
           if (r.rev > maxRev) maxRev = r.rev;
         }
-        if (maxRev !== since) await this.opts.cursors.set(cursorKey, maxRev);
+        if (maxRev !== since) await this.opts.cursors.set(n.space, memberDid, maxRev);
       } catch (err) {
         this.errorCount += 1;
         await this.opts.onError(err, { space: n.space, memberDid });

@@ -23,7 +23,7 @@ Persistence:
 | Component | Stage 1 |
 |---|---|
 | Cursor store | `KyselyCursorStore` against the `spaces_consumer_cursor` table |
-| Cursor key format | `${arbiter}|${type}|${skey}|${memberDid}` (pipe-delimited; DIDs/NSIDs cannot contain `|`) |
+| Cursor key | `(SpaceRef, memberDid)` — passed directly, no pipe-string encoding |
 | Empty-cursor convention | `''` (empty string) means "from the beginning of the repo" |
 
 ## Security boundaries
@@ -71,7 +71,8 @@ Stage 1 is complete when:
 3. apps/api dispatch wires the consumer with `SPACES_CONSUMER_ENABLED=false` default.
 4. Health endpoint exposes the consumer's metrics.
 5. Schema additions (`did_rotation_history`, `spaces_consumer_cursor`) are in `packages/db/src/schema.ts`.
-6. No real data flows in Stage 1 — only sketches.
+6. `SpaceCredentialStore` ships as Stage 1 surface but is not consumed by `SpacesConsumer` directly — it's pre-shaped for Stage 2's real `RepoPuller` and `NotificationSubscriber`.
+7. No real data flows in Stage 1 — only sketches.
 
 Real implementations come in Stage 2 onward, gated on upstream protocol resolution (see `ARCHITECTURE-V11.md` §18).
 
@@ -86,7 +87,8 @@ packages/spaces-consumer/
 │   ├── notification-subscriber.ts  # NotificationSubscriber + InMemory sketch
 │   ├── repo-puller.ts              # RepoPuller + InMemory sketch
 │   ├── ecmh-verifier.ts            # EcmhVerifier + FailClosed/UnsafeAlwaysOk sketches
-│   ├── consumer.ts                 # SpacesConsumer orchestrator + CursorStore interface
+│   ├── cursor-store.ts             # CursorStore interface
+│   ├── consumer.ts                 # SpacesConsumer orchestrator
 │   ├── kysely-cursor-store.ts      # KyselyCursorStore (Postgres-backed)
 │   ├── index.ts                    # public API
 │   └── __tests__/

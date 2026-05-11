@@ -1,14 +1,12 @@
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
-import type { CursorStore } from './consumer.js';
+import type { DID } from '@coopsource/common';
+import type { SpaceRef } from './types.js';
+import type { CursorStore } from './cursor-store.js';
 
 /**
  * Postgres-backed CursorStore against the `spaces_consumer_cursor` table
  * (composite PK on cooperative_did, space_type, space_skey, member_did).
- *
- * Key format (set by SpacesConsumer.handleNotification): pipe-delimited
- * `${arbiter}|${type}|${skey}|${memberDid}`. We split on `|` here. DIDs and
- * NSIDs cannot contain `|` so the split is unambiguous.
  *
  * Test note: this class is not unit-tested in the spaces-consumer package
  * because the migrations/ folder is empty and no automated bootstrap exists
@@ -19,46 +17,33 @@ import type { CursorStore } from './consumer.js';
 export class KyselyCursorStore implements CursorStore {
   constructor(private readonly db: Kysely<Database>) {}
 
-  async get(key: string): Promise<string> {
-    const parts = key.split('|');
-    if (parts.length !== 4) {
-      throw new Error(
-        `KyselyCursorStore: malformed cursor key (expected 4 pipe-delimited parts): ${key}`,
-      );
-    }
-    const [coop, type, skey, member] = parts as [string, string, string, string];
+  async get(space: SpaceRef, memberDid: DID): Promise<string> {
     const row = await this.db
       .selectFrom('spaces_consumer_cursor')
       .select('cursor')
-      .where('cooperative_did', '=', coop)
-      .where('space_type', '=', type)
-      .where('space_skey', '=', skey)
-      .where('member_did', '=', member)
+      .where('cooperative_did', '=', space.arbiter)
+      .where('space_type', '=', space.type)
+      .where('space_skey', '=', space.skey)
+      .where('member_did', '=', memberDid)
       .executeTakeFirst();
     return row?.cursor ?? '';
   }
 
-  async set(key: string, value: string): Promise<void> {
-    const parts = key.split('|');
-    if (parts.length !== 4) {
-      throw new Error(
-        `KyselyCursorStore: malformed cursor key (expected 4 pipe-delimited parts): ${key}`,
-      );
-    }
-    const [coop, type, skey, member] = parts as [string, string, string, string];
+  async set(space: SpaceRef, memberDid: DID, value: string): Promise<void> {
     await this.db
       .insertInto('spaces_consumer_cursor')
       .values({
-        cooperative_did: coop,
-        space_type: type,
-        space_skey: skey,
-        member_did: member,
+        cooperative_did: space.arbiter,
+        space_type: space.type,
+        space_skey: space.skey,
+        member_did: memberDid,
         cursor: value,
+        updated_at: new Date(),
       })
       .onConflict((oc) =>
         oc
           .columns(['cooperative_did', 'space_type', 'space_skey', 'member_did'])
-          .doUpdateSet({ cursor: value }),
+          .doUpdateSet({ cursor: value, updated_at: new Date() }),
       )
       .execute();
   }

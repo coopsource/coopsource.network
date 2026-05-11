@@ -89,7 +89,7 @@ import { createDashboardRoutes } from './routes/reports/dashboards.js';
 import { createMentionRoutes } from './routes/notifications/mentions.js';
 import { createAdminScriptRoutes } from './routes/admin-scripts.js';
 import { startAppViewLoop } from './appview/loop.js';
-import { startSpacesConsumer } from './appview/spaces-consumer-dispatch.js';
+import { startSpacesConsumer, stopSpacesConsumer } from './appview/spaces-consumer-dispatch.js';
 import { createOAuthClient } from './auth/oauth-client.js';
 import { setupLabelWebSocket } from './routes/xrpc-labels.js';
 import { createXrpcRoutes } from './xrpc/dispatcher.js';
@@ -388,6 +388,7 @@ async function start(): Promise<void> {
     logger.info('Shutting down...');
     clearInterval(proposalResolverHandle);
     clearInterval(matchmakingHandle);
+    stopSpacesConsumer();
     container.eventDispatcher.stop();
     await container.scriptWorkerPool.shutdown();
     labelWss.close();

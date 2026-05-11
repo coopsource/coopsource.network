@@ -9,8 +9,8 @@ describe('FailClosedEcmhVerifier', () => {
     if (!r.ok) expect(r.reason).toBe('no-verifier-wired');
   });
 
-  it('isSketch is true', () => {
-    expect(new FailClosedEcmhVerifier().isSketch).toBe(true);
+  it('kind is fail-closed', () => {
+    expect(new FailClosedEcmhVerifier().kind).toBe('fail-closed');
   });
 });
 
@@ -19,5 +19,9 @@ describe('UnsafeAlwaysOkEcmhVerifier (test-only)', () => {
     const v = new UnsafeAlwaysOkEcmhVerifier();
     const r = await v.verify({ records: [], expectedDigest: 'abc' });
     expect(r.ok).toBe(true);
+  });
+
+  it('kind is unsafe-always-ok', () => {
+    expect(new UnsafeAlwaysOkEcmhVerifier().kind).toBe('unsafe-always-ok');
   });
 });

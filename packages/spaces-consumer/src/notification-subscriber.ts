@@ -29,9 +29,9 @@ export class InMemoryNotificationSubscriber implements NotificationSubscriber {
     this.handlers.delete(spaceRefKey(space));
   }
 
-  async emit(space: SpaceRef, since: string): Promise<void> {
+  async emit(space: SpaceRef, since: string, digest?: string): Promise<void> {
     const h = this.handlers.get(spaceRefKey(space));
     if (!h) return;
-    await h({ space, since, receivedAt: this.opts.clock() });
+    await h({ space, since, digest, receivedAt: this.opts.clock() });
   }
 }

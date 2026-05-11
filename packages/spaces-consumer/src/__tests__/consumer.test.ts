@@ -18,6 +18,13 @@ describe('SpacesConsumer', () => {
   let subscriber: InMemoryNotificationSubscriber;
   let memberList: StaticArbiterMemberList;
   const cursorStore = new Map<string, string>();
+  const cursors = {
+    get: async (space: SpaceRef, member: string) =>
+      cursorStore.get(`${spaceRefKey(space)}|${member}`) ?? '',
+    set: async (space: SpaceRef, member: string, v: string) => {
+      cursorStore.set(`${spaceRefKey(space)}|${member}`, v);
+    },
+  };
 
   beforeEach(() => {
     onAccepted = vi.fn<(r: PulledRecord) => void>();
@@ -31,10 +38,7 @@ describe('SpacesConsumer', () => {
       memberList,
       puller: new InMemoryRepoPuller([aliceRecord, eveRecord]),
       verifier: new UnsafeAlwaysOkEcmhVerifier(),
-      cursors: {
-        get: async (k) => cursorStore.get(k) ?? '',
-        set: async (k, v) => { cursorStore.set(k, v); },
-      },
+      cursors,
       onAccepted,
       onError: vi.fn<(err: unknown, context: { space: SpaceRef; memberDid?: string }) => void>(),
       clock: () => new Date('2026-05-11T12:00:00Z'),
@@ -51,8 +55,7 @@ describe('SpacesConsumer', () => {
   it('advances the cursor after accepting records', async () => {
     await consumer.start([ref]);
     await subscriber.emit(ref, '0');
-    const cursorKey = `${spaceRefKey(ref)}|${fakeDid('did:plc:alice')}`;
-    expect(cursorStore.get(cursorKey)).toBe('1');
+    expect(cursorStore.get(`${spaceRefKey(ref)}|${fakeDid('did:plc:alice')}`)).toBe('1');
   });
 
   it('rejects records whose authorDid is not on the member list (defense in depth)', async () => {
@@ -73,10 +76,7 @@ describe('SpacesConsumer', () => {
       memberList: treacherousMemberList,
       puller: compromisedPuller,
       verifier: new UnsafeAlwaysOkEcmhVerifier(),
-      cursors: {
-        get: async () => '',
-        set: async () => {},
-      },
+      cursors: { get: async () => '', set: async () => {} },
       onAccepted,
       onError: vi.fn<(err: unknown, context: { space: SpaceRef; memberDid?: string }) => void>(),
       clock: () => new Date('2026-05-11T12:00:00Z'),

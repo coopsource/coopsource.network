@@ -32,6 +32,18 @@ export async function startSpacesConsumer(
     return null;
   }
 
+  if (activeConsumer) {
+    logger.warn('startSpacesConsumer called twice; ignoring (existing consumer remains active)');
+    return activeConsumer;
+  }
+
+  if (cfg.unsafeSkipEcmh && process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'UNSAFE_SKIP_ECMH cannot be set in production. The unsafe-always-ok verifier ' +
+        'is for development only.',
+    );
+  }
+
   let verifier: EcmhVerifier = new FailClosedEcmhVerifier();
   if (cfg.unsafeSkipEcmh) {
     logger.warn(
@@ -67,12 +79,20 @@ export async function startSpacesConsumer(
   logger.info(
     {
       spaces: cfg.spaces.length,
-      verifier: cfg.unsafeSkipEcmh ? 'UnsafeAlwaysOk' : 'FailClosed',
+      verifier: verifier.kind,
       memberList: 'DenyAll (sketch)',
     },
-    'Spaces consumer started',
+    'Spaces consumer started (stage 1: log-only, no record forwarding)',
   );
   return consumer;
+}
+
+export function stopSpacesConsumer(): void {
+  if (!activeConsumer) return;
+  // Stage 1: no real unsubscribe path (the InMemoryNotificationSubscriber doesn't need one).
+  // Stage 2+ will call subscriber.unsubscribe() for each subscribed space here.
+  activeConsumer = null;
+  logger.info('Spaces consumer stopped');
 }
 
 export function getSpacesConsumerHealth(): ConsumerHealth | null {

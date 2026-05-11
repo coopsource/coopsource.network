@@ -17,6 +17,12 @@ export function spaceRefKey(ref: SpaceRef): string {
 export interface SpaceNotification {
   readonly space: SpaceRef;
   readonly since: string; // cursor/rev — upstream-protocol-dependent
+  /**
+   * Expected ECMH digest over the records that the notification is announcing.
+   * Provided by the real notification protocol (Stage 2+). Undefined in Stage 1
+   * sketches — the fail-closed verifier rejects regardless of digest input.
+   */
+  readonly digest?: string;
   readonly receivedAt: Date;
 }
 
