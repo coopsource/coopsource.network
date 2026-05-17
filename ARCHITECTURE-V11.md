@@ -70,7 +70,7 @@ The ICA's seven cooperative principles map naturally onto ATProto's primitives, 
 
 - **Voluntary membership** becomes portable identity — a member can leave one cooperative and join another without losing their history; their personal-space records (preferences, history) travel with them.
 - **Democratic control** becomes governance records and votes in members' permissioned repos, with arbiter-backed authorization.
-- **Member economic participation** becomes auditable patronage records in members' personal spaces with cryptographic integrity.
+- **Member economic participation** becomes cooperative-owned ledger records with cryptographic integrity plus member-visible personal-space projections.
 - **Autonomy** becomes self-hosted PDS instances under cooperative-controlled DIDs.
 - **Education and training** becomes discoverable onboarding content and training records.
 - **Cooperation among cooperatives** becomes cross-arbiter space-as-member relationships — the recursive cooperative model as protocol primitive.
@@ -111,8 +111,8 @@ V11 sharpens V9's "cooperatives are ATProto citizens" stance. Under V9 a coopera
 │   Consumer: GovernanceView, Roomy, any community-shaped app      │
 ├─────────────────────────────────────────────────────────────────┤
 │ Layer 1: ATProto Spaces                                          │
-│   Protocol primitives: permissioned repos, ats:// URIs,          │
-│   ECMH commit chains, pull-based sync, (DID, read|write)         │
+│   Protocol primitives: permissioned repos, permissioned URIs,    │
+│   permissioned commit chains, pull-based sync, (DID, read|write) │
 │   member lists, controlled DIDs.                                 │
 │   Author: Holmgren / Bluesky protocol team                       │
 │   Consumer: Arbiter, NorthSky, Habitat, anyone                   │
@@ -154,27 +154,27 @@ Authority in V11 is not a single ACL. It is a small set of distinct axes that in
 
 OAuth governs which applications can act on behalf of a given user, scoped to which lexicons and which XRPC methods. The user's PDS is the authorization server; CSN authenticates with the user's PDS, requests scopes, gets DPoP-bound access tokens.
 
-The granular scope grammar that landed in 2025 and is now shipping in `@atproto/oauth-scopes`:
+The granular scope grammar that landed in 2025 and is now shipping in `@atproto/oauth-scopes` covers current atproto resources. The current `repo:` resource is explicitly public-repository write access; permissioned-space write authorization is still part of the OAuth/spaces seam (§3.4), not a settled `repo:` spelling.
 
 ```
 atproto                                                  # required for any atproto OAuth session
-repo:network.coopsource.org.membership?action=create     # write specific lexicon
+repo:network.coopsource.org.cooperative?action=create     # write public-repo lexicon
 rpc:network.coopsource.governance.castVote?aud=did:web:csn.example  # call XRPC
 blob:image/*                                             # upload blobs of MIME type
 account, identity                                        # account and identity operations
 include:network.coopsource.authMember                    # include another permission set
 ```
 
-CSN ships its own permission sets: `network.coopsource.auth.member`, `network.coopsource.auth.officer`, `network.coopsource.auth.board`, etc.
+CSN ships namespace-scoped permission sets for `network.coopsource.*` records and APIs. Generic GovernanceView records under `community.lexicon.governance.*` use their own permission sets or explicit granular scopes; a `network.coopsource.*` permission set must not be treated as authority to write `community.lexicon.*` records.
 
 ### 3.2 Axis 2: Spaces — user-to-user authority within a permissioned context
 
-Spaces govern which users can read and write within a permissioned context. This is independent of which app is acting on the user's behalf. A user is a member of a space or they are not. The space owner (the arbiter) controls the member list. A user's permissioned repo for a space accepts writes only if the user is in the space's member list, and only if the writing app has the appropriate OAuth scope (Axis 1).
+Spaces govern which users can read and write within a permissioned context. This is independent of which app is acting on the user's behalf. A user is a member of a space or they are not. The space owner (the arbiter) controls the member list. A user's permissioned repo for a space accepts writes only if the user is in the space's member list, and only if the writing app has the appropriate OAuth or space-auth grant (Axis 1 / §3.4).
 
 When CSN's cooperative's `members` space includes Alice's DID:
 
 - Alice's permissioned repo for that space accepts writes she initiates.
-- *Whether Alice can write through CSN specifically* depends on Alice having granted CSN the OAuth scope `repo:network.coopsource.governance.vote?action=create`.
+- *Whether Alice can write through CSN specifically* depends on Alice having granted CSN whatever permissioned-space authorization grammar the protocol settles on. Until that lands, CSN code treats this as "OAuth or space-auth grant missing," not as a concrete `repo:` scope.
 
 If Alice is removed from the `members` space, her votes can no longer be written into the space's repo. If Alice grants the scope but isn't in the space, CSN can't write on her behalf. Both axes are checked.
 
@@ -250,7 +250,7 @@ A cooperative's `members` space has an authoritative member list. A member is in
 
 The CSN-side concerns the bilateral pattern was getting at — membership requires cooperative consent, role authority is centralized — are preserved natively. The cooperative consents by adding the member to the `members` space. Role authority is centralized at the arbiter (members can't self-add to the `treasurer` space; only members with appropriate Configure Space access on the role-space can).
 
-**Out-of-band consent capture.** V9 used the bilateral pattern partly to enforce that members had explicitly agreed to join. Under V11, the OAuth flow provides equivalent consent capture — when a member signs into CSN with their ATProto identity and authorizes CSN to add them to the cooperative's `members` space, that's explicit consent, recorded in the OAuth grant and the OAuth provider's session store.
+**Consent evidence without bilateral authority.** V9 used the bilateral pattern partly to enforce that members had explicitly agreed to join. Under V11, the `members` space remains the active membership authority, but durable consent is captured separately through member-authored join/application/agreement records. OAuth authorizes CSN to act for the member; it is not itself the cooperative membership agreement or audit record.
 
 ### 5.3 Roles as spaces
 
@@ -290,24 +290,26 @@ V9's three tiers (Tier 1 public, Tier 2 PostgreSQL, Tier 3 E2EE) are reframed in
 
 **Tier 1 — Public ATProto records.** Cooperative profiles, public proposals (those a cooperative chooses to publish), vote tallies (aggregate), ratified agreements, public membership directories. In the cooperative's public repo (or its `$publish` space — either works because `$publish` writes to the public repo).
 
-**Tier 2 — Permissioned-space records.** Closed governance deliberations, draft proposals, private votes, confidential agreements, private member directories, financial records. In members' permissioned repos for the appropriate space (`members`, `officers`, `board`). Access is enforced at the protocol level by arbiter membership.
+**Tier 2 — Permissioned-space records.** Closed governance deliberations, draft proposals, private votes, confidential agreements, private member directories, financial notices, and member-visible projections. In members' permissioned repos for the appropriate space (`members`, `officers`, `board`) or in cooperative-owned permissioned ledger spaces. Access is enforced at the protocol level by arbiter membership.
 
 **Tier 3 — E2EE communications.** Board-level confidential discussions, mediation proceedings, sensitive personnel matters, legal consultations, salary records. Via Germ DM / MLS. The platform never handles content.
 
 V9's `private_record` table and `VisibilityRouter` retire. The visibility decision moves from a binary `governance_visibility` flag to per-space placement — each record is written to the space whose access semantics match the desired visibility. A cooperative's `governance_visibility: closed` becomes "this cooperative writes its proposals into the `members` space rather than the public repo."
 
-### 6.2 Personal spaces for individual records
+### 6.2 Cooperative ledgers and member-visible personal spaces
 
-Per Diary 5, each member has a personal space per cooperative they belong to. The space is provisioned by the cooperative when a member joins. The space type might be `network.coopsource.org.memberPersonal` with skey = the cooperative's slug.
+Per Diary 5, each member can have a personal space per cooperative they belong to. The space is provisioned by the cooperative when a member joins. The space type might be `network.coopsource.org.memberPersonal` with skey = the cooperative's slug.
 
-Individual-tier records live here: patronage allocations, capital account balances, 1099-PATR forms, personal contact info, election preferences, ZK-ballot identity commitments.
+Personal spaces are the member-visible delivery and disclosure surface: 1099-PATR copies, patronage notices, capital-account statements, personal contact info, election preferences, ZK-ballot identity commitments, and other records where the member is the primary reader.
+
+Cooperative financial facts remain cooperative ledger authority first. Patronage allocations, capital account balances, equity contributions, redemptions, and tax-generation inputs are canonical in cooperative-owned finance/officer ledger records, with member-visible projections written into personal spaces. This keeps legal/accounting ownership clear while still giving members protocol-native access to their own records.
 
 Access tiers within personal spaces:
 
-- **`individual_strict` records** (capital account balances): only the member is on the space's member list.
-- **`individual` records** (patronage allocations): the cooperative's `treasurer` and other financial-officer spaces are added to the personal space's member list. Spaces can include other spaces — Arbiter pattern.
+- **`individual_strict` projections** (member-only statements or forms): only the member is on the space's member list.
+- **`individual` projections** (member plus authorized finance/officer access): the cooperative's `treasurer` and other financial-officer spaces are added to the personal space's member list. Spaces can include other spaces — Arbiter pattern.
 
-Cost optimization is deferred (§17). A 5,000-member cooperative has 5,000 personal spaces under this model. Whether that scales depends on the controlled-DID system's per-space costs, which aren't fully specified yet. V11 ships the cleaner abstraction now and optimizes once the end-to-end system is running.
+Cost optimization is deferred (§17). A 5,000-member cooperative may have 5,000 personal spaces under this model. Whether that scales depends on the controlled-DID system's per-space costs, which aren't fully specified yet. V11 ships the clearer ownership model now and optimizes once the end-to-end system is running.
 
 ### 6.3 Anchor + sidecar pattern (V10.4 survives)
 
@@ -367,7 +369,7 @@ GovernanceView's projection of space state into queryable form is fundamentally 
 
 **Consistency.** Eventually consistent. Staleness is bounded by pull cadence (target: under 5 seconds at p95 for active cooperatives) plus space-owner notification latency. Callers needing strict consistency read through to the arbiter directly via XRPC.
 
-**ECMH digest verification.** Permissioned repos use Elliptic Curve Multiset Hash for commits. ECMH commits don't support single-record proofs. After each pull batch, the consumer recomputes the ECMH digest and compares against the arbiter's reported digest. Mismatch → full-repo resync.
+**Permissioned repo verification.** Diary 4 sketches Elliptic Curve Multiset Hash for permissioned repo commits, but upstream sync details are still moving. CSN verifies permissioned repo state through a `PermissionedRepoPort`, treating notification shape, cursor shape, and commitment format as adapter internals. Mismatch or unverifiable state → full-repo resync.
 
 **Dropped-notification recovery.** Periodic full-resync on a slow timer (every N hours; tune to cost) plus on-demand resync triggered by digest mismatch. CSN's existing dead-letter pipeline handles pull failures.
 
@@ -399,9 +401,9 @@ CoopView is CSN's cooperative-specific extension of GovernanceView. Lexicons liv
 
 **Multi-stakeholder member classes.** `network.coopsource.org.memberClass` for class declarations; each class is also a space (Arbiter pattern).
 
-**Patronage system.** `network.coopsource.finance.patronageConfig`, `patronageRecord`, `patronageAllocation`. Records live in personal spaces.
+**Patronage system.** `network.coopsource.finance.patronageConfig`, `patronageRecord`, `patronageAllocation`. Cooperative ledger records are canonical; member-visible notices and statements live in personal spaces.
 
-**Capital accounts.** `network.coopsource.finance.capitalAccount`. In personal spaces. Equity tracking, contributions, allocations, redemptions, revolving fund mechanics.
+**Capital accounts.** `network.coopsource.finance.capitalAccount`. Cooperative ledger records are canonical; personal spaces carry member-visible statements and forms. Equity tracking, contributions, allocations, redemptions, revolving fund mechanics.
 
 **Subchapter T compliance.** Cooperative-type-aware enforcement of democratic control rules, subordination of capital, cash distribution requirements (20% within 8.5 months for qualified dividends), separate tracking of patronage-sourced vs. non-patronage-sourced income, 1099-PATR generation, Form 1120-C filing support.
 
@@ -423,26 +425,32 @@ CoopView is CSN's cooperative-specific extension of GovernanceView. Lexicons liv
 
 ### 8.3 CoopView lexicon extension of GovernanceView
 
-GovernanceView's `community.lexicon.governance.vote` is the substrate. CoopView's `network.coopsource.governance.vote` extends it via wrapping:
+GovernanceView's `community.lexicon.governance.vote` is the ecosystem-facing substrate. When governance interoperability matters, CSN writes canonical `community.lexicon.governance.*` records and attaches cooperative-specific `network.coopsource.*` sidecars by strong reference.
 
 ```json
-// network.coopsource.governance.vote
+// community.lexicon.governance.vote
 {
-  "$type": "network.coopsource.governance.vote",
-  "generic": {
-    "voterDid": "did:plc:...",
-    "proposalRef": { "uri": "ats://...", "cid": "bafy..." },
-    "choice": "yes"
-  },
+  "$type": "community.lexicon.governance.vote",
+  "voterDid": "did:plc:...",
+  "proposalRef": { "uri": "permissioned://placeholder", "cid": "bafy..." },
+  "choice": "yes"
+}
+```
+
+```json
+// network.coopsource.governance.voteContext
+{
+  "$type": "network.coopsource.governance.voteContext",
+  "voteRef": { "uri": "permissioned://placeholder", "cid": "bafy..." },
   "memberClass": "worker",
   "patronageShare": 0.0234,
   "fiscalPeriod": "2026"
 }
 ```
 
-GovernanceView's indexer reads the `generic` field and ignores the rest; CoopView's indexer reads everything. Any consumer speaking only `community.lexicon.governance.vote` can extract the generic field from a CSN vote and treat it as a generic vote.
+GovernanceView indexes the canonical community record. CoopView indexes both the community record and the CSN sidecar. Generic consumers do not need to unpack `network.coopsource.*` wrappers to discover governance records.
 
-The alternative — flat extension via lexicon's open-record semantics — is on the table if the Lexicon Community settles a different convention.
+Wrapping a generic object inside a `network.coopsource.*` record remains acceptable for CSN-private workflows where generic ecosystem indexing is not a goal, but it is no longer the default interoperability path.
 
 ---
 
@@ -605,7 +613,7 @@ Public proposals cross-posted as `fyi.unravel.frontpage.post` records for commun
 
 ### 10.5 Bluesky Lists and Starter Packs
 
-The cooperative maintains an `app.bsky.graph.list` of members, auto-updated when membership status changes. Starter Packs combine membership lists with governance activity feeds for onboarding.
+Public `app.bsky.graph.list` member lists are opt-in and only for cooperatives that explicitly choose public membership. Closed or mixed-membership cooperatives publish aggregate anchors instead. Starter Packs can combine public membership lists or governance activity feeds for onboarding when the cooperative's visibility policy allows it.
 
 ### 10.6 Lexicon Lenses
 
@@ -662,7 +670,7 @@ Brittany Ellich's opensocial.community model — groups as ATProto accounts with
 **Spaces consumer** (new in V11):
 - Subscribes to write notifications from each cooperative's arbiter
 - Pulls records from member PDSes
-- Verifies ECMH digests; falls back to full-repo resync on mismatch
+- Verifies permissioned repo state through `PermissionedRepoPort`; falls back to full-repo resync on mismatch
 - Cross-checks records against arbiter member lists before accepting
 
 **Tap** (Bluesky's Go sync tool):
@@ -670,7 +678,7 @@ Brittany Ellich's opensocial.community model — groups as ATProto accounts with
 - Public records flow into the same `pds_record` table (or sibling `space_record` table)
 
 **Arbiter integration** (new in V11):
-- Thin wrapper around the Arbiter's XRPC API
+- Adapter behind `GroupAuthorityPort`, initially wrapping the Arbiter's XRPC API when available
 - Provisioning, role-space management, membership operations
 - Behind interface that lets it slide between *"this is a protocol primitive"* and *"this is an arbiter XRPC call"* as the boundary moves
 
@@ -819,7 +827,9 @@ CSN-specific extensions of GovernanceView lexicons:
 
 ### 13.4 Lexicon extension pattern
 
-Wrapping (chosen for V11): CSN lexicons contain a `generic` field that conforms to the community lexicon, plus CSN-specific fields alongside. GovernanceView's indexer reads the `generic` field and ignores the rest; CoopView's indexer reads everything. The V11 document revisits this if the Lexicon Community settles a different convention.
+Sidecars by strong reference (chosen for V11): when ecosystem interoperability matters, CSN writes canonical `community.lexicon.governance.*` records and attaches cooperative-specific `network.coopsource.*` records by strong ref. GovernanceView indexes the community record directly; CoopView joins the community record with CSN sidecars.
+
+Wrapping remains available for CSN-private workflows where generic ecosystem indexing is not a goal. The V11 document revisits the pattern if the Lexicon Community settles a different convention.
 
 ---
 
@@ -864,13 +874,13 @@ State-specific deadlines tracked via `network.coopsource.admin.complianceItem`:
 
 ### 14.5 Patronage and capital accounts
 
-**Patronage calculation engine** runs per cooperative type. Records live in members' personal spaces. CoopView's `PatronageAllocator` plugin computes per-member allocations for a fiscal period. Subchapter T-specific: separates patronage-sourced from non-patronage-sourced income.
+**Patronage calculation engine** runs per cooperative type. Cooperative-owned ledger records are canonical; members receive personal-space projections/notices. CoopView's `PatronageAllocator` plugin computes per-member allocations for a fiscal period. Subchapter T-specific: separates patronage-sourced from non-patronage-sourced income.
 
-**Capital account service** tracks initial equity contributions, allocated retained patronage, revolving fund mechanics, and unallocated equity. Records live in members' personal spaces (Tier 3 access).
+**Capital account service** tracks initial equity contributions, allocated retained patronage, revolving fund mechanics, and unallocated equity. Cooperative-owned ledger records are canonical; personal spaces expose member statements under the appropriate access tier.
 
 **Subchapter T compliance** enforced via CoopView plugins. Specific requirements: democratic control, subordination of capital, ≥20% qualified patronage dividends in cash within 8.5 months, separate tracking of patronage vs. non-patronage income, Form 1120-C filing, Form 1099-PATR generation.
 
-**Canonical record-of-truth.** ATProto-native records via the `patronage-allocator` and `1099-PATR` plugin contracts are the primary canonical source. External accounting ledger may be added later as a foreign-key link if legal counsel requires it; the ATProto record carries the primary state.
+**Canonical record-of-truth.** Cooperative-owned ATProto-native ledger records via the `patronage-allocator` and `1099-PATR` plugin contracts are the primary canonical source. Member personal spaces carry projections and delivery artifacts. External accounting ledger may be added later as a foreign-key link if legal counsel requires it; the ATProto ledger record carries the primary state.
 
 ### 14.6 Digital signatures and legal enforceability
 
@@ -992,7 +1002,7 @@ A spaces-aware consumer in `apps/api` that pulls records from cooperative-scoped
 **Branch:** `feature/v11-stage-2-arbiter-integration`
 **Gate:** Arbiter XRPC API reaches a 0.x reference implementation in a usable form.
 
-A thin wrapper around the Arbiter's XRPC API, used by `apps/api` to provision cooperative arbiters, manage role spaces, and do membership operations. Contributions to the Arbiter design happen in parallel (§18). May be CSN's own implementation if Zicklag/Meri's lags or pivots.
+A `GroupAuthorityPort` adapter, initially wrapping the Arbiter's XRPC API when a usable implementation exists, used by `apps/api` to provision cooperative arbiters, manage role spaces, and do membership operations. Contributions to the Arbiter design happen in parallel (§18). May be CSN's own implementation behind the same port if Zicklag/Meri's implementation lags or pivots.
 
 ### Stage 3 — Membership and roles to spaces
 
@@ -1008,12 +1018,12 @@ The `members` space, role-spaces (`board`, `officers`, `treasurer`, member class
 
 Public proposals move to `$publish`; private proposals, votes, deliberations move to permissioned repos in the appropriate space (`members` / `officers` / `board`). Anchor pattern lifts from V10's design directly into GovernanceView. Aggregate tally anchors stay.
 
-### Stage 5 — Individual records to personal spaces
+### Stage 5 — Ledger records and personal-space projections
 
 **Branch:** `feature/v11-stage-5-personal-spaces`
 **Gate:** Stage 4 done.
 
-Patronage allocations, capital account balances, 1099-PATR forms, personal contact info move from `private_record` to per-(coop, member) personal spaces. Cost optimization deliberately deferred per §17.
+Patronage allocations, capital account balances, 1099-PATR generation inputs, and other finance facts move from `private_record` to cooperative-owned ledger records. Member-visible statements, 1099-PATR copies, personal contact info, and notices live in per-(coop, member) personal spaces. Cost optimization deliberately deferred per §17.
 
 ### Stage 6 — Extract GovernanceView
 
@@ -1046,7 +1056,7 @@ Stages 1–8 establish the substrate. Stage 9 is open-ended capability developme
 
 ### 17.1 Architectural commitments
 
-**Per-(coop, member) personal spaces, with cost optimization deferred.** Ship the cleaner abstraction now; optimize once the end-to-end system is running and the actual cost shape is visible.
+**Per-(coop, member) personal spaces for member-visible projections, with cost optimization deferred.** Cooperative ledgers remain canonical; personal spaces carry member-visible statements, notices, forms, and personal data. Optimize once the end-to-end system is running and the actual cost shape is visible.
 
 **Membership lexicons retire.** Both V9 membership lexicons retire entirely. The `members` space is the single source of truth.
 

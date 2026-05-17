@@ -124,23 +124,24 @@ V11 follows the nine stages from ARCHITECTURE-V11.md §16. **No schedule. Work p
 
 **Tasks**:
 1. Build `packages/spaces-consumer/` package — pull-based consumer over permissioned repos.
-2. Implement `SpaceCredentialStore` interface (per (cooperative, space) credential cache).
-3. Implement ECMH digest verification after each pull batch; full-repo resync on mismatch.
-4. Implement notification subscription (subscribe to space-owner write notifications).
-5. Implement member-list cross-check: pull arbiter's authoritative member list; discard records authored by DIDs not on the list.
+2. Implement fail-closed sketch adapters for credentials, group authority, sync, and verification.
+3. Keep public package APIs capability-shaped (`GroupAuthorityPort`, `PermissionedRepoPort`) rather than protocol-mechanism-shaped where possible.
+4. Keep cursors opaque; do not expose per-member rev ordering assumptions outside sketch implementations.
+5. Use structured permissioned record locations or a distinct permissioned URI type; do not reuse `AtUri` for permissioned-space data.
 6. Wire into `apps/api/src/container.ts` as a new consumer alongside existing Tap (public firehose).
-7. Either consume from a HappyView v2.5+ instance running alongside as a reference, OR implement directly against the `bluesky-social/atproto` `permissioned-data` branch.
+7. Either consume from a HappyView v2.5+ instance running alongside as a reference, OR implement directly against the `bluesky-social/atproto` `permissioned-data` branch once protocol details are stable.
 
 **Key files to create**:
 - `packages/spaces-consumer/src/index.ts`
 - `packages/spaces-consumer/src/credential-store.ts`
-- `packages/spaces-consumer/src/ecmh-verifier.ts`
+- `packages/spaces-consumer/src/permissioned-repo-port.ts`
+- `packages/spaces-consumer/src/group-authority-port.ts`
 - `apps/api/src/appview/spaces-consumer-dispatch.ts`
 
 **Key files to reference**:
 - `apps/api/src/appview/tap-consumer.ts` — analogous pattern for public firehose
 
-**Progress (2026-05-11):** Stage 1 substrate landed on `feature/v11-stage-1-spaces-consumer`. Package `@coopsource/spaces-consumer` ships the five interfaces (SpaceCredentialStore, ArbiterMemberList, NotificationSubscriber, RepoPuller, EcmhVerifier), the `SpacesConsumer` orchestrator with per-record defense-in-depth cross-check, and Kysely-backed `KyselyCursorStore`. 26 unit tests cover the security boundaries. apps/api wires the dispatch behind `SPACES_CONSUMER_ENABLED=false` with fail-closed sketch defaults; `UNSAFE_SKIP_ECMH=true` opt-in for dev. Real implementations (NotificationSubscriber XRPC, RepoPuller via @atproto/sync, ArbiterMemberList via XRPC) land in Stage 2 once upstream protocol details settle.
+**Progress (2026-05-11):** Stage 1 substrate landed on `feature/v11-stage-1-spaces-consumer`. Package `@coopsource/spaces-consumer` ships the five sketch interfaces (SpaceCredentialStore, ArbiterMemberList, NotificationSubscriber, RepoPuller, EcmhVerifier), the `SpacesConsumer` orchestrator with per-record defense-in-depth cross-check, and Kysely-backed `KyselyCursorStore`. 26 unit tests cover the security boundaries. apps/api wires the dispatch behind `SPACES_CONSUMER_ENABLED=false` with fail-closed sketch defaults; `UNSAFE_SKIP_ECMH=true` opt-in for dev. **Before Stage 1 moves forward, reshape those public interfaces behind stable ports** per `docs/plans/2026-05-17-v11-stable-ports-design.md`: `GroupAuthorityPort` for membership/role authority and `PermissionedRepoPort` for sync/resync/verify. Real implementations land once upstream protocol details settle.
 
 ### Stage 2 — Arbiter Integration
 
@@ -192,9 +193,10 @@ V11 follows the nine stages from ARCHITECTURE-V11.md §16. **No schedule. Work p
 
 **Tasks**:
 1. Provision per-(coop, member) personal spaces at cooperative-join time.
-2. Migrate patronage allocations, capital account balances, 1099-PATR forms, personal contact info from `private_record` to personal spaces.
-3. Implement `individual_strict` (owner only) and `individual` (owner + financial officers) access tiers via space member list composition.
-4. Cost optimization deliberately deferred per arch doc §17.
+2. Keep cooperative finance ledgers canonical in cooperative-owned finance/officer spaces or records.
+3. Write member-visible projections and delivery artifacts (1099-PATR copies, statements, patronage notices, contact data) to personal spaces.
+4. Implement `individual_strict` (owner only) and `individual` (owner + financial officers) access tiers via space member list composition.
+5. Cost optimization deliberately deferred per arch doc §17.
 
 ### Stage 6 — Extract GovernanceView
 
@@ -227,7 +229,7 @@ V11 follows the nine stages from ARCHITECTURE-V11.md §16. **No schedule. Work p
 2. Implement the ten plugin interfaces from GovernanceView for cooperative semantics.
 3. Register CoopView's hooks at priority bands 100–199 (leaving 0–99 for GovernanceView's builtins).
 4. Keep lexicons under `network.coopsource.*`.
-5. Create CSN-specific lexicon extensions wrapping community lexicons (`network.coopsource.governance.proposal` wraps `community.lexicon.governance.proposal`).
+5. Create CSN-specific sidecar lexicons that reference canonical community lexicons by strong ref (`network.coopsource.governance.proposalContext` references `community.lexicon.governance.proposal`).
 
 ### Stage 8 — Retire V8/V9 Federation Primitives
 
@@ -321,7 +323,7 @@ Germ DM is currently iOS-only via App Clip. Until cross-platform E2EE substrate 
 
 - Full membership flow via arbiter (add to space, observe via consumer, project to `membership` table).
 - OAuth-spaces seam: write succeeds when both axes clear; write fails with correct error when either axis denies.
-- ECMH digest verification: deliberately corrupt a record; verify resync triggers and recovers.
+- Permissioned repo verification: deliberately corrupt a record or commit state in the adapter; verify resync triggers and recovers.
 - Cross-arbiter trust: A reads B's member list with valid service-auth; rejected with forged JWT.
 - GovernanceView conformance suite (Stage 6+): run against CoopView's plugin implementations.
 
@@ -342,21 +344,22 @@ Germ DM is currently iOS-only via App Clip. Until cross-platform E2EE substrate 
 ### Writing to a Member's Permissioned Repo (via OAuth + Space)
 
 ```typescript
-// Both axes must pass: member has granted CSN OAuth scope AND member is in space.
+// Both axes must pass: member has granted CSN the relevant OAuth/space-auth grant
+// AND member is in the space. Exact permissioned-space write XRPC is upstream-pending.
 const session = await oauthClient.restore(memberDid);
 const agent = new AtpAgent(session);
 
-// Space-aware repo write — actual XRPC method name will follow upstream protocol
-await agent.com.atproto.repo.createRecord({
-  repo: memberDid,
-  collection: 'network.coopsource.governance.vote',
-  // The space context is conveyed via the space ref, not via repo path
+// Capability-shaped write — concrete adapter method follows upstream protocol.
+await permissionedRepoPort.createRecord({
   space: { arbiter: cooperativeDid, type: 'network.coopsource.org.cooperative', skey: 'members' },
-  record: { $type: 'network.coopsource.governance.vote', /* ... */ }
+  authorDid: memberDid,
+  collection: 'community.lexicon.governance.vote',
+  record: { $type: 'community.lexicon.governance.vote', /* ... */ },
+  session,
 });
 
 // Failure modes to distinguish:
-// - OAuthError: member hasn't granted scope (Axis 1)
+// - OAuthError / SpaceGrantError: member hasn't granted the needed auth (Axis 1)
 // - SpaceNotMemberError: member not in the space's member list (Axis 2)
 // - SpaceAppPolicyError: space disallows this OAuth client (OAuth-spaces seam)
 ```
@@ -416,7 +419,7 @@ const governanceView = new GovernanceView({
 
 1. **Generic governance lexicon**: create JSON schema in `packages/lexicons/src/lexicons/community/lexicon/governance/`.
 2. **Cooperative-specific lexicon**: create in `packages/lexicons/src/lexicons/network/coopsource/`.
-3. **Extending a community lexicon**: wrap it with a `generic` field per arch doc §8.3.
+3. **Extending a community lexicon**: prefer canonical `community.lexicon.governance.*` records plus `network.coopsource.*` sidecar records by strong ref. Wrapping a generic object inside `network.coopsource.*` is acceptable only for CSN-private workflows where generic ecosystem indexing is not a goal.
 4. Run `pnpm --filter @coopsource/lexicons lex:generate`.
 5. Add indexer in `packages/governance-view/src/indexers/` (generic) or `packages/coop-view/src/indexers/` (cooperative-specific).
 6. Register with the consumer dispatch.
@@ -480,6 +483,8 @@ async function castVote(actor: DID, proposal: ProposalRef): Promise<Result<void,
 
 3. **Don't bake `ats://` as a constant.** Upstream has not finalized the URI scheme. URI handling goes through helpers. The substrate is `SpaceRef`, not a URI string.
 
+3a. **Don't use `AtUri` for permissioned-space records.** `at://` is the public repository URI scheme. Use structured permissioned locations or a distinct permissioned URI type until upstream finalizes the scheme.
+
 4. **Don't migrate `apps/api` onto HappyView's Lua + WASM model.** HappyView v2.5+ is a reference implementation for development and validation, not a substrate to migrate 14k+ lines of cooperative TypeScript onto.
 
 5. **Don't run a separate labeler service.** Governance labels live in the cooperative arbiter's `$labeler` space. CSN does not run a labeler DID.
@@ -514,7 +519,7 @@ async function castVote(actor: DID, proposal: ProposalRef): Promise<Result<void,
 
 20. **Cursor-based pagination everywhere** — not offset-based.
 
-21. **Don't add fields to `community.lexicon.governance.*` lexicons without going through the Discussion thread.** CSN's extensions wrap community lexicons; they do not modify them in place.
+21. **Don't add fields to `community.lexicon.governance.*` lexicons without going through the Discussion thread.** CSN's extensions use sidecar records by strong ref; they do not modify community lexicons in place.
 
 22. **Don't assume the OAuth-spaces seam.** Whether it lands as `permissions:{nsid}` scopes, service-auth JWTs issued by the space owner, or space-policy lookups at write time, the integration point is the same. Code distinguishes the three failure modes regardless of how the seam ends up wired.
 
