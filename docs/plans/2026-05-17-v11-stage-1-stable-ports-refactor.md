@@ -17,6 +17,8 @@ The low-level `NotificationSubscriber`, `RepoPuller`, `EcmhVerifier`, and `Arbit
 
 The replacement sketch layer is the stable-port adapter layer: fail-closed and in-memory `GroupAuthorityPort` / `PermissionedRepoPort` implementations document the behavior CSN needs, while concrete upstream mechanisms stay behind those adapters.
 
+See `docs/plans/2026-05-17-v11-spaces-consumer-adapter-architecture.md` for the adapter policy and expected real adapter families.
+
 ## Public API Shape
 
 Permissioned records use structured locations, not `AtUri`:
@@ -107,6 +109,7 @@ Required tests:
 - Verification failures, indeterminate membership, and thrown handlers do not commit checkpoints.
 - Membership pagination uses `MembershipCursor`, not `MembershipSnapshotId`.
 - API dispatch starts disabled by default and wires only stable ports when enabled.
+- API dispatch rejects `UNSAFE_ACCEPT_UNVERIFIED_PERMISSIONED_DATA` in production and resets health on stop.
 
 ## Acceptance Criteria
 
@@ -114,3 +117,19 @@ Required tests:
 - No package-root Stage 1 export requires notification, per-member pull, or ECMH batch semantics.
 - No application-facing Stage 1 code depends on `ArbiterMemberList.list(space): DID[]`.
 - Existing Stage 1 behavior remains safe to run with no real upstream protocol implementations wired.
+
+## Implementation Status
+
+Implemented on `codex/v11-atproto-alignment-planning`.
+
+Verified:
+
+- `pnpm build`
+- `pnpm --filter @coopsource/spaces-consumer lint`
+- `pnpm --filter @coopsource/spaces-consumer test`
+- `pnpm --filter @coopsource/api exec vitest run tests/spaces-consumer-dispatch.test.ts`
+
+Known broader-suite blockers unrelated to this slice:
+
+- `pnpm test` currently fails in `@coopsource/federation` when Docker is unavailable at `unix:///Users/alan/.docker/run/docker.sock`.
+- `pnpm --filter @coopsource/api test` currently fails broadly when the local test database lacks newer tables such as `tax_form_1099_patr` and `governance_label`.

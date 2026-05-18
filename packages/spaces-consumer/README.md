@@ -18,6 +18,8 @@ The executable sketches now live at the stable-port level:
 
 Mechanism-specific code is still useful, but it belongs behind these ports. A real notification client, repo puller, verifier, Arbiter client, or permissioned-data sync implementation should be documented as a `PermissionedRepoPort` or `GroupAuthorityPort` adapter, not as a new application-facing dependency.
 
+See `docs/plans/2026-05-17-v11-spaces-consumer-adapter-architecture.md` for the adapter families and documentation rule.
+
 ## Public Surface
 
 | Concern | Public API |
