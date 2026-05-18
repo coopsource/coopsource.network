@@ -33,7 +33,6 @@ describe('Hook pipeline dispatch', () => {
 
   const complexCollections = [
     'network.coopsource.org.membership',
-    'network.coopsource.org.memberApproval',
     'network.coopsource.governance.proposal',
     'network.coopsource.governance.vote',
     'network.coopsource.agreement.master',

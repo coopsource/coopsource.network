@@ -1,5 +1,7 @@
 import { createDb } from '@coopsource/db';
-import type { Kysely } from 'kysely';
+import { CsnDbGroupAuthorityCommandPort } from '@coopsource/arbiter-client';
+import type { GroupAuthorityCommandPort } from '@coopsource/arbiter-client';
+import type { Kysely, Transaction } from 'kysely';
 import type { Database } from '@coopsource/db';
 import { SystemClock } from '@coopsource/federation';
 import type { IPdsService } from '@coopsource/federation';
@@ -85,6 +87,8 @@ export interface Container {
   blobStore: LocalBlobStore;
   clock: SystemClock;
   emailService: IEmailService;
+  groupAuthorityCommands: GroupAuthorityCommandPort;
+  groupAuthorityCommandsForDb: (db: Kysely<Database> | Transaction<Database>) => GroupAuthorityCommandPort;
   authService: AuthService;
   profileService: ProfileService;
   entityService: EntityService;
@@ -250,15 +254,27 @@ export function createContainer(config: AppConfig): Container {
   // For now, services use the proxy in dev-fallback mode (writes to cooperative PDS with warning).
   const memberWriteProxy = new MemberWriteProxy(undefined, pdsService, config.NODE_ENV);
   const operatorWriteProxy = new OperatorWriteProxy(pdsService, db, config);
+  const groupAuthorityCommandsForDb = (authorityDb: Kysely<Database> | Transaction<Database>) => new CsnDbGroupAuthorityCommandPort(authorityDb, {
+    now: () => clock.now(),
+  });
+  const groupAuthorityCommands = groupAuthorityCommandsForDb(db);
 
   const profileService = new ProfileService(db, clock);
-  const authService = new AuthService(db, pdsService, clock, profileService, config.INSTANCE_URL ?? 'http://localhost:3001', memberWriteProxy);
+  const authService = new AuthService(
+    db,
+    pdsService,
+    clock,
+    profileService,
+    config.INSTANCE_URL ?? 'http://localhost:3001',
+    memberWriteProxy,
+    groupAuthorityCommands,
+  );
   const entityService = new EntityService(db, blobStore);
   const membershipService = new MembershipService(
     db,
-    pdsService,
     emailService,
     clock,
+    groupAuthorityCommands,
   );
   const privateRecordService = new PrivateRecordService(db, clock);
   const visibilityRouter = new VisibilityRouter(db, privateRecordService);
@@ -273,7 +289,7 @@ export function createContainer(config: AppConfig): Container {
   const proposalService = new ProposalService(db, pdsService, clock, memberWriteProxy, governanceLabeler, visibilityRouter);
   const agreementService = new AgreementService(db, pdsService, clock, memberWriteProxy);
   const agreementTemplateService = new AgreementTemplateService(db, clock);
-  const networkService = new NetworkService(db, pdsService, clock);
+  const networkService = new NetworkService(db, pdsService, clock, groupAuthorityCommands);
   const paymentRegistry = new PaymentProviderRegistry(db, config.KEY_ENC_KEY);
   const fundingService = new FundingService(db, pdsService, clock, paymentRegistry, memberWriteProxy);
   const alignmentService = new AlignmentService(db, pdsService, clock, memberWriteProxy);
@@ -340,6 +356,8 @@ export function createContainer(config: AppConfig): Container {
     blobStore,
     clock,
     emailService,
+    groupAuthorityCommands,
+    groupAuthorityCommandsForDb,
     authService,
     profileService,
     entityService,

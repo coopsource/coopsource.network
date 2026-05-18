@@ -159,7 +159,9 @@ V11 follows the nine stages from ARCHITECTURE-V11.md §16. **No schedule. Work p
 
 **Contribution thread**: while Stage 2 is in progress, write the Arbiter cooperative use case document (Leaflet post for Meri and Zicklag's preferred venue) — see ARCHITECTURE-V11.md §18.
 
-**Progress (2026-05-17):** Stage 2A has started with `@coopsource/arbiter-client`. It exports `membersSpace()`, `roleSpace()`, and `CsnDbGroupAuthorityPort`, a temporary `GroupAuthorityPort` adapter over CSN `membership` and `membership_role` tables. Temporary role spaces use `{ arbiter: cooperativeDid, type: 'network.coopsource.org.role', skey: role }`. This is a PoC convention isolated behind the adapter boundary; do not treat it as final upstream Arbiter wire shape.
+**Progress (2026-05-17):** Stage 2A started with `@coopsource/arbiter-client`. It exports `membersSpace()`, `roleSpace()`, and `CsnDbGroupAuthorityPort`, a temporary `GroupAuthorityPort` adapter over CSN `membership` and `membership_role` tables. Temporary role spaces use `{ arbiter: cooperativeDid, type: 'network.coopsource.org.role', skey: role }`. This is a PoC convention isolated behind the adapter boundary; do not treat it as final upstream Arbiter wire shape.
+
+**Progress (2026-05-18):** Stage 2B/2C adds `GroupAuthorityCommandPort` and `CsnDbGroupAuthorityCommandPort`. The command port covers placeholder cooperative provisioning, role-space validation, add/remove member, add/remove role member, exact role replacement, and temporary audit reads. The CSN-backed implementation writes `membership` and `membership_role` in transactions and writes changed commands to `fact_log` with `entity_type = 'v11.groupAuthority'`. `MembershipService` writes, setup bootstrap, public invitation acceptance, `AuthService.register`, federation membership approval, and network join/leave now use this command boundary. Migrated paths stop creating cooperative-owned V9 `memberApproval` records, and appview hooks no longer treat `memberApproval` as active authority. Member-authored membership records remain temporary consent evidence until V11 consent records are designed.
 
 ### Stage 3 — Membership and Roles to Spaces
 

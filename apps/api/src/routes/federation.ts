@@ -19,7 +19,7 @@ const MembershipRequestSchema = z.object({
 const MembershipApproveSchema = z.object({
   cooperativeDid: z.string().min(1),
   memberDid: z.string().min(1),
-  roles: z.array(z.string()),
+  roles: z.array(z.string().min(1)),
 });
 
 const AgreementSignRequestSchema = z.object({
@@ -194,20 +194,26 @@ export function createFederationRoutes(
       const params = MembershipApproveSchema.parse(req.body);
       const now = container.clock.now();
 
-      // Process locally: create memberApproval PDS record on this instance
-      const ref = await container.pdsService.createRecord({
-        did: params.cooperativeDid as DID,
-        collection: 'network.coopsource.org.memberApproval',
-        record: {
-          member: params.memberDid,
-          roles: params.roles,
-          createdAt: now.toISOString(),
-        },
+      const result = await container.groupAuthorityCommands.addMember({
+        cooperativeDid: params.cooperativeDid as DID,
+        memberDid: params.memberDid as DID,
+        actorDid: params.cooperativeDid as DID,
+        roles: params.roles,
+        joinedAt: now,
+        reason: 'federation membership approve',
       });
+      if (!result.ok) {
+        res.status(400).json({
+          error: 'ValidationError',
+          message: 'Invalid membership authority command',
+        });
+        return;
+      }
 
       res.status(201).json({
-        approvalRecordUri: ref.uri,
-        approvalRecordCid: ref.cid,
+        ok: true,
+        changed: result.changed,
+        auditEventId: result.auditEventId ?? null,
       });
     }),
   );

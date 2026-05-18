@@ -98,7 +98,6 @@ export async function handleInlayMembershipStatus(
       life: 'minutes',
       tags: [
         { uri: `at://${cooperativeDid}/network.coopsource.org.membership` },
-        { uri: `at://${cooperativeDid}/network.coopsource.org.memberApproval` },
       ],
     },
   };

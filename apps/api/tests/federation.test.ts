@@ -72,7 +72,7 @@ describe('Federation endpoints', () => {
   describe('POST /api/v1/federation/membership/approve', () => {
     it('succeeds when called from a local user session (skips signature check)', async () => {
       // In standalone mode with a session, requireFederationAuth skips.
-      // This creates a memberApproval PDS record locally.
+      // V11 routes membership authority through the group authority command port.
       const res = await testApp.agent
         .post('/api/v1/federation/membership/approve')
         .send({
@@ -82,8 +82,9 @@ describe('Federation endpoints', () => {
         })
         .expect(201);
 
-      expect(res.body.approvalRecordUri).toBeDefined();
-      expect(res.body.approvalRecordCid).toBeDefined();
+      expect(res.body.ok).toBe(true);
+      expect(res.body.changed).toBe(false);
+      expect(res.body.auditEventId).toBeNull();
     });
 
     it('validates request body', async () => {

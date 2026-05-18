@@ -10,6 +10,7 @@ import {
 } from '@coopsource/common';
 import type { IPdsService } from '@coopsource/federation';
 import type { IClock } from '@coopsource/federation';
+import type { GroupAuthorityCommandPort } from '@coopsource/arbiter-client';
 import type { Actor } from '../auth/middleware.js';
 import { BCRYPT_ROUNDS } from '../lib/crypto-config.js';
 import type { IMemberRecordWriter } from './member-write-proxy.js';
@@ -22,7 +23,8 @@ export class AuthService {
     private clock: IClock,
     private profileService: ProfileService,
     private instanceUrl: string = 'http://localhost:3001',
-    private memberWriteProxy?: IMemberRecordWriter,
+    private memberWriteProxy: IMemberRecordWriter | undefined,
+    private groupAuthorityCommands: GroupAuthorityCommandPort,
   ) {}
 
   async register(params: {
@@ -33,14 +35,19 @@ export class AuthService {
     invitationToken?: string;
   }): Promise<{ did: string; displayName: string }> {
     // Validate invitation token if provided
-    let invitation: { id: string; cooperative_did: string } | undefined;
+    let invitation: {
+      readonly id: string;
+      readonly cooperative_did: string;
+      readonly invited_by_did: string;
+      readonly intended_roles: string[];
+    } | undefined;
     if (params.invitationToken) {
       const inv = await this.db
         .selectFrom('invitation')
         .where('token', '=', params.invitationToken)
         .where('status', '=', 'pending')
         .where('invalidated_at', 'is', null)
-        .select(['id', 'cooperative_did', 'expires_at'])
+        .select(['id', 'cooperative_did', 'expires_at', 'invited_by_did', 'intended_roles'])
         .executeTakeFirst();
 
       if (!inv) {
@@ -49,7 +56,12 @@ export class AuthService {
       if (new Date(inv.expires_at) < this.clock.now()) {
         throw new ValidationError('Invitation has expired');
       }
-      invitation = inv;
+      invitation = {
+        id: inv.id,
+        cooperative_did: inv.cooperative_did,
+        invited_by_did: inv.invited_by_did,
+        intended_roles: inv.intended_roles ?? ['member'],
+      };
     }
 
     // Check email not already used
@@ -124,7 +136,8 @@ export class AuthService {
       },
     });
 
-    // Create bilateral membership PDS records
+    // Create member-authored consent evidence; membership authority is
+    // written through the V11 group authority command port.
     const cooperativeDid = params.cooperativeDid;
 
     // Member's assertion: org.membership record (member-owned → MemberWriteProxy)
@@ -144,45 +157,19 @@ export class AuthService {
           record: membershipRecord,
         });
 
-    // Cooperative's approval: org.memberApproval record
-    const approvalRef = await this.pdsService.createRecord({
-      did: cooperativeDid as DID,
-      collection: 'network.coopsource.org.memberApproval',
-      record: {
-        member: did,
-        roles: ['member'],
-        createdAt: now.toISOString(),
-      },
+    const authorityResult = await this.groupAuthorityCommands.addMember({
+      cooperativeDid: cooperativeDid as DID,
+      memberDid: did as DID,
+      actorDid: (invitation?.invited_by_did ?? did) as DID,
+      roles: invitation?.intended_roles ?? ['member'],
+      memberRecordUri: memberRef.uri,
+      memberRecordCid: memberRef.cid,
+      invitationId: invitation?.id ?? null,
+      joinedAt: now,
+      reason: invitation ? 'accept invitation' : 'self registration',
     });
-
-    // Insert active membership with bilateral PDS record references
-    const [membership] = await this.db
-      .insertInto('membership')
-      .values({
-        member_did: did,
-        cooperative_did: cooperativeDid,
-        status: invitation ? 'pending' : 'active',
-        joined_at: invitation ? undefined : now,
-        member_record_uri: memberRef.uri,
-        member_record_cid: memberRef.cid,
-        approval_record_uri: approvalRef.uri,
-        approval_record_cid: approvalRef.cid,
-        created_at: now,
-        indexed_at: now,
-      })
-      .returning('id')
-      .execute();
-
-    // Assign default 'member' role when not using invitation flow
-    if (!invitation) {
-      await this.db
-        .insertInto('membership_role')
-        .values({
-          membership_id: membership!.id,
-          role: 'member',
-          indexed_at: now,
-        })
-        .execute();
+    if (!authorityResult.ok) {
+      throw new ValidationError('Invalid membership authority command');
     }
 
     // Mark invitation accepted if token provided
@@ -282,4 +269,5 @@ export class AuthService {
         check.some((r) => roles.includes(r)),
     };
   }
+
 }

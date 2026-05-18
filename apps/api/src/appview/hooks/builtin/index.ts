@@ -4,10 +4,7 @@ import { declarativeConfigs, createDeclarativeHandler } from '../declarative/ind
 
 // ─── Complex indexer imports (kept as hand-written TypeScript) ──────────
 
-import {
-  indexMembership,
-  indexMemberApproval,
-} from '../../indexers/membership-indexer.js';
+import { indexMembership } from '../../indexers/membership-indexer.js';
 import { indexProposal, indexVote } from '../../indexers/proposal-indexer.js';
 import {
   indexAgreement,
@@ -27,16 +24,6 @@ const complexHooks: HookRegistration[] = [
     priority: 10,
     postHandler: async (ctx) => { await indexMembership(ctx.db, ctx.event); },
   },
-  {
-    id: 'builtin:org.memberApproval',
-    name: 'Member approval indexer',
-    phase: 'post-storage',
-    source: 'builtin',
-    collections: ['network.coopsource.org.memberApproval'],
-    priority: 10,
-    postHandler: async (ctx) => { await indexMemberApproval(ctx.db, ctx.event); },
-  },
-
   // ── Governance (proposals + votes) ───────────────────────────────────
   {
     id: 'builtin:governance.proposal',

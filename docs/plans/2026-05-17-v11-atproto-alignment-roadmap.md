@@ -85,9 +85,9 @@ Status on this branch: `README.md` now has V11 target framing, and `packages/lex
 2. Update the V11 architecture docs with the high-confidence corrections: OAuth wording, URI typing, public lists opt-in, consent evidence, and finance canonicality.
 3. Adjust Stage 1 public interfaces to use stable ports and opaque cursors before adding real upstream adapters.
 4. Revisit the Stage 1 merge once docs and interfaces agree.
-5. Start Stage 2 through a CSN-backed `GroupAuthorityPort` adapter while upstream Arbiter XRPC remains unsettled.
+5. Start Stage 2 through CSN-backed group authority adapters while upstream Arbiter XRPC remains unsettled.
 
-Status on this branch: Stage 2A has started in `@coopsource/arbiter-client` with `CsnDbGroupAuthorityPort`, `membersSpace()`, and a temporary `roleSpace()` convention. API dispatch now uses that adapter when the spaces consumer is explicitly enabled.
+Status on this branch: Stage 2 now has `@coopsource/arbiter-client` read and write boundaries. `CsnDbGroupAuthorityPort` reads current membership tables for the spaces consumer; `CsnDbGroupAuthorityCommandPort` routes setup, invitation acceptance, registration, federation approval, membership role/removal, and network membership writes through the same package. Temporary role spaces still use the `roleSpace()` convention until upstream Arbiter role-space shape settles.
 
 ## Acceptance Criteria
 

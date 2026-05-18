@@ -21,7 +21,6 @@ describe('relay-consumer filtering logic', () => {
 
     const matchingCollections = [
       'network.coopsource.org.membership',
-      'network.coopsource.org.memberApproval',
       'network.coopsource.governance.vote',
       'network.coopsource.governance.proposal',
       'network.coopsource.agreement.master',

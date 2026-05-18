@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { DID } from '@coopsource/common';
 import type { Container } from '../../container.js';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { BCRYPT_ROUNDS } from '../../lib/crypto-config.js';
@@ -10,6 +11,7 @@ import {
   CreateInvitationSchema,
   AcceptInvitationSchema,
   UpdateRolesSchema,
+  ValidationError,
 } from '@coopsource/common';
 import { validateDid } from '../../lib/validate-params.js';
 
@@ -117,6 +119,7 @@ export function createMembershipRoutes(container: Container): Router {
         req.actor!.cooperativeDid,
         validateDid(req.params.did),
         roles,
+        req.actor!.did,
       );
       res.json({ ok: true });
     }),
@@ -131,6 +134,8 @@ export function createMembershipRoutes(container: Container): Router {
       await container.membershipService.removeMember(
         req.actor!.cooperativeDid,
         validateDid(req.params.did),
+        undefined,
+        req.actor!.did,
       );
       res.status(204).send();
     }),
@@ -274,21 +279,11 @@ export function createMembershipRoutes(container: Container): Router {
       const memberDid = memberDidDoc.id;
 
       const memberRef = await container.pdsService.createRecord({
-        did: memberDid as import('@coopsource/common').DID,
+        did: memberDid as DID,
         collection: 'network.coopsource.org.membership',
         record: {
           cooperative: inv.cooperative_did,
           invitationUri: `at://invitation/${inv.id}`,
-          createdAt: now.toISOString(),
-        },
-      });
-
-      const approvalRef = await container.pdsService.createRecord({
-        did: inv.cooperative_did as import('@coopsource/common').DID,
-        collection: 'network.coopsource.org.memberApproval',
-        record: {
-          member: memberDid,
-          roles,
           createdAt: now.toISOString(),
         },
       });
@@ -321,30 +316,20 @@ export function createMembershipRoutes(container: Container): Router {
           })
           .execute();
 
-        // Create membership row (with all PDS refs in one insert)
-        const [membership] = await trx
-          .insertInto('membership')
-          .values({
-            member_did: memberDid,
-            cooperative_did: inv.cooperative_did,
-            status: 'active',
-            joined_at: now,
-            member_record_uri: memberRef.uri,
-            member_record_cid: memberRef.cid,
-            approval_record_uri: approvalRef.uri,
-            approval_record_cid: approvalRef.cid,
-            created_at: now,
-            indexed_at: now,
-          })
-          .returning('id')
-          .execute();
-
-        // Insert roles
-        if (roles.length > 0) {
-          await trx
-            .insertInto('membership_role')
-            .values(roles.map((role) => ({ membership_id: membership!.id, role, indexed_at: now })))
-            .execute();
+        const authority = container.groupAuthorityCommandsForDb(trx);
+        const authorityResult = await authority.addMember({
+          cooperativeDid: inv.cooperative_did as DID,
+          memberDid: memberDid as DID,
+          actorDid: inv.invited_by_did as DID,
+          roles,
+          memberRecordUri: memberRef.uri,
+          memberRecordCid: memberRef.cid,
+          invitationId: inv.id,
+          joinedAt: now,
+          reason: 'accept invitation',
+        });
+        if (!authorityResult.ok) {
+          throw new ValidationError('Invalid membership authority command');
         }
 
         // Mark invitation accepted

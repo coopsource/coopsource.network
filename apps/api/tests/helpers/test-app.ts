@@ -1,8 +1,9 @@
 import express from 'express';
 import session from 'express-session';
 import supertest from 'supertest';
-import type { Kysely } from 'kysely';
+import type { Kysely, Transaction } from 'kysely';
 import type { Database } from '@coopsource/db';
+import { CsnDbGroupAuthorityCommandPort } from '@coopsource/arbiter-client';
 import { MockClock, AtprotoPdsService } from '@coopsource/federation';
 import { LocalPdsService, LocalBlobStore } from '@coopsource/federation/local';
 import type { FederationDatabase } from '@coopsource/federation/local';
@@ -164,15 +165,27 @@ export function createTestApp(options?: TestAppOptions): TestApp {
   } as AppConfig;
 
   const operatorWriteProxy = new OperatorWriteProxy(pdsService, db, testConfig);
+  const groupAuthorityCommandsForDb = (authorityDb: Kysely<Database> | Transaction<Database>) => new CsnDbGroupAuthorityCommandPort(authorityDb, {
+    now: () => clock.now(),
+  });
+  const groupAuthorityCommands = groupAuthorityCommandsForDb(db);
 
   const profileService = new ProfileService(db, clock);
-  const authService = new AuthService(db, pdsService, clock, profileService, 'http://localhost:3001', memberWriteProxy);
+  const authService = new AuthService(
+    db,
+    pdsService,
+    clock,
+    profileService,
+    'http://localhost:3001',
+    memberWriteProxy,
+    groupAuthorityCommands,
+  );
   const entityService = new EntityService(db, blobStore);
   const membershipService = new MembershipService(
     db,
-    pdsService,
     emailService,
     clock,
+    groupAuthorityCommands,
   );
   const labelSubscriptionManager = new LabelSubscriptionManager(db);
   const governanceLabeler = new GovernanceLabeler(db, labelSubscriptionManager);
@@ -182,7 +195,7 @@ export function createTestApp(options?: TestAppOptions): TestApp {
   const proposalService = new ProposalService(db, pdsService, clock, memberWriteProxy, governanceLabeler);
   const agreementService = new AgreementService(db, pdsService, clock, memberWriteProxy);
   const agreementTemplateService = new AgreementTemplateService(db, clock);
-  const networkService = new NetworkService(db, pdsService, clock);
+  const networkService = new NetworkService(db, pdsService, clock, groupAuthorityCommands);
   const paymentRegistry = new PaymentProviderRegistry(db, 'yIknTzhyTfVpR7cc/ZrwSpewmhyiOJA97leVbKqccsY=');
   const fundingService = new FundingService(db, pdsService, clock, paymentRegistry, memberWriteProxy);
   const alignmentService = new AlignmentService(db, pdsService, clock);
@@ -234,6 +247,8 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     blobStore,
     clock,
     emailService,
+    groupAuthorityCommands,
+    groupAuthorityCommandsForDb,
     authService,
     profileService,
     entityService,

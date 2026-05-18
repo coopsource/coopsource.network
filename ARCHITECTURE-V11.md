@@ -1003,9 +1003,11 @@ A spaces-aware consumer in `apps/api` that pulls records from cooperative-scoped
 **Branch:** `feature/v11-stage-2-arbiter-integration`
 **Gate:** Arbiter XRPC API reaches a 0.x reference implementation in a usable form.
 
-A `GroupAuthorityPort` adapter, initially wrapping the Arbiter's XRPC API when a usable implementation exists, used by `apps/api` to provision cooperative arbiters, manage role spaces, and do membership operations. Contributions to the Arbiter design happen in parallel (§18). May be CSN's own implementation behind the same port if Zicklag/Meri's implementation lags or pivots.
+A group authority adapter, initially wrapping the Arbiter's XRPC API when a usable implementation exists, used by `apps/api` to provision cooperative arbiters, manage role spaces, and do membership operations. Contributions to the Arbiter design happen in parallel (§18). May be CSN's own implementation behind the same ports if Zicklag/Meri's implementation lags or pivots.
 
-Current Stage 2A implementation follows the latter path: `@coopsource/arbiter-client` exposes `CsnDbGroupAuthorityPort`, backed by the existing `membership` and `membership_role` tables. This is a temporary authority adapter, not a final Arbiter wire contract. Temporary role spaces use `type: 'network.coopsource.org.role'` with role name in `skey` until upstream role-space shape is settled.
+Current Stage 2 implementation follows the latter path: `@coopsource/arbiter-client` exposes `CsnDbGroupAuthorityPort` for reads and `CsnDbGroupAuthorityCommandPort` for writes, both backed by the existing `membership` and `membership_role` tables. This is a temporary authority adapter, not a final Arbiter wire contract. Temporary role spaces use `type: 'network.coopsource.org.role'` with role name in `skey` until upstream role-space shape is settled.
+
+The write-side command port is now the app-facing boundary for setup bootstrap, invitation acceptance, auth registration, federation membership approval, membership role changes, member removal, and network join/leave. Changed commands are projected into `fact_log` as `v11.groupAuthority` audit events until real `$admin` audit consumption exists. Migrated paths no longer mint cooperative-owned V9 `memberApproval` records, and the appview no longer treats `memberApproval` records as authority. Member-authored membership records remain temporary consent evidence, not active authority.
 
 ### Stage 3 — Membership and roles to spaces
 

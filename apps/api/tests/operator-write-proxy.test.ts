@@ -28,8 +28,8 @@ describe('OperatorWriteProxy', () => {
     const ref = await proxy.writeCoopRecord({
       operatorDid: adminDid,
       cooperativeDid: coopDid as DID,
-      collection: 'network.coopsource.org.memberApproval',
-      record: { member: 'did:plc:someone', roles: ['member'], createdAt: new Date().toISOString() },
+      collection: 'network.coopsource.admin.memberNotice',
+      record: { title: 'Operator notice', body: 'Test', createdAt: new Date().toISOString() },
     });
 
     expect(ref.uri).toBeTruthy();
@@ -44,8 +44,8 @@ describe('OperatorWriteProxy', () => {
     const ref = await proxy.writeCoopRecord({
       operatorDid: adminDid,
       cooperativeDid: coopDid as DID,
-      collection: 'network.coopsource.org.memberApproval',
-      record: { member: 'did:plc:someone', roles: ['member'], createdAt: new Date().toISOString() },
+      collection: 'network.coopsource.admin.memberNotice',
+      record: { title: 'Operator notice', body: 'Test', createdAt: new Date().toISOString() },
     });
 
     expect(ref.uri).toBeTruthy();
@@ -60,8 +60,8 @@ describe('OperatorWriteProxy', () => {
       proxy.writeCoopRecord({
         operatorDid: 'did:plc:unauthorized',
         cooperativeDid: coopDid as DID,
-        collection: 'network.coopsource.org.memberApproval',
-        record: { member: 'did:plc:someone', roles: ['member'] },
+        collection: 'network.coopsource.admin.memberNotice',
+        record: { title: 'Operator notice', body: 'Test' },
       }),
     ).rejects.toThrow('not authorized');
   });
@@ -75,8 +75,8 @@ describe('OperatorWriteProxy', () => {
     await proxy.writeCoopRecord({
       operatorDid: adminDid,
       cooperativeDid: coopDid as DID,
-      collection: 'network.coopsource.org.memberApproval',
-      record: { member: 'did:plc:someone', roles: ['member'] },
+      collection: 'network.coopsource.admin.memberNotice',
+      record: { title: 'Operator notice', body: 'Test' },
     });
 
     const logs = await db
@@ -88,7 +88,7 @@ describe('OperatorWriteProxy', () => {
     expect(logs).toHaveLength(1);
     expect(logs[0]!.operator_did).toBe(adminDid);
     expect(logs[0]!.operation).toBe('create');
-    expect(logs[0]!.collection).toBe('network.coopsource.org.memberApproval');
+    expect(logs[0]!.collection).toBe('network.coopsource.admin.memberNotice');
     expect(logs[0]!.record_uri).toBeTruthy();
   });
 
@@ -102,8 +102,8 @@ describe('OperatorWriteProxy', () => {
       await proxy.writeCoopRecord({
         operatorDid: 'did:plc:unauthorized',
         cooperativeDid: coopDid as DID,
-        collection: 'network.coopsource.org.memberApproval',
-        record: { member: 'did:plc:someone' },
+        collection: 'network.coopsource.admin.memberNotice',
+        record: { title: 'Operator notice' },
       });
     } catch {
       // expected
