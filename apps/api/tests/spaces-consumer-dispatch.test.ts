@@ -53,7 +53,7 @@ describe('spaces consumer dispatch', () => {
     expect(getSpacesConsumerHealth()).toBeNull();
   });
 
-  it('starts enabled with stable-port fail-closed wiring', async () => {
+  it('starts enabled with stable-port CSN authority wiring', async () => {
     const consumer = await startSpacesConsumer({
       enabled: true,
       unsafeAcceptUnverifiedPermissionedData: false,

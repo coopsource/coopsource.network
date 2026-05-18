@@ -388,7 +388,7 @@ async function start(): Promise<void> {
     logger.info('Shutting down...');
     clearInterval(proposalResolverHandle);
     clearInterval(matchmakingHandle);
-    stopSpacesConsumer().catch((err) => {
+    await stopSpacesConsumer().catch((err) => {
       logger.error(err, 'Spaces consumer failed to stop');
     });
     container.eventDispatcher.stop();

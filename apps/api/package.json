@@ -24,6 +24,7 @@
     "@atproto/oauth-client-node": "^0.3.17",
     "@atproto/tap": "^0.2.11",
     "@coopsource/common": "workspace:*",
+    "@coopsource/arbiter-client": "workspace:*",
     "@coopsource/db": "workspace:*",
     "@coopsource/federation": "workspace:*",
     "@coopsource/lexicons": "workspace:*",

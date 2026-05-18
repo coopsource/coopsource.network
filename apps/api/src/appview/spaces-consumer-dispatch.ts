@@ -1,7 +1,7 @@
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
+import { CsnDbGroupAuthorityPort } from '@coopsource/arbiter-client';
 import {
-  DenyAllGroupAuthorityPort,
   InMemoryPermissionedRepoPort,
   KyselyPermissionedCheckpointStore,
   SpacesConsumer,
@@ -52,7 +52,7 @@ export async function startSpacesConsumer(
   }
 
   const consumer = new SpacesConsumer({
-    groupAuthority: new DenyAllGroupAuthorityPort(),
+    groupAuthority: new CsnDbGroupAuthorityPort(cfg.db),
     permissionedRepo: new InMemoryPermissionedRepoPort({
       records: [],
       verification,
@@ -83,9 +83,9 @@ export async function startSpacesConsumer(
     {
       spaces: cfg.spaces.length,
       verification,
-      groupAuthority: 'DenyAll (sketch)',
+      groupAuthority: 'CsnDbGroupAuthorityPort',
     },
-    'Spaces consumer started (stage 1: log-only, no record forwarding)',
+    'Spaces consumer started (stage 2A: CSN DB authority adapter, log-only record handling)',
   );
   return consumer;
 }

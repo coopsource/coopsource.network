@@ -17,8 +17,9 @@ The stable-port adapters are the new executable sketches. They document the beha
 
 Current sketches:
 
-- `DenyAllGroupAuthorityPort`: fail-closed default for API wiring.
+- `DenyAllGroupAuthorityPort`: fail-closed fixture/default for tests and disabled paths.
 - `StaticGroupAuthorityPort`: deterministic test/development fixture with pagination.
+- `CsnDbGroupAuthorityPort` in `@coopsource/arbiter-client`: Stage 2A PoC adapter backed by current CSN `membership` and `membership_role` tables.
 
 Expected real adapters:
 
@@ -27,6 +28,8 @@ Expected real adapters:
 - **Projection-backed adapter:** allowed only for `consistency: 'projection-ok'`; strict reads must fail closed or consult live authority.
 
 Strict checks accept records only when `ok: true`, `isMember: true`, and `stale !== true`.
+
+Stage 2A uses `CsnDbGroupAuthorityPort` for API wiring when `SPACES_CONSUMER_ENABLED=true`. The temporary role-space convention is `{ arbiter: cooperativeDid, type: 'network.coopsource.org.role', skey: role }`; it is isolated in `@coopsource/arbiter-client` so the final Arbiter role-space type can replace it without changing consumers.
 
 ## Permissioned Repo Adapters
 

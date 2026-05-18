@@ -142,7 +142,7 @@ V11 follows the nine stages from ARCHITECTURE-V11.md §16. **No schedule. Work p
 - `apps/api/src/appview/tap-consumer.ts` — analogous pattern for public firehose
 - `docs/plans/2026-05-17-v11-spaces-consumer-adapter-architecture.md` — stable-port adapter policy
 
-**Progress (2026-05-17):** Stage 1 substrate has been reshaped behind stable ports on `codex/v11-atproto-alignment-planning`. Package `@coopsource/spaces-consumer` now exposes `GroupAuthorityPort` for membership authority and `PermissionedRepoPort` for watch/sync/verify/checkpoint. The old mechanism sketches (`ArbiterMemberList`, `NotificationSubscriber`, `RepoPuller`, `EcmhVerifier`) remain source-level scaffolding but are not package-root exports. apps/api wires the dispatch behind `SPACES_CONSUMER_ENABLED=false` with deny-all membership, fail-closed permissioned verification, and `UNSAFE_ACCEPT_UNVERIFIED_PERMISSIONED_DATA=true` as the local-only unsafe dev opt-in. API dispatch tests cover disabled startup, production rejection of unsafe mode, enabled health, and stop/reset behavior. Repo-local ESLint flat-config wiring is present. Real implementations land once upstream protocol details settle.
+**Progress (2026-05-17):** Stage 1 substrate has been reshaped behind stable ports on `codex/v11-atproto-alignment-planning`. Package `@coopsource/spaces-consumer` now exposes `GroupAuthorityPort` for membership authority and `PermissionedRepoPort` for watch/sync/verify/checkpoint. The old mechanism sketches (`ArbiterMemberList`, `NotificationSubscriber`, `RepoPuller`, `EcmhVerifier`) remain source-level scaffolding but are not package-root exports. apps/api wires the dispatch behind `SPACES_CONSUMER_ENABLED=false`; when enabled it uses the Stage 2A `CsnDbGroupAuthorityPort` from `@coopsource/arbiter-client`, fail-closed permissioned verification, and `UNSAFE_ACCEPT_UNVERIFIED_PERMISSIONED_DATA=true` as the local-only unsafe dev opt-in. API dispatch tests cover disabled startup, production rejection of unsafe mode, enabled health, and stop/reset behavior. Repo-local ESLint flat-config wiring is present. Real upstream Arbiter and permissioned-data implementations land once protocol details settle.
 
 ### Stage 2 — Arbiter Integration
 
@@ -150,7 +150,7 @@ V11 follows the nine stages from ARCHITECTURE-V11.md §16. **No schedule. Work p
 **Gate**: Arbiter XRPC API reaches a 0.x reference implementation usable for integration.
 
 **Tasks**:
-1. Build `packages/arbiter-client/` package — thin wrapper around the Arbiter's XRPC API.
+1. Build `packages/arbiter-client/` package. Stage 2A uses a CSN-backed compatibility adapter; later Stage 2 replaces or extends it with a thin wrapper around the Arbiter's XRPC API.
 2. Implement cooperative provisioning (create arbiter instance, mint controlled DID).
 3. Implement role-space management (create/delete/configure spaces with skey distinguishers).
 4. Implement membership operations (add/remove members, query member lists).
@@ -158,6 +158,8 @@ V11 follows the nine stages from ARCHITECTURE-V11.md §16. **No schedule. Work p
 6. The integration sits behind an interface allowing it to slide between *"this is a protocol primitive"* and *"this is an arbiter XRPC call"* as the layer boundary moves.
 
 **Contribution thread**: while Stage 2 is in progress, write the Arbiter cooperative use case document (Leaflet post for Meri and Zicklag's preferred venue) — see ARCHITECTURE-V11.md §18.
+
+**Progress (2026-05-17):** Stage 2A has started with `@coopsource/arbiter-client`. It exports `membersSpace()`, `roleSpace()`, and `CsnDbGroupAuthorityPort`, a temporary `GroupAuthorityPort` adapter over CSN `membership` and `membership_role` tables. Temporary role spaces use `{ arbiter: cooperativeDid, type: 'network.coopsource.org.role', skey: role }`. This is a PoC convention isolated behind the adapter boundary; do not treat it as final upstream Arbiter wire shape.
 
 ### Stage 3 — Membership and Roles to Spaces
 

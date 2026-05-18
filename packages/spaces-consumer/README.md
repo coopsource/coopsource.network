@@ -15,6 +15,7 @@ The executable sketches now live at the stable-port level:
 - `DenyAllGroupAuthorityPort` and `StaticGroupAuthorityPort` sketch the membership authority contract.
 - `InMemoryPermissionedRepoPort` and `FailClosedPermissionedRepoPort` sketch permissioned watch/sync/verification/checkpoint behavior.
 - `KyselyPermissionedCheckpointStore` sketches durable space-level checkpoint storage against the current PoC table.
+- `@coopsource/arbiter-client` provides the Stage 2A CSN-backed `CsnDbGroupAuthorityPort`.
 
 Mechanism-specific code is still useful, but it belongs behind these ports. A real notification client, repo puller, verifier, Arbiter client, or permissioned-data sync implementation should be documented as a `PermissionedRepoPort` or `GroupAuthorityPort` adapter, not as a new application-facing dependency.
 
@@ -39,7 +40,7 @@ Permissioned records use structured locations, not `AtUri`. The permissioned URI
 - `SpacesConsumer` accepts a record only when strict membership returns `ok: true`, `isMember: true`, and `stale !== true`.
 - Verified records from non-members are rejected or quarantined, then checkpointed after the batch is fully handled.
 - Verification failures, indeterminate membership, and handler errors do not commit checkpoints.
-- API wiring defaults to fail-closed verification and deny-all membership.
+- API wiring defaults disabled. When explicitly enabled, membership checks use `CsnDbGroupAuthorityPort` and permissioned repo verification remains fail-closed.
 - `UNSAFE_ACCEPT_UNVERIFIED_PERMISSIONED_DATA=true` enables local unverified dev mode, is rejected in production, and logs a warning.
 
 ## Health Surface
@@ -69,4 +70,4 @@ await startSpacesConsumer({
 });
 ```
 
-Stage 1 remains log-only and subscribes to no real spaces by default. Real adapters land after upstream permissioned-data and group-authority details stabilize.
+Stage 1 remains log-only and subscribes to no real spaces by default. Stage 2A wires a CSN-backed group-authority adapter; real upstream permissioned-data and Arbiter adapters land after those protocol details stabilize.

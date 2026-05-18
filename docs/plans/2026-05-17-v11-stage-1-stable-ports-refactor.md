@@ -125,9 +125,17 @@ Implemented on `codex/v11-atproto-alignment-planning`.
 Verified:
 
 - `pnpm build`
+- `pnpm --filter @coopsource/arbiter-client test`
+- `pnpm --filter @coopsource/arbiter-client lint`
+- `pnpm --filter @coopsource/arbiter-client build`
 - `pnpm --filter @coopsource/spaces-consumer lint`
 - `pnpm --filter @coopsource/spaces-consumer test`
 - `pnpm --filter @coopsource/api exec vitest run tests/spaces-consumer-dispatch.test.ts`
+
+Follow-on Stage 2A status:
+
+- `@coopsource/arbiter-client` now provides `CsnDbGroupAuthorityPort`, `membersSpace()`, and `roleSpace()`.
+- API dispatch uses the CSN-backed group-authority adapter when `SPACES_CONSUMER_ENABLED=true`; permissioned repo verification remains fail-closed by default.
 
 Known broader-suite blockers unrelated to this slice:
 

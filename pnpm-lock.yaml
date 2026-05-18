@@ -63,6 +63,9 @@ importers:
       '@atproto/tap':
         specifier: ^0.2.11
         version: 0.2.11
+      '@coopsource/arbiter-client':
+        specifier: workspace:*
+        version: link:../../packages/arbiter-client
       '@coopsource/common':
         specifier: workspace:*
         version: link:../../packages/common
@@ -241,6 +244,31 @@ importers:
         version: 8.0.8(@types/node@25.3.2)(esbuild@0.27.3)(jiti@2.6.1)(tsx@4.21.0)
       vitest:
         specifier: ^4.1.4
+        version: 4.1.4(@opentelemetry/api@1.9.0)(@types/node@25.3.2)(vite@8.0.8(@types/node@25.3.2)(esbuild@0.27.3)(jiti@2.6.1)(tsx@4.21.0))
+
+  packages/arbiter-client:
+    dependencies:
+      '@coopsource/common':
+        specifier: workspace:*
+        version: link:../common
+      '@coopsource/db':
+        specifier: workspace:*
+        version: link:../db
+      '@coopsource/spaces-consumer':
+        specifier: workspace:*
+        version: link:../spaces-consumer
+      kysely:
+        specifier: ^0.28.14
+        version: 0.28.14
+    devDependencies:
+      '@coopsource/config':
+        specifier: workspace:*
+        version: link:../config
+      typescript:
+        specifier: ^5.9
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0
         version: 4.1.4(@opentelemetry/api@1.9.0)(@types/node@25.3.2)(vite@8.0.8(@types/node@25.3.2)(esbuild@0.27.3)(jiti@2.6.1)(tsx@4.21.0))
 
   packages/common:

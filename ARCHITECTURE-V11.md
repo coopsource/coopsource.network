@@ -679,6 +679,7 @@ Brittany Ellich's opensocial.community model — groups as ATProto accounts with
 
 **Arbiter integration** (new in V11):
 - Adapter behind `GroupAuthorityPort`, initially wrapping the Arbiter's XRPC API when available
+- Current PoC path uses `@coopsource/arbiter-client` with `CsnDbGroupAuthorityPort`, backed by CSN membership tables, until the upstream XRPC surface is usable
 - Provisioning, role-space management, membership operations
 - Behind interface that lets it slide between *"this is a protocol primitive"* and *"this is an arbiter XRPC call"* as the boundary moves
 
@@ -1003,6 +1004,8 @@ A spaces-aware consumer in `apps/api` that pulls records from cooperative-scoped
 **Gate:** Arbiter XRPC API reaches a 0.x reference implementation in a usable form.
 
 A `GroupAuthorityPort` adapter, initially wrapping the Arbiter's XRPC API when a usable implementation exists, used by `apps/api` to provision cooperative arbiters, manage role spaces, and do membership operations. Contributions to the Arbiter design happen in parallel (§18). May be CSN's own implementation behind the same port if Zicklag/Meri's implementation lags or pivots.
+
+Current Stage 2A implementation follows the latter path: `@coopsource/arbiter-client` exposes `CsnDbGroupAuthorityPort`, backed by the existing `membership` and `membership_role` tables. This is a temporary authority adapter, not a final Arbiter wire contract. Temporary role spaces use `type: 'network.coopsource.org.role'` with role name in `skey` until upstream role-space shape is settled.
 
 ### Stage 3 — Membership and roles to spaces
 
