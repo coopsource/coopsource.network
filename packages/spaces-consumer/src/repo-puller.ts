@@ -4,7 +4,7 @@ import { spaceRefKey, type PulledRecord, type SpaceRef } from './types.js';
 export interface PullRequest {
   readonly space: SpaceRef;
   readonly memberDid: DID;
-  /** Cursor rev. Use '' (empty string) to pull from the beginning of the repo. */
+  /** Internal Stage 1 cursor. Use '' to pull from the beginning of the sketch store. */
   readonly since: string;
 }
 
@@ -26,10 +26,7 @@ export interface RepoPuller {
  * fixtures. Stage 2's real RepoPuller will require the permissioned-data
  * wire format to be stable upstream.
  *
- * Rev format: the sketch accepts any string-comparable rev (e.g., '1', '2'),
- * which is convenient for unit tests but does not exercise the TID-format
- * lex-order behavior the real impl will see. Tests that need to validate
- * TID semantics should use zero-padded numeric strings or real TIDs.
+ * @internal
  */
 export class InMemoryRepoPuller implements RepoPuller {
   constructor(private readonly records: ReadonlyArray<PulledRecord>) {}
@@ -38,10 +35,10 @@ export class InMemoryRepoPuller implements RepoPuller {
     return this.records
       .filter(
         (r) =>
-          spaceRefKey(r.space) === spaceRefKey(req.space) &&
-          r.authorDid === req.memberDid &&
-          r.rev > req.since,
+          spaceRefKey(r.location.space) === spaceRefKey(req.space) &&
+          r.location.authorDid === req.memberDid &&
+          r.sourceRevision > req.since,
       )
-      .sort((a, b) => a.rev.localeCompare(b.rev));
+      .sort((a, b) => a.sourceRevision.localeCompare(b.sourceRevision));
   }
 }

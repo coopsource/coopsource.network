@@ -46,9 +46,10 @@ export class FailClosedEcmhVerifier implements EcmhVerifier {
 
 /**
  * Test-only — accepts every input. Never wire into production. The Unsafe
- * prefix parallels the dispatch's UNSAFE_SKIP_ECMH config flag (Task 11),
- * which is the only path that substitutes this in for FailClosedEcmhVerifier
- * outside of tests.
+ * prefix parallels the API dispatch's
+ * UNSAFE_ACCEPT_UNVERIFIED_PERMISSIONED_DATA config flag.
+ *
+ * @internal
  */
 export class UnsafeAlwaysOkEcmhVerifier implements EcmhVerifier {
   readonly kind = 'unsafe-always-ok' as const;

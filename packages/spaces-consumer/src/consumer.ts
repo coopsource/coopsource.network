@@ -1,55 +1,38 @@
 import type { DID } from '@coopsource/common';
-import type { ArbiterMemberList } from './arbiter-member-list.js';
-import type { CursorStore } from './cursor-store.js';
-import type { EcmhVerifier } from './ecmh-verifier.js';
-import type { NotificationSubscriber } from './notification-subscriber.js';
-import type { RepoPuller } from './repo-puller.js';
-import { type ClockedOptions, type ConsumerHealth, type PulledRecord, type SpaceNotification, type SpaceRef } from './types.js';
+import type { GroupAuthorityPort, MembershipDecision } from './group-authority-port.js';
+import type { PermissionedRepoPort, PermissionedWatchHandle } from './permissioned-repo-port.js';
+import {
+  SpacesConsumerError,
+  type ClockedOptions,
+  type ConsumerHealth,
+  type PermissionedChangeHint,
+  type SpaceRef,
+  type VerifiedPermissionedChanges,
+  type VerifiedPermissionedRecord,
+} from './types.js';
 
-export type { CursorStore } from './cursor-store.js';
-
-export interface SpacesConsumerOptions extends ClockedOptions {
-  readonly subscriber: NotificationSubscriber;
-  readonly memberList: ArbiterMemberList;
-  readonly puller: RepoPuller;
-  readonly verifier: EcmhVerifier;
-  readonly cursors: CursorStore;
-  readonly onAccepted: (r: PulledRecord) => Promise<void> | void;
-  /**
-   * Called on any thrown error during notification handling. The consumer
-   * never silently swallows errors; this callback is the one path out.
-   * Implementations should log at warn+ and continue. The consumer's own
-   * errorCount metric increments before this callback fires.
-   */
-  readonly onError: (err: unknown, context: { space: SpaceRef; memberDid?: string }) => Promise<void> | void;
-  // clock is inherited from ClockedOptions
+export interface RejectedPermissionedRecord {
+  readonly record: VerifiedPermissionedRecord;
+  readonly reason: 'not-member' | 'membership-indeterminate';
 }
 
-/**
- * The pull-based spaces consumer. On each notification, walks the arbiter's
- * authoritative member list for the space, pulls records per member since the
- * cursor, verifies the batch digest, cross-checks each record's author DID
- * against the member list (defense in depth — protects against a compromised
- * member PDS returning forged records), and emits accepted records to
- * onAccepted. Cursors advance only after successful acceptance.
- *
- * Security boundaries:
- *   - Verifier failure -> skip the batch, increment digestMismatches.
- *   - Author not on member list -> drop the record, increment
- *     memberCrossCheckFailures + recordsRejected.
- *   - Any throw -> caught, onError called, errorCount incremented.
- *
- * Stage 1 is sketch-only — wiring (Task 11) defaults to fail-closed sketches
- * for memberList and verifier, so the consumer never accepts real data in
- * Stage 1.
- */
+export interface SpacesConsumerOptions extends ClockedOptions {
+  readonly groupAuthority: GroupAuthorityPort;
+  readonly permissionedRepo: PermissionedRepoPort;
+  readonly onAccepted: (record: VerifiedPermissionedRecord) => Promise<void> | void;
+  readonly onRejected?: (rejection: RejectedPermissionedRecord) => Promise<void> | void;
+  readonly onError: (err: unknown, context: { space: SpaceRef; authorDid?: DID }) => Promise<void> | void;
+}
+
 export class SpacesConsumer {
   private readonly startedAt: string;
+  private watchHandle: PermissionedWatchHandle | null = null;
   private subscribedSpaces = 0;
   private lastPullAt: string | null = null;
   private recordsAccepted = 0;
   private recordsRejected = 0;
-  private digestMismatches = 0;
+  private verificationFailures = 0;
+  private resyncsTriggered = 0;
   private memberCrossCheckFailures = 0;
   private errorCount = 0;
 
@@ -58,10 +41,17 @@ export class SpacesConsumer {
   }
 
   async start(spaces: ReadonlyArray<SpaceRef>): Promise<void> {
-    for (const space of spaces) {
-      await this.opts.subscriber.subscribe(space, (n) => this.handleNotification(n));
-      this.subscribedSpaces += 1;
-    }
+    this.watchHandle = await this.opts.permissionedRepo.watch({
+      spaces,
+      onChange: (hint) => this.handleChange(hint),
+    });
+    this.subscribedSpaces = spaces.length;
+  }
+
+  async stop(): Promise<void> {
+    await this.watchHandle?.close();
+    this.watchHandle = null;
+    this.subscribedSpaces = 0;
   }
 
   health(): ConsumerHealth {
@@ -70,66 +60,117 @@ export class SpacesConsumer {
       lastPullAt: this.lastPullAt,
       recordsAccepted: this.recordsAccepted,
       recordsRejected: this.recordsRejected,
-      digestMismatches: this.digestMismatches,
+      verificationFailures: this.verificationFailures,
+      resyncsTriggered: this.resyncsTriggered,
       memberCrossCheckFailures: this.memberCrossCheckFailures,
       errorCount: this.errorCount,
       startedAt: this.startedAt,
     };
   }
 
-  private async handleNotification(n: SpaceNotification): Promise<void> {
-    let members: ReadonlyArray<DID>;
+  private async handleChange(hint: PermissionedChangeHint): Promise<void> {
+    let changes: VerifiedPermissionedChanges;
     try {
-      members = await this.opts.memberList.list(n.space);
+      changes = await this.opts.permissionedRepo.sync({ space: hint.space, hint });
     } catch (err) {
-      this.errorCount += 1;
-      await this.opts.onError(err, { space: n.space });
+      await this.recordError(err, { space: hint.space });
       return;
     }
 
-    for (const memberDid of members) {
+    this.lastPullAt = this.opts.clock().toISOString();
+
+    if (changes.verification === 'failed-closed') {
+      this.verificationFailures += 1;
+      return;
+    }
+
+    if (changes.resynced || changes.verification === 'resynced') {
+      this.resyncsTriggered += 1;
+    }
+
+    let canCommitCheckpoint = true;
+    for (const record of changes.records) {
+      const handled = await this.handleRecord(record);
+      if (!handled) canCommitCheckpoint = false;
+    }
+
+    if (changes.checkpoint && canCommitCheckpoint) {
       try {
-        const since = await this.opts.cursors.get(n.space, memberDid);
-        const pulled = await this.opts.puller.pull({ space: n.space, memberDid, since });
-        if (pulled.length === 0) continue;
-
-        // See SpaceNotification.digest for why this is n.digest ?? ''.
-        const digestResult = await this.opts.verifier.verify({
-          records: pulled,
-          expectedDigest: n.digest ?? '',
+        await this.opts.permissionedRepo.commitCheckpoint({
+          space: changes.space,
+          checkpoint: changes.checkpoint,
         });
-        if (!digestResult.ok) {
-          this.digestMismatches += 1;
-          continue;
-        }
-
-        let maxRev = since;
-        for (const r of pulled) {
-          // Defense-in-depth: even though we iterated by member-list, verify
-          // each record's claimed authorDid against the live member list. A
-          // compromised member PDS could return records authored by a
-          // non-member; the cross-check is the load-bearing security boundary.
-          const isMember = await this.opts.memberList.isMember(n.space, r.authorDid);
-          if (!isMember) {
-            this.memberCrossCheckFailures += 1;
-            this.recordsRejected += 1;
-            continue;
-          }
-          await this.opts.onAccepted(r);
-          this.recordsAccepted += 1;
-          // String comparison: revs are TID-format and lex-ordered (see repo-puller.ts).
-          if (r.rev > maxRev) maxRev = r.rev;
-        }
-        // Intentional: a batch of all-rejected records does not advance the cursor.
-        // The rejections might be transient (member-list inconsistency during pull); the next
-        // notification re-evaluates.
-        if (maxRev !== since) await this.opts.cursors.set(n.space, memberDid, maxRev);
       } catch (err) {
-        this.errorCount += 1;
-        await this.opts.onError(err, { space: n.space, memberDid });
-        // continue to next member
+        await this.recordError(err, { space: changes.space });
       }
     }
-    this.lastPullAt = this.opts.clock().toISOString();
+  }
+
+  private async handleRecord(record: VerifiedPermissionedRecord): Promise<boolean> {
+    let decision: MembershipDecision;
+    try {
+      decision = await this.opts.groupAuthority.isMember({
+        space: record.location.space,
+        did: record.location.authorDid,
+        consistency: 'strict',
+      });
+    } catch (err) {
+      this.recordsRejected += 1;
+      this.memberCrossCheckFailures += 1;
+      await this.recordError(err, {
+        space: record.location.space,
+        authorDid: record.location.authorDid,
+      });
+      return false;
+    }
+
+    if (!this.isDeterminate(decision)) {
+      this.recordsRejected += 1;
+      this.memberCrossCheckFailures += 1;
+      await this.recordError(
+        new SpacesConsumerError('member-list', 'strict membership decision was indeterminate'),
+        {
+          space: record.location.space,
+          authorDid: record.location.authorDid,
+        },
+      );
+      return false;
+    }
+
+    if (!decision.isMember) {
+      this.recordsRejected += 1;
+      this.memberCrossCheckFailures += 1;
+      try {
+        await this.opts.onRejected?.({ record, reason: 'not-member' });
+        return true;
+      } catch (err) {
+        await this.recordError(err, {
+          space: record.location.space,
+          authorDid: record.location.authorDid,
+        });
+        return false;
+      }
+    }
+
+    try {
+      await this.opts.onAccepted(record);
+      this.recordsAccepted += 1;
+      return true;
+    } catch (err) {
+      await this.recordError(err, {
+        space: record.location.space,
+        authorDid: record.location.authorDid,
+      });
+      return false;
+    }
+  }
+
+  private isDeterminate(decision: MembershipDecision): boolean {
+    return decision.ok && decision.stale !== true;
+  }
+
+  private async recordError(err: unknown, context: { space: SpaceRef; authorDid?: DID }): Promise<void> {
+    this.errorCount += 1;
+    await this.opts.onError(err, context);
   }
 }

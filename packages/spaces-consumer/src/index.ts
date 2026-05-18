@@ -1,16 +1,37 @@
-export type { SpaceRef, SpaceNotification, PulledRecord, ConsumerHealth, ClockedOptions } from './types.js';
+export type {
+  ClockedOptions,
+  ConsumerHealth,
+  MembershipCursor,
+  MembershipSnapshotId,
+  PermissionedChangeHint,
+  PermissionedCheckpoint,
+  PermissionedCursor,
+  PermissionedRecordLocation,
+  PermissionedVerificationStatus,
+  SpaceRef,
+  VerifiedPermissionedChanges,
+  VerifiedPermissionedRecord,
+} from './types.js';
 export { spaceRefKey, SpacesConsumerError } from './types.js';
 export type { SpaceCredential, SpaceCredentialStore } from './credential-store.js';
 export { InMemorySpaceCredentialStore } from './credential-store.js';
-export type { ArbiterMemberList } from './arbiter-member-list.js';
-export { DenyAllArbiterMemberList, StaticArbiterMemberList } from './arbiter-member-list.js';
-export type { NotificationHandler, NotificationSubscriber } from './notification-subscriber.js';
-export { InMemoryNotificationSubscriber } from './notification-subscriber.js';
-export type { EcmhVerifyInput, EcmhVerifyResult, EcmhVerifier } from './ecmh-verifier.js';
-export { FailClosedEcmhVerifier, UnsafeAlwaysOkEcmhVerifier } from './ecmh-verifier.js';
-export type { PullRequest, RepoPuller } from './repo-puller.js';
-export { InMemoryRepoPuller } from './repo-puller.js';
-export type { CursorStore } from './cursor-store.js';
-export type { SpacesConsumerOptions } from './consumer.js';
+export type {
+  GroupAuthorityPort,
+  MembershipConsistency,
+  MembershipDecision,
+  MembershipSnapshotPage,
+} from './group-authority-port.js';
+export { DenyAllGroupAuthorityPort, StaticGroupAuthorityPort } from './group-authority-port.js';
+export type {
+  PermissionedCheckpointStore,
+  PermissionedRepoPort,
+  PermissionedWatchHandle,
+} from './permissioned-repo-port.js';
+export {
+  FailClosedPermissionedRepoPort,
+  InMemoryPermissionedCheckpointStore,
+  InMemoryPermissionedRepoPort,
+  KyselyPermissionedCheckpointStore,
+} from './permissioned-repo-port.js';
+export type { RejectedPermissionedRecord, SpacesConsumerOptions } from './consumer.js';
 export { SpacesConsumer } from './consumer.js';
-export { KyselyCursorStore } from './kysely-cursor-store.js';

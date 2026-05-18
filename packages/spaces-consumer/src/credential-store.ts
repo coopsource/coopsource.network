@@ -9,8 +9,8 @@ export interface SpaceCredential {
  * Stage 2+ surface: short-lived bearer-token storage for arbiter operations
  * on permissioned spaces. The Stage 1 spaces consumer does not consume this
  * interface directly — it's part of the package's public surface so that the
- * real RepoPuller (Stage 2) and NotificationSubscriber (Stage 2) have a
- * pre-shaped place to obtain per-(coop, space) credentials.
+ * real PermissionedRepoPort adapter has a pre-shaped place to obtain
+ * per-(coop, space) credentials.
  *
  * Persistence (Kysely-backed) is deferred to Stage 2 when a real arbiter is
  * issuing credentials. InMemorySpaceCredentialStore is the only impl in

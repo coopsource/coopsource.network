@@ -1,4 +1,6 @@
-import type { DID, AtUri, CID } from '@coopsource/common';
+import type { DID, CID } from '@coopsource/common';
+
+type Brand<T, B extends string> = T & { readonly __brand: B };
 
 /**
  * Per ARCHITECTURE-V11.md §17.3, SpaceRef is the load-bearing substrate.
@@ -34,16 +36,56 @@ export interface ClockedOptions {
   clock: () => Date;
 }
 
-export interface PulledRecord {
+export type PermissionedCheckpoint = Brand<string, 'PermissionedCheckpoint'>;
+export type PermissionedCursor = Brand<string, 'PermissionedCursor'>;
+export type MembershipCursor = Brand<string, 'MembershipCursor'>;
+export type MembershipSnapshotId = Brand<string, 'MembershipSnapshotId'>;
+
+export interface PermissionedRecordLocation {
   readonly space: SpaceRef;
   readonly authorDid: DID;
   readonly collection: string;
   readonly rkey: string;
-  readonly uri: AtUri;
+}
+
+export interface VerifiedPermissionedRecord {
+  readonly location: PermissionedRecordLocation;
   readonly cid: CID;
   readonly record: unknown;
-  readonly rev: string;
+  readonly sourceRevision?: string;
+}
+
+/**
+ * Internal Stage 1 sketch record. Stable application code should depend on
+ * VerifiedPermissionedRecord and PermissionedRecordLocation instead.
+ *
+ * @internal
+ */
+export interface PulledRecord extends VerifiedPermissionedRecord {
+  readonly sourceRevision: string;
   readonly commitSignature: string;
+}
+
+export type PermissionedVerificationStatus =
+  | 'verified'
+  | 'resynced'
+  | 'failed-closed'
+  | 'unverified-dev-mode';
+
+export interface PermissionedChangeHint {
+  readonly space: SpaceRef;
+  readonly receivedAt?: Date;
+  readonly sourceRevision?: string;
+  readonly checkpointHint?: PermissionedCheckpoint;
+}
+
+export interface VerifiedPermissionedChanges {
+  readonly space: SpaceRef;
+  readonly records: ReadonlyArray<VerifiedPermissionedRecord>;
+  readonly verification: PermissionedVerificationStatus;
+  readonly checkpoint?: PermissionedCheckpoint;
+  readonly sourceRevision?: string;
+  readonly resynced?: boolean;
 }
 
 export interface ConsumerHealth {
@@ -51,7 +93,8 @@ export interface ConsumerHealth {
   readonly lastPullAt: string | null;
   readonly recordsAccepted: number;
   readonly recordsRejected: number;
-  readonly digestMismatches: number;
+  readonly verificationFailures: number;
+  readonly resyncsTriggered: number;
   readonly memberCrossCheckFailures: number;
   readonly errorCount: number;
   readonly startedAt: string;
@@ -63,7 +106,7 @@ export interface ConsumerHealth {
  */
 export class SpacesConsumerError extends Error {
   constructor(
-    public readonly kind: 'credential' | 'digest' | 'member-list' | 'protocol' | 'schema',
+    public readonly kind: 'credential' | 'verification' | 'member-list' | 'protocol' | 'schema',
     message: string,
   ) {
     super(message);

@@ -1,23 +1,20 @@
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
 import {
+  DenyAllGroupAuthorityPort,
+  InMemoryPermissionedRepoPort,
+  KyselyPermissionedCheckpointStore,
   SpacesConsumer,
-  KyselyCursorStore,
-  InMemoryNotificationSubscriber, // sketch — Stage 2+ provides a real subscriber
-  DenyAllArbiterMemberList, // fail-closed default — Stage 2 provides real
-  InMemoryRepoPuller, // sketch — real impl wraps @atproto/sync
-  FailClosedEcmhVerifier, // fail-closed default — gated on ECMH spec
-  UnsafeAlwaysOkEcmhVerifier, // test/dev-only; opt-in via UNSAFE_SKIP_ECMH
-  type EcmhVerifier,
   type ConsumerHealth,
+  type PermissionedVerificationStatus,
   type SpaceRef,
-  type PulledRecord,
+  type VerifiedPermissionedRecord,
 } from '@coopsource/spaces-consumer';
 import { logger } from '../middleware/logger.js';
 
 export interface SpacesConsumerDispatchConfig {
   readonly enabled: boolean;
-  readonly unsafeSkipEcmh: boolean;
+  readonly unsafeAcceptUnverifiedPermissionedData: boolean;
   readonly db: Kysely<Database>;
   readonly spaces: ReadonlyArray<SpaceRef>;
 }
@@ -37,35 +34,41 @@ export async function startSpacesConsumer(
     return activeConsumer;
   }
 
-  if (cfg.unsafeSkipEcmh && process.env.NODE_ENV === 'production') {
+  if (cfg.unsafeAcceptUnverifiedPermissionedData && process.env.NODE_ENV === 'production') {
     throw new Error(
-      'UNSAFE_SKIP_ECMH cannot be set in production. The unsafe-always-ok verifier ' +
-        'is for development only.',
+      'UNSAFE_ACCEPT_UNVERIFIED_PERMISSIONED_DATA cannot be set in production.',
     );
   }
 
-  let verifier: EcmhVerifier = new FailClosedEcmhVerifier();
-  if (cfg.unsafeSkipEcmh) {
+  const verification: PermissionedVerificationStatus = cfg.unsafeAcceptUnverifiedPermissionedData
+    ? 'unverified-dev-mode'
+    : 'failed-closed';
+
+  if (cfg.unsafeAcceptUnverifiedPermissionedData) {
     logger.warn(
-      'UNSAFE_SKIP_ECMH=true — ECMH digest verification DISABLED. ' +
+      'UNSAFE_ACCEPT_UNVERIFIED_PERMISSIONED_DATA=true — permissioned repo verification DISABLED. ' +
         'Never run with this flag in production.',
     );
-    verifier = new UnsafeAlwaysOkEcmhVerifier();
   }
 
   const consumer = new SpacesConsumer({
-    subscriber: new InMemoryNotificationSubscriber({ clock: () => new Date() }),
-    memberList: new DenyAllArbiterMemberList(), // fail-closed default; Stage 2 wires real arbiter
-    puller: new InMemoryRepoPuller([]), // sketch only; never fires against real data in Stage 1
-    verifier,
-    cursors: new KyselyCursorStore(cfg.db),
-    onAccepted: async (r: PulledRecord) => {
-      // Stage 1 logs only. Adaptation to the hook pipeline's FirehoseEvent shape
-      // (see loop.ts -> processFirehoseEvent) is deferred to when a real RepoPuller
-      // produces real records (Stage 2+).
+    groupAuthority: new DenyAllGroupAuthorityPort(),
+    permissionedRepo: new InMemoryPermissionedRepoPort({
+      records: [],
+      verification,
+      checkpoints: new KyselyPermissionedCheckpointStore(cfg.db),
+      clock: () => new Date(),
+    }),
+    onAccepted: async (record: VerifiedPermissionedRecord) => {
       logger.info(
-        { uri: r.uri, author: r.authorDid, space: r.space },
+        { location: record.location, cid: record.cid },
         'spaces-consumer: accepted record (stage 1: log-only)',
+      );
+    },
+    onRejected: async ({ record, reason }) => {
+      logger.warn(
+        { location: record.location, cid: record.cid, reason },
+        'spaces-consumer: rejected verified record (stage 1: log-only)',
       );
     },
     onError: async (err, ctx) => {
@@ -79,18 +82,17 @@ export async function startSpacesConsumer(
   logger.info(
     {
       spaces: cfg.spaces.length,
-      verifier: verifier.kind,
-      memberList: 'DenyAll (sketch)',
+      verification,
+      groupAuthority: 'DenyAll (sketch)',
     },
     'Spaces consumer started (stage 1: log-only, no record forwarding)',
   );
   return consumer;
 }
 
-export function stopSpacesConsumer(): void {
+export async function stopSpacesConsumer(): Promise<void> {
   if (!activeConsumer) return;
-  // Stage 1: no real unsubscribe path (the InMemoryNotificationSubscriber doesn't need one).
-  // Stage 2+ will call subscriber.unsubscribe() for each subscribed space here.
+  await activeConsumer.stop();
   activeConsumer = null;
   logger.info('Spaces consumer stopped');
 }

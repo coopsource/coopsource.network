@@ -338,7 +338,7 @@ async function start(): Promise<void> {
   // V11 Stage 1: Pull-based spaces consumer (sketch-only; gated off by default).
   startSpacesConsumer({
     enabled: config.SPACES_CONSUMER_ENABLED,
-    unsafeSkipEcmh: config.UNSAFE_SKIP_ECMH,
+    unsafeAcceptUnverifiedPermissionedData: config.UNSAFE_ACCEPT_UNVERIFIED_PERMISSIONED_DATA,
     db: container.db,
     spaces: [], // Stage 1: empty by design; real subscriptions land with Stage 2.
   }).catch((err) => {
@@ -388,7 +388,9 @@ async function start(): Promise<void> {
     logger.info('Shutting down...');
     clearInterval(proposalResolverHandle);
     clearInterval(matchmakingHandle);
-    stopSpacesConsumer();
+    stopSpacesConsumer().catch((err) => {
+      logger.error(err, 'Spaces consumer failed to stop');
+    });
     container.eventDispatcher.stop();
     await container.scriptWorkerPool.shutdown();
     labelWss.close();

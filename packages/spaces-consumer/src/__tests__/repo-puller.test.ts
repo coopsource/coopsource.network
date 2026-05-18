@@ -25,7 +25,7 @@ describe('InMemoryRepoPuller', () => {
     const p = new InMemoryRepoPuller(records);
     const pulled = await p.pull({ space: ref, memberDid: fakeDid('did:plc:alice'), since: '0' });
     expect(pulled).toHaveLength(1);
-    expect(pulled[0]?.space.skey).toBe('members');
+    expect(pulled[0]?.location.space.skey).toBe('members');
   });
 
   it('filters by author DID', async () => {
@@ -36,7 +36,7 @@ describe('InMemoryRepoPuller', () => {
     const p = new InMemoryRepoPuller(records);
     const pulled = await p.pull({ space: ref, memberDid: fakeDid('did:plc:alice'), since: '0' });
     expect(pulled).toHaveLength(1);
-    expect(pulled[0]?.authorDid).toBe('did:plc:alice');
+    expect(pulled[0]?.location.authorDid).toBe('did:plc:alice');
   });
 
   it('respects the since cursor (only records with rev > since)', async () => {
@@ -48,6 +48,6 @@ describe('InMemoryRepoPuller', () => {
     const p = new InMemoryRepoPuller(records);
     const pulled = await p.pull({ space: ref, memberDid: fakeDid('did:plc:alice'), since: '1' });
     expect(pulled).toHaveLength(2);
-    expect(pulled.map((r) => r.rev)).toEqual(['2', '3']);
+    expect(pulled.map((r) => r.sourceRevision)).toEqual(['2', '3']);
   });
 });

@@ -2,48 +2,53 @@
 
 > **Date:** May 17, 2026  
 > **Branch:** `codex/v11-atproto-alignment-planning`  
-> **Purpose:** Turn the Stage 1 spaces-consumer package from a protocol-mechanism sketch into a stable capability boundary before Stage 1 moves forward again.
+> **Purpose:** Move Stage 1 from protocol-mechanism sketches to stable V11 capability ports.
 
 ## Summary
 
-The existing Stage 1 implementation is useful and should not be thrown away. Its fail-closed sketches, health surface, Kysely cursor store, and defense-in-depth member cross-check are all valuable. The refactor should keep those pieces but move the public package boundary to stable ports:
+Stage 1 should expose stable ports, not guessed permissioned-data wire mechanics. Keep the useful as-built pieces: fail-closed defaults, log-only API wiring, health reporting, Kysely-backed checkpoint storage, and strict per-record member cross-checks.
 
-- `GroupAuthorityPort` for membership, role, recursive membership, and strict membership reads.
-- `PermissionedRepoPort` for sync, resync, record verification, and opaque cursor handling.
+Application-facing code depends on:
 
-The low-level `NotificationSubscriber`, `RepoPuller`, `EcmhVerifier`, and `ArbiterMemberList` interfaces may remain, but only as internal adapter pieces or test fixtures.
+- `GroupAuthorityPort` for strict membership decisions.
+- `PermissionedRepoPort` for watching, syncing, verifying, and checkpointing permissioned records.
 
-## Key Changes
+The low-level `NotificationSubscriber`, `RepoPuller`, `EcmhVerifier`, and `ArbiterMemberList` sketches may remain in source for tests and future adapters, but they are not package-root exports.
 
-### Public Types
+The replacement sketch layer is the stable-port adapter layer: fail-closed and in-memory `GroupAuthorityPort` / `PermissionedRepoPort` implementations document the behavior CSN needs, while concrete upstream mechanisms stay behind those adapters.
 
-- Add a permissioned record location type that is not `AtUri`:
+## Public API Shape
+
+Permissioned records use structured locations, not `AtUri`:
 
 ```ts
-export interface PermissionedRecordLocation {
-  readonly space: SpaceRef;
-  readonly authorDid: DID;
-  readonly collection: string;
-  readonly rkey: string;
+interface PermissionedRecordLocation {
+  space: SpaceRef;
+  authorDid: DID;
+  collection: string;
+  rkey: string;
+}
+
+interface VerifiedPermissionedRecord {
+  location: PermissionedRecordLocation;
+  cid: CID;
+  record: unknown;
+  sourceRevision?: string;
 }
 ```
 
-- Replace public `PulledRecord.uri: AtUri` with `location: PermissionedRecordLocation` plus optional `uri?: PermissionedUri` only when the upstream scheme is finalized.
-- Add opaque cursor types:
+Opaque types remain distinct:
 
 ```ts
-export type PermissionedCursor = Brand<string, 'PermissionedCursor'>;
-export type MembershipSnapshotId = Brand<string, 'MembershipSnapshotId'>;
+type PermissionedCheckpoint = string & { readonly __brand: 'PermissionedCheckpoint' };
+type MembershipCursor = string & { readonly __brand: 'MembershipCursor' };
+type MembershipSnapshotId = string & { readonly __brand: 'MembershipSnapshotId' };
 ```
 
-If branded helpers do not yet exist in `@coopsource/common`, keep constructors test-only and avoid unsafe casts in production code.
-
-### `GroupAuthorityPort`
-
-Public interface shape:
+Membership authority:
 
 ```ts
-export interface GroupAuthorityPort {
+interface GroupAuthorityPort {
   isMember(args: {
     space: SpaceRef;
     did: DID;
@@ -52,80 +57,60 @@ export interface GroupAuthorityPort {
 
   resolveMembership(args: {
     space: SpaceRef;
-    cursor?: PermissionedCursor;
+    cursor?: MembershipCursor;
     consistency: 'projection-ok' | 'strict';
   }): Promise<MembershipSnapshotPage>;
 }
 ```
 
-Required result fields:
-
-- `MembershipDecision`: `ok`, `isMember`, optional `snapshotId`, optional `sourceRevision`, optional `stale`.
-- `MembershipSnapshotPage`: `members`, optional `cursor`, optional `snapshotId`, optional `sourceRevision`.
-
-Stage 1 adapter:
-
-- Wrap current `ArbiterMemberList` for tests.
-- Keep `DenyAllArbiterMemberList` as the fail-closed source.
-- Do not require a complete in-memory member list outside test adapters.
-
-### `PermissionedRepoPort`
-
-Public interface shape:
+Permissioned repo sync:
 
 ```ts
-export interface PermissionedRepoPort {
+interface PermissionedRepoPort {
+  watch(args: {
+    spaces: readonly SpaceRef[];
+    onChange: (hint: PermissionedChangeHint) => Promise<void> | void;
+  }): Promise<PermissionedWatchHandle>;
+
   sync(args: {
     space: SpaceRef;
-    cursor?: PermissionedCursor;
+    hint?: PermissionedChangeHint;
   }): Promise<VerifiedPermissionedChanges>;
+
+  commitCheckpoint(args: {
+    space: SpaceRef;
+    checkpoint: PermissionedCheckpoint;
+  }): Promise<void>;
 }
 ```
 
-Required result fields:
+`sync()` does not accept `candidateAuthors`; member-driven pull stays internal to adapters if a temporary implementation needs it.
 
-- `records`: verified records with structured permissioned locations.
-- `cursor`: opaque adapter-owned cursor.
-- `verification`: `verified`, `resynced`, or `failed-closed`.
-- `sourceRevision` or equivalent optional marker when the adapter has one.
+## Processing Rules
 
-Stage 1 adapter:
-
-- Internally compose existing `NotificationSubscriber`, `RepoPuller`, `EcmhVerifier`, and `CursorStore` sketches.
-- Rename public verification language away from "ECMH batch digest" to "permissioned repo verification".
-- Keep `UnsafeAlwaysOkEcmhVerifier` test/dev-only and avoid exporting it as the default path for application code.
-
-### Consumer Orchestration
-
-- `SpacesConsumer` should depend on `GroupAuthorityPort` and `PermissionedRepoPort` at its public boundary.
-- Low-level notification handlers can remain internal.
-- Cursor advancement should be owned by the repo adapter, not by business logic comparing rev strings.
-- Per-record member cross-check remains mandatory before `onAccepted`.
-
-### Health Surface
-
-Keep current health counters, but rename digest-specific terminology:
-
-- `digestMismatches` -> `verificationFailures`
-- Keep `memberCrossCheckFailures`, `recordsAccepted`, `recordsRejected`, `errorCount`.
-- Add `resyncsTriggered` if the adapter can report it.
+- `SpacesConsumer` accepts a record only when strict membership returns `ok: true`, `isMember: true`, and `stale !== true`.
+- Verified non-member records are rejected or quarantined and still allow checkpoint commit after the whole batch is handled.
+- Verification failures, stale or errored membership decisions, and thrown handlers do not commit checkpoints.
+- `ack()` is not used; the durable boundary is `commitCheckpoint({ space, checkpoint })`.
+- Health uses `verificationFailures`, not digest-specific terminology, and tracks `resyncsTriggered`.
+- API wiring uses `UNSAFE_ACCEPT_UNVERIFIED_PERMISSIONED_DATA`, rejected in production, for explicit local unverified dev mode.
 
 ## Tests
 
-Update or add tests for:
+Required tests:
 
-- Fail-closed default accepts no records.
-- `PermissionedRepoPort` returns opaque cursors and does not expose rev ordering.
-- Structured permissioned locations replace `AtUri`.
-- Verification failure does not call `onAccepted` and increments `verificationFailures`.
-- Member cross-check still drops records from non-members.
-- Group authority supports paginated snapshots in test fixtures.
-- Existing app wiring starts disabled with `SPACES_CONSUMER_ENABLED=false`.
+- Public package root exports stable ports and not mechanism sketches.
+- Structured permissioned locations replace permissioned `AtUri` usage.
+- Fail-closed defaults accept no records and increment `verificationFailures`.
+- Verified member records call `onAccepted` and commit checkpoints.
+- Verified non-member records call `onRejected` or equivalent quarantine and commit checkpoints.
+- Verification failures, indeterminate membership, and thrown handlers do not commit checkpoints.
+- Membership pagination uses `MembershipCursor`, not `MembershipSnapshotId`.
+- API dispatch starts disabled by default and wires only stable ports when enabled.
 
 ## Acceptance Criteria
 
-- No exported Stage 1 type requires `AtUri` for permissioned records.
-- No exported Stage 1 type requires notification-batch digest semantics.
+- No package-root Stage 1 export requires `AtUri` for permissioned records.
+- No package-root Stage 1 export requires notification, per-member pull, or ECMH batch semantics.
 - No application-facing Stage 1 code depends on `ArbiterMemberList.list(space): DID[]`.
-- Existing fail-closed behavior remains intact.
-- Stage 1 remains safe to run with no real upstream protocol implementations wired.
+- Existing Stage 1 behavior remains safe to run with no real upstream protocol implementations wired.
