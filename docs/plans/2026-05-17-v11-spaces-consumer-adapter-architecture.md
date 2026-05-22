@@ -8,28 +8,28 @@
 
 Stage 1 no longer treats notification subscribers, per-member repo pullers, ECMH verifiers, or raw Arbiter member-list clients as application-facing architecture. Those mechanisms still matter, but they live behind two stable ports:
 
-- `GroupAuthorityPort`: membership and role authority.
+- `GroupDirectoryPort`: direct and resolved membership authority.
 - `PermissionedRepoPort`: permissioned watch/sync/verification/checkpoint.
 
 The stable-port adapters are the new executable sketches. They document the behavior CSN needs while keeping unsettled ATProto permissioned-data details out of app-facing code.
 
-## Group Authority Adapters
+## Group Directory Adapters
 
 Current sketches:
 
-- `DenyAllGroupAuthorityPort`: fail-closed fixture/default for tests and disabled paths.
-- `StaticGroupAuthorityPort`: deterministic test/development fixture with pagination.
-- `CsnDbGroupAuthorityPort` in `@coopsource/arbiter-client`: Stage 2A PoC adapter backed by current CSN `membership` and `membership_role` tables.
+- `DenyAllGroupDirectoryPort`: fail-closed fixture/default for tests and disabled paths.
+- `StaticGroupDirectoryPort`: deterministic test/development fixture with direct DID, local-space, and remote-space members.
+- `CsnDbGroupDirectoryPort` in `@coopsource/arbiter-client`: Stage 2A PoC adapter backed by current CSN `membership` and `membership_role` tables.
 
 Expected real adapters:
 
 - **Arbiter XRPC adapter:** wraps the upstream Arbiter API when it is usable. It should return membership decisions with snapshot or source-revision markers and support strict consistency.
-- **CSN temporary authority adapter:** acceptable for the PoC if upstream Arbiter work lags. It must implement the same port and be replaceable without changing `SpacesConsumer` or app services.
+- **CSN temporary Group Directory adapter:** acceptable for the PoC if upstream Arbiter work lags. It must implement the same port and be replaceable without changing `SpacesConsumer` or app services.
 - **Projection-backed adapter:** allowed only for `consistency: 'projection-ok'`; strict reads must fail closed or consult live authority.
 
-Strict checks accept records only when `ok: true`, `isMember: true`, and `stale !== true`.
+Strict checks accept records only when resolved membership returns `ok: true`, `partial: false`, `stale: false`, no `missingSpaces`, and the author DID appears in `members`.
 
-Stage 2A uses `CsnDbGroupAuthorityPort` for API wiring when `SPACES_CONSUMER_ENABLED=true`. The temporary role-space convention is `{ arbiter: cooperativeDid, type: 'network.coopsource.org.role', skey: role }`; it is isolated in `@coopsource/arbiter-client` so the final Arbiter role-space type can replace it without changing consumers.
+Stage 2A uses `CsnDbGroupDirectoryPort` for API wiring when `SPACES_CONSUMER_ENABLED=true`. The temporary role-space convention uses canonical `spaceKey` values such as `roles/board`, `roles/custom/<slug>`, and `classes/worker`; it is isolated in `@coopsource/arbiter-client` so the final Arbiter role-space type can replace it without changing consumers.
 
 ## Permissioned Repo Adapters
 

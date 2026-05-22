@@ -14,6 +14,9 @@ import pg from 'pg';
 import { Kysely, PostgresDialect } from 'kysely';
 import type { Database } from '@coopsource/db';
 import { SigningKeyResolver, signRequest } from '@coopsource/federation/http';
+import { calculateCid } from '@coopsource/federation/local';
+
+const MEMBER_CONSENT_COLLECTION = 'network.coopsource.org.memberConsent';
 
 // ── Instance configuration ──
 
@@ -86,6 +89,51 @@ async function signedFetch(
   Object.assign(headers, sigHeaders);
 
   return fetch(url, { method, headers, body: bodyStr ?? undefined });
+}
+
+async function writeReplicatedConsentRecord(
+  db: Kysely<Database>,
+  args: {
+    authorDid: string;
+    cooperativeDid: string;
+    consentType: 'joinRequest' | 'invitationAcceptance' | 'networkJoin';
+    rkey: string;
+  },
+): Promise<{ uri: string; cid: string }> {
+  const record = {
+    $type: MEMBER_CONSENT_COLLECTION,
+    cooperative: args.cooperativeDid,
+    consentType: args.consentType,
+    createdAt: new Date().toISOString(),
+  };
+  const cid = await calculateCid(record);
+  const uri = `at://${args.authorDid}/${MEMBER_CONSENT_COLLECTION}/${args.rkey}`;
+  const now = new Date();
+
+  await db
+    .insertInto('pds_record')
+    .values({
+      uri,
+      did: args.authorDid,
+      collection: MEMBER_CONSENT_COLLECTION,
+      rkey: args.rkey,
+      cid,
+      content: record,
+      created_at: now,
+      indexed_at: now,
+      deleted_at: null,
+    })
+    .onConflict((oc) =>
+      oc.column('uri').doUpdateSet({
+        cid,
+        content: record,
+        indexed_at: now,
+        deleted_at: null,
+      }),
+    )
+    .execute();
+
+  return { uri, cid };
 }
 
 // ── Tests ──
@@ -218,18 +266,25 @@ describe('Cross-Instance Federation', () => {
 
   it('coop-a can request membership on coop-b via signed federation call', async () => {
     const db = createDb(INSTANCES.coopA.dbUrl);
+    const targetDb = createDb(INSTANCES.coopB.dbUrl);
     dbs.push(db);
+    dbs.push(targetDb);
     const resolver = new SigningKeyResolver(db as Kysely<Database>, INSTANCES.coopA.keyEncKey);
     const { privateKey, keyId } = await resolver.resolve(coopACoopDid);
+    const consent = await writeReplicatedConsentRecord(targetDb, {
+      authorDid: coopACoopDid,
+      cooperativeDid: coopBCoopDid,
+      consentType: 'joinRequest',
+      rkey: 'request',
+    });
 
     // Request membership: coop-a's cooperative entity wants to join coop-b
     const url = `${INSTANCES.coopB.url}/api/v1/federation/membership/request`;
     const body = {
       memberDid: coopACoopDid,
       cooperativeDid: coopBCoopDid,
-      consentRecordUri: `at://${coopACoopDid}/network.coopsource.org.memberConsent/request`,
-      consentRecordCid: 'bafyconsent',
-      message: 'Alpha Co-op wants to join Beta Co-op',
+      consentRecordUri: consent.uri,
+      consentRecordCid: consent.cid,
     };
 
     const res = await signedFetch(url, 'POST', body, privateKey, keyId);
@@ -239,6 +294,8 @@ describe('Cross-Instance Federation', () => {
     expect(result).toHaveProperty('consentRecordCid', body.consentRecordCid);
 
     await db.destroy();
+    await targetDb.destroy();
+    dbs.pop();
     dbs.pop();
   });
 
@@ -247,12 +304,20 @@ describe('Cross-Instance Federation', () => {
     dbs.push(db);
     const resolver = new SigningKeyResolver(db as Kysely<Database>, INSTANCES.coopB.keyEncKey);
     const { privateKey, keyId } = await resolver.resolve(coopBCoopDid);
+    const consent = await writeReplicatedConsentRecord(db, {
+      authorDid: coopACoopDid,
+      cooperativeDid: coopBCoopDid,
+      consentType: 'joinRequest',
+      rkey: 'approve',
+    });
 
     // Approve membership: coop-b approves coop-a
     const url = `${INSTANCES.coopB.url}/api/v1/federation/membership/approve`;
     const body = {
       cooperativeDid: coopBCoopDid,
       memberDid: coopACoopDid,
+      consentRecordUri: consent.uri,
+      consentRecordCid: consent.cid,
       roles: ['member'],
     };
 

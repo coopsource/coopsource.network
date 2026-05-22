@@ -3087,7 +3087,7 @@ export const lexicons = [
                 "items": {
                   "type": "string"
                 },
-                "description": "Roles assigned to the viewer via group authority. Only present when active."
+                "description": "Roles assigned to the viewer via Group Directory / Arbiter role spaces. Only present when active."
               },
               "joinedAt": {
                 "type": "string",
@@ -3189,7 +3189,7 @@ export const lexicons = [
     "defs": {
       "main": {
         "type": "record",
-        "description": "A member-authored consent evidence record for joining a cooperative or network. Active membership authority lives in the cooperative's group authority, not in this record.",
+        "description": "A member-authored consent evidence record for joining a cooperative or network. Active membership authority lives in the cooperative's Group Directory / Arbiter substrate, not in this record.",
         "key": "tid",
         "record": {
           "type": "object",
@@ -3213,11 +3213,6 @@ export const lexicons = [
                 "networkJoin"
               ],
               "description": "The kind of consent evidence this record represents."
-            },
-            "message": {
-              "type": "string",
-              "maxLength": 2000,
-              "description": "Optional member-authored note associated with the consent."
             },
             "termsUri": {
               "type": "string",

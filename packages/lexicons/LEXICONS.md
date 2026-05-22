@@ -4,7 +4,7 @@
 
 Co-op Source Network is a federated collaboration platform built on the AT Protocol. These lexicon schemas define the current record types and queries that cooperatives, their members, and external applications use to interact with the platform. Most schemas live under the `network.coopsource.*` namespace and are organized into 11 sub-namespaces covering organizational structure, governance, agreements, finance, operations, commerce, alignment, funding, connections, administration, and legal records.
 
-PostgreSQL serves as a materialized index for queries -- the AppView consumes these records from the ATProto firehose and indexes them for fast lookups. Some record types are stored only in the database (DB-only) because they contain private data that must never appear on the firehose, or because their ATProto write path is not yet implemented. In V11, PostgreSQL remains a projection cache, while membership and Tier 2 authority move to spaces/Arbiter-backed records. `network.coopsource.org.memberConsent` is member-authored evidence only; active membership authority lives behind group authority / Arbiter-shaped ports.
+PostgreSQL serves as a materialized index for queries -- the AppView consumes these records from the ATProto firehose and indexes them for fast lookups. Some record types are stored only in the database (DB-only) because they contain private data that must never appear on the firehose, or because their ATProto write path is not yet implemented. In V11, PostgreSQL remains a projection cache, while membership and Tier 2 authority move to spaces/Arbiter-backed records. `network.coopsource.org.memberConsent` is member-authored evidence only; active membership authority lives behind the Group Directory / Arbiter substrate.
 
 The JSON schema files are located alongside this document in the [`network/coopsource/`](./network/coopsource/) directory tree. Each file follows the [Lexicon v1 specification](https://atproto.com/specs/lexicon). The generated TypeScript types for these schemas are produced by running `pnpm --filter @coopsource/lexicons lex:generate`.
 
@@ -50,9 +50,9 @@ The JSON schema files are located alongside this document in the [`network/coops
 
 ## `org` -- Organization
 
-The `org` namespace defines the core organizational building blocks: cooperatives, consent evidence, and internal structure. V11 retires the V9 bilateral membership mechanism. A member entity may write `memberConsent` to their own PDS as audit evidence, but the cooperative's group authority is the source of truth for active membership and roles.
+The `org` namespace defines the core organizational building blocks: cooperatives, consent evidence, and internal structure. V11 retires the V9 bilateral membership mechanism. A member entity may write `memberConsent` to their own PDS as audit evidence, but the cooperative's Group Directory / Arbiter substrate is the source of truth for active membership and roles.
 
-Role authority lives in role-space membership behind group authority, never in member-authored consent evidence. Members cannot self-declare roles. Below the cooperative level, `project`, `team`, and `role` records define internal structure -- projects belong to cooperatives, teams belong to projects, and roles can belong to either cooperatives or projects. These three structural records are DB-only; they are not written to any PDS.
+Role authority lives in role-space membership behind the Group Directory / Arbiter substrate, never in member-authored consent evidence. Members cannot self-declare roles. Below the cooperative level, `project`, `team`, and `role` records define internal structure -- projects belong to cooperatives, teams belong to projects, and roles can belong to either cooperatives or projects. These three structural records are DB-only; they are not written to any PDS.
 
 This namespace also includes two XRPC query schemas (`getCooperative` and `getMembership`) that provide read-only AppView endpoints for public cooperative metadata and membership status checks.
 
@@ -77,7 +77,6 @@ A member-authored consent evidence record. It does not create, activate, approve
 |-------|------|----------|-------------|
 | `cooperative` | did | Yes | The DID of the cooperative or network being joined |
 | `consentType` | string | Yes | Known values: `joinRequest`, `invitationAcceptance`, `bootstrapOwner`, `networkJoin` |
-| `message` | string | No | Optional member-authored note |
 | `termsUri` | at-uri | No | Optional terms record |
 | `termsCid` | cid | No | CID for the terms record |
 | `agreementUri` | at-uri | No | Optional agreement record |
@@ -169,7 +168,7 @@ Check the authenticated viewer's membership status in an open-governance coopera
 |-------|------|----------|-------------|
 | `isMember` | boolean | Yes | Whether the viewer has an active membership in this cooperative |
 | `status` | string | No | Membership status, if a relationship exists. Known values: `active`, `pending_member`, `pending_approval`, `revoked` |
-| `roles` | string[] | No | Roles assigned to the viewer via group authority. Only present when active |
+| `roles` | string[] | No | Roles assigned to the viewer via Group Directory / Arbiter role spaces. Only present when active |
 | `joinedAt` | datetime | No | When the membership became active |
 
 ---

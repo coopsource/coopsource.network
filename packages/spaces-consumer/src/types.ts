@@ -7,13 +7,63 @@ type Brand<T, B extends string> = T & { readonly __brand: B };
  * Independent of URI scheme decisions (ats:// vs at:// is not yet finalized upstream).
  */
 export interface SpaceRef {
-  readonly arbiter: DID;
-  readonly type: string;
-  readonly skey: string;
+  readonly arbiterDid: DID;
+  readonly spaceKey: string;
+  readonly expectedSpaceType?: string;
 }
 
 export function spaceRefKey(ref: SpaceRef): string {
-  return `${ref.arbiter}|${ref.type}|${ref.skey}`;
+  return `${ref.arbiterDid}|${ref.spaceKey}|${ref.expectedSpaceType ?? ''}`;
+}
+
+export type UnknownLexiconObject = Record<string, unknown>;
+
+export type SpaceMemberRef =
+  | {
+      readonly kind: 'did';
+      readonly did: DID;
+    }
+  | {
+      readonly kind: 'localSpace';
+      readonly spaceKey: string;
+      readonly expectedSpaceType?: string;
+    }
+  | {
+      readonly kind: 'remoteSpace';
+      readonly arbiterDid: DID;
+      readonly spaceKey: string;
+      readonly expectedSpaceType?: string;
+    };
+
+export interface DirectSpaceMember {
+  readonly member: SpaceMemberRef;
+  readonly access?: UnknownLexiconObject;
+  readonly source?: UnknownLexiconObject;
+}
+
+export interface ResolvedSpaceMember {
+  readonly did: DID;
+  readonly via: ReadonlyArray<SpaceRef>;
+  readonly directMember: SpaceMemberRef;
+  readonly access?: UnknownLexiconObject;
+  readonly resolverDepth: number;
+}
+
+export interface MissingSpace {
+  readonly space: SpaceRef;
+  readonly reason: 'not-found' | 'unavailable' | 'invalid-space' | 'depth-limit' | 'cycle';
+}
+
+export interface ResolvedMembers {
+  readonly ok: boolean;
+  readonly directMembers: ReadonlyArray<DirectSpaceMember>;
+  readonly members: ReadonlyArray<ResolvedSpaceMember>;
+  readonly missingSpaces: ReadonlyArray<MissingSpace>;
+  readonly partial: boolean;
+  readonly stale: boolean;
+  readonly resolverDepth: number;
+  readonly snapshotId?: MembershipSnapshotId;
+  readonly sourceRevision?: string;
 }
 
 export interface SpaceNotification {

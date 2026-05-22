@@ -3,7 +3,7 @@ import { InMemoryPermissionedRepoPort } from '../permissioned-repo-port.js';
 import type { SpaceRef } from '../types.js';
 import { buildVerifiedRecord, fakeDid } from './helpers/factories.js';
 
-const ref: SpaceRef = { arbiter: fakeDid('did:plc:coop'), type: 'X', skey: 'members' };
+const ref: SpaceRef = { arbiterDid: fakeDid('did:plc:coop'), spaceKey: 'members', expectedSpaceType: 'X' };
 
 describe('InMemoryPermissionedRepoPort', () => {
   it('watches spaces and emits stable change hints', async () => {

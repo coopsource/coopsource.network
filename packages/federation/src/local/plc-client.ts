@@ -29,12 +29,27 @@ function base32Encode(buf: Uint8Array): string {
   return out;
 }
 
+function servicesArrayToPlcMap(
+  services: ReadonlyArray<{ id: string; type: string; serviceEndpoint: string }>,
+): Record<string, { type: string; endpoint: string }> {
+  return Object.fromEntries(
+    services.map((service) => [
+      service.id.replace(/^#/, ''),
+      {
+        type: service.type,
+        endpoint: service.serviceEndpoint,
+      },
+    ]),
+  );
+}
+
 export interface PlcCreateParams {
   signingKey: string; // multibase-encoded public key
   handle: string; // e.g. alice.acme.example.com
   pdsUrl: string; // e.g. https://acme.example.com
   rotationKeys?: string[];
   labelerUrl?: string; // AppView URL for ATProto labeler service
+  services?: Array<{ id: string; type: string; serviceEndpoint: string }>;
 }
 
 export interface PlcSigningKey {
@@ -168,14 +183,16 @@ export class PlcClient {
       alsoKnownAs: params.handle
         ? [`at://${params.handle}`]
         : (current.alsoKnownAs as string[] | undefined) ?? [],
-      services: params.pdsUrl
-        ? {
-            atproto_pds: {
-              type: 'AtprotoPersonalDataServer',
-              endpoint: params.pdsUrl,
-            },
-          }
-        : (current.services as Record<string, { type: string; endpoint: string }> | undefined) ?? {},
+      services: params.services
+        ? servicesArrayToPlcMap(params.services)
+        : params.pdsUrl
+          ? {
+              atproto_pds: {
+                type: 'AtprotoPersonalDataServer',
+                endpoint: params.pdsUrl,
+              },
+            }
+          : (current.services as Record<string, { type: string; endpoint: string }> | undefined) ?? {},
       prev,
     };
 

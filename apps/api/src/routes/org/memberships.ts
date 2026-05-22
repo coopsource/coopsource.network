@@ -316,7 +316,7 @@ export function createMembershipRoutes(container: Container): Router {
           })
           .execute();
 
-        const authority = container.groupAuthorityCommandsForDb(trx);
+        const authority = container.groupMutationsForDb(trx);
         const authorityResult = await authority.addMember({
           cooperativeDid: inv.cooperative_did as DID,
           memberDid: memberDid as DID,
@@ -329,7 +329,7 @@ export function createMembershipRoutes(container: Container): Router {
           reason: 'accept invitation',
         });
         if (!authorityResult.ok) {
-          throw new ValidationError('Invalid membership authority command');
+          throw new ValidationError('Invalid membership mutation');
         }
 
         // Mark invitation accepted

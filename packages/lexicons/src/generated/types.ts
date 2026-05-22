@@ -426,7 +426,6 @@ export interface OrgMemberConsent {
   $type?: 'network.coopsource.org.memberConsent';
   cooperative: string;
   consentType: 'joinRequest' | 'invitationAcceptance' | 'bootstrapOwner' | 'networkJoin' | (string & {});
-  message?: string;
   termsUri?: string;
   termsCid?: string;
   agreementUri?: string;

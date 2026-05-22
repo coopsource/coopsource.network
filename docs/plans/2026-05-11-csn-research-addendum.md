@@ -232,7 +232,7 @@ The 2-week refresh cadence stands, with one process change: **direct URL fetches
 
 The §5 recommendations were drafted before a careful read of `2026-05-08-csn-architectural-direction.md`. On re-reading, most of §5 is either already incorporated in the architecture doc or is premature to act on. This section assesses each finding against the doc's actual content and identifies the small set of additions that are worth making now. **Where §6 and §5 conflict, §6 supersedes.**
 
-The architecture direction document was written on May 8, 2026 — the same day Diary 5 was published — and cites Diary 5 eight times across §§2.1, 2.2, 6.1, 6.6, and 12.3. HappyView v2.5.0 is cited in §§0, 2.3, and 5.6. The §13 strawman's `SpaceRef = { arbiter, type, skey }` is already order-agnostic and scheme-agnostic. The §12.3 substrate-vs-load-bearing framing already does most of the conceptual isolation work this addendum's findings imply. The doc anticipates almost everything Diary 5 settled.
+The architecture direction document was written on May 8, 2026 — the same day Diary 5 was published — and cites Diary 5 eight times across §§2.1, 2.2, 6.1, 6.6, and 12.3. HappyView v2.5.0 is cited in §§0, 2.3, and 5.6. The §13 strawman already made space identity order-agnostic and scheme-agnostic; later V11 work tightened that into the canonical `{ arbiterDid, spaceKey, expectedSpaceType? }` shape. The §12.3 substrate-vs-load-bearing framing already does most of the conceptual isolation work this addendum's findings imply. The doc anticipates almost everything Diary 5 settled.
 
 ### 6.1 Already in the doc (no action needed)
 

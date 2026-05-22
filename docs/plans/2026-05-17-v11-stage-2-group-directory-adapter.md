@@ -1,31 +1,31 @@
-# V11 Stage 2 Group Authority Adapter
+# V11 Stage 2 Group Directory / Arbiter Adapter
 
 > **Date:** May 17, 2026
 > **Branch:** `codex/v11-atproto-alignment-planning`
-> **Purpose:** Start Stage 2 with replaceable CSN-backed group authority adapters while upstream Arbiter XRPC remains unsettled.
+> **Purpose:** Start Stage 2 with replaceable CSN-backed Group Directory / Group Mutation adapters while upstream Arbiter XRPC remains unsettled.
 
 ## Summary
 
-Stage 2 implements `@coopsource/arbiter-client` as an Arbiter compatibility layer. It does not claim that the upstream Arbiter XRPC API or final role-space wire shape is settled.
+Stage 2 implements `@coopsource/arbiter-client` as a Group Directory / Arbiter substrate layer. It does not claim that the upstream Arbiter XRPC API or final role-space wire shape is settled.
 
 The package gives CSN app-facing authority boundaries:
 
 - `membersSpace(cooperativeDid)` for the cooperative members space.
 - `roleSpace(cooperativeDid, role)` for temporary role-space references.
-- `CsnDbGroupAuthorityPort` for strict membership and role checks against current CSN tables.
-- `CsnDbGroupAuthorityCommandPort` for cooperative provisioning, member changes, role changes, and temporary audit reads.
+- `CsnDbGroupDirectoryPort` for direct/resolved membership and role checks against current CSN tables.
+- `CsnDbGroupMutationPort` for cooperative provisioning, member changes, role changes, and temporary audit reads.
 
 This lets the spaces consumer move off deny-all membership wiring without exposing current PostgreSQL tables or speculative Arbiter API details to application code.
 
 ## Adapter Behavior
 
-- Members space: `{ arbiter: cooperativeDid, type: 'network.coopsource.org.cooperative', skey: 'members' }`.
-- Temporary role space: `{ arbiter: cooperativeDid, type: 'network.coopsource.org.role', skey: role }`.
+- Members space: `{ arbiterDid: cooperativeDid, spaceKey: 'members', expectedSpaceType: 'network.coopsource.org.spaceType.members' }`.
+- Temporary role spaces use canonical `spaceKey` values such as `roles/board`, `roles/custom/<slug>`, and `classes/worker`.
 - Active authority comes from `membership.status = 'active'` and `membership.invalidated_at is null`.
 - Role authority additionally requires a matching `membership_role.role`.
-- `projection-ok` and `strict` both use the same table-backed authority for this PoC adapter.
-- Unknown spaces and malformed cursors fail closed.
-- Membership pagination uses an opaque cursor over `membership.indexed_at` and `membership.id`.
+- Direct member reads and resolved membership both use the same table-backed authority for this PoC adapter.
+- Unknown spaces fail closed as partial/stale resolved membership with `missingSpaces`.
+- Resolved membership preserves direct members and resolved DIDs separately for audit.
 - `sourceRevision` is derived from `membership.indexed_at`, plus `membership_role.indexed_at` for role checks.
 
 ## Integration Status
@@ -33,8 +33,8 @@ This lets the spaces consumer move off deny-all membership wiring without exposi
 Stage 2A implemented:
 
 - New package `packages/arbiter-client`.
-- `CsnDbGroupAuthorityPort` implementing the stable `GroupAuthorityPort` contract.
-- API spaces-consumer dispatch now uses `CsnDbGroupAuthorityPort` when enabled.
+- `CsnDbGroupDirectoryPort` implementing the stable `GroupDirectoryPort` contract.
+- API spaces-consumer dispatch now uses `CsnDbGroupDirectoryPort` when enabled.
 - `SPACES_CONSUMER_ENABLED=false` remains the default.
 - Permissioned repo verification still defaults fail-closed unless local unsafe dev mode is explicitly enabled.
 - Boolean env parsing uses explicit string booleans so `SPACES_CONSUMER_ENABLED=false` and `UNSAFE_ACCEPT_UNVERIFIED_PERMISSIONED_DATA=false` remain false.
@@ -43,20 +43,23 @@ Stage 2A implemented:
 
 Stage 2B/2C implemented on this branch:
 
-- `GroupAuthorityCommandPort` and `CsnDbGroupAuthorityCommandPort`.
+- `GroupMutationPort` and `CsnDbGroupMutationPort`.
 - Temporary cooperative provisioning returns the cooperative DID as the arbiter DID.
-- Temporary role-space creation validates role skeys and returns `roleSpace()`.
+- Temporary role-space creation validates role slugs/space keys and returns `roleSpace()`.
 - `addMember`, `removeMember`, `addRoleMember`, `removeRoleMember`, and `setMemberRoles` mutate current CSN tables behind the command-port boundary.
-- Changed commands are recorded in `fact_log` with `entity_type = 'v11.groupAuthority'`; `operator_audit_log` remains scoped to legacy operator PDS writes.
-- `MembershipService` role and removal writes use the command port.
-- Setup bootstrap, public invitation acceptance, `AuthService.register`, and network join/leave use the command port for membership and role authority.
+- Changed commands are recorded in `fact_log` with `entity_type = 'v11.groupMutation'`; `operator_audit_log` remains scoped to legacy operator PDS writes.
+- `MembershipService` role and removal writes use the mutation port.
+- Setup bootstrap, public invitation acceptance, `AuthService.register`, and network join/leave use the mutation port for membership and role authority.
 - Migrated paths no longer create cooperative-owned V9 `memberApproval` records.
 - Stage 2D replaces member-authored `network.coopsource.org.membership` evidence with `network.coopsource.org.memberConsent`.
 - Invitation acceptance audit uses the inviter as the authority actor; the joining member remains consent evidence, not the actor who added themself.
-- Federation membership approval now writes through `GroupAuthorityCommandPort` instead of creating `memberApproval` records.
+- Federation membership approval now writes through `GroupMutationPort` instead of creating `memberApproval` records.
 - Federation membership requests carry caller-supplied consent evidence instead of minting member-owned records on the receiving instance.
+- Federation request/approval paths verify consent evidence by AT URI authority DID, collection, CID, cooperative DID, allowed `consentType`, and plausible `createdAt` before storing it.
+- Public `network.coopsource.org.memberConsent` no longer includes free-text `message`.
 - Appview member-consent hooks no longer treat member-authored records or `memberApproval` records as active authority. Member-authored records only attach evidence URIs to existing command-created rows.
-- Transactional route flows request a transaction-scoped command port from the container instead of constructing the CSN adapter directly.
+- Appview delete/update hooks clear consent evidence only when the stored URI and CID match the invalidated record.
+- Transactional route flows request a transaction-scoped mutation port from the container instead of constructing the CSN adapter directly.
 
 Deferred:
 
@@ -64,7 +67,7 @@ Deferred:
 - Cooperative controlled-DID provisioning.
 - Creating, deleting, or configuring real Arbiter spaces.
 - Migrating `MembershipService` reads to space/Arbiter operations.
-- Replacing `fact_log` audit projection with real `$admin` audit consumption.
+- Replacing `fact_log` audit projection with real group-policy audit consumption.
 - Retiring the bilateral membership tables and lexicons.
 
 ## Tests
@@ -72,7 +75,7 @@ Deferred:
 Covered in `@coopsource/arbiter-client`:
 
 - Members and role space helper output.
-- Empty role skey rejection.
+- Empty role slug rejection.
 - Active, pending, and invalidated membership decisions.
 - Role-space checks requiring a matching role.
 - Keyset pagination across same-timestamp membership rows.

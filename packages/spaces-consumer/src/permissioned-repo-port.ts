@@ -64,9 +64,8 @@ export class KyselyPermissionedCheckpointStore implements PermissionedCheckpoint
     const row = await this.db
       .selectFrom('spaces_consumer_cursor')
       .select('cursor')
-      .where('cooperative_did', '=', space.arbiter)
-      .where('space_type', '=', space.type)
-      .where('space_skey', '=', space.skey)
+      .where('arbiter_did', '=', space.arbiterDid)
+      .where('space_key', '=', space.spaceKey)
       .where('member_did', '=', KyselyPermissionedCheckpointStore.spaceCheckpointMemberDid)
       .executeTakeFirst();
     return row?.cursor ? this.checkpoint(row.cursor) : undefined;
@@ -76,16 +75,16 @@ export class KyselyPermissionedCheckpointStore implements PermissionedCheckpoint
     await this.db
       .insertInto('spaces_consumer_cursor')
       .values({
-        cooperative_did: space.arbiter,
-        space_type: space.type,
-        space_skey: space.skey,
+        arbiter_did: space.arbiterDid,
+        space_key: space.spaceKey,
+        expected_space_type: space.expectedSpaceType ?? null,
         member_did: KyselyPermissionedCheckpointStore.spaceCheckpointMemberDid,
         cursor: checkpoint,
         updated_at: new Date(),
       })
       .onConflict((oc) =>
         oc
-          .columns(['cooperative_did', 'space_type', 'space_skey', 'member_did'])
+          .columns(['arbiter_did', 'space_key', 'member_did'])
           .doUpdateSet({ cursor: checkpoint, updated_at: new Date() }),
       )
       .execute();

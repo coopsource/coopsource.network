@@ -3,7 +3,7 @@ import session from 'express-session';
 import supertest from 'supertest';
 import type { Kysely, Transaction } from 'kysely';
 import type { Database } from '@coopsource/db';
-import { CsnDbGroupAuthorityCommandPort } from '@coopsource/arbiter-client';
+import { CsnDbGroupMutationPort } from '@coopsource/arbiter-client';
 import { MockClock, AtprotoPdsService } from '@coopsource/federation';
 import { LocalPdsService, LocalBlobStore } from '@coopsource/federation/local';
 import type { FederationDatabase } from '@coopsource/federation/local';
@@ -50,6 +50,11 @@ import { DelegationVotingService } from '../../src/services/delegation-voting-se
 import { GovernanceFeedService } from '../../src/services/governance-feed-service.js';
 import { MemberClassService } from '../../src/services/member-class-service.js';
 import { CooperativeLinkService } from '../../src/services/cooperative-link-service.js';
+import { StarterPackService } from '../../src/services/starter-pack-service.js';
+import {
+  ConsentEvidenceVerifier,
+  PdsPublicRepoRecordResolver,
+} from '../../src/services/consent-evidence-verifier.js';
 import { HookRegistry } from '../../src/appview/hooks/registry.js';
 import { registerBuiltinHooks } from '../../src/appview/hooks/builtin/index.js';
 import { lexiconValidatorHook } from '../../src/appview/hooks/builtin/lexicon-validator-hook.js';
@@ -165,10 +170,10 @@ export function createTestApp(options?: TestAppOptions): TestApp {
   } as AppConfig;
 
   const operatorWriteProxy = new OperatorWriteProxy(pdsService, db, testConfig);
-  const groupAuthorityCommandsForDb = (authorityDb: Kysely<Database> | Transaction<Database>) => new CsnDbGroupAuthorityCommandPort(authorityDb, {
+  const groupMutationsForDb = (authorityDb: Kysely<Database> | Transaction<Database>) => new CsnDbGroupMutationPort(authorityDb, {
     now: () => clock.now(),
   });
-  const groupAuthorityCommands = groupAuthorityCommandsForDb(db);
+  const groupMutations = groupMutationsForDb(db);
 
   const profileService = new ProfileService(db, clock);
   const authService = new AuthService(
@@ -178,14 +183,14 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     profileService,
     'http://localhost:3001',
     memberWriteProxy,
-    groupAuthorityCommands,
+    groupMutations,
   );
   const entityService = new EntityService(db, blobStore);
   const membershipService = new MembershipService(
     db,
     emailService,
     clock,
-    groupAuthorityCommands,
+    groupMutations,
   );
   const labelSubscriptionManager = new LabelSubscriptionManager(db);
   const governanceLabeler = new GovernanceLabeler(db, labelSubscriptionManager);
@@ -195,7 +200,7 @@ export function createTestApp(options?: TestAppOptions): TestApp {
   const proposalService = new ProposalService(db, pdsService, clock, memberWriteProxy, governanceLabeler);
   const agreementService = new AgreementService(db, pdsService, clock, memberWriteProxy);
   const agreementTemplateService = new AgreementTemplateService(db, clock);
-  const networkService = new NetworkService(db, pdsService, clock, groupAuthorityCommands);
+  const networkService = new NetworkService(db, pdsService, clock, groupMutations);
   const paymentRegistry = new PaymentProviderRegistry(db, 'yIknTzhyTfVpR7cc/ZrwSpewmhyiOJA97leVbKqccsY=');
   const fundingService = new FundingService(db, pdsService, clock, paymentRegistry, memberWriteProxy);
   const alignmentService = new AlignmentService(db, pdsService, clock);
@@ -221,6 +226,11 @@ export function createTestApp(options?: TestAppOptions): TestApp {
   const governanceFeedService = new GovernanceFeedService(db, clock);
   const memberClassService = new MemberClassService(db, clock);
   const cooperativeLinkService = new CooperativeLinkService(db, clock);
+  const starterPackService = new StarterPackService(db, pdsService);
+  const consentEvidenceVerifier = new ConsentEvidenceVerifier(
+    new PdsPublicRepoRecordResolver(pdsService),
+    { now: () => clock.now() },
+  );
 
   // V7 P6: Hook pipeline
   const hookRegistry = new HookRegistry();
@@ -247,8 +257,8 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     blobStore,
     clock,
     emailService,
-    groupAuthorityCommands,
-    groupAuthorityCommandsForDb,
+    groupMutations,
+    groupMutationsForDb,
     authService,
     profileService,
     entityService,
@@ -290,6 +300,8 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     governanceFeedService,
     memberClassService,
     cooperativeLinkService,
+    starterPackService,
+    consentEvidenceVerifier,
     hookRegistry,
     lexiconManagementService,
     scriptWorkerPool,

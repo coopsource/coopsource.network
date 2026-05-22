@@ -2,7 +2,7 @@
 
 > **Status:** Active architecture is V11. See [ARCHITECTURE-V11.md](./ARCHITECTURE-V11.md) and [CLAUDE-CODE-PROMPT-V11.md](./CLAUDE-CODE-PROMPT-V11.md). Some implementation details below still describe the V9-era code that V11 is migrating away from.
 
-A federated collaboration platform for cooperatives, built on [ATProtocol](https://atproto.com). Cooperatives are genuine ATProto citizens with their own DIDs. Members bring their own ATProto identities. V11 moves private cooperative data from public firehose workarounds and PostgreSQL ACLs toward permissioned spaces, Arbiter-style group authority, GovernanceView, and CoopView.
+A federated collaboration platform for cooperatives, built on [ATProtocol](https://atproto.com). Cooperatives are genuine ATProto citizens with their own DIDs. Members bring their own ATProto identities. V11 moves private cooperative data from public firehose workarounds and PostgreSQL ACLs toward permissioned spaces, the Group Directory / Arbiter substrate, GovernanceView, and CoopView.
 
 ## How it works
 

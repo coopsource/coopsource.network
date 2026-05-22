@@ -1,11 +1,12 @@
 import type { DID } from '@coopsource/common';
-import type { GroupAuthorityPort, MembershipDecision } from './group-authority-port.js';
+import type { GroupDirectoryPort } from './group-directory-port.js';
 import type { PermissionedRepoPort, PermissionedWatchHandle } from './permissioned-repo-port.js';
 import {
   SpacesConsumerError,
   type ClockedOptions,
   type ConsumerHealth,
   type PermissionedChangeHint,
+  type ResolvedMembers,
   type SpaceRef,
   type VerifiedPermissionedChanges,
   type VerifiedPermissionedRecord,
@@ -17,7 +18,7 @@ export interface RejectedPermissionedRecord {
 }
 
 export interface SpacesConsumerOptions extends ClockedOptions {
-  readonly groupAuthority: GroupAuthorityPort;
+  readonly groupDirectory: GroupDirectoryPort;
   readonly permissionedRepo: PermissionedRepoPort;
   readonly onAccepted: (record: VerifiedPermissionedRecord) => Promise<void> | void;
   readonly onRejected?: (rejection: RejectedPermissionedRecord) => Promise<void> | void;
@@ -107,11 +108,10 @@ export class SpacesConsumer {
   }
 
   private async handleRecord(record: VerifiedPermissionedRecord): Promise<boolean> {
-    let decision: MembershipDecision;
+    let resolvedMembers: ResolvedMembers;
     try {
-      decision = await this.opts.groupAuthority.isMember({
-        space: record.location.space,
-        did: record.location.authorDid,
+      resolvedMembers = await this.opts.groupDirectory.resolveSpaceMembers({
+        ...record.location.space,
         consistency: 'strict',
       });
     } catch (err) {
@@ -124,11 +124,16 @@ export class SpacesConsumer {
       return false;
     }
 
-    if (!this.isDeterminate(decision)) {
+    if (
+      !resolvedMembers.ok ||
+      resolvedMembers.partial ||
+      resolvedMembers.stale ||
+      resolvedMembers.missingSpaces.length > 0
+    ) {
       this.recordsRejected += 1;
       this.memberCrossCheckFailures += 1;
       await this.recordError(
-        new SpacesConsumerError('member-list', 'strict membership decision was indeterminate'),
+        new SpacesConsumerError('member-list', 'strict resolved membership was indeterminate'),
         {
           space: record.location.space,
           authorDid: record.location.authorDid,
@@ -137,7 +142,8 @@ export class SpacesConsumer {
       return false;
     }
 
-    if (!decision.isMember) {
+    const isMember = resolvedMembers.members.some((member) => member.did === record.location.authorDid);
+    if (!isMember) {
       this.recordsRejected += 1;
       this.memberCrossCheckFailures += 1;
       try {
@@ -163,10 +169,6 @@ export class SpacesConsumer {
       });
       return false;
     }
-  }
-
-  private isDeterminate(decision: MembershipDecision): boolean {
-    return decision.ok && decision.stale !== true;
   }
 
   private async recordError(err: unknown, context: { space: SpaceRef; authorDid?: DID }): Promise<void> {

@@ -3,7 +3,7 @@ import { StaticArbiterMemberList, DenyAllArbiterMemberList } from '../arbiter-me
 import type { SpaceRef } from '../types.js';
 import { fakeDid } from './helpers/factories.js';
 
-const ref: SpaceRef = { arbiter: fakeDid('did:plc:coop'), type: 'X', skey: 'members' };
+const ref: SpaceRef = { arbiterDid: fakeDid('did:plc:coop'), spaceKey: 'members', expectedSpaceType: 'X' };
 
 describe('StaticArbiterMemberList', () => {
   it('isMember returns true for listed DIDs', async () => {

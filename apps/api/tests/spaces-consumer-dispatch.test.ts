@@ -8,9 +8,9 @@ import {
 import { getTestDb } from './helpers/test-db.js';
 
 const space = {
-  arbiter: 'did:plc:coop' as DID,
-  type: 'network.coopsource.org.cooperative',
-  skey: 'members',
+  arbiterDid: 'did:plc:coop' as DID,
+  spaceKey: 'members',
+  expectedSpaceType: 'network.coopsource.org.spaceType.members',
 };
 
 describe('spaces consumer dispatch', () => {
@@ -53,7 +53,7 @@ describe('spaces consumer dispatch', () => {
     expect(getSpacesConsumerHealth()).toBeNull();
   });
 
-  it('starts enabled with stable-port CSN authority wiring', async () => {
+  it('starts enabled with stable-port CSN group-directory wiring', async () => {
     const consumer = await startSpacesConsumer({
       enabled: true,
       unsafeAcceptUnverifiedPermissionedData: false,

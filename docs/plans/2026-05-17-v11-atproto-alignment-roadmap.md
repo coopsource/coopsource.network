@@ -6,7 +6,7 @@
 
 ## Context
 
-V11's overall direction is sound: retire V9/V10 workarounds, express membership and roles through spaces/Arbiter-shaped group authority, keep records of authority in ATProto repos or permissioned spaces, and separate generic governance from cooperative-specific semantics.
+V11's overall direction is sound: retire V9/V10 workarounds, express membership and roles through the Group Directory / Arbiter substrate, keep records of authority in ATProto repos or permissioned spaces, and separate generic governance from cooperative-specific semantics.
 
 The risk is that Stage 1 and the architecture documents currently encode several upstream assumptions too early: permissioned-space OAuth scope grammar, permissioned URI scheme, Arbiter XRPC shape, sync/digest mechanics, and the exact way generic governance records should compose with CSN-specific records.
 
@@ -64,7 +64,7 @@ Decide when records are generic first versus CSN-specific first:
 
 Separate authority from evidence and ledger state from member-visible copies:
 
-- Active membership authority: `members` space / group-authority adapter.
+- Active membership authority: `members` space / Group Directory adapter.
 - Consent evidence: member-authored join/application/signature records.
 - Cooperative ledger authority: coop-owned finance/officer records.
 - Member visibility: member-space projections, notices, and tax-form delivery artifacts.
@@ -85,9 +85,9 @@ Status on this branch: `README.md` now has V11 target framing, and `packages/lex
 2. Update the V11 architecture docs with the high-confidence corrections: OAuth wording, URI typing, public lists opt-in, consent evidence, and finance canonicality.
 3. Adjust Stage 1 public interfaces to use stable ports and opaque cursors before adding real upstream adapters.
 4. Revisit the Stage 1 merge once docs and interfaces agree.
-5. Start Stage 2 through CSN-backed group authority adapters while upstream Arbiter XRPC remains unsettled.
+5. Start Stage 2 through CSN-backed Group Directory / Group Mutation adapters while upstream Arbiter XRPC remains unsettled.
 
-Status on this branch: Stage 2 now has `@coopsource/arbiter-client` read and write boundaries. `CsnDbGroupAuthorityPort` reads current membership tables for the spaces consumer; `CsnDbGroupAuthorityCommandPort` routes setup, invitation acceptance, registration, federation approval, membership role/removal, and network membership writes through the same package. Stage 2D replaces temporary V9 member-authored membership evidence with `network.coopsource.org.memberConsent`, and federation membership requests now require caller-supplied consent evidence rather than minting member-owned records on the receiver. Temporary role spaces still use the `roleSpace()` convention until upstream Arbiter role-space shape settles.
+Status on this branch: Stage 2 now has `@coopsource/arbiter-client` read and write boundaries. `CsnDbGroupDirectoryPort` reads current membership tables for the spaces consumer; `CsnDbGroupMutationPort` routes setup, invitation acceptance, registration, federation approval, membership role/removal, and network membership writes through the same package. Stage 2D replaces temporary V9 member-authored membership evidence with `network.coopsource.org.memberConsent`; federation membership requests now require caller-supplied consent evidence and verify URI authority DID, collection, CID, cooperative DID, allowed `consentType`, and plausible `createdAt` before storing it. Role spaces use the canonical `roleSpace()` `spaceKey` convention until upstream Arbiter role-space shape settles.
 
 ## Acceptance Criteria
 

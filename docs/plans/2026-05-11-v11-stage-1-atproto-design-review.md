@@ -71,7 +71,7 @@ Primary references:
 
 ## Stage 1 Implementation Notes
 
-- `SpaceRef = { arbiter, type, skey }` is the right internal substrate. Keep it.
+- The internal `SpaceRef` substrate was later tightened to `{ arbiterDid, spaceKey, expectedSpaceType? }`; keep that canonical identity shape.
 - The fail-closed sketches are good. They prevent accidental production data flow before real upstream adapters exist.
 - The `ArbiterMemberList` interface is useful, but it should eventually support pagination, snapshots, and membership proofs or revision markers. A full `list(space): DID[]` is fine for tests, but probably not enough as the real adapter boundary.
 - The cursor model currently assumes per-member rev ordering. That may survive, but the real protocol may expose space-level revs, member-repo revs, or oplog cursors. Keep cursor storage opaque and avoid relying on lexicographic string comparison outside the sketch implementation.
@@ -81,7 +81,7 @@ Primary references:
 
 Use a smaller set of stable ports:
 
-- `GroupAuthorityPort`: abstracts Arbiter/spaces membership, role spaces, recursive membership, member-list snapshots, and strict reads.
+- `GroupDirectoryPort`: abstracts Arbiter/spaces membership, role spaces, recursive membership, member-list snapshots, and strict reads.
 - `PermissionedRepoPort`: abstracts pull/resync/verify for permissioned repos without exposing ECMH or notification assumptions to application code.
 - `GovernanceRecordPort`: writes and reads canonical `community.lexicon.governance.*` records when ecosystem interoperability is desired.
 - `CoopExtensionPort`: writes CSN sidecars and cooperative-specific records under `network.coopsource.*`.

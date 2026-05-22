@@ -3,7 +3,7 @@ import { InMemoryNotificationSubscriber } from '../notification-subscriber.js';
 import type { SpaceRef } from '../types.js';
 import { fakeDid } from './helpers/factories.js';
 
-const ref: SpaceRef = { arbiter: fakeDid('did:plc:coop'), type: 'X', skey: 'members' };
+const ref: SpaceRef = { arbiterDid: fakeDid('did:plc:coop'), spaceKey: 'members', expectedSpaceType: 'X' };
 
 describe('InMemoryNotificationSubscriber', () => {
   it('delivers an emitted notification to a subscribed handler', async () => {
@@ -18,7 +18,7 @@ describe('InMemoryNotificationSubscriber', () => {
     const sub = new InMemoryNotificationSubscriber({ clock: () => new Date() });
     const handler = vi.fn();
     await sub.subscribe(ref, handler);
-    await sub.emit({ ...ref, skey: 'other' }, 'rev-1');
+    await sub.emit({ ...ref, spaceKey: 'other' }, 'rev-1');
     expect(handler).not.toHaveBeenCalled();
   });
 });

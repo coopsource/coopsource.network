@@ -2,7 +2,7 @@ import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
 import type { DID } from '@coopsource/common';
 import { NotFoundError, ConflictError } from '@coopsource/common';
-import type { GroupAuthorityCommandPort } from '@coopsource/arbiter-client';
+import type { GroupMutationPort } from '@coopsource/arbiter-client';
 import type { IPdsService, IClock } from '@coopsource/federation';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
@@ -37,7 +37,7 @@ export class NetworkService {
     private db: Kysely<Database>,
     private pdsService: IPdsService,
     private clock: IClock,
-    private groupAuthorityCommands: GroupAuthorityCommandPort,
+    private groupMutations: GroupMutationPort,
   ) {}
 
   async listNetworks(params: PageParams): Promise<Page<NetworkSummary>> {
@@ -279,7 +279,7 @@ export class NetworkService {
       })
       .execute();
 
-    await this.groupAuthorityCommands.provisionCooperativeAuthority({
+    await this.groupMutations.provisionCooperativeAuthority({
       cooperativeDid: did as DID,
       actorDid: did as DID,
     });
@@ -335,7 +335,7 @@ export class NetworkService {
       },
     });
 
-    await this.groupAuthorityCommands.addMember({
+    await this.groupMutations.addMember({
       cooperativeDid: params.networkDid as DID,
       memberDid: params.cooperativeDid as DID,
       actorDid: params.cooperativeDid as DID,
@@ -351,7 +351,7 @@ export class NetworkService {
     networkDid: string,
     cooperativeDid: string,
   ): Promise<void> {
-    const result = await this.groupAuthorityCommands.removeMember({
+    const result = await this.groupMutations.removeMember({
       cooperativeDid: networkDid as DID,
       memberDid: cooperativeDid as DID,
       actorDid: cooperativeDid as DID,

@@ -1,6 +1,7 @@
 # ARCHITECTURE-V11.md — Spaces, Arbiter, GovernanceView, and CoopView
 
 > **Date**: May 11, 2026
+> **Updated**: May 22, 2026 — aligned with Zicklag's draft `town.muni.arbiter.*` lexicons and Private Data WG discussion
 > **Status**: Active architectural specification
 > **Supersedes**: V9 (`docs/archive/ARCHITECTURE-V9.md`), V10 (`docs/archive/ARCHITECTURE-V10.md`)
 > **Research foundation**: `docs/plans/2026-05-08-csn-architectural-direction.md` (deep rationale, design analysis), `docs/plans/2026-05-11-csn-research-addendum.md` (May ecosystem scan)
@@ -10,15 +11,15 @@
 
 ## 0. Executive Summary
 
-V11 is the architectural shift from "ATProto-native with workarounds for absent primitives" to "ATProto-native using the primitives that have now landed." V9 built a working cooperative platform on ATProto using three workarounds — bilateral membership records, a `VisibilityRouter` with three storage tiers, and custom federation primitives — because the protocol did not yet have group semantics, permissioned data, or cross-organization identity. V10 was designed (April 16, 2026) to deepen those workarounds but was never implemented. V11 replaces the workarounds with the protocol primitives now available: **permissioned spaces** (Holmgren's permissioned-data work, Diaries 1–5), **the Arbiter pattern** (Meri and Zicklag's group-management service, April 2026), and the **GovernanceView/CoopView layered architecture** that CSN contributes back to the ecosystem.
+V11 is the architectural shift from "ATProto-native with workarounds for absent primitives" to "ATProto-native using the primitives that have now landed." V9 built a working cooperative platform on ATProto using three workarounds — bilateral membership records, a `VisibilityRouter` with three storage tiers, and custom federation primitives — because the protocol did not yet have group semantics, permissioned data, or cross-organization identity. V10 was designed (April 16, 2026) to deepen those workarounds but was never implemented. V11 replaces the workarounds with the protocol primitives now available: **permissioned spaces** (Holmgren's permissioned-data work, Diaries 1–5), a **Group Directory / Arbiter substrate** (Meri and Zicklag's group-management service, now represented by draft `town.muni.arbiter.*` lexicons), and the **GovernanceView/CoopView layered architecture** that CSN contributes back to the ecosystem.
 
 **Five architectural commitments shape V11:**
 
 1. **CSN treats authority as a small set of distinct axes, not a single ACL.** OAuth scopes govern app-to-user authority. Spaces govern user-to-user authority. Application logic governs user-to-action authority. Labels and service-auth JWTs sit alongside as adjacent axes. Separating them in code is what distinguishes a debuggable authorization model from V9's tangled one.
 
-2. **CSN adopts the Arbiter pattern as its group-management substrate.** A cooperative is an arbiter instance. Roles (board, officers, treasurer, member classes, custom roles) are spaces. Networks of cooperatives are arbiters whose `members` space contains other cooperative DIDs — the recursive cooperative model expressed at the protocol level.
+2. **CSN adopts a generic Group Directory / Arbiter substrate.** A cooperative is represented by an arbiter DID with named spaces. Roles (board, officers, treasurer, member classes, custom roles) are spaces keyed by stable `spaceKey` values. The generic substrate answers *who is who* — spaces, direct members, local-space members, remote-space members, resolved member sets — while authorization policy answers *what can you do* and remains implementation-specific. Networks of cooperatives are arbiters whose spaces contain cooperative DIDs or remote spaces — the recursive cooperative model expressed at the protocol level.
 
-3. **CSN builds a generic governance layer that other ATProto projects can use.** **GovernanceView** is a standalone service providing generic governance primitives — proposals, votes, deliberations, anchor records, transparency logs, vote-tally aggregation, role-state derivation — on top of Arbiter spaces. Its lexicons live in `community.lexicon.governance.*`.
+3. **CSN builds a generic governance layer that other ATProto projects can use.** **GovernanceView** is a standalone service providing generic governance primitives — proposals, votes, deliberations, anchor records, transparency logs, vote-tally aggregation, role-state derivation — on top of Group Directory / Arbiter spaces. Its lexicons live in `community.lexicon.governance.*`.
 
 4. **CSN's distinctive cooperative semantics live in CoopView, layered on GovernanceView.** Cooperative-specific concerns — Subchapter T compliance, patronage allocation, capital accounts, multi-stakeholder weighted voting, ICA principle adherence, financial period tracking, 1099-PATR generation, agreement lifecycle — are extensions of GovernanceView rather than the substance of it. CoopView's lexicons stay in `network.coopsource.*`.
 
@@ -34,7 +35,7 @@ V11 is the architectural shift from "ATProto-native with workarounds for absent 
 2. [The Four-Layer Architecture](#2-the-four-layer-architecture)
 3. [The Three Axes of Authority](#3-the-three-axes-of-authority)
 4. [Cooperative Identity](#4-cooperative-identity)
-5. [Membership via Arbiter Spaces](#5-membership-via-arbiter-spaces)
+5. [Membership via Group Directory / Arbiter Spaces](#5-membership-via-group-directory--arbiter-spaces)
 6. [The Spaces-Backed Privacy Model](#6-the-spaces-backed-privacy-model)
 7. [GovernanceView](#7-governanceview)
 8. [CoopView](#8-coopview)
@@ -58,11 +59,13 @@ V11 is the architectural shift from "ATProto-native with workarounds for absent 
 
 CSN is a proof-of-concept project with no users, no deployment, no commercial deadlines, and an explicit design goal of *"model the problem and solutions correctly without compromise at the design level."* The corollary is that V11 should be an architecture CSN believes in for years, not a workaround for protocol gaps that are about to close. The protocol gaps closed in early 2026; V11 is the architecture that uses what landed.
 
+**PoC velocity rule: replace concepts in place.** Because CSN has never been in production and has no external production contract, old PoC code shapes should not be preserved. Refactors should update canonical names, types, lexicons, schema declarations, and adapters in place instead of creating version-suffixed artifacts or parallel old/new APIs. The current canonical name should carry the current canonical semantics. Historical names belong in archived docs or explicit migration notes only.
+
 ### 1.2 The recursive cooperative model (preserved)
 
 The recursive cooperative model remains the central design principle: everything is an entity (person or cooperative), and a network is just a cooperative whose members are other cooperatives. No special type needed. Same membership, governance, and agreement machinery works at every level.
 
-V11 gives this principle a protocol-level expression. Under V9 the recursive model was a CSN-specific abstraction; under V11 it is the Arbiter pattern's natural shape — *"spaces can have member lists that include other spaces, and spaces from different arbiters can be members of each other."* A cooperative's `members` space can include another cooperative's `members` space (cross-organizational trust). A network of cooperatives is an arbiter whose `members` space contains other arbiter DIDs (recursion). The model becomes free, not invented.
+V11 gives this principle a protocol-level expression. Under V9 the recursive model was a CSN-specific abstraction; under V11 it is the Group Directory / Arbiter pattern's natural shape: a direct member can be a DID, a local space, or a remote space. A cooperative's `members` space can include another cooperative's `members` space (cross-organizational trust). A network of cooperatives is an arbiter whose `members` space contains cooperative DIDs or remote member spaces (recursion). The model becomes free, not invented. Governance-critical consumers distinguish direct members from resolved members and treat partial remote resolution as a first-class state, not as success.
 
 ### 1.3 ICA principles map onto ATProto's architecture
 
@@ -78,7 +81,7 @@ The ICA's seven cooperative principles map naturally onto ATProto's primitives, 
 
 ### 1.4 Cooperatives are protocol-level citizens
 
-V11 sharpens V9's "cooperatives are ATProto citizens" stance. Under V9 a cooperative was a DID with a PDS; under V11 a cooperative is an arbiter instance with a controlled DID, multiple skey-distinguished spaces (members, board, officers, treasurer, member classes, etc.), and standard XRPC API surfaces for membership management. Other ATProto applications (Roomy, opensocial.community, Tangled) can compose with cooperatives because both sides speak the same arbiter protocol.
+V11 sharpens V9's "cooperatives are ATProto citizens" stance. Under V9 a cooperative was a DID with a PDS; under V11 a cooperative is an arbiter DID with multiple `spaceKey`-distinguished spaces (`members`, `roles/board`, `roles/treasurer`, member-class spaces, etc.), space-type metadata, and standard XRPC API surfaces for reading spaces and members. Other ATProto applications (Roomy, opensocial.community, Tangled) can compose with cooperatives because both sides can read the same group-directory shape even when they use different policy/authentication mechanisms for mutations.
 
 ---
 
@@ -103,10 +106,11 @@ V11 sharpens V9's "cooperatives are ATProto citizens" stance. Under V9 a coopera
 │   Consumer: CSN, Roomy, opensocial.community, any group-shaped   │
 │   ATProto application.                                           │
 ├─────────────────────────────────────────────────────────────────┤
-│ Layer 2: Arbiter                                                 │
-│   Generic group/role/space management: community DIDs,           │
-│   $admin, role-spaces, space-as-member-of-space recursion,       │
-│   $publish, $labeler.                                            │
+│ Layer 2: Group Directory / Arbiter                               │
+│   Generic group/role/space membership: arbiter DIDs, named       │
+│   spaces, direct and resolved member lists, local/remote         │
+│   space-as-member recursion, open-union config/access payloads.  │
+│   Policy/authentication is implementation-specific.              │
 │   Authors: Meri and Zicklag (Roomy team)                         │
 │   Consumer: GovernanceView, Roomy, any community-shaped app      │
 ├─────────────────────────────────────────────────────────────────┤
@@ -134,7 +138,7 @@ The layering falls out of three observations:
 Where does a feature belong?
 
 - **Layer 1 (Spaces):** Is this a protocol-level primitive about access and storage? Lives in spaces.
-- **Layer 2 (Arbiter):** Is this generic group/role management that any community-shaped app would want? Lives in the Arbiter.
+- **Layer 2 (Group Directory / Arbiter):** Is this generic group/role membership that any community-shaped app would want — spaces, member refs, direct/resolved member lists, role trees, open-union config/access payloads? Lives in the Group Directory / Arbiter substrate. Is it a rule for whether a specific mutation is allowed? That is implementation policy, not the generic directory contract.
 - **Layer 3 (GovernanceView):** Is this a generic governance primitive — a proposal, a vote, a deliberation, an audit log entry, a derived role-state record — that any group-shaped app might want for collective decision-making? Lives in GovernanceView.
 - **Layer 4 (CoopView):** Is this cooperative-specific — Subchapter T, patronage, ICA principles, capital accounts, multi-stakeholder weights? Lives in CoopView.
 
@@ -169,14 +173,20 @@ CSN ships namespace-scoped permission sets for `network.coopsource.*` records an
 
 ### 3.2 Axis 2: Spaces — user-to-user authority within a permissioned context
 
-Spaces govern which users can read and write within a permissioned context. This is independent of which app is acting on the user's behalf. A user is a member of a space or they are not. The space owner (the arbiter) controls the member list. A user's permissioned repo for a space accepts writes only if the user is in the space's member list, and only if the writing app has the appropriate OAuth or space-auth grant (Axis 1 / §3.4).
+Spaces govern which users can read or write within a permissioned context. This is independent of which app is acting on the user's behalf. A user is a member of a space or they are not. The space owner / arbiter controls the member list directly or by delegating membership to local or remote spaces.
 
-When CSN's cooperative's `members` space includes Alice's DID:
+V11 distinguishes two layers that earlier drafts sometimes blurred:
 
-- Alice's permissioned repo for that space accepts writes she initiates.
-- *Whether Alice can write through CSN specifically* depends on Alice having granted CSN whatever permissioned-space authorization grammar the protocol settles on. Until that lands, CSN code treats this as "OAuth or space-auth grant missing," not as a concrete `repo:` scope.
+- **Physical write path.** A user's own repo/PDS may be able to accept a record write from that user or from an OAuth-authorized app.
+- **Accepted governance state.** CSN only treats that record as valid GovernanceView/CoopView state after it verifies schema, commit/signature, author DID, direct or resolved space membership, app policy where applicable, labels, and cooperative-specific action eligibility.
 
-If Alice is removed from the `members` space, her votes can no longer be written into the space's repo. If Alice grants the scope but isn't in the space, CSN can't write on her behalf. Both axes are checked.
+When CSN's cooperative's `members` space resolves Alice's DID:
+
+- Alice may be able to write records for that permissioned context through the upstream space write mechanism.
+- *Whether Alice can write through CSN specifically* depends on Alice granting CSN the relevant OAuth or space-auth authority and on the space's app policy allowing CSN's client.
+- *Whether the record counts for governance* depends on GovernanceView and CoopView validation. Reader/indexer acceptance is the load-bearing invariant.
+
+If Alice is removed from the `members` space, new records authored by Alice for member-only governance do not enter the accepted projection, even if a stale repo write path still exists. If Alice grants the OAuth scope but is not in the space, CSN rejects the operation. Both axes are checked.
 
 ### 3.3 Axis 3: Application logic — user-to-action authority
 
@@ -227,13 +237,13 @@ V11 includes a `did_rotation_history` table that maps old DIDs to new ones, upda
 
 Cooperatives never accumulate state under a founder's personal DID. The cooperative DID is minted at provisioning time, distinct from any human DID. This sidesteps the (currently unsolved) personal-to-community DID transition problem in the upstream protocol. A worker-co-op founder creates the cooperative DID first; personal records (if any are needed) live under their own personal DID in personal spaces, never under cooperative spaces.
 
-### 4.4 Multi-user access via the Arbiter's `$admin` space
+### 4.4 Multi-user access via cooperative-controlled group policy
 
-A cooperative is not a single person. Multiple operators need to write records under the cooperative's DID. V9 solved this via the `OperatorWriteProxy`; V11 expresses it via the Arbiter pattern. Operators are members of the cooperative's `$admin` space with Configure Space access (one of the eight Arbiter access levels). The `$admin` audit trail is built into the arbiter: every operation on `$admin` is itself a record.
+A cooperative is not a single person. Multiple operators need to write records under the cooperative's DID. V9 solved this via the `OperatorWriteProxy`; V11 expresses it via the Group Directory / Arbiter pattern and implementation-specific policy. `$admin` is a useful convention when the selected Arbiter/policy server supports it, but it is not treated as a universal generic-lexicon requirement. Operator authority is represented as space membership plus an open-union access/config payload; the policy server decides whether a requested mutation is allowed. CSN records governance outcomes that can be consumed as policy attestations for role and admin mutations.
 
 ---
 
-## 5. Membership via Arbiter Spaces
+## 5. Membership via Group Directory / Arbiter Spaces
 
 ### 5.1 No more bilateral membership
 
@@ -246,39 +256,75 @@ Both V9 lexicons retire:
 
 ### 5.2 The `members` space pattern
 
-A cooperative's `members` space has an authoritative member list. A member is in the list or they are not. The space owner (the cooperative's arbiter, ultimately backed by the cooperative's PDS) controls the list.
+A cooperative's `members` space has an authoritative member list. A member is in the list or they are not. The space owner (the cooperative's arbiter, ultimately backed by the cooperative's PDS) controls the list directly or through policy-governed mutation APIs.
 
-The CSN-side concerns the bilateral pattern was getting at — membership requires cooperative consent, role authority is centralized — are preserved natively. The cooperative consents by adding the member to the `members` space. Role authority is centralized at the arbiter (members can't self-add to the `treasurer` space; only members with appropriate Configure Space access on the role-space can).
+The CSN-side concerns the bilateral pattern was getting at — membership requires cooperative consent, role authority is centralized — are preserved natively. The cooperative consents by adding the member to the `members` space. Role authority is centralized at the arbiter/policy server (members can't self-add to the `roles/treasurer` space; only authorized operators or policy-approved governance outcomes can mutate it).
 
-**Consent evidence without bilateral authority.** V9 used the bilateral pattern partly to enforce that members had explicitly agreed to join. Under V11, the `members` space remains the active membership authority, but durable consent is captured separately through member-authored join/application/agreement records. OAuth authorizes CSN to act for the member; it is not itself the cooperative membership agreement or audit record.
+**Consent evidence without bilateral authority.** V9 used the bilateral pattern partly to enforce that members had explicitly agreed to join. Under V11, the `members` space remains the active membership authority, but durable consent is captured separately through member-authored join/application/agreement records. `network.coopsource.org.memberConsent` is a non-authoritative evidence record. It may attach `consentRecordUri` / `consentRecordCid` to an existing command-created membership projection row, but AppView hooks must never create, activate, approve, downgrade, or remove membership authority from consent records alone.
 
-### 5.3 Roles as spaces
+### 5.3 Space identity and member-reference model
 
-Roles live as separate spaces under the cooperative DID, distinguished by skey:
+CSN's public interfaces use a draft-lexicon-aligned `SpaceRef`:
 
-| Role | Space (`did:plc:coop / nsid / skey`) |
+```ts
+export interface SpaceRef {
+  arbiterDid: DID;
+  spaceKey: string;
+  expectedSpaceType?: NSID;
+}
+
+export type SpaceMemberRef =
+  | { kind: 'did'; did: DID }
+  | { kind: 'localSpace'; spaceKey: string; expectedSpaceType?: NSID }
+  | { kind: 'remoteSpace'; arbiterDid: DID; spaceKey: string; expectedSpaceType?: NSID };
+```
+
+`arbiterDid + spaceKey` is the stable operational identity used by the draft Arbiter lexicons. `spaceType` / `expectedSpaceType` is metadata used for validation and configuration; it is not the stable identity key. Replace the older triple-field space identity shape in place wherever it appears in active code. Temporary adapters may translate to whatever a local sketch implementation still needs internally, but the active project-facing type is `SpaceRef` and old-shape APIs should be refactored away.
+
+The draft model distinguishes:
+
+- **Direct members:** DIDs, local spaces, or remote spaces assigned directly to a space.
+- **Resolved members:** the flattened DID list after local/remote space expansion.
+- **Missing remote spaces:** remote spaces that could not be resolved because of timeout, permission denial, depth limits, or remote unavailability.
+
+Governance-critical actions fail closed on partial resolution unless the cooperative explicitly configures degraded-resolution rules for that action.
+
+### 5.4 Roles as spaces
+
+Roles live as separate spaces under the cooperative DID, distinguished by `spaceKey`:
+
+| Role | `spaceKey` convention |
 |---|---|
-| Active member roster | `network.coopsource.org.cooperative / members` |
-| Board | `network.coopsource.org.cooperative / board` |
-| Treasurer | `network.coopsource.org.cooperative / treasurer` |
-| Secretary | `network.coopsource.org.cooperative / secretary` |
-| Officers (collective) | `network.coopsource.org.cooperative / officers` |
-| Probationary members | `network.coopsource.org.cooperative / probationary` |
-| Worker class | `network.coopsource.org.cooperative / class-worker` |
-| Consumer class | `network.coopsource.org.cooperative / class-consumer` |
-| Custom roles | `network.coopsource.org.cooperative / <slug>` |
+| Active member roster | `members` |
+| Board | `roles/board` |
+| Treasurer | `roles/treasurer` |
+| Secretary | `roles/secretary` |
+| Officers (collective) | `roles/officers` |
+| Probationary members | `classes/probationary` |
+| Worker class | `classes/worker` |
+| Consumer class | `classes/consumer` |
+| Custom roles | `roles/custom/<slug>` |
 
-V9's `membership_role` table retires (authority moves to space membership). `role_definition.permissions` retires (access semantics become space membership). `role_definition` may stay as a UI-facing description (human-readable role name, description) but stops being load-bearing for access control.
+V9's `membership_role` table retires (authority moves to space membership). `role_definition.permissions` retires (access semantics become space membership plus policy/access config). `role_definition` may stay as a UI-facing description (human-readable role name, description) but stops being load-bearing for access control.
 
-### 5.4 Nested spaces and multi-stakeholder cooperatives
+### 5.5 Direct vs. resolved role membership
+
+GovernanceView keeps both views:
+
+- `getDirectSpaceMembers(space)` returns the direct member refs and access/config payloads.
+- `resolveSpaceMembers(space, { resolverDepth })` returns flattened DID members plus `missingSpaces`.
+
+Both results are cached with source metadata, resolver depth, snapshot time, and whether the result is complete, partial, or failed. Role graphs are DAGs by default. Cycles are rejected for CSN-managed cooperative spaces because they make authorization, quorum, and historical snapshots hard to reason about and undermine interoperability.
+
+### 5.6 Nested spaces and multi-stakeholder cooperatives
 
 Multi-stakeholder cooperatives express their structure naturally: each member class is a space, all class spaces are members of the cooperative's `members` space (so any class member is automatically a member). Per-class quorum rules, voting weights, and board seat allocations are CoopView's `vote-weight-calculator` and `quorum-checker` plugins consulting class membership.
 
 This generalizes to cooperatives with five, ten, or more stakeholder classes without architectural work — every class is just another space.
 
-### 5.5 Cross-cooperative trust via space-as-member-of-space
+### 5.7 Cross-cooperative trust via remote spaces
 
-When cooperative A's space includes cooperative B's `members` space as a member, every member of B is a member of A's space (transitively, via the Arbiter's resolution). This expresses inter-cooperative trust delegation without CSN-specific federation primitives. Federations of cooperatives use this pattern recursively: a federation's `members` space contains cooperative DIDs; each cooperative is itself an arbiter; the federation's governance proposals are voted on by member cooperatives.
+When cooperative A's space includes cooperative B's `members` space as a remote-space member, every resolved member of B may be treated as a member of A's space subject to A's policy and resolver-depth limits. This expresses inter-cooperative trust delegation without CSN-specific federation primitives. Federations of cooperatives use this pattern recursively: a federation's `members` space contains cooperative DIDs or cooperative member spaces; each cooperative is itself an arbiter; the federation's governance proposals are voted on by member cooperatives.
 
 ---
 
@@ -288,9 +334,9 @@ When cooperative A's space includes cooperative B's `members` space as a member,
 
 V9's three tiers (Tier 1 public, Tier 2 PostgreSQL, Tier 3 E2EE) are reframed in V11:
 
-**Tier 1 — Public ATProto records.** Cooperative profiles, public proposals (those a cooperative chooses to publish), vote tallies (aggregate), ratified agreements, public membership directories. In the cooperative's public repo (or its `$publish` space — either works because `$publish` writes to the public repo).
+**Tier 1 — Public ATProto records.** Cooperative profiles, public proposals (those a cooperative chooses to publish), vote tallies (aggregate), ratified agreements, public membership directories. In the cooperative's public repo, or through a supported `$publish` convention when the selected Arbiter/policy server provides one.
 
-**Tier 2 — Permissioned-space records.** Closed governance deliberations, draft proposals, private votes, confidential agreements, private member directories, financial notices, and member-visible projections. In members' permissioned repos for the appropriate space (`members`, `officers`, `board`) or in cooperative-owned permissioned ledger spaces. Access is enforced at the protocol level by arbiter membership.
+**Tier 2 — Permissioned-space records.** Closed governance deliberations, draft proposals, private votes, confidential agreements, private member directories, financial notices, and member-visible projections. In members' permissioned repos for the appropriate space (`members`, `roles/officers`, `roles/board`) or in cooperative-owned permissioned ledger spaces. Access is enforced at the protocol level by arbiter membership.
 
 **Tier 3 — E2EE communications.** Board-level confidential discussions, mediation proceedings, sensitive personnel matters, legal consultations, salary records. Via Germ DM / MLS. The platform never handles content.
 
@@ -298,7 +344,7 @@ V9's `private_record` table and `VisibilityRouter` retire. The visibility decisi
 
 ### 6.2 Cooperative ledgers and member-visible personal spaces
 
-Per Diary 5, each member can have a personal space per cooperative they belong to. The space is provisioned by the cooperative when a member joins. The space type might be `network.coopsource.org.memberPersonal` with skey = the cooperative's slug.
+Per Diary 5, each member can have a personal space per cooperative they belong to. The space is provisioned by the cooperative when a member joins. The space type might be `network.coopsource.org.memberPersonal` with `spaceKey` derived from the cooperative slug or member-stable key.
 
 Personal spaces are the member-visible delivery and disclosure surface: 1099-PATR copies, patronage notices, capital-account statements, personal contact info, election preferences, ZK-ballot identity commitments, and other records where the member is the primary reader.
 
@@ -315,7 +361,7 @@ Cost optimization is deferred (§17). A 5,000-member cooperative may have 5,000 
 
 V10.4's anchor pattern survives because its purpose is sound: external observers need a non-identifying public summary. Implementation simplifies:
 
-- The anchor record stays in the cooperative's public repo (or its `$publish` space). Lexicon shape unchanged from V10.
+- The anchor record stays in the cooperative's public repo, or through a supported `$publish` convention when available. Lexicon shape unchanged from V10.
 - The sidecar moves from the `private_record` PostgreSQL table to the cooperative's `members` space. Actual membership lives in the space's member list.
 - The post-storage hook triggers off arbiter member-list changes and updates the anchor's count.
 
@@ -347,9 +393,9 @@ GovernanceView is co-designed with Roomy and any other group-shaped ATProto appl
 
 **Transparency log.** Generic Merkle-tree append-only log over governance events.
 
-**Role-state derivation.** Generic indexer that materializes arbiter member-list state into queryable role projections. *"Who is currently in the `treasurer` space?"* returns a list with a snapshot timestamp.
+**Role-state derivation.** Generic indexer that materializes direct and resolved arbiter member-list state into queryable role projections. *"Who is currently in the `roles/treasurer` space?"* returns a complete/partial/failed snapshot with resolver metadata.
 
-**Member directory indexing.** Generic indexer that materializes the `members` space into a query-friendly member directory.
+**Member directory indexing.** Generic indexer that materializes the `members` space into a query-friendly member directory while preserving direct-vs-resolved membership provenance.
 
 ### 7.3 What GovernanceView does not do
 
@@ -365,7 +411,9 @@ GovernanceView's projection of space state into queryable form is fundamentally 
 
 **Sync source.** Sync is pull-based and notifications route through the space owner. CSN's spaces consumer subscribes to write notifications from each arbiter the cooperative is connected to. The notification is a lightweight *"this space changed"* event; the consumer then pulls the changed records from the relevant member PDS.
 
-**Trust anchor.** Records pulled from a member PDS are *claimed* records until cross-checked against the space's authoritative member list (per Zicklag's Arbiter post: *"write enforcement is reader-side"*). The consumer fetches the arbiter's current member list before accepting records; records from DIDs not on the list are discarded.
+**Trust anchor.** Records pulled from a member PDS are *claimed* records until cross-checked against the space's authoritative member list. The consumer fetches direct and/or resolved member state before accepting records; records from DIDs not in the accepted resolved set are discarded. A physically written record is not accepted GovernanceView state until this reader/indexer validation passes.
+
+**Resolution state.** Direct member reads and resolved member reads are different operations. GovernanceView stores `resolverDepth`, `snapshotAt`, source arbiter DID, direct member refs, resolved DID set, and any `missingSpaces`. Governance-critical operations fail closed on partial or failed resolution unless an explicit cooperative policy says otherwise.
 
 **Consistency.** Eventually consistent. Staleness is bounded by pull cadence (target: under 5 seconds at p95 for active cooperatives) plus space-owner notification latency. Callers needing strict consistency read through to the arbiter directly via XRPC.
 
@@ -575,7 +623,7 @@ export interface GovernancePluginSet {
 - **All inputs are plain values (DIDs, refs, snapshots), not service handles.** A plugin doesn't get a reference to GovernanceView or to other plugins. The call graph is one-way: GovernanceView calls plugins; plugins don't call back.
 - **Defaults are no-ops, not errors.** A Roomy deployment passes no plugins; everything uses defaults. The no-op behaviors give a working one-member-one-vote system out of the box.
 - **`HistoricalStateReader` is the only plugin GovernanceView *writes* to.** GovernanceView records snapshots at cadence boundaries; CoopView reads them. Load-bearing primitive for Subchapter T patronage allocation (membership-as-of-fiscal-period, not membership-as-of-now).
-- **`SpaceRef` is `{ arbiter: DID, type: string, skey: string }`** — independent of URI scheme decisions. Survives `ats://` becoming something else.
+- **`SpaceRef` is `{ arbiterDid: DID, spaceKey: string, expectedSpaceType?: NSID }`** — independent of URI scheme decisions and aligned with the draft Arbiter query/procedure shape. Refactor legacy space identity call sites to this shape in place.
 
 ### 9.3 The plugin boundary as protocol-pivot insulation
 
@@ -583,7 +631,7 @@ The ten plugin interfaces are CSN's contract with itself; upstream space mechani
 
 ### 9.4 Lexicon extension and the cooperative use case
 
-Meri's April 10 post on permissioned spaces asked whether the `(DID, read|write)` ACL primitive could be expanded — *"perhaps a lexicon that accompanies the space type NSID"* — to express richer permissions. V11's plugin set is the cooperative use case's affirmative answer: the space-type NSID is paired with a typed plugin contract that resolves the fine-grained ACL/authority/eligibility/weighting questions the bare member-list primitive doesn't address. NSID-as-substrate plus typed-plugin-as-superstructure is what makes a single arbiter mechanism work for chat moderation, cooperative governance, federated trust networks, and anything else without putting application logic into the protocol layer.
+The draft Arbiter direction separates *who is who* from *what can you do*. The generic group directory exposes spaces, member refs, direct member lists, resolved member lists, and open-union config/access payloads. It does not standardize CSN's cooperative eligibility, quorum, patronage, role-election, or Subchapter T rules. V11's plugin set is therefore not a replacement for Arbiter policy; it is CSN's Layer 3/4 application-governance contract. Arbiter policy decides whether a requested group-tree mutation is allowed. GovernanceView/CoopView decide whether a cooperative governance action passed and may emit attestations that the policy server accepts as evidence for a role/admin mutation.
 
 ### 9.5 Hook composition
 
@@ -597,7 +645,7 @@ Per-cooperative runtime extensibility (cooperative-authored scripts) goes throug
 
 ### 10.1 Smoke Signal (calendar)
 
-Cooperatives schedule governance meetings as `community.lexicon.calendar.event` records written via the cooperative's `$publish` space. Members RSVP via Smoke Signal. CSN's AppView indexes RSVPs for quorum calculation. Proposals cross-reference meeting events via AT-URI.
+Cooperatives schedule governance meetings as `community.lexicon.calendar.event` records written via the cooperative's public repo, or through a supported `$publish` convention when available. Members RSVP via Smoke Signal. CSN's AppView indexes RSVPs for quorum calculation. Proposals cross-reference meeting events via AT-URI.
 
 ### 10.2 WhiteWind (long-form content)
 
@@ -677,11 +725,14 @@ Brittany Ellich's opensocial.community model — groups as ATProto accounts with
 - Continues to handle public firehose for public records
 - Public records flow into the same `pds_record` table (or sibling `space_record` table)
 
-**Arbiter integration** (new in V11):
-- Adapter behind `GroupAuthorityPort`, initially wrapping the Arbiter's XRPC API when available
-- Current PoC path uses `@coopsource/arbiter-client` with `CsnDbGroupAuthorityPort`, backed by CSN membership tables, until the upstream XRPC surface is usable
-- Provisioning, role-space management, membership operations
-- Behind interface that lets it slide between *"this is a protocol primitive"* and *"this is an arbiter XRPC call"* as the boundary moves
+**Group Directory / Arbiter integration** (new in V11):
+- `GroupDirectoryPort` for read operations: `listSpaces`, `getSpaceConfig`, `getDirectSpaceMembers`, `resolveSpaceMembers`
+- `GroupMutationPort` for mutation operations: `createSpace`, `deleteSpace`, `setSpaceConfig`, `setSpaceMemberAccess`, `removeSpaceMember`
+- `DidProvisioningPort` for cooperative DID creation and `#space_host` binding, separate from `createArbiter`
+- Optional `PolicyCommunityRepoPort` for policy-controlled cooperative-owned writes when supported
+- Current PoC path uses `@coopsource/arbiter-client` with temporary CSN-backed adapters over existing membership tables until the upstream XRPC surface is usable
+- Config and access payloads are open-union lexicon objects; CSN validates its own supported `$type`s and treats unsupported config/access lexicons as capability failures
+- Behind interfaces that let the implementation slide between *"this is a protocol primitive"*, *"this is an Arbiter XRPC call"*, and *"this is a CSN sketch projection"* as the boundary moves
 
 **HappyView v2.5+** (reference, not substrate):
 - First public AppView with experimental permissioned-spaces support
@@ -756,20 +807,31 @@ When a child cooperative's officer change triggers writes in the parent cooperat
 
 The freshness check on (3) is the load-bearing mitigation against stale state from former member cooperatives.
 
-### 12.5 Trust-anchor poisoning
+### 12.5 Group-resolution attacks
 
-If an attacker compromises the arbiter (e.g., by getting Owner access to `$admin`), they can write arbitrary member-list state.
+Local and remote spaces can chain. Attackers can attempt cycles, excessive-depth graphs, stale remote spaces, or timeout-triggered partial resolution to manipulate quorum or eligibility.
+
+**Mitigations:**
+- Resolver-depth limits on every direct/resolved member query and every mutation that consults remote membership
+- Cycle detection and DAG enforcement for CSN-managed cooperative role graphs
+- Explicit `complete` / `partial` / `failed` resolution status in projections
+- Fail-closed behavior for governance-critical actions when `missingSpaces` is non-empty, unless a cooperative policy explicitly allows degraded resolution
+- Snapshot provenance: source arbiter DID, `spaceKey`, resolver depth, snapshot time, and missing remote spaces retained for audit
+
+### 12.6 Trust-anchor poisoning
+
+If an attacker compromises the arbiter or policy server (e.g., by getting owner/admin authority through the implementation's admin convention), they can write arbitrary member-list state.
 
 **Mitigations:**
 - Arbiter rotation keys held offline by cooperative governance
 - Multi-signature requirements for Owner-level operations (an Arbiter feature CSN advocates for)
 - Transparency-log of arbiter operations for after-the-fact detection
 
-### 12.6 Tier 3 caveats
+### 12.7 Tier 3 caveats
 
 Tier 3 remains the right primitive for content that must be cryptographically confidential. However, Germ DM is currently iOS-only via App Clip. **Production cooperative governance flows that depend on Tier 3 require Android and desktop parity that does not yet exist.** Until cross-platform E2EE substrate is available, CSN ships governance flows where Tier 3 is one option among others, not a required path.
 
-### 12.7 AppView validation checklist
+### 12.8 AppView validation checklist
 
 Every membership-relevant record must pass:
 
@@ -781,6 +843,7 @@ Every membership-relevant record must pass:
 6. Per-DID rate limiting
 7. Reject implausible timestamps
 8. Audit log every state transition with commit CID, rev, signature
+9. For `memberConsent` evidence, verify that the AT-URI authority DID matches the expected author, the collection is `network.coopsource.org.memberConsent`, the record CID matches when supplied, `record.cooperative` matches the target cooperative/network, `consentType` is allowed for the flow, and `createdAt` is plausible. AppView delete/update handling must clear evidence only when the currently stored evidence URI/CID matches the invalidated record; stale deletes must not clear newer evidence.
 
 ---
 
@@ -812,6 +875,7 @@ Most V9 lexicons carry forward unchanged:
 - **Alignment:** `network.coopsource.alignment.interest`, `alignment.outcome`
 - **Funding:** `network.coopsource.funding.campaign`, `funding.pledge`
 - **Member class:** `network.coopsource.org.memberClass`
+- **Member consent:** `network.coopsource.org.memberConsent` (new — non-authoritative member-authored consent evidence)
 - **Member personal:** `network.coopsource.org.memberPersonal` (new — personal space type)
 
 CSN-specific extensions of GovernanceView lexicons:
@@ -825,6 +889,10 @@ CSN-specific extensions of GovernanceView lexicons:
 
 - `network.coopsource.org.membership` — retires (replaced by space membership)
 - `network.coopsource.org.memberApproval` — retires (role authority moves to role-space membership)
+
+### 13.3.1 `network.coopsource.org.memberConsent`
+
+`network.coopsource.org.memberConsent` is current V11 evidence, not a membership authority record. It remains minimal while it is public PDS evidence: `cooperative`, `consentType`, `createdAt`, and optional durable evidence links such as `termsUri`, `termsCid`, `agreementUri`, `agreementCid`, and `invitationUri`. Public free-text consent fields are not present because member-facing explanations or private agreement details belong in permissioned personal spaces.
 
 ### 13.4 Lexicon extension pattern
 
@@ -930,13 +998,13 @@ V11 is a substantial refactor of V9 (594 source files, 47 lexicons, 100 database
 | Component | V9 | V11 |
 |---|---|---|
 | AppView firehose source | Tap + `pg_notify` | Tap (public) + spaces consumer (permissioned) |
-| Membership state machine | Bilateral two-record machine | Thin reader over arbiter's `members` space |
-| Role authority | `membership_role` + `role_definition.permissions` | Role-space membership |
+| Membership state machine | Bilateral two-record machine | Thin reader over GroupDirectory/Arbiter `members` space |
+| Role authority | `membership_role` + `role_definition.permissions` | Role-space membership plus policy/access config |
 | Visibility decisions | `VisibilityRouter` consulting `governance_visibility` enum | Per-space placement at write time |
 | Private data storage | `private_record` PostgreSQL table | Permissioned repos for the appropriate space |
-| Operator authority | `OperatorWriteProxy` + audit log table | `$admin` space membership; arbiter audit |
-| Public-record path | Direct PDS writes via `OperatorWriteProxy` | `$publish` space writes via arbiter |
-| Governance labels | Custom labeler (standalone DID) | Cooperative arbiter's `$labeler` space |
+| Operator authority | `OperatorWriteProxy` + audit log table | Arbiter/policy-admin convention such as `$admin`; group mutation audit |
+| Public-record path | Direct PDS writes via `OperatorWriteProxy` | Public repo writes or supported `$publish` convention via policy server |
+| Governance labels | Custom labeler (standalone DID) | Cooperative-controlled label policy; `$labeler` when supported |
 | Cross-cooperative federation | `cooperative_link` table + RFC 9421 signatures | Space-as-member-of-space via arbiters |
 
 ### 15.3 What retires
@@ -950,7 +1018,7 @@ V11 is a substantial refactor of V9 (594 source files, 47 lexicons, 100 database
 - RFC 9421 HTTP signatures (no remaining edge case justifies retaining them in V11)
 - Federation outbox
 - `pg_notify('pds_firehose')`
-- Custom labeler service (cooperative's `$labeler` space replaces it)
+- Custom labeler service (cooperative-controlled label policy replaces it; labeler spaces are conventions when supported)
 
 ### 15.4 Schema changes
 
@@ -960,7 +1028,7 @@ V11 is a substantial refactor of V9 (594 source files, 47 lexicons, 100 database
 - `space_credential` (per (cooperative, space) credential cache)
 
 **Modified tables:**
-- `membership` — keeps schema; `member_record_uri` and `approval_record_uri` columns become historical evidence
+- `membership` — keeps schema for now; `member_record_uri` / `member_record_cid` temporarily store `memberConsent` evidence, and `approval_record_uri` / `approval_record_cid` become historical V9 evidence
 - `private_record` — repurposed as projection cache (or eventually retired entirely)
 
 **Retired tables:**
@@ -996,32 +1064,72 @@ No schedule. Work proceeds when the design is right. The sequencing below is log
 **Branch:** `feature/v11-stage-1-spaces-consumer`
 **Gate:** None; safe to start now against sketch implementation.
 
-A spaces-aware consumer in `apps/api` that pulls records from cooperative-scoped permissioned repos. Prerequisite for everything else. Either consume from HappyView 2.5+ running alongside as a reference, or implement the consumer directly against the `bluesky-social/atproto` `permissioned-data` branch.
+A spaces-aware consumer in `apps/api` that pulls records from cooperative-scoped permissioned repos. Prerequisite for everything else. Either consume from HappyView 2.5+ running alongside as a reference, or implement the consumer directly against the `bluesky-social/atproto` `permissioned-data` branch. Stage 1 stores direct and resolved membership separately, includes resolver depth and source metadata in caches, and treats partial/failed membership resolution as fail-closed for governance-critical actions.
 
-### Stage 2 — Arbiter integration
+### Stage 2 — Group Directory / Arbiter integration
 
 **Branch:** `feature/v11-stage-2-arbiter-integration`
-**Gate:** Arbiter XRPC API reaches a 0.x reference implementation in a usable form.
+**Gate:** Draft group-directory adapter usable behind ports. The `town.muni.arbiter.*` namespace remains draft and must not leak as a permanent CSN API commitment.
 
-A group authority adapter, initially wrapping the Arbiter's XRPC API when a usable implementation exists, used by `apps/api` to provision cooperative arbiters, manage role spaces, and do membership operations. Contributions to the Arbiter design happen in parallel (§18). May be CSN's own implementation behind the same ports if Zicklag/Meri's implementation lags or pivots.
+A Group Directory / Arbiter substrate adapter, initially wrapping the draft Arbiter XRPC API when a usable implementation exists, used by `apps/api` to provision cooperative arbiters, manage role spaces, and do membership operations. Contributions to the Arbiter design happen in parallel (§18). May be CSN's own implementation behind the same ports if Zicklag/Meri's implementation lags or pivots.
 
-Current Stage 2 implementation follows the latter path: `@coopsource/arbiter-client` exposes `CsnDbGroupAuthorityPort` for reads and `CsnDbGroupAuthorityCommandPort` for writes, both backed by the existing `membership` and `membership_role` tables. This is a temporary authority adapter, not a final Arbiter wire contract. Temporary role spaces use `type: 'network.coopsource.org.role'` with role name in `skey` until upstream role-space shape is settled.
+Stage 2 interfaces:
 
-The write-side command port is now the app-facing boundary for setup bootstrap, invitation acceptance, auth registration, federation membership approval, membership role changes, member removal, and network join/leave. Changed commands are projected into `fact_log` as `v11.groupAuthority` audit events until real `$admin` audit consumption exists. Migrated paths no longer mint cooperative-owned V9 `memberApproval` records, and the appview no longer treats `memberApproval` records as authority. Member-authored `network.coopsource.org.memberConsent` records are consent evidence only; the appview can attach their URI/CID to projection rows but cannot create active membership authority from them.
+```ts
+interface GroupDirectoryPort {
+  listSpaces(args: { arbiterDid: DID; resolverDepth?: number }): Promise<SpaceSummary[]>;
+  getSpaceConfig(args: SpaceRef): Promise<SpaceConfigResult>;
+  getDirectSpaceMembers(args: SpaceRef): Promise<DirectSpaceMember[]>;
+  resolveSpaceMembers(args: SpaceRef & { resolverDepth?: number }): Promise<ResolvedMembers>;
+}
+
+interface GroupMutationPort {
+  createSpace(args: { arbiterDid: DID; spaceKey: string; spaceType: NSID; config: UnknownLexiconObject }): Promise<UnknownLexiconObject>;
+  setSpaceMemberAccess(args: { space: SpaceRef; member: SpaceMemberRef; access: UnknownLexiconObject; resolverDepth?: number }): Promise<UnknownLexiconObject>;
+  removeSpaceMember(args: { space: SpaceRef; member: SpaceMemberRef; access?: UnknownLexiconObject; resolverDepth?: number }): Promise<UnknownLexiconObject>;
+}
+
+interface DidProvisioningPort {
+  mintControlledDid(args: MintCooperativeDidArgs): Promise<DID>;
+  bindSpaceHost(args: { arbiterDid: DID; serviceEndpoint: string }): Promise<void>;
+}
+```
+
+Tasks:
+
+1. Build/extend `packages/arbiter-client/` around stable CSN ports, not the draft namespace directly.
+2. Split DID provisioning from `createArbiter`: mint/adopt DID first, bind `#space_host`, then create the arbiter with an open-union config object.
+3. Implement read operations for `listSpaces`, `getSpaceConfig`, direct members, and resolved members.
+4. Implement mutation operations for create/delete/configure space, set member access, and remove member.
+5. Model arbiter config, space config, and member access as `UnknownLexiconObject` plus typed CSN validators.
+6. Map draft errors into CSN errors: `ErrPermissionDenied`, `ErrRaceCondition`, `ErrUnsupportedConfigLexicon`, `ErrInvalidConfig`, `ErrSpaceNotExists`, `ErrArbiterNotExists`, `ErrMemberNotInSpace`.
+7. Keep `CsnDbGroupDirectoryPort` and `CsnDbGroupMutationPort` as temporary CSN-backed adapters only; refactor their public types in place as the canonical model changes.
+8. Treat `$admin`, `$publish`, `$labeler`, and any old eight-level Arbiter access vocabulary as implementation conventions, not generic API commitments.
+
+Current Stage 2 implementation uses a temporary CSN-backed path: `@coopsource/arbiter-client` exposes read/write adapters over the existing `membership` and `membership_role` tables. This is a temporary Group Directory / Group Mutation substrate, not a final Arbiter wire contract. Its active public API uses the canonical `SpaceRef` shape and `spaceKey` conventions (`members`, `roles/board`, `roles/treasurer`, `classes/worker`) rather than carrying old shape variants as a parallel surface.
+
+The write-side `GroupMutationPort` is now the app-facing boundary for setup bootstrap, invitation acceptance, auth registration, federation membership approval, membership role changes, member removal, and network join/leave. Changed commands are projected into `fact_log` as `v11.groupMutation` audit events until real group-policy audit consumption exists. Migrated paths no longer mint cooperative-owned V9 `memberApproval` records, and the appview no longer treats `memberApproval` records as authority. Member-authored `network.coopsource.org.memberConsent` records are consent evidence only; federation paths verify consent URI authority, collection, CID, cooperative DID, consent type, and plausible creation time before storing it. The appview can attach their URI/CID to projection rows but cannot create active membership authority from them, and delete/update hooks clear evidence only when stored URI and CID both match the invalidated record.
 
 ### Stage 3 — Membership and roles to spaces
 
 **Branch:** `feature/v11-stage-3-membership-roles`
-**Gate:** (a) Controlled-DID system reference implementation, (b) URI scheme decision finalized, (c) `ats://` vs `at://` resolution path settled.
+**Gate:** GroupDirectoryPort and GroupMutationPort usable through either the temporary CSN-backed adapter or draft Arbiter adapter; cooperative DID provisioning path exists for real deployments; role graph resolution semantics implemented (depth, partial resolution, cycle rejection). URI-scheme finalization is not a Stage 3 gate.
 
-The `members` space, role-spaces (`board`, `officers`, `treasurer`, member classes, custom roles) become the authority. `MembershipService` becomes a thin wrapper around arbiter membership operations. Bilateral membership state machine retires. Until all gates pass, V11 builds a CSN-internal model that *resembles* spaces but doesn't commit to wire format.
+The `members` space, role-spaces (`roles/board`, `roles/officers`, `roles/treasurer`, member classes, custom roles) become the authority. `MembershipService` becomes a thin wrapper around group-directory membership operations. Bilateral membership state machine retires. Until upstream APIs stabilize, V11 builds a CSN-internal model that resembles spaces but commits only to the stable port shapes.
+
+Stage 3 migration targets:
+
+- `membership` table becomes a projection of direct/resolved group membership.
+- `membership_role` becomes a projection of role-space membership and then retires as authority.
+- `role_definition.permissions` becomes UI/config metadata only.
+- `memberConsent` remains evidence only and never becomes authority.
 
 ### Stage 4 — Votes, proposals, deliberations to spaces
 
 **Branch:** `feature/v11-stage-4-governance-to-spaces`
-**Gate:** Stage 3 plus OAuth-spaces seam settling.
+**Gate:** Stage 3 plus OAuth-spaces seam settling and permissioned-record URI/commit verification details sufficient for adapter implementation.
 
-Public proposals move to `$publish`; private proposals, votes, deliberations move to permissioned repos in the appropriate space (`members` / `officers` / `board`). Anchor pattern lifts from V10's design directly into GovernanceView. Aggregate tally anchors stay.
+Public proposals move to the public repo or supported `$publish` convention; private proposals, votes, deliberations move to permissioned repos in the appropriate space (`members` / `roles/officers` / `roles/board`). Anchor pattern lifts from V10's design directly into GovernanceView. Aggregate tally anchors stay. GovernanceView validates records reader-side before accepting projections.
 
 ### Stage 5 — Ledger records and personal-space projections
 
@@ -1067,7 +1175,7 @@ Stages 1–8 establish the substrate. Stage 9 is open-ended capability developme
 
 **Binary `governance_visibility` retires.** Per-space placement replaces the open/mixed/closed flag.
 
-**Governance labels via `$labeler` space.** CSN does not run a separate labeler service. The cooperative arbiter owns its labels.
+**Governance labels via cooperative-controlled policy.** CSN does not run a separate labeler service. Governance labels live under cooperative-controlled Arbiter/community-repo policy; `$labeler` is the preferred convention when the selected implementation supports it.
 
 **RFC 9421 HTTP signatures retire.** Spaces with cross-arbiter space-as-member relationships subsume V9's closed-coop-to-closed-coop private exchange use case.
 
@@ -1085,7 +1193,7 @@ Stages 1–8 establish the substrate. Stage 9 is open-ended capability developme
 
 If Bluesky ships permissioned data with significant deviations from Diaries 4 and 5, CSN treats the following as *load-bearing* (would force replanning):
 
-- The *semantic distinction* between permissioned and public URI resolution. The specific scheme token (`ats://` is the leading candidate but Holmgren is explicit it's not yet decided) is substrate; the *fact* that permissioned URIs resolve through a different protocol is load-bearing.
+- The *semantic distinction* between permissioned and public URI resolution. The specific scheme token is substrate; the *fact* that permissioned URIs resolve through a different protocol is load-bearing.
 - `(DID, read|write)` ACL minimality as the protocol-layer access model.
 - Cooperative-DID-as-distinct-from-user-DID.
 
@@ -1112,12 +1220,12 @@ GovernanceView retains snapshots of arbiter member-list state at well-defined ca
 - **The full OAuth-spaces seam mechanism** (§3.4). Sketchable now; details settle as Diary 6+ and OAuth granular-scopes work cross-pollinate. CSN's seam writeup explicitly identifies which parts are sketchable today vs. which await protocol resolution.
 - **Lexicon Community response to `community.lexicon.governance.*`.** Discussion thread starts the conversation; CSN proceeds in parallel.
 - **Subchapter T legal counsel consultation.** Whether ATProto-native records alone satisfy IRS audit expectations.
-- **URI scheme token finalization.** `ats://` is the leading candidate but not committed. CSN's URI helpers abstract the scheme.
-- **URI authority semantics.** Diary 5 settled SPACE-first/space-DID-authority; Meri's user-DID argument is real but not unanimous. CSN's `SpaceRef` and plugin interfaces don't depend on URI authority semantics.
+- **URI scheme token finalization.** CSN's URI helpers abstract the scheme. This blocks final permissioned-record placement semantics, not Stage 3 group/role membership migration.
+- **URI authority semantics.** Diary 5 settled SPACE-first/space-DID-authority; Meri's user-DID argument is real but not unanimous. CSN's `SpaceRef`, structured permissioned locations, and plugin interfaces don't depend on URI authority semantics.
 
 ### 18.2 Engagement plan
 
-**Arbiter cooperative use case document.** CSN writes a parallel design document framing the cooperative use case for the Arbiter pattern. Posted to whatever venue Meri and Zicklag prefer. Includes the plugin set as the cooperative use case's affirmative answer to the fine-grained-ACL question Meri raised in her April 10 post.
+**Arbiter cooperative use case document.** CSN writes a parallel design document framing the cooperative use case for the draft `town.muni.arbiter.*` lexicons. Posted to whatever venue Meri and Zicklag prefer. It endorses the who-is-who vs what-can-you-do split; tests `spaceKey` identity vs `spaceType` metadata; stresses direct vs resolved membership, partial remote resolution, open-union config/access payloads, and governance-outcome attestations as policy inputs.
 
 **Lexicon Community engagement.** Discussion thread for `community.lexicon.governance.*` per the Lexicon Community's established process (precedent: Profile Lexicon #9, Social Graph #10, Polite Goshawk WG).
 
@@ -1140,6 +1248,8 @@ Two-week refresh cadence on the ecosystem watchlist:
 - Discourse Private Data WG
 - `@atproto/oauth-scopes` npm version
 - `blog.muni.town` (Roomy roadmap)
+- `https://discourse.atprotocol.community/t/arbiter-group-management-for-permissioned-spaces/750`
+- `https://lexicon.garden/browse/town.muni.arbiter`
 
 Direct URL fetches of known endpoints, not search-driven discovery. The architecture document only changes when a refresh surfaces something load-bearing.
 
@@ -1162,6 +1272,10 @@ Direct URL fetches of known endpoints, not search-driven discovery. The architec
 
 - Meri, "Evaluating permissioned spaces for community contexts", April 10, 2026 — `https://meri.leaflet.pub/3mj4qwvypq22a` (architectural critique that motivated the Arbiter design; co-authored with Zicklag)
 - Zicklag, "The Arbiter — Group Management for Permissioned Spaces and Beyond", April 18, 2026 — `https://zicklag.leaflet.pub/3mjrvb5pul224`
+- Zicklag, draft Arbiter lexicons post in the ATProtocol Private Data WG, May 20, 2026 — `https://discourse.atprotocol.community/t/arbiter-group-management-for-permissioned-spaces/750/8`
+- Draft Arbiter lexicons docs — `https://zicklag.github.io/leaf-0.4/arbiter-lexicons/`
+- Draft `town.muni.arbiter.*` schemas — `https://lexicon.garden/browse/town.muni.arbiter`
+- Zicklag, policy-based Arbiter progress report, May 21, 2026 — `https://zicklag.leaflet.pub/3mmepk7yics26`
 - Zicklag, "Making Roomy More ATProto-Native", March 13, 2026 — `https://zicklag.leaflet.pub/3mgy2sbswl22f`
 - Trezy, "Releasing HappyView 2 Into the Wild", April 24, 2026 — `https://trezy.com/blog/releasing-happyview-2-into-the-wild`
 - HappyView v2.5.0 — "The Permissioned Data Release", May 5, 2026 — `https://github.com/gamesgamesgamesgamesgames/happyview/releases/tag/v2.5.0`

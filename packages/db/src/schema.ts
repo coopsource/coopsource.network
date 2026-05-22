@@ -1783,13 +1783,13 @@ export interface DidRotationHistoryTable {
 
 /**
  * Per-(cooperative space, member) pull cursor for the V11 spaces consumer.
- * Composite PK: (cooperative_did, space_type, space_skey, member_did).
+ * Composite PK: (arbiter_did, space_key, member_did).
  * `cursor` is a rev string (TID-format upstream); '' means "from the beginning".
  */
 export interface SpacesConsumerCursorTable {
-  cooperative_did: string;
-  space_type: string;
-  space_skey: string;
+  arbiter_did: string;
+  space_key: string;
+  expected_space_type: string | null;
   member_did: string;
   cursor: string;
   updated_at: ColumnType<Date, Date | string | undefined, Date | string>;

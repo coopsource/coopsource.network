@@ -3,7 +3,7 @@ import { InMemorySpaceCredentialStore, type SpaceCredential } from '../credentia
 import type { SpaceRef } from '../types.js';
 import { fakeDid } from './helpers/factories.js';
 
-const ref: SpaceRef = { arbiter: fakeDid('did:plc:abc'), type: 'X', skey: 'members' };
+const ref: SpaceRef = { arbiterDid: fakeDid('did:plc:abc'), spaceKey: 'members', expectedSpaceType: 'X' };
 
 describe('InMemorySpaceCredentialStore', () => {
   let store: InMemorySpaceCredentialStore;
@@ -27,7 +27,7 @@ describe('InMemorySpaceCredentialStore', () => {
 
   it('lists all live credentials', async () => {
     await store.put(ref, { token: 't1', expiresAt: new Date('2026-05-11T13:00:00Z') });
-    await store.put({ ...ref, skey: 'board' }, { token: 't2', expiresAt: new Date('2026-05-11T13:00:00Z') });
+    await store.put({ ...ref, spaceKey: 'roles/board' }, { token: 't2', expiresAt: new Date('2026-05-11T13:00:00Z') });
     const live = await store.live();
     expect(live).toHaveLength(2);
   });

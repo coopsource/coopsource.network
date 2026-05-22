@@ -6,7 +6,7 @@ import type { CursorStore } from './cursor-store.js';
 
 /**
  * Postgres-backed CursorStore against the `spaces_consumer_cursor` table
- * (composite PK on cooperative_did, space_type, space_skey, member_did).
+ * (composite PK on arbiter_did, space_key, member_did).
  *
  * Test note: this class is not unit-tested in the spaces-consumer package
  * because the migrations/ folder is empty and no automated bootstrap exists
@@ -21,9 +21,8 @@ export class KyselyCursorStore implements CursorStore {
     const row = await this.db
       .selectFrom('spaces_consumer_cursor')
       .select('cursor')
-      .where('cooperative_did', '=', space.arbiter)
-      .where('space_type', '=', space.type)
-      .where('space_skey', '=', space.skey)
+      .where('arbiter_did', '=', space.arbiterDid)
+      .where('space_key', '=', space.spaceKey)
       .where('member_did', '=', memberDid)
       .executeTakeFirst();
     return row?.cursor ?? '';
@@ -33,16 +32,16 @@ export class KyselyCursorStore implements CursorStore {
     await this.db
       .insertInto('spaces_consumer_cursor')
       .values({
-        cooperative_did: space.arbiter,
-        space_type: space.type,
-        space_skey: space.skey,
+        arbiter_did: space.arbiterDid,
+        space_key: space.spaceKey,
+        expected_space_type: space.expectedSpaceType ?? null,
         member_did: memberDid,
         cursor: value,
         updated_at: new Date(),
       })
       .onConflict((oc) =>
         oc
-          .columns(['cooperative_did', 'space_type', 'space_skey', 'member_did'])
+          .columns(['arbiter_did', 'space_key', 'member_did'])
           .doUpdateSet({ cursor: value, updated_at: new Date() }),
       )
       .execute();

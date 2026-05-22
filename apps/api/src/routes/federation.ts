@@ -15,12 +15,13 @@ const MembershipRequestSchema = z.object({
   cooperativeDid: z.string().min(1),
   consentRecordUri: z.string().min(1),
   consentRecordCid: z.string().min(1),
-  message: z.string().optional(),
 });
 
 const MembershipApproveSchema = z.object({
   cooperativeDid: z.string().min(1),
   memberDid: z.string().min(1),
+  consentRecordUri: z.string().min(1),
+  consentRecordCid: z.string().min(1),
   roles: z.array(z.string().min(1)),
 });
 
@@ -169,6 +170,20 @@ export function createFederationRoutes(
     fedAuth,
     asyncHandler(async (req, res) => {
       const params = MembershipRequestSchema.parse(req.body);
+      const verification = await container.consentEvidenceVerifier.verify({
+        expectedAuthorDid: params.memberDid as DID,
+        cooperativeDid: params.cooperativeDid as DID,
+        consentRecordUri: params.consentRecordUri,
+        consentRecordCid: params.consentRecordCid,
+        allowedConsentTypes: ['joinRequest', 'networkJoin'],
+      });
+      if (!verification.ok) {
+        res.status(400).json({
+          error: 'InvalidConsentEvidence',
+          message: verification.reason ?? 'Consent evidence verification failed',
+        });
+        return;
+      }
 
       res.status(201).json({
         consentRecordUri: params.consentRecordUri,
@@ -183,19 +198,35 @@ export function createFederationRoutes(
     asyncHandler(async (req, res) => {
       const params = MembershipApproveSchema.parse(req.body);
       const now = container.clock.now();
+      const verification = await container.consentEvidenceVerifier.verify({
+        expectedAuthorDid: params.memberDid as DID,
+        cooperativeDid: params.cooperativeDid as DID,
+        consentRecordUri: params.consentRecordUri,
+        consentRecordCid: params.consentRecordCid,
+        allowedConsentTypes: ['joinRequest', 'invitationAcceptance', 'networkJoin'],
+      });
+      if (!verification.ok) {
+        res.status(400).json({
+          error: 'InvalidConsentEvidence',
+          message: verification.reason ?? 'Consent evidence verification failed',
+        });
+        return;
+      }
 
-      const result = await container.groupAuthorityCommands.addMember({
+      const result = await container.groupMutations.addMember({
         cooperativeDid: params.cooperativeDid as DID,
         memberDid: params.memberDid as DID,
         actorDid: params.cooperativeDid as DID,
         roles: params.roles,
+        consentRecordUri: params.consentRecordUri,
+        consentRecordCid: params.consentRecordCid,
         joinedAt: now,
         reason: 'federation membership approve',
       });
       if (!result.ok) {
         res.status(400).json({
           error: 'ValidationError',
-          message: 'Invalid membership authority command',
+          message: 'Invalid membership mutation',
         });
         return;
       }

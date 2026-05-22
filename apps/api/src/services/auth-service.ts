@@ -10,7 +10,7 @@ import {
 } from '@coopsource/common';
 import type { IPdsService } from '@coopsource/federation';
 import type { IClock } from '@coopsource/federation';
-import type { GroupAuthorityCommandPort } from '@coopsource/arbiter-client';
+import type { GroupMutationPort } from '@coopsource/arbiter-client';
 import type { Actor } from '../auth/middleware.js';
 import { BCRYPT_ROUNDS } from '../lib/crypto-config.js';
 import type { IMemberRecordWriter } from './member-write-proxy.js';
@@ -24,7 +24,7 @@ export class AuthService {
     private profileService: ProfileService,
     private instanceUrl: string = 'http://localhost:3001',
     private memberWriteProxy: IMemberRecordWriter | undefined,
-    private groupAuthorityCommands: GroupAuthorityCommandPort,
+    private groupMutations: GroupMutationPort,
   ) {}
 
   async register(params: {
@@ -137,7 +137,7 @@ export class AuthService {
     });
 
     // Create member-authored consent evidence; membership authority is
-    // written through the V11 group authority command port.
+    // written through the V11 Group Mutation port.
     const cooperativeDid = params.cooperativeDid;
 
     const consentRecord = {
@@ -157,7 +157,7 @@ export class AuthService {
           record: consentRecord,
         });
 
-    const authorityResult = await this.groupAuthorityCommands.addMember({
+    const authorityResult = await this.groupMutations.addMember({
       cooperativeDid: cooperativeDid as DID,
       memberDid: did as DID,
       actorDid: (invitation?.invited_by_did ?? did) as DID,
@@ -169,7 +169,7 @@ export class AuthService {
       reason: invitation ? 'accept invitation' : 'self registration',
     });
     if (!authorityResult.ok) {
-      throw new ValidationError('Invalid membership authority command');
+      throw new ValidationError('Invalid membership mutation');
     }
 
     // Mark invitation accepted if token provided

@@ -5,7 +5,7 @@ import type { Database, InvitationTable } from '@coopsource/db';
 type InvitationRow = Selectable<InvitationTable>;
 import type { DID } from '@coopsource/common';
 import { NotFoundError, ValidationError, ConflictError } from '@coopsource/common';
-import type { GroupAuthorityCommandPort, GroupAuthorityCommandResult } from '@coopsource/arbiter-client';
+import type { GroupMutationPort, GroupMutationResult } from '@coopsource/arbiter-client';
 import type { IEmailService, IClock } from '@coopsource/federation';
 import { logger } from '../middleware/logger.js';
 import type { Page, PageParams } from '../lib/pagination.js';
@@ -26,7 +26,7 @@ export class MembershipService {
     private db: Kysely<Database>,
     private emailService: IEmailService,
     private clock: IClock,
-    private groupAuthorityCommands: GroupAuthorityCommandPort,
+    private groupMutations: GroupMutationPort,
   ) {}
 
   async listMembers(
@@ -256,7 +256,7 @@ export class MembershipService {
     }
 
     const now = this.clock.now();
-    this.assertCommandOk(await this.groupAuthorityCommands.addMember({
+    this.assertCommandOk(await this.groupMutations.addMember({
       cooperativeDid: cooperativeDid as DID,
       memberDid: memberDid as DID,
       actorDid: actorDid as DID,
@@ -272,7 +272,7 @@ export class MembershipService {
     roles: string[],
     actorDid: string = cooperativeDid,
   ): Promise<void> {
-    this.assertCommandOk(await this.groupAuthorityCommands.setMemberRoles({
+    this.assertCommandOk(await this.groupMutations.setMemberRoles({
       cooperativeDid: cooperativeDid as DID,
       memberDid: memberDid as DID,
       roles,
@@ -286,7 +286,7 @@ export class MembershipService {
     reason?: string,
     actorDid: string = cooperativeDid,
   ): Promise<void> {
-    this.assertCommandOk(await this.groupAuthorityCommands.removeMember({
+    this.assertCommandOk(await this.groupMutations.removeMember({
       cooperativeDid: cooperativeDid as DID,
       memberDid: memberDid as DID,
       actorDid: actorDid as DID,
@@ -294,7 +294,7 @@ export class MembershipService {
     }));
   }
 
-  private assertCommandOk(result: GroupAuthorityCommandResult): void {
+  private assertCommandOk(result: GroupMutationResult): void {
     if (result.ok && result.reason !== 'not-found') {
       return;
     }

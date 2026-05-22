@@ -21,8 +21,23 @@ export async function indexMemberConsent(
       })
       .where('member_did', '=', event.did)
       .where('member_record_uri', '=', event.uri)
+      .where('member_record_cid', '=', event.cid)
       .execute();
     return;
+  }
+
+  if (event.operation === 'update' && event.prevCid) {
+    await db
+      .updateTable('membership')
+      .set({
+        member_record_uri: null,
+        member_record_cid: null,
+        indexed_at: new Date(),
+      })
+      .where('member_did', '=', event.did)
+      .where('member_record_uri', '=', event.uri)
+      .where('member_record_cid', '=', event.prevCid)
+      .execute();
   }
 
   if (!cooperativeDid) return;

@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "record",
-      "description": "A member-authored consent evidence record for joining a cooperative or network. Active membership authority lives in the cooperative's group authority, not in this record.",
+      "description": "A member-authored consent evidence record for joining a cooperative or network. Active membership authority lives in the cooperative's Group Directory / Arbiter substrate, not in this record.",
       "key": "tid",
       "record": {
         "type": "object",
@@ -19,11 +19,6 @@
             "type": "string",
             "knownValues": ["joinRequest", "invitationAcceptance", "bootstrapOwner", "networkJoin"],
             "description": "The kind of consent evidence this record represents."
-          },
-          "message": {
-            "type": "string",
-            "maxLength": 2000,
-            "description": "Optional member-authored note associated with the consent."
           },
           "termsUri": {
             "type": "string",

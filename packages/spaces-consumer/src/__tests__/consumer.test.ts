@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SpacesConsumer, type RejectedPermissionedRecord } from '../consumer.js';
-import { StaticGroupAuthorityPort, type GroupAuthorityPort } from '../group-authority-port.js';
+import { StaticGroupDirectoryPort, type GroupDirectoryPort } from '../group-directory-port.js';
 import { InMemoryPermissionedRepoPort } from '../permissioned-repo-port.js';
-import type { SpaceRef, VerifiedPermissionedRecord } from '../types.js';
+import type { ResolvedMembers, SpaceRef, VerifiedPermissionedRecord } from '../types.js';
 import { buildVerifiedRecord, fakeDid } from './helpers/factories.js';
 
-const ref: SpaceRef = { arbiter: fakeDid('did:plc:coop'), type: 'X', skey: 'members' };
+const ref: SpaceRef = { arbiterDid: fakeDid('did:plc:coop'), spaceKey: 'members', expectedSpaceType: 'X' };
 const aliceDid = fakeDid('did:plc:alice');
 const eveDid = fakeDid('did:plc:eve');
 const aliceRecord = buildVerifiedRecord({ space: ref, authorDid: aliceDid, rkey: 'r1', sourceRevision: '1' });
@@ -27,7 +27,7 @@ describe('SpacesConsumer', () => {
       clock: () => new Date('2026-05-11T12:00:00Z'),
     });
     const consumer = new SpacesConsumer({
-      groupAuthority: new StaticGroupAuthorityPort([{ space: ref, members: [aliceDid] }]),
+      groupDirectory: new StaticGroupDirectoryPort([{ space: ref, members: [aliceDid] }]),
       permissionedRepo: repo,
       onAccepted,
       onRejected,
@@ -51,7 +51,7 @@ describe('SpacesConsumer', () => {
       clock: () => new Date('2026-05-11T12:00:00Z'),
     });
     const consumer = new SpacesConsumer({
-      groupAuthority: new StaticGroupAuthorityPort([{ space: ref, members: [aliceDid] }]),
+      groupDirectory: new StaticGroupDirectoryPort([{ space: ref, members: [aliceDid] }]),
       permissionedRepo: repo,
       onAccepted,
       onRejected,
@@ -76,7 +76,7 @@ describe('SpacesConsumer', () => {
       clock: () => new Date('2026-05-11T12:00:00Z'),
     });
     const consumer = new SpacesConsumer({
-      groupAuthority: new StaticGroupAuthorityPort([{ space: ref, members: [aliceDid] }]),
+      groupDirectory: new StaticGroupDirectoryPort([{ space: ref, members: [aliceDid] }]),
       permissionedRepo: repo,
       onAccepted,
       onRejected,
@@ -93,19 +93,29 @@ describe('SpacesConsumer', () => {
     expect(consumer.health().verificationFailures).toBe(1);
   });
 
-  it('fails closed and does not checkpoint stale strict membership decisions', async () => {
+  it('fails closed and does not checkpoint stale strict membership resolution', async () => {
     const repo = new InMemoryPermissionedRepoPort({
       records: [aliceRecord],
       verification: 'verified',
       clock: () => new Date('2026-05-11T12:00:00Z'),
     });
-    const staleAuthority: GroupAuthorityPort = {
-      isMember: async () => ({ ok: true, isMember: true, stale: true }),
-      resolveMembership: async () => ({ members: [], stale: true }),
+    const staleDirectory: GroupDirectoryPort = {
+      listSpaces: async () => ({ spaces: [] }),
+      getSpaceConfig: async () => ({ ok: true, space: ref, stale: true }),
+      getDirectSpaceMembers: async () => [],
+      resolveSpaceMembers: async (): Promise<ResolvedMembers> => ({
+        ok: true,
+        directMembers: [],
+        members: [{ did: aliceDid, via: [ref], directMember: { kind: 'did', did: aliceDid }, resolverDepth: 0 }],
+        missingSpaces: [],
+        partial: false,
+        stale: true,
+        resolverDepth: 0,
+      }),
     };
     const onError = vi.fn();
     const consumer = new SpacesConsumer({
-      groupAuthority: staleAuthority,
+      groupDirectory: staleDirectory,
       permissionedRepo: repo,
       onAccepted,
       onRejected,
@@ -131,7 +141,7 @@ describe('SpacesConsumer', () => {
     });
     const onError = vi.fn();
     const consumer = new SpacesConsumer({
-      groupAuthority: new StaticGroupAuthorityPort([{ space: ref, members: [aliceDid] }]),
+      groupDirectory: new StaticGroupDirectoryPort([{ space: ref, members: [aliceDid] }]),
       permissionedRepo: repo,
       onAccepted: async () => {
         throw new Error('handler-boom');

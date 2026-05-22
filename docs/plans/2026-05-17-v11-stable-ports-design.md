@@ -35,19 +35,19 @@ These are good sketches, but several of those details are still unsettled upstre
 
 ## Proposed Stable Ports
 
-### `GroupAuthorityPort`
+### `GroupDirectoryPort`
 
-Purpose: answer group, role, and recursive membership questions.
+Purpose: answer group, role, and recursive membership questions through direct and resolved membership snapshots.
 
 It hides whether authority comes from Arbiter XRPC, direct spaces APIs, a temporary CSN implementation, or a later standard.
 
 Expected responsibilities:
 
-- Check whether a DID is a member of a space or role.
-- Page through members without assuming small rosters.
+- List spaces and read space config without exposing draft XRPC details.
+- Read direct members without assuming all members are DIDs.
 - Resolve nested space membership and cross-arbiter membership.
 - Return revision or snapshot markers for audit and historical reads.
-- Support strict reads when application logic cannot tolerate projection staleness.
+- Surface partial, stale, or missing-space resolution so governance-critical callers fail closed.
 
 This replaces direct dependency on `ArbiterMemberList` as the long-term application boundary. `ArbiterMemberList` can remain a Stage 1 sketch behind this port.
 
@@ -102,7 +102,7 @@ Expected responsibilities:
 - Store member-authored join/application records.
 - Store signatures or agreement acceptance records.
 - Link consent evidence to the authoritative group membership event.
-- Keep active membership authority in the group-authority layer.
+- Keep active membership authority in the Group Directory / Arbiter substrate.
 
 This avoids reviving V9 bilateral membership as the active state machine, while fixing the audit weakness of treating OAuth consent as membership consent.
 
@@ -132,17 +132,17 @@ ArbiterMemberList.isMember(space, did) -> boolean
 Suggested long-term boundary:
 
 ```text
-GroupAuthorityPort.resolveMembership(space, options) -> MembershipSnapshot
-GroupAuthorityPort.isMember(space, did, options) -> MembershipDecision
+GroupDirectoryPort.getDirectSpaceMembers(space) -> DirectSpaceMember[]
+GroupDirectoryPort.resolveSpaceMembers(space, options) -> ResolvedMembers
 ```
 
-The returned values should be able to include snapshot IDs, revision markers, stale/projection flags, and pagination cursors.
+The returned values should preserve direct and resolved members separately and include resolver depth, stale/projection flags, partial resolution, and missing spaces.
 
 ## Comparison Table
 
 | Concern | Claude V11 / Stage 1 | Stable Port Alternative | Practical Benefit |
 |---|---|---|---|
-| Membership authority | Arbiter-shaped member-list interface | `GroupAuthorityPort` | Arbiter can change without changing app logic. |
+| Membership authority | Arbiter-shaped member-list interface | `GroupDirectoryPort` | Arbiter can change without changing app logic. |
 | Permissioned sync | Notification + puller + ECMH verifier | `PermissionedRepoPort` | Sync protocol changes stay inside one adapter. |
 | Cursors | Per-member rev strings | Opaque adapter-owned cursors | Supports space-level, repo-level, or oplog cursors later. |
 | URI type | `AtUri` reused for pulled records | Structured permissioned location or `PermissionedUri` | Avoids baking `at://` into permissioned data. |
@@ -153,7 +153,7 @@ The returned values should be able to include snapshot IDs, revision markers, st
 ## What Should Stay From Claude V11
 
 - The four-layer model.
-- `SpaceRef = { arbiter, type, skey }` as the internal space identity.
+- `SpaceRef = { arbiterDid, spaceKey, expectedSpaceType? }` as the internal space identity.
 - Fail-closed sketch implementations.
 - GovernanceView / CoopView separation.
 - Plugin-based cooperative-specific rules.

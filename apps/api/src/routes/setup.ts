@@ -137,7 +137,7 @@ export function createSetupRoutes(container: Container): Router {
           })
           .execute();
 
-        const authority = container.groupAuthorityCommandsForDb(trx);
+        const authority = container.groupMutationsForDb(trx);
         await authority.provisionCooperativeAuthority({
           cooperativeDid: coopDid as DID,
           actorDid: adminDid as DID,

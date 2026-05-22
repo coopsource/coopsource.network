@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { DID } from '@coopsource/common';
 import type { Database } from '@coopsource/db';
 import type { Kysely } from 'kysely';
-import { CsnDbGroupAuthorityCommandPort } from '../group-authority-command-port.js';
+import { CsnDbGroupMutationPort } from '../group-mutation-port.js';
 
 interface MembershipFixture {
   id: string;
@@ -63,10 +63,10 @@ const bobDid = 'did:plc:bob' as DID;
 const actorDid = 'did:plc:admin' as DID;
 const now = new Date('2026-05-18T12:00:00Z');
 
-describe('CsnDbGroupAuthorityCommandPort', () => {
+describe('CsnDbGroupMutationPort', () => {
   it('adds active members, role memberships, and an audit event', async () => {
     const { db, state } = fakeDb();
-    const authority = new CsnDbGroupAuthorityCommandPort(db, { now: () => now });
+    const authority = new CsnDbGroupMutationPort(db, { now: () => now });
 
     const result = await authority.addMember({
       cooperativeDid,
@@ -76,6 +76,8 @@ describe('CsnDbGroupAuthorityCommandPort', () => {
       consentRecordUri: 'at://alice/memberConsent/1',
       consentRecordCid: 'cid-1',
       reason: 'test add',
+      auditMetadata: { source: 'test' },
+      governanceOutcomeRef: 'at://did:plc:coop/network.coopsource.governance.proposal/p1',
     });
 
     expect(result).toMatchObject({ ok: true, changed: true, memberDid: aliceDid });
@@ -90,7 +92,7 @@ describe('CsnDbGroupAuthorityCommandPort', () => {
     expect(state.roles.map((row) => row.role)).toEqual(['admin', 'member']);
     expect(state.audits).toHaveLength(1);
     expect(state.audits[0]).toMatchObject({
-      entity_type: 'v11.groupAuthority',
+      entity_type: 'v11.groupMutation',
       field: 'add-member',
       changed_by: actorDid,
       reason: 'test add',
@@ -102,6 +104,8 @@ describe('CsnDbGroupAuthorityCommandPort', () => {
       memberDid: aliceDid,
       consentRecordUri: 'at://alice/memberConsent/1',
       consentRecordCid: 'cid-1',
+      auditMetadata: { source: 'test' },
+      governanceOutcomeRef: 'at://did:plc:coop/network.coopsource.governance.proposal/p1',
     });
   });
 
@@ -110,7 +114,7 @@ describe('CsnDbGroupAuthorityCommandPort', () => {
       memberships: [membership('m1', aliceDid, { status: 'pending', joinedAt: null })],
       roles: [{ membership_id: 'm1', role: 'member', indexed_at: new Date('2026-05-17T00:00:00Z') }],
     });
-    const authority = new CsnDbGroupAuthorityCommandPort(db, { now: () => now });
+    const authority = new CsnDbGroupMutationPort(db, { now: () => now });
 
     const result = await authority.addMember({
       cooperativeDid,
@@ -134,7 +138,7 @@ describe('CsnDbGroupAuthorityCommandPort', () => {
       memberships: [membership('m1', aliceDid)],
       roles: [{ membership_id: 'm1', role: 'member', indexed_at: now }],
     });
-    const authority = new CsnDbGroupAuthorityCommandPort(db, { now: () => now });
+    const authority = new CsnDbGroupMutationPort(db, { now: () => now });
 
     await expect(
       authority.setMemberRoles({ cooperativeDid, memberDid: aliceDid, actorDid, roles: ['member', 'admin'] }),
@@ -153,7 +157,7 @@ describe('CsnDbGroupAuthorityCommandPort', () => {
       memberships: [membership('m1', aliceDid)],
       roles: [{ membership_id: 'm1', role: 'member', indexed_at: now }],
     });
-    const authority = new CsnDbGroupAuthorityCommandPort(db, { now: () => now });
+    const authority = new CsnDbGroupMutationPort(db, { now: () => now });
 
     await expect(
       authority.removeMember({ cooperativeDid, memberDid: aliceDid, actorDid, reason: 'left' }),
@@ -176,7 +180,7 @@ describe('CsnDbGroupAuthorityCommandPort', () => {
     const { db, state } = fakeDb({
       memberships: [membership('m1', aliceDid, { status: 'pending' })],
     });
-    const authority = new CsnDbGroupAuthorityCommandPort(db, { now: () => now });
+    const authority = new CsnDbGroupMutationPort(db, { now: () => now });
 
     await expect(
       authority.addRoleMember({ cooperativeDid, memberDid: aliceDid, actorDid, role: 'admin' }),
@@ -186,7 +190,7 @@ describe('CsnDbGroupAuthorityCommandPort', () => {
 
   it('lists audit events with opaque cursors', async () => {
     const { db } = fakeDb();
-    const authority = new CsnDbGroupAuthorityCommandPort(db, { now: () => now });
+    const authority = new CsnDbGroupMutationPort(db, { now: () => now });
     await authority.addMember({ cooperativeDid, memberDid: aliceDid, actorDid, roles: ['member'] });
     await authority.addMember({ cooperativeDid, memberDid: bobDid, actorDid, roles: ['member'] });
 

@@ -1,19 +1,19 @@
 import type { DID } from '@coopsource/common';
 import type { Database, FactLogTable, MembershipTable } from '@coopsource/db';
-import type { SpaceRef } from '@coopsource/spaces-consumer';
+import type { SpaceRef, UnknownLexiconObject } from '@coopsource/spaces-consumer';
 import type { Kysely, Selectable, Transaction } from 'kysely';
 import { membersSpace, roleSpace } from './space-ref.js';
 
-const AUDIT_ENTITY_TYPE = 'v11.groupAuthority';
+const AUDIT_ENTITY_TYPE = 'v11.groupMutation';
 const AUDIT_CURSOR_PREFIX = 'fact-log-v1';
 const DEFAULT_AUDIT_LIMIT = 100;
 const MAX_AUDIT_LIMIT = 500;
 
-type AuthorityDb = Kysely<Database> | Transaction<Database>;
+type MutationDb = Kysely<Database> | Transaction<Database>;
 type MembershipRow = Selectable<MembershipTable>;
 type FactLogRow = Selectable<FactLogTable>;
 
-export type GroupAuthorityOperation =
+export type GroupMutationOperation =
   | 'provision-cooperative-authority'
   | 'ensure-role-space'
   | 'add-member'
@@ -22,30 +22,36 @@ export type GroupAuthorityOperation =
   | 'remove-role-member'
   | 'set-member-roles';
 
-export type GroupAuthorityFailureReason = 'invalid-role' | 'not-found';
+export type GroupMutationFailureReason = 'invalid-role' | 'not-found';
 
-export interface GroupAuthorityCommandResult {
+export interface GroupMutationResult {
   readonly ok: boolean;
   readonly changed: boolean;
-  readonly operation: GroupAuthorityOperation;
+  readonly operation: GroupMutationOperation;
   readonly cooperativeDid: DID;
   readonly memberDid?: DID;
   readonly role?: string;
   readonly space?: SpaceRef;
   readonly sourceRevision?: string;
   readonly auditEventId?: string;
-  readonly reason?: GroupAuthorityFailureReason;
+  readonly reason?: GroupMutationFailureReason;
 }
 
-export interface ProvisionCooperativeAuthorityResult extends GroupAuthorityCommandResult {
+export interface ProvisionCooperativeAuthorityResult extends GroupMutationResult {
   readonly arbiterDid: DID;
   readonly membersSpace: SpaceRef;
+}
+
+export interface GroupMutationContext {
+  readonly actorDid: DID;
+  readonly reason?: string;
+  readonly auditMetadata?: UnknownLexiconObject;
+  readonly governanceOutcomeRef?: string;
 }
 
 export interface AddMemberArgs {
   readonly cooperativeDid: DID;
   readonly memberDid: DID;
-  readonly actorDid: DID;
   readonly roles?: ReadonlyArray<string>;
   readonly memberClass?: string | null;
   readonly directoryVisible?: boolean;
@@ -53,13 +59,16 @@ export interface AddMemberArgs {
   readonly consentRecordCid?: string | null;
   readonly invitationId?: string | null;
   readonly joinedAt?: Date;
+  readonly actorDid: DID;
   readonly reason?: string;
+  readonly auditMetadata?: UnknownLexiconObject;
+  readonly governanceOutcomeRef?: string;
 }
 
-export interface GroupAuthorityAuditEvent {
+export interface GroupMutationAuditEvent {
   readonly id: string;
   readonly cooperativeDid: DID;
-  readonly operation: GroupAuthorityOperation;
+  readonly operation: GroupMutationOperation;
   readonly actorDid: DID | null;
   readonly memberDid?: DID;
   readonly role?: string;
@@ -67,33 +76,43 @@ export interface GroupAuthorityAuditEvent {
   readonly oldValue: unknown;
   readonly newValue: unknown;
   readonly reason: string | null;
+  readonly auditMetadata?: UnknownLexiconObject;
+  readonly governanceOutcomeRef?: string;
 }
 
-export interface GroupAuthorityAuditPage {
-  readonly events: ReadonlyArray<GroupAuthorityAuditEvent>;
+export interface GroupMutationAuditPage {
+  readonly events: ReadonlyArray<GroupMutationAuditEvent>;
   readonly cursor?: string;
 }
 
-export interface GroupAuthorityCommandPort {
+export interface GroupMutationPort {
   provisionCooperativeAuthority(args: {
     readonly cooperativeDid: DID;
     readonly actorDid: DID;
+    readonly reason?: string;
+    readonly auditMetadata?: UnknownLexiconObject;
+    readonly governanceOutcomeRef?: string;
   }): Promise<ProvisionCooperativeAuthorityResult>;
 
   ensureRoleSpace(args: {
     readonly cooperativeDid: DID;
     readonly role: string;
     readonly actorDid: DID;
-  }): Promise<GroupAuthorityCommandResult>;
+    readonly reason?: string;
+    readonly auditMetadata?: UnknownLexiconObject;
+    readonly governanceOutcomeRef?: string;
+  }): Promise<GroupMutationResult>;
 
-  addMember(args: AddMemberArgs): Promise<GroupAuthorityCommandResult>;
+  addMember(args: AddMemberArgs): Promise<GroupMutationResult>;
 
   removeMember(args: {
     readonly cooperativeDid: DID;
     readonly memberDid: DID;
     readonly actorDid: DID;
     readonly reason?: string;
-  }): Promise<GroupAuthorityCommandResult>;
+    readonly auditMetadata?: UnknownLexiconObject;
+    readonly governanceOutcomeRef?: string;
+  }): Promise<GroupMutationResult>;
 
   addRoleMember(args: {
     readonly cooperativeDid: DID;
@@ -101,7 +120,9 @@ export interface GroupAuthorityCommandPort {
     readonly memberDid: DID;
     readonly actorDid: DID;
     readonly reason?: string;
-  }): Promise<GroupAuthorityCommandResult>;
+    readonly auditMetadata?: UnknownLexiconObject;
+    readonly governanceOutcomeRef?: string;
+  }): Promise<GroupMutationResult>;
 
   removeRoleMember(args: {
     readonly cooperativeDid: DID;
@@ -109,7 +130,9 @@ export interface GroupAuthorityCommandPort {
     readonly memberDid: DID;
     readonly actorDid: DID;
     readonly reason?: string;
-  }): Promise<GroupAuthorityCommandResult>;
+    readonly auditMetadata?: UnknownLexiconObject;
+    readonly governanceOutcomeRef?: string;
+  }): Promise<GroupMutationResult>;
 
   setMemberRoles(args: {
     readonly cooperativeDid: DID;
@@ -117,28 +140,33 @@ export interface GroupAuthorityCommandPort {
     readonly roles: ReadonlyArray<string>;
     readonly actorDid: DID;
     readonly reason?: string;
-  }): Promise<GroupAuthorityCommandResult>;
+    readonly auditMetadata?: UnknownLexiconObject;
+    readonly governanceOutcomeRef?: string;
+  }): Promise<GroupMutationResult>;
 
   listAuditEvents(args: {
     readonly cooperativeDid: DID;
     readonly cursor?: string;
     readonly limit?: number;
-  }): Promise<GroupAuthorityAuditPage>;
+  }): Promise<GroupMutationAuditPage>;
 }
 
-export interface CsnDbGroupAuthorityCommandPortOptions {
+export interface CsnDbGroupMutationPortOptions {
   readonly now?: () => Date;
 }
 
-export class CsnDbGroupAuthorityCommandPort implements GroupAuthorityCommandPort {
+export class CsnDbGroupMutationPort implements GroupMutationPort {
   constructor(
-    private readonly db: AuthorityDb,
-    private readonly options: CsnDbGroupAuthorityCommandPortOptions = {},
+    private readonly db: MutationDb,
+    private readonly options: CsnDbGroupMutationPortOptions = {},
   ) {}
 
   async provisionCooperativeAuthority(args: {
     readonly cooperativeDid: DID;
     readonly actorDid: DID;
+    readonly reason?: string;
+    readonly auditMetadata?: UnknownLexiconObject;
+    readonly governanceOutcomeRef?: string;
   }): Promise<ProvisionCooperativeAuthorityResult> {
     return {
       ok: true,
@@ -156,7 +184,10 @@ export class CsnDbGroupAuthorityCommandPort implements GroupAuthorityCommandPort
     readonly cooperativeDid: DID;
     readonly role: string;
     readonly actorDid: DID;
-  }): Promise<GroupAuthorityCommandResult> {
+    readonly reason?: string;
+    readonly auditMetadata?: UnknownLexiconObject;
+    readonly governanceOutcomeRef?: string;
+  }): Promise<GroupMutationResult> {
     const role = normalizeRole(args.role);
     if (!role) {
       return this.invalidRoleResult('ensure-role-space', args.cooperativeDid, args.role);
@@ -173,7 +204,7 @@ export class CsnDbGroupAuthorityCommandPort implements GroupAuthorityCommandPort
     };
   }
 
-  async addMember(args: AddMemberArgs): Promise<GroupAuthorityCommandResult> {
+  async addMember(args: AddMemberArgs): Promise<GroupMutationResult> {
     const roles = args.roles === undefined ? undefined : normalizeRoles(args.roles);
     if (roles?.invalid) {
       return this.invalidRoleResult('add-member', args.cooperativeDid, roles.invalid);
@@ -251,6 +282,8 @@ export class CsnDbGroupAuthorityCommandPort implements GroupAuthorityCommandPort
               consentRecordCid: args.consentRecordCid ?? existing?.member_record_cid ?? null,
             },
             reason: args.reason ?? null,
+            auditMetadata: args.auditMetadata,
+            governanceOutcomeRef: args.governanceOutcomeRef,
           })
         : undefined;
 
@@ -272,7 +305,9 @@ export class CsnDbGroupAuthorityCommandPort implements GroupAuthorityCommandPort
     readonly memberDid: DID;
     readonly actorDid: DID;
     readonly reason?: string;
-  }): Promise<GroupAuthorityCommandResult> {
+    readonly auditMetadata?: UnknownLexiconObject;
+    readonly governanceOutcomeRef?: string;
+  }): Promise<GroupMutationResult> {
     return runInTransaction(this.db, async (trx) => {
       const now = this.now();
       const existing = await findOpenMembership(trx, args.cooperativeDid, args.memberDid);
@@ -316,6 +351,8 @@ export class CsnDbGroupAuthorityCommandPort implements GroupAuthorityCommandPort
           roles: oldRoles,
         },
         reason: args.reason ?? null,
+        auditMetadata: args.auditMetadata,
+        governanceOutcomeRef: args.governanceOutcomeRef,
       });
 
       return {
@@ -337,7 +374,9 @@ export class CsnDbGroupAuthorityCommandPort implements GroupAuthorityCommandPort
     readonly memberDid: DID;
     readonly actorDid: DID;
     readonly reason?: string;
-  }): Promise<GroupAuthorityCommandResult> {
+    readonly auditMetadata?: UnknownLexiconObject;
+    readonly governanceOutcomeRef?: string;
+  }): Promise<GroupMutationResult> {
     const role = normalizeRole(args.role);
     if (!role) {
       return this.invalidRoleResult('add-role-member', args.cooperativeDid, args.role, args.memberDid);
@@ -377,6 +416,8 @@ export class CsnDbGroupAuthorityCommandPort implements GroupAuthorityCommandPort
         oldValue: { memberDid: args.memberDid, roles: oldRoles },
         newValue: { memberDid: args.memberDid, roles: [...oldRoles, role].sort(), role },
         reason: args.reason ?? null,
+        auditMetadata: args.auditMetadata,
+        governanceOutcomeRef: args.governanceOutcomeRef,
       });
 
       return roleResult('add-role-member', args.cooperativeDid, args.memberDid, role, true, now, undefined, auditEventId);
@@ -389,7 +430,9 @@ export class CsnDbGroupAuthorityCommandPort implements GroupAuthorityCommandPort
     readonly memberDid: DID;
     readonly actorDid: DID;
     readonly reason?: string;
-  }): Promise<GroupAuthorityCommandResult> {
+    readonly auditMetadata?: UnknownLexiconObject;
+    readonly governanceOutcomeRef?: string;
+  }): Promise<GroupMutationResult> {
     const role = normalizeRole(args.role);
     if (!role) {
       return this.invalidRoleResult('remove-role-member', args.cooperativeDid, args.role, args.memberDid);
@@ -424,6 +467,8 @@ export class CsnDbGroupAuthorityCommandPort implements GroupAuthorityCommandPort
         oldValue: { memberDid: args.memberDid, roles: oldRoles, role },
         newValue: { memberDid: args.memberDid, roles: newRoles },
         reason: args.reason ?? null,
+        auditMetadata: args.auditMetadata,
+        governanceOutcomeRef: args.governanceOutcomeRef,
       });
 
       return roleResult('remove-role-member', args.cooperativeDid, args.memberDid, role, true, now, undefined, auditEventId);
@@ -436,7 +481,9 @@ export class CsnDbGroupAuthorityCommandPort implements GroupAuthorityCommandPort
     readonly roles: ReadonlyArray<string>;
     readonly actorDid: DID;
     readonly reason?: string;
-  }): Promise<GroupAuthorityCommandResult> {
+    readonly auditMetadata?: UnknownLexiconObject;
+    readonly governanceOutcomeRef?: string;
+  }): Promise<GroupMutationResult> {
     const roles = normalizeRoles(args.roles);
     if (roles.invalid) {
       return this.invalidRoleResult('set-member-roles', args.cooperativeDid, roles.invalid, args.memberDid);
@@ -470,6 +517,8 @@ export class CsnDbGroupAuthorityCommandPort implements GroupAuthorityCommandPort
             oldValue: { memberDid: args.memberDid, roles: oldRoles },
             newValue: { memberDid: args.memberDid, roles: roleChange.newRoles },
             reason: args.reason ?? null,
+            auditMetadata: args.auditMetadata,
+            governanceOutcomeRef: args.governanceOutcomeRef,
           })
         : undefined;
 
@@ -490,7 +539,7 @@ export class CsnDbGroupAuthorityCommandPort implements GroupAuthorityCommandPort
     readonly cooperativeDid: DID;
     readonly cursor?: string;
     readonly limit?: number;
-  }): Promise<GroupAuthorityAuditPage> {
+  }): Promise<GroupMutationAuditPage> {
     const limit = clampLimit(args.limit);
     const cursor = decodeAuditCursor(args.cursor);
     if (cursor === 'invalid') {
@@ -534,11 +583,11 @@ export class CsnDbGroupAuthorityCommandPort implements GroupAuthorityCommandPort
   }
 
   private invalidRoleResult(
-    operation: GroupAuthorityOperation,
+    operation: GroupMutationOperation,
     cooperativeDid: DID,
     role: string,
     memberDid?: DID,
-  ): GroupAuthorityCommandResult {
+  ): GroupMutationResult {
     return {
       ok: false,
       changed: false,
@@ -553,7 +602,7 @@ export class CsnDbGroupAuthorityCommandPort implements GroupAuthorityCommandPort
 }
 
 async function runInTransaction<T>(
-  db: AuthorityDb,
+  db: MutationDb,
   fn: (trx: Transaction<Database>) => Promise<T>,
 ): Promise<T> {
   if ('transaction' in db && typeof db.transaction === 'function') {
@@ -563,7 +612,7 @@ async function runInTransaction<T>(
 }
 
 async function findOpenMembership(
-  db: AuthorityDb,
+  db: MutationDb,
   cooperativeDid: DID,
   memberDid: DID,
 ): Promise<MembershipRow | undefined> {
@@ -579,7 +628,7 @@ async function findOpenMembership(
 }
 
 async function findActiveMembership(
-  db: AuthorityDb,
+  db: MutationDb,
   cooperativeDid: DID,
   memberDid: DID,
 ): Promise<MembershipRow | undefined> {
@@ -595,7 +644,7 @@ async function findActiveMembership(
     .executeTakeFirst();
 }
 
-async function loadRoles(db: AuthorityDb, membershipId: string): Promise<ReadonlyArray<string>> {
+async function loadRoles(db: MutationDb, membershipId: string): Promise<ReadonlyArray<string>> {
   const rows = await db
     .selectFrom('membership_role')
     .where('membership_id', '=', membershipId)
@@ -606,7 +655,7 @@ async function loadRoles(db: AuthorityDb, membershipId: string): Promise<Readonl
 }
 
 async function replaceRoles(
-  db: AuthorityDb,
+  db: MutationDb,
   membershipId: string,
   currentRoles: ReadonlyArray<string>,
   newRoles: ReadonlyArray<string>,
@@ -678,10 +727,10 @@ function dateAwareValue(value: Date | string | boolean | null): string | boolean
 }
 
 async function insertAuditEvent(
-  db: AuthorityDb,
+  db: MutationDb,
   event: {
     readonly cooperativeDid: DID;
-    readonly operation: GroupAuthorityOperation;
+    readonly operation: GroupMutationOperation;
     readonly actorDid: DID;
     readonly changedAt: Date;
     readonly memberDid?: DID;
@@ -689,6 +738,8 @@ async function insertAuditEvent(
     readonly oldValue: unknown;
     readonly newValue: unknown;
     readonly reason: string | null;
+    readonly auditMetadata?: UnknownLexiconObject;
+    readonly governanceOutcomeRef?: string;
   },
 ): Promise<string | undefined> {
   const [inserted] = await db
@@ -705,6 +756,8 @@ async function insertAuditEvent(
         actorDid: event.actorDid,
         memberDid: event.memberDid,
         role: event.role,
+        auditMetadata: event.auditMetadata,
+        governanceOutcomeRef: event.governanceOutcomeRef,
       },
       changed_by: event.actorDid,
       changed_at: event.changedAt,
@@ -732,16 +785,16 @@ function memberAuditValue(row: MembershipRow, roles: ReadonlyArray<string>): Rec
 }
 
 function roleResult(
-  operation: GroupAuthorityOperation,
+  operation: GroupMutationOperation,
   cooperativeDid: DID,
   memberDid: DID,
   role: string,
   changed: boolean,
   now: Date,
-  reason?: GroupAuthorityFailureReason,
+  reason?: GroupMutationFailureReason,
   auditEventId?: string,
   ok: boolean = reason ? false : true,
-): GroupAuthorityCommandResult {
+): GroupMutationResult {
   return {
     ok,
     changed,
@@ -786,7 +839,7 @@ function objectValue(value: unknown): Record<string, unknown> {
   return { value };
 }
 
-function auditEntityId(cooperativeDid: DID, operation: GroupAuthorityOperation, subject: string | undefined): string {
+function auditEntityId(cooperativeDid: DID, operation: GroupMutationOperation, subject: string | undefined): string {
   return `${cooperativeDid}|${operation}|${subject ?? ''}`;
 }
 
@@ -815,7 +868,7 @@ function decodeAuditCursor(cursor: string | undefined): { readonly changedAt: Da
   return { changedAt: date, id: decodeURIComponent(id) };
 }
 
-function auditEventFromRow(row: FactLogRow): GroupAuthorityAuditEvent {
+function auditEventFromRow(row: FactLogRow): GroupMutationAuditEvent {
   const oldValue = parseAuditValue(row.old_value);
   const newValue = parseAuditValue(row.new_value);
   const newObject = objectValue(newValue);
@@ -826,7 +879,7 @@ function auditEventFromRow(row: FactLogRow): GroupAuthorityAuditEvent {
   return {
     id: row.id,
     cooperativeDid,
-    operation: row.field as GroupAuthorityOperation,
+    operation: row.field as GroupMutationOperation,
     actorDid: row.changed_by as DID | null,
     memberDid: typeof newObject.memberDid === 'string' ? (newObject.memberDid as DID) : undefined,
     role: typeof newObject.role === 'string' ? newObject.role : undefined,
@@ -834,6 +887,10 @@ function auditEventFromRow(row: FactLogRow): GroupAuthorityAuditEvent {
     oldValue,
     newValue,
     reason: row.reason,
+    auditMetadata: objectValue(newValue).auditMetadata as UnknownLexiconObject | undefined,
+    governanceOutcomeRef: typeof objectValue(newValue).governanceOutcomeRef === 'string'
+      ? objectValue(newValue).governanceOutcomeRef as string
+      : undefined,
   };
 }
 

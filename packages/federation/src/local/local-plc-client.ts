@@ -286,6 +286,9 @@ export class LocalPlcClient {
           },
         ];
       }
+      if (params.services) {
+        updated.service = params.services;
+      }
 
       await sql`
         UPDATE plc_operation SET did_document = ${JSON.stringify(updated)} WHERE did = ${did}

@@ -234,11 +234,52 @@ describe('Hook pipeline dispatch', () => {
       .executeTakeFirstOrThrow();
     expect(Number(count.count)).toBe(1);
 
+    const updateEvent = makeEvent(
+      'network.coopsource.org.memberConsent',
+      'update',
+      {
+        $type: 'network.coopsource.org.memberConsent',
+        cooperative: 'did:plc:coop',
+        consentType: 'joinRequest',
+        createdAt: now.toISOString(),
+      },
+      { uri: createEvent.uri, cid: 'bafynewconsent', prevCid: createEvent.cid },
+    );
+    await processFirehoseEvent(db, registry, updateEvent);
+
+    const replaced = await db
+      .selectFrom('membership')
+      .where('member_did', '=', 'did:plc:test')
+      .where('cooperative_did', '=', 'did:plc:coop')
+      .select(['member_record_uri', 'member_record_cid'])
+      .executeTakeFirstOrThrow();
+
+    expect(replaced.member_record_uri).toBe(createEvent.uri);
+    expect(replaced.member_record_cid).toBe('bafynewconsent');
+
+    const staleDeleteEvent = makeEvent(
+      'network.coopsource.org.memberConsent',
+      'delete',
+      undefined,
+      { uri: createEvent.uri, cid: createEvent.cid },
+    );
+    await processFirehoseEvent(db, registry, staleDeleteEvent);
+
+    const afterStaleDelete = await db
+      .selectFrom('membership')
+      .where('member_did', '=', 'did:plc:test')
+      .where('cooperative_did', '=', 'did:plc:coop')
+      .select(['member_record_uri', 'member_record_cid'])
+      .executeTakeFirstOrThrow();
+
+    expect(afterStaleDelete.member_record_uri).toBe(createEvent.uri);
+    expect(afterStaleDelete.member_record_cid).toBe('bafynewconsent');
+
     const deleteEvent = makeEvent(
       'network.coopsource.org.memberConsent',
       'delete',
       undefined,
-      { uri: createEvent.uri },
+      { uri: createEvent.uri, cid: 'bafynewconsent' },
     );
     await processFirehoseEvent(db, registry, deleteEvent);
 

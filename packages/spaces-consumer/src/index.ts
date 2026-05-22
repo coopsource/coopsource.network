@@ -8,7 +8,13 @@ export type {
   PermissionedCursor,
   PermissionedRecordLocation,
   PermissionedVerificationStatus,
+  DirectSpaceMember,
+  MissingSpace,
+  ResolvedMembers,
+  ResolvedSpaceMember,
+  SpaceMemberRef,
   SpaceRef,
+  UnknownLexiconObject,
   VerifiedPermissionedChanges,
   VerifiedPermissionedRecord,
 } from './types.js';
@@ -16,12 +22,12 @@ export { spaceRefKey, SpacesConsumerError } from './types.js';
 export type { SpaceCredential, SpaceCredentialStore } from './credential-store.js';
 export { InMemorySpaceCredentialStore } from './credential-store.js';
 export type {
-  GroupAuthorityPort,
+  GroupDirectoryPort,
   MembershipConsistency,
-  MembershipDecision,
-  MembershipSnapshotPage,
-} from './group-authority-port.js';
-export { DenyAllGroupAuthorityPort, StaticGroupAuthorityPort } from './group-authority-port.js';
+  SpaceConfigResult,
+  SpaceListPage,
+} from './group-directory-port.js';
+export { DenyAllGroupDirectoryPort, StaticGroupDirectoryPort } from './group-directory-port.js';
 export type {
   PermissionedCheckpointStore,
   PermissionedRepoPort,

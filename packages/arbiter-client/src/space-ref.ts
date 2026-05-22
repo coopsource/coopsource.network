@@ -1,9 +1,10 @@
 import type { DID } from '@coopsource/common';
 import type { SpaceRef } from '@coopsource/spaces-consumer';
 
-export const MEMBERS_SPACE_TYPE = 'network.coopsource.org.cooperative';
-export const MEMBERS_SPACE_SKEY = 'members';
-export const ROLE_SPACE_TYPE = 'network.coopsource.org.role';
+export const MEMBERS_SPACE_TYPE = 'network.coopsource.org.spaceType.members';
+export const MEMBERS_SPACE_KEY = 'members';
+export const ROLE_SPACE_TYPE = 'network.coopsource.org.spaceType.role';
+export const CLASS_SPACE_TYPE = 'network.coopsource.org.spaceType.memberClass';
 
 export type CsnSpace =
   | {
@@ -14,44 +15,89 @@ export type CsnSpace =
       readonly kind: 'role';
       readonly cooperativeDid: DID;
       readonly role: string;
+    }
+  | {
+      readonly kind: 'class';
+      readonly cooperativeDid: DID;
+      readonly memberClass: string;
     };
 
 export function membersSpace(cooperativeDid: DID): SpaceRef {
   return {
-    arbiter: cooperativeDid,
-    type: MEMBERS_SPACE_TYPE,
-    skey: MEMBERS_SPACE_SKEY,
+    arbiterDid: cooperativeDid,
+    spaceKey: MEMBERS_SPACE_KEY,
+    expectedSpaceType: MEMBERS_SPACE_TYPE,
   };
 }
 
 export function roleSpace(cooperativeDid: DID, role: string): SpaceRef {
-  const skey = role.trim();
-  if (skey.length === 0) {
-    throw new Error('roleSpace requires a non-empty role skey');
+  const spaceKey = normalizeRoleSpaceKey(role);
+  if (!spaceKey) {
+    throw new Error('roleSpace requires a non-empty role key');
   }
 
   return {
-    arbiter: cooperativeDid,
-    type: ROLE_SPACE_TYPE,
-    skey,
+    arbiterDid: cooperativeDid,
+    spaceKey,
+    expectedSpaceType: spaceKey.startsWith('classes/') ? CLASS_SPACE_TYPE : ROLE_SPACE_TYPE,
   };
 }
 
 export function parseCsnSpace(space: SpaceRef): CsnSpace | null {
-  if (space.type === MEMBERS_SPACE_TYPE && space.skey === MEMBERS_SPACE_SKEY) {
+  if (space.spaceKey === MEMBERS_SPACE_KEY) {
     return {
       kind: 'members',
-      cooperativeDid: space.arbiter,
+      cooperativeDid: space.arbiterDid,
     };
   }
 
-  if (space.type === ROLE_SPACE_TYPE && space.skey.trim().length > 0) {
+  const role = parseRoleSpaceKey(space.spaceKey);
+  if (role) {
     return {
       kind: 'role',
-      cooperativeDid: space.arbiter,
-      role: space.skey,
+      cooperativeDid: space.arbiterDid,
+      role,
+    };
+  }
+
+  const memberClass = parseClassSpaceKey(space.spaceKey);
+  if (memberClass) {
+    return {
+      kind: 'class',
+      cooperativeDid: space.arbiterDid,
+      memberClass,
     };
   }
 
   return null;
+}
+
+function normalizeRoleSpaceKey(role: string): string | null {
+  const normalized = role.trim().replace(/^\/+|\/+$/g, '');
+  if (!normalized) return null;
+  if (normalized.startsWith('roles/') || normalized.startsWith('classes/')) {
+    return normalized;
+  }
+  if (normalized.startsWith('custom/')) {
+    return `roles/${normalized}`;
+  }
+  return `roles/${normalized}`;
+}
+
+function parseRoleSpaceKey(spaceKey: string): string | null {
+  if (spaceKey.startsWith('roles/custom/')) {
+    const role = spaceKey.slice('roles/custom/'.length).trim();
+    return role ? `custom/${role}` : null;
+  }
+  if (spaceKey.startsWith('roles/')) {
+    const role = spaceKey.slice('roles/'.length).trim();
+    return role ? role : null;
+  }
+  return null;
+}
+
+function parseClassSpaceKey(spaceKey: string): string | null {
+  if (!spaceKey.startsWith('classes/')) return null;
+  const memberClass = spaceKey.slice('classes/'.length).trim();
+  return memberClass || null;
 }

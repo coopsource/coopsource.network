@@ -3,6 +3,7 @@
 > **For**: Claude Code / Claude agents working on the Co-op Source Network codebase
 > **Architecture reference**: ARCHITECTURE-V11.md (primary), `docs/plans/2026-05-08-csn-architectural-direction.md` (deep rationale), `docs/plans/2026-05-11-csn-research-addendum.md` (May ecosystem scan)
 > **Date**: May 11, 2026
+> **Updated**: May 22, 2026 — aligned with draft `town.muni.arbiter.*` lexicons and V11 Stage 2D memberConsent work
 > **Status**: Active — V11 implementation in early stages
 
 ---
@@ -14,6 +15,8 @@ You are implementing the Co-op Source Network V11 — a federated cooperative go
 **Your primary reference is `ARCHITECTURE-V11.md`.** Read it thoroughly before making any architectural decisions. When the architecture document conflicts with anything else (including this prompt), the architecture document wins. For deep rationale on *why* V11 makes the choices it does, the direction document at `docs/plans/2026-05-08-csn-architectural-direction.md` is the research foundation.
 
 **Default working posture**: V11 is in early-stage implementation. Many upstream protocol details (URI scheme finalization, OAuth-spaces seam, controlled-DID API surface) are still in flux. When you encounter a decision that depends on upstream resolution, surface the dependency rather than guessing. The architecture document's §17 lists what is committed; §18 lists what is still open.
+
+**PoC velocity rule**: CSN has never been in production and has no external production contract. Do not preserve old code shapes through version-suffixed artifacts or parallel old/new APIs. Replace canonical names and types in place. Use `SpaceRef` with the current semantics and update callers directly when that shape changes.
 
 ---
 
@@ -41,15 +44,15 @@ These technology choices and design principles cannot be changed without explici
 - **DIDs are authoritative identifiers** — never use handles for security decisions.
 - **Cooperatives own their DIDs.** Rotation keys held offline by cooperative governance; CSN holds signing key only.
 - **Authority is decomposed into distinct axes** — OAuth, spaces, application logic, labels, service-auth — not flattened into a single ACL. At every write checkpoint, identify which axes apply and route failure modes correctly.
-- **Arbiter spaces are the membership substrate.** The cooperative's `members` space is the single source of truth for membership. Role-spaces (`board`, `treasurer`, `officers`, member classes) carry role authority.
+- **Group Directory / Arbiter spaces are the membership substrate.** The cooperative's `members` space is the single source of truth for membership. Role-spaces (`roles/board`, `roles/treasurer`, `roles/officers`, member classes) carry role authority. The generic directory answers *who is who*; mutation authorization and access policy are implementation-specific.
 - **GovernanceView and CoopView are separate layers.** Generic governance primitives live in GovernanceView (`community.lexicon.governance.*`). Cooperative-specific concerns live in CoopView (`network.coopsource.*`). The plugin set (§9 of arch doc) is the contract between them.
 - **Records of authority live in PDS repos or arbiter-managed spaces** — PostgreSQL is a materialized projection cache for queries.
 - **Tier 2 data NEVER touches the public firehose.** It lives in members' permissioned repos for the appropriate space.
 - **No bilateral membership.** The bilateral membership pattern from V9 (`network.coopsource.org.membership` + `network.coopsource.org.memberApproval`) retires entirely. Both lexicons retire.
 - **No `VisibilityRouter`, no `private_record` six-tier ACL.** The V10 design that deepened these workarounds was never implemented. Per-space placement at write time replaces visibility routing.
-- **No custom labeler service.** Governance labels go in the cooperative arbiter's `$labeler` space; CSN does not run a separate labeler.
+- **No custom labeler service.** Governance labels live under cooperative-controlled Arbiter/community-repo policy. `$labeler` is a preferred implementation convention when supported; CSN does not run a separate labeler DID.
 - **No RFC 9421 HTTP signatures.** Spaces with cross-arbiter space-as-member relationships subsume the closed-coop-to-closed-coop private exchange use case.
-- **No baking `ats://` as a constant.** Upstream has not finalized the URI scheme. URI handling goes through helpers; the substrate is `SpaceRef = { arbiter: DID, type: string, skey: string }`, not a string-typed URI.
+- **No baking `ats://` as a constant.** Upstream has not finalized the URI scheme. URI handling goes through helpers. Group-directory APIs use `SpaceRef = { arbiterDid: DID, spaceKey: string, expectedSpaceType?: NSID }`. Replace older triple-field space identity code paths in place.
 - **No founder-DID-rooted cooperatives.** Cooperatives are minted with their own DIDs at provisioning; never accumulate state under a personal DID.
 
 ### Git Workflow
@@ -80,7 +83,7 @@ What stays from V9: 60+ application services, the SvelteKit frontend (75 pages),
 ```
 Layer 4: CoopView          (network.coopsource.*)
 Layer 3: GovernanceView    (community.lexicon.governance.*)
-Layer 2: Arbiter           (Meri + Zicklag, Roomy team)
+Layer 2: Group Directory / Arbiter (Meri + Zicklag, Roomy team)
 Layer 1: Spaces            (Holmgren, Bluesky protocol)
 ```
 
@@ -109,7 +112,7 @@ Plugin interfaces (full type signatures in ARCHITECTURE-V11.md §9):
 | `meetingMinutes` | `MeetingMinutesCanonicalizer.canonicalize()` |
 | `delegateChains` | `DelegateChainResolver.resolveChains()` |
 
-All async, all returning `Promise<T>`. Inputs are plain values (DIDs, refs, snapshots), not service handles — plugins do not call back into GovernanceView. Defaults are no-ops, not errors (a Roomy deployment with no plugins gets a working one-member-one-vote system out of the box). `SpaceRef = { arbiter: DID, type: string, skey: string }` — independent of URI scheme decisions.
+All async, all returning `Promise<T>`. Inputs are plain values (DIDs, refs, snapshots), not service handles — plugins do not call back into GovernanceView. Defaults are no-ops, not errors (a Roomy deployment with no plugins gets a working one-member-one-vote system out of the box). `SpaceRef = { arbiterDid: DID, spaceKey: string, expectedSpaceType?: NSID }` — independent of URI scheme decisions. Refactor older triple-field space identity code paths to the canonical shape.
 
 ---
 
@@ -124,70 +127,79 @@ V11 follows the nine stages from ARCHITECTURE-V11.md §16. **No schedule. Work p
 
 **Tasks**:
 1. Build `packages/spaces-consumer/` package — pull-based consumer over permissioned repos.
-2. Implement fail-closed sketch adapters for credentials, group authority, sync, and verification.
-3. Keep public package APIs capability-shaped (`GroupAuthorityPort`, `PermissionedRepoPort`) rather than protocol-mechanism-shaped where possible.
-4. Keep cursors opaque; do not expose per-member rev ordering assumptions outside sketch implementations.
-5. Use structured permissioned record locations or a distinct permissioned URI type; do not reuse `AtUri` for permissioned-space data.
-6. Wire into `apps/api/src/container.ts` as a new consumer alongside existing Tap (public firehose).
-7. Either consume from a HappyView v2.5+ instance running alongside as a reference, OR implement directly against the `bluesky-social/atproto` `permissioned-data` branch once protocol details are stable.
+2. Implement fail-closed sketch adapters for credentials, Group Directory membership, sync, and verification.
+3. Keep public package APIs capability-shaped (`GroupDirectoryPort`, `GroupMutationPort`, `PermissionedRepoPort`) rather than protocol-mechanism-shaped where possible.
+4. Preserve direct and resolved membership separately; cache resolver depth, source metadata, snapshot time, and `missingSpaces`.
+5. Keep cursors opaque; do not expose per-member rev ordering assumptions outside sketch implementations.
+6. Use structured permissioned record locations or a distinct permissioned URI type; do not reuse `AtUri` for permissioned-space data.
+7. Wire into `apps/api/src/container.ts` as a new consumer alongside existing Tap (public firehose).
+8. Either consume from a HappyView v2.5+ instance running alongside as a reference, OR implement directly against the `bluesky-social/atproto` `permissioned-data` branch once protocol details are stable.
 
 **Key files to create**:
 - `packages/spaces-consumer/src/index.ts`
 - `packages/spaces-consumer/src/credential-store.ts`
 - `packages/spaces-consumer/src/permissioned-repo-port.ts`
-- `packages/spaces-consumer/src/group-authority-port.ts`
+- `packages/spaces-consumer/src/group-directory-port.ts`
 - `apps/api/src/appview/spaces-consumer-dispatch.ts`
 
 **Key files to reference**:
 - `apps/api/src/appview/tap-consumer.ts` — analogous pattern for public firehose
 - `docs/plans/2026-05-17-v11-spaces-consumer-adapter-architecture.md` — stable-port adapter policy
 
-**Progress (2026-05-17):** Stage 1 substrate has been reshaped behind stable ports on `codex/v11-atproto-alignment-planning`. Package `@coopsource/spaces-consumer` now exposes `GroupAuthorityPort` for membership authority and `PermissionedRepoPort` for watch/sync/verify/checkpoint. The old mechanism sketches (`ArbiterMemberList`, `NotificationSubscriber`, `RepoPuller`, `EcmhVerifier`) remain source-level scaffolding but are not package-root exports. apps/api wires the dispatch behind `SPACES_CONSUMER_ENABLED=false`; when enabled it uses the Stage 2A `CsnDbGroupAuthorityPort` from `@coopsource/arbiter-client`, fail-closed permissioned verification, and `UNSAFE_ACCEPT_UNVERIFIED_PERMISSIONED_DATA=true` as the local-only unsafe dev opt-in. API dispatch tests cover disabled startup, production rejection of unsafe mode, enabled health, and stop/reset behavior. Repo-local ESLint flat-config wiring is present. Real upstream Arbiter and permissioned-data implementations land once protocol details settle.
+**Progress (2026-05-17):** Stage 1 substrate has been reshaped behind stable ports on `codex/v11-atproto-alignment-planning`. Package `@coopsource/spaces-consumer` now exposes `GroupDirectoryPort` for direct/resolved membership authority and `PermissionedRepoPort` for watch/sync/verify/checkpoint. The old mechanism sketches (`ArbiterMemberList`, `NotificationSubscriber`, `RepoPuller`, `EcmhVerifier`) remain source-level scaffolding but are not package-root exports. apps/api wires the dispatch behind `SPACES_CONSUMER_ENABLED=false`; when enabled it uses the CSN-backed `CsnDbGroupDirectoryPort` from `@coopsource/arbiter-client`, fail-closed permissioned verification, and `UNSAFE_ACCEPT_UNVERIFIED_PERMISSIONED_DATA=true` as the local-only unsafe dev opt-in. API dispatch tests cover disabled startup, production rejection of unsafe mode, enabled health, and stop/reset behavior. Repo-local ESLint flat-config wiring is present. Real upstream Arbiter and permissioned-data implementations land once protocol details settle.
 
-### Stage 2 — Arbiter Integration
+### Stage 2 — Group Directory / Arbiter Integration
 
 **Branch**: `feature/v11-stage-2-arbiter-integration`
-**Gate**: Arbiter XRPC API reaches a 0.x reference implementation usable for integration.
+**Gate**: Draft group-directory adapter usable behind ports. The `town.muni.arbiter.*` namespace remains draft and must not leak as a permanent CSN API commitment.
 
 **Tasks**:
-1. Build `packages/arbiter-client/` package. Stage 2A uses a CSN-backed compatibility adapter; later Stage 2 replaces or extends it with a thin wrapper around the Arbiter's XRPC API.
-2. Implement cooperative provisioning (create arbiter instance, mint controlled DID).
-3. Implement role-space management (create/delete/configure spaces with skey distinguishers).
-4. Implement membership operations (add/remove members, query member lists).
-5. Implement `$admin` audit trail consumption.
-6. The integration sits behind an interface allowing it to slide between *"this is a protocol primitive"* and *"this is an arbiter XRPC call"* as the layer boundary moves.
+1. Build/extend `packages/arbiter-client/` around stable CSN ports. Stage 2A uses a temporary CSN-backed adapter; later Stage 2 adds a thin draft-lexicon adapter.
+2. Split cooperative DID provisioning from `createArbiter`: mint/adopt DID first, bind `#space_host`, then call `createArbiter({ arbiterDid, config })` with an open-union config object.
+3. Implement `GroupDirectoryPort`: `listSpaces`, `getSpaceConfig`, `getDirectSpaceMembers`, `resolveSpaceMembers`.
+4. Implement `GroupMutationPort`: `createSpace`, `deleteSpace`, `setSpaceConfig`, `setSpaceMemberAccess`, `removeSpaceMember`.
+5. Model arbiter config, space config, and member access as `UnknownLexiconObject` plus typed CSN validators.
+6. Map draft errors into CSN errors: `ErrPermissionDenied`, `ErrRaceCondition`, `ErrUnsupportedConfigLexicon`, `ErrInvalidConfig`, `ErrSpaceNotExists`, `ErrArbiterNotExists`, `ErrMemberNotInSpace`.
+7. Keep admin, publish, labeler, and old eight-level Arbiter access vocabulary as implementation conventions, not generic API assumptions.
+8. Keep `CsnDbGroupDirectoryPort` / `CsnDbGroupMutationPort` as temporary CSN-backed adapters only; update their public types in place as the canonical model changes.
 
-**Contribution thread**: while Stage 2 is in progress, write the Arbiter cooperative use case document (Leaflet post for Meri and Zicklag's preferred venue) — see ARCHITECTURE-V11.md §18.
+**Contribution thread**: while Stage 2 is in progress, write the Arbiter cooperative use case document (Leaflet post or Discourse reply for Meri and Zicklag's preferred venue) — see ARCHITECTURE-V11.md §18. Explicitly test `spaceKey` identity vs `spaceType` metadata, direct vs resolved members, partial remote resolution, open-union config/access payloads, and governance-outcome attestations as policy inputs.
 
-**Progress (2026-05-17):** Stage 2A started with `@coopsource/arbiter-client`. It exports `membersSpace()`, `roleSpace()`, and `CsnDbGroupAuthorityPort`, a temporary `GroupAuthorityPort` adapter over CSN `membership` and `membership_role` tables. Temporary role spaces use `{ arbiter: cooperativeDid, type: 'network.coopsource.org.role', skey: role }`. This is a PoC convention isolated behind the adapter boundary; do not treat it as final upstream Arbiter wire shape.
+**Progress (2026-05-17):** Stage 2A started with `@coopsource/arbiter-client`. It exports `membersSpace()`, `roleSpace()`, and `CsnDbGroupDirectoryPort`, a temporary `GroupDirectoryPort` adapter over CSN `membership` and `membership_role` tables. Role and class spaces use canonical `spaceKey` conventions: `members`, `roles/<slug>`, `roles/custom/<slug>`, and `classes/<slug>`. Because CSN is a PoC, the public API should be updated in place to `SpaceRef = { arbiterDid, spaceKey, expectedSpaceType? }`; do not retain legacy triple-key shapes as a parallel old/new API surface.
 
-**Progress (2026-05-18):** Stage 2B/2C adds `GroupAuthorityCommandPort` and `CsnDbGroupAuthorityCommandPort`. The command port covers placeholder cooperative provisioning, role-space validation, add/remove member, add/remove role member, exact role replacement, and temporary audit reads. The CSN-backed implementation writes `membership` and `membership_role` in transactions and writes changed commands to `fact_log` with `entity_type = 'v11.groupAuthority'`. `MembershipService` writes, setup bootstrap, public invitation acceptance, `AuthService.register`, federation membership approval, and network join/leave now use this command boundary. Migrated paths stop creating cooperative-owned V9 `memberApproval` records, and appview hooks no longer treat `memberApproval` as active authority. Member-authored membership records remain temporary consent evidence until V11 consent records are designed.
+**Progress (2026-05-18):** Stage 2B/2C adds `GroupMutationPort` and `CsnDbGroupMutationPort`. The mutation port covers placeholder cooperative provisioning, role-space validation, add/remove member, add/remove role member, exact role replacement, and temporary audit reads while preserving CSN command context (`actorDid`, reason, audit metadata, governance outcome ref, and consent evidence). The CSN-backed implementation writes `membership` and `membership_role` in transactions and writes changed commands to `fact_log` with `entity_type = 'v11.groupMutation'`. `MembershipService` writes, setup bootstrap, public invitation acceptance, `AuthService.register`, federation membership approval, and network join/leave now use this mutation boundary. Migrated paths stop creating cooperative-owned V9 `memberApproval` records, and appview hooks no longer treat `memberApproval` as active authority.
 
-**Progress (2026-05-19):** Stage 2D replaces temporary member-authored `network.coopsource.org.membership` evidence with `network.coopsource.org.memberConsent`. Setup bootstrap, registration, public invitation acceptance, network join, and federation membership request surfaces now speak consent evidence terminology. Federation membership requests carry caller-supplied consent evidence instead of fabricating member-owned records on the receiving instance. `GroupAuthorityCommandPort` accepts `consentRecordUri` / `consentRecordCid` and still stores them in the existing projection columns until Stage 3. The appview `memberConsent` hook only attaches or clears evidence on an existing command-created membership row; it never creates active authority.
+**Progress (2026-05-19):** Stage 2D replaces temporary member-authored `network.coopsource.org.membership` evidence with `network.coopsource.org.memberConsent`. Setup bootstrap, registration, public invitation acceptance, network join, and federation membership request surfaces now speak consent evidence terminology. Federation membership requests carry caller-supplied consent evidence instead of fabricating member-owned records on the receiving instance. `GroupMutationPort` accepts `consentRecordUri` / `consentRecordCid` and still stores them in the existing projection columns until Stage 3. The appview `memberConsent` hook only attaches or clears evidence on an existing command-created membership row; it never creates active authority.
+
+**Progress (2026-05-22):** Stage 2D hardening is implemented: public `memberConsent` no longer has free-text `message`, federation request/approval paths verify consent evidence by AT URI authority DID, collection, CID, cooperative DID, allowed `consentType`, and plausible `createdAt`, and appview delete/update handling clears evidence only when stored URI and CID match the invalidated record.
+
+**Stage 2D hardening required before merge:** verify federation-supplied consent evidence before storing it; deletion/update hooks must clear evidence only when the stored URI/CID matches the deleted or invalidated record; orphan `memberConsent` records must never create membership rows; public `memberConsent` records should avoid free-text private payloads.
 
 ### Stage 3 — Membership and Roles to Spaces
 
 **Branch**: `feature/v11-stage-3-membership-roles`
-**Gates**: (a) Controlled-DID system reference implementation available; (b) URI scheme decision finalized; (c) `ats://` vs `at://` resolution path settled.
+**Gates**: GroupDirectoryPort and GroupMutationPort usable through either the temporary CSN-backed adapter or draft Arbiter adapter; cooperative DID provisioning path exists for real deployments; role graph resolution semantics implemented (depth, partial resolution, cycle rejection). URI-scheme finalization is not a Stage 3 gate.
 
 **Tasks**:
-1. Migrate `MembershipService` to read from arbiter's `members` space (via Stage 1 consumer + Stage 2 client).
-2. Migrate role authority from `membership_role` table + `role_definition.permissions` to role-space membership.
-3. Retire `network.coopsource.org.membership` and `network.coopsource.org.memberApproval` lexicons.
-4. Retire bilateral membership state machine.
-5. Add `did_rotation_history` table; update DID-comparing code to consult it.
-6. Keep `membership` table schema for projection cache (don't modify column shape); `member_record_uri` and `approval_record_uri` columns become historical evidence.
+1. Migrate `MembershipService` to read from group-directory `members` space state (via Stage 1 consumer + Stage 2 client).
+2. Preserve direct and resolved member state separately; fail closed on `missingSpaces` for governance-critical operations unless an explicit cooperative policy allows degraded resolution.
+3. Migrate role authority from `membership_role` table + `role_definition.permissions` to role-space membership.
+4. Use `spaceKey` conventions: `members`, `roles/board`, `roles/treasurer`, `roles/officers`, `classes/worker`, `classes/consumer`, `roles/custom/<slug>`.
+5. Retire active references to `network.coopsource.org.membership` and `network.coopsource.org.memberApproval`; keep them only as archived V9 concepts.
+6. Retire bilateral membership state machine.
+7. Add `did_rotation_history` table; update DID-comparing code to consult it.
+8. Keep `membership` table schema for projection cache (don't modify column shape yet); `member_record_uri` / `member_record_cid` store `memberConsent` evidence temporarily, and approval evidence columns are historical V9 data.
 
-**Until gates pass**: build a CSN-internal model that resembles spaces but doesn't commit to wire format. Express the model behind the `SpaceRef` type so wire-format choices land in one place.
+**Until upstream APIs stabilize**: build a CSN-internal model that resembles spaces but commits only to stable port shapes. Express the model behind the canonical `SpaceRef` and `SpaceMemberRef` names so wire-format choices land in one place. If the shape changes, update those names in place.
 
 ### Stage 4 — Governance to Spaces
 
 **Branch**: `feature/v11-stage-4-governance-to-spaces`
-**Gate**: Stage 3 done + OAuth-spaces seam (`permissions:{nsid}` scopes vs service-auth JWTs vs space-policy lookups) settled.
+**Gate**: Stage 3 done + OAuth-spaces seam (`permissions:{nsid}` scopes vs service-auth JWTs vs space-policy lookups) settled + permissioned-record URI/commit verification details sufficient for adapter implementation.
 
 **Tasks**:
-1. Migrate public proposals to `$publish` space (cooperative's public repo).
-2. Migrate private proposals, votes, deliberations to permissioned repos in the appropriate space (`members` / `officers` / `board`).
+1. Migrate public proposals to the cooperative's public repo, or to a supported `$publish` convention when the selected Arbiter/policy server provides one.
+2. Migrate private proposals, votes, deliberations to permissioned repos in the appropriate space (`members` / `roles/officers` / `roles/board`).
 3. Retire `VisibilityRouter`; replace with per-space placement at write time.
 4. Lift V10.4 anchor + sidecar pattern into GovernanceView.
 5. Lift V10.5 transparency log pattern into GovernanceView.
@@ -250,7 +262,7 @@ V11 follows the nine stages from ARCHITECTURE-V11.md §16. **No schedule. Work p
 4. Remove `cooperative_link` table.
 5. Remove `private-record-service.ts` ACL paths; either repurpose the data path as projection cache or retire the table entirely.
 6. Remove `LocalPdsService`, `LocalPlcClient`, `LocalFederationClient` (already retired in V6/V9 — final cleanup of any residual references).
-7. Remove custom labeler service (cooperative's `$labeler` space replaces it).
+7. Remove custom labeler service (cooperative-controlled label policy replaces it; `$labeler` is only a convention when the selected server supports it).
 
 ### Stage 9 — Future Capabilities
 
@@ -268,10 +280,11 @@ Implement these throughout all stages. New threats specific to V11 are noted.
 2. Independent DID resolution — don't trust cached data for security decisions.
 3. Schema validation against lexicon.
 4. Authorization check (record authored by expected DID).
-5. Cross-check against arbiter's authoritative member list (records from non-members discarded).
+5. Cross-check against group-directory direct/resolved member state (records from non-members discarded; partial remote resolution fails closed for governance-critical actions).
 6. Per-DID rate limiting.
 7. Reject implausible timestamps.
 8. Audit log every state transition with commit CID, rev, signature.
+9. For `memberConsent` evidence, verify that the AT-URI authority DID matches the expected author, the collection is `network.coopsource.org.memberConsent`, the record CID matches when supplied, `record.cooperative` matches the target cooperative/network, `consentType` is allowed for the flow, and `createdAt` is plausible. Delete/update hooks clear evidence only when the stored URI/CID matches the invalidated record.
 
 ### Identity Security
 
@@ -304,6 +317,14 @@ When a child cooperative's officer change triggers writes in the parent cooperat
 2. Write hasn't been seen before (nonce or timestamp + freshness window).
 3. Child is still a member of the parent's `members` space at the moment of write (the load-bearing mitigation against stale state from former member cooperatives).
 
+### Group-Resolution Safety
+
+- Resolver-depth limits on every direct/resolved member query and every mutation that consults remote membership.
+- Cycle detection and DAG enforcement for CSN-managed role graphs.
+- Explicit `complete` / `partial` / `failed` resolution status in projections.
+- Fail closed on `missingSpaces` for governance-critical actions unless a cooperative policy explicitly allows degraded resolution.
+- Retain source arbiter DID, `spaceKey`, resolver depth, snapshot time, and missing remote spaces for audit.
+
 ### Data Security
 
 - Tier 2 data NEVER stored in public repos.
@@ -322,16 +343,16 @@ Germ DM is currently iOS-only via App Clip. Until cross-platform E2EE substrate 
 
 - Every service method has unit tests.
 - Every plugin implementation has tests for the contract behaviors GovernanceView's conformance suite expects.
-- Every indexer has tests for member-list cross-check failure modes.
+- Every indexer has tests for member-list cross-check failure modes, direct-vs-resolved semantics, stale deletes, and partial remote resolution.
 - Every authorization-axis-check has tests for each failure mode (Axis 1 fail, Axis 2 fail, Axis 3 fail, Axis 4 fail, Axis 5 fail).
 - Use `MockClock` for time-dependent tests.
 
 ### Integration Tests
 
-- Full membership flow via arbiter (add to space, observe via consumer, project to `membership` table).
+- Full membership flow via group directory / arbiter (add to space, observe via consumer, project to `membership` table).
 - OAuth-spaces seam: write succeeds when both axes clear; write fails with correct error when either axis denies.
 - Permissioned repo verification: deliberately corrupt a record or commit state in the adapter; verify resync triggers and recovers.
-- Cross-arbiter trust: A reads B's member list with valid service-auth; rejected with forged JWT.
+- Cross-arbiter trust: A reads B's member list with valid service-auth; rejected with forged JWT; partial remote resolution returns `missingSpaces` and fails closed for governance-critical actions.
 - GovernanceView conformance suite (Stage 6+): run against CoopView's plugin implementations.
 
 ### E2E Tests
@@ -358,7 +379,7 @@ const agent = new AtpAgent(session);
 
 // Capability-shaped write — concrete adapter method follows upstream protocol.
 await permissionedRepoPort.createRecord({
-  space: { arbiter: cooperativeDid, type: 'network.coopsource.org.cooperative', skey: 'members' },
+  space: { arbiterDid: cooperativeDid, spaceKey: 'members', expectedSpaceType: 'network.coopsource.org.spaceType.members' },
   authorDid: memberDid,
   collection: 'community.lexicon.governance.vote',
   record: { $type: 'community.lexicon.governance.vote', /* ... */ },
@@ -371,15 +392,17 @@ await permissionedRepoPort.createRecord({
 // - SpaceAppPolicyError: space disallows this OAuth client (OAuth-spaces seam)
 ```
 
-### Writing to the Cooperative's Arbiter (via $admin)
+### Mutating Cooperative Group Membership
 
 ```typescript
-// Operator has Configure Space access on $admin space (Arbiter access level).
-const arbiterClient = arbiterRegistry.forCooperative(cooperativeDid);
-await arbiterClient.addMember({
-  space: { arbiter: cooperativeDid, type: 'network.coopsource.org.cooperative', skey: 'members' },
-  memberDid: newMemberDid,
-  actorDid: operatorDid,  // who is making the change; audit-logged by arbiter
+// Operator or governance outcome has authority under the selected Arbiter/policy server.
+// `$admin` and concrete access lexicons are implementation conventions, not generic-port assumptions.
+await groupMutation.setSpaceMemberAccess({
+  space: { arbiterDid: cooperativeDid, spaceKey: 'members', expectedSpaceType: 'network.coopsource.org.spaceType.members' },
+  member: { kind: 'did', did: newMemberDid },
+  access: { $type: 'network.coopsource.arbiter.memberAccess.basic', role: 'member' },
+  resolverDepth: 4,
+  actorDid: operatorDid,  // implementation-specific audit context
 });
 ```
 
@@ -394,7 +417,9 @@ const members = await db
   .execute();
 
 // For strict consistency, read through to arbiter:
-const live = await arbiterClient.listMembers({ space: spaceRef });
+const direct = await groupDirectory.getDirectSpaceMembers({ space: spaceRef });
+const resolved = await groupDirectory.resolveSpaceMembers({ ...spaceRef, resolverDepth: 4 });
+if (resolved.status !== 'complete') throw new Error('membership resolution incomplete');
 ```
 
 ### Adding a New Plugin (CoopView extension)
@@ -439,7 +464,16 @@ async function castVote(actor: DID, proposal: ProposalRef): Promise<Result<void,
   // Axis 1: OAuth scope check (handled by oauth middleware before reaching this function)
 
   // Axis 2: space membership
-  const inSpace = await spaceConsumer.isMember(actor, { arbiter: coop, type, skey: 'members' });
+  const resolution = await groupDirectory.resolveSpaceMembers({
+    arbiterDid: coop,
+    spaceKey: 'members',
+    expectedSpaceType: 'network.coopsource.org.spaceType.members',
+    resolverDepth: 4,
+  });
+  if (!resolution.ok || resolution.partial || resolution.stale || resolution.missingSpaces.length > 0) {
+    return err({ kind: 'membership_unresolved', axis: 'spaces' });
+  }
+  const inSpace = resolution.members.some((member) => member.did === actor);
   if (!inSpace) return err({ kind: 'not_member', axis: 'spaces' });
 
   // Axis 3: application eligibility (plugin)
@@ -484,7 +518,17 @@ async function castVote(actor: DID, proposal: ProposalRef): Promise<Result<void,
 
 ## Pitfalls to Avoid
 
-1. **Don't use bilateral membership.** V9's `membership` + `memberApproval` pattern retires entirely. The cooperative's `members` space is the single source of truth.
+1. **Don't use bilateral membership.** V9's `membership` + `memberApproval` pattern retires entirely. The cooperative's `members` space is the single source of truth. `memberConsent` is evidence only.
+
+1a. **Don't assume space identity is `(arbiter, type, skey)`.** The current draft group lexicons operate on `arbiterDid + spaceKey`; `spaceType` is metadata/config. Use the canonical `SpaceRef` shape in active APIs and refactor old call sites in place.
+
+1b. **Don't create versioned code artifacts for PoC refactors.** CSN has no production migration surface. Do not introduce version-suffixed aliases or parallel old/new APIs to preserve obsolete shapes. Replace the canonical type, schema, adapter, and call sites in place.
+
+1c. **Don't hard-code the older eight Arbiter access levels as the generic wire model.** Member access is an open-union object. `$admin`, `$publish`, and `$labeler` are implementation conventions unless the selected server supports them.
+
+1d. **Don't treat direct members and resolved members as equivalent.** Direct members may be DIDs, local spaces, or remote spaces; resolved members are flattened DIDs and may be partial due to `missingSpaces`.
+
+1e. **Don't assume `createArbiter` mints a DID.** Provision/adopt the DID and bind `#space_host` first; then call `createArbiter` with an open-union config.
 
 2. **Don't six-tier ACL.** V10's `private_record` six-tier model was never implemented and should not be revived. Per-space placement replaces it.
 
@@ -494,7 +538,7 @@ async function castVote(actor: DID, proposal: ProposalRef): Promise<Result<void,
 
 4. **Don't migrate `apps/api` onto HappyView's Lua + WASM model.** HappyView v2.5+ is a reference implementation for development and validation, not a substrate to migrate 14k+ lines of cooperative TypeScript onto.
 
-5. **Don't run a separate labeler service.** Governance labels live in the cooperative arbiter's `$labeler` space. CSN does not run a labeler DID.
+5. **Don't run a separate labeler service.** Governance labels live under cooperative-controlled Arbiter/community-repo policy. `$labeler` is a convention when supported; CSN does not run a labeler DID.
 
 6. **Don't use `@skyware/labeler` as a runtime dependency.** Archived February 2026. Acceptable only for one-time DID bootstrapping if needed.
 
@@ -506,7 +550,7 @@ async function castVote(actor: DID, proposal: ProposalRef): Promise<Result<void,
 
 10. **Don't skip the `did_rotation_history` lookup.** DID equality checks must consult the rotation history table.
 
-11. **Don't trust records from non-members.** The spaces consumer cross-checks records against the arbiter's authoritative member list before accepting them.
+11. **Don't trust records from non-members.** The spaces consumer cross-checks records against group-directory resolved membership before accepting them, and fails closed on partial resolution for governance-critical actions.
 
 12. **Don't generate fake DIDs.** Use real `did:plc` via PlcClient.
 
@@ -578,15 +622,15 @@ packages/spaces-consumer/              # (new in Stage 1)
 
 packages/arbiter-client/               # (new in Stage 2)
 └── src/
-    ├── index.ts                       # XRPC wrapper
-    └── types.ts                       # SpaceRef, AccessLevel, etc.
+    ├── index.ts                       # CSN ports + optional draft XRPC adapter
+    └── types.ts                       # SpaceRef, SpaceMemberRef, DirectSpaceMember, ResolvedMembers, UnknownLexiconObject
 
 packages/db/src/
 ├── schema.ts                          # Canonical schema (PoC; schema changes go here)
 └── migrations/.archive/               # Old migrations (archived; no new files created)
 
 packages/federation/                   # Mostly retired in Stage 8
-└── (post-Stage 8: empty or stub for legacy imports)
+└── (post-Stage 8: empty or stub for old imports)
 
 packages/lexicons/                     # ATProto lexicon JSON schemas
 ├── src/lexicons/community/lexicon/governance/  # (new) GovernanceView lexicons

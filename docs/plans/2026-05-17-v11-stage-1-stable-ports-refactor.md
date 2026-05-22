@@ -10,12 +10,12 @@ Stage 1 should expose stable ports, not guessed permissioned-data wire mechanics
 
 Application-facing code depends on:
 
-- `GroupAuthorityPort` for strict membership decisions.
+- `GroupDirectoryPort` for direct/resolved membership decisions.
 - `PermissionedRepoPort` for watching, syncing, verifying, and checkpointing permissioned records.
 
 The low-level `NotificationSubscriber`, `RepoPuller`, `EcmhVerifier`, and `ArbiterMemberList` sketches may remain in source for tests and future adapters, but they are not package-root exports.
 
-The replacement sketch layer is the stable-port adapter layer: fail-closed and in-memory `GroupAuthorityPort` / `PermissionedRepoPort` implementations document the behavior CSN needs, while concrete upstream mechanisms stay behind those adapters.
+The replacement sketch layer is the stable-port adapter layer: fail-closed and in-memory `GroupDirectoryPort` / `PermissionedRepoPort` implementations document the behavior CSN needs, while concrete upstream mechanisms stay behind those adapters.
 
 See `docs/plans/2026-05-17-v11-spaces-consumer-adapter-architecture.md` for the adapter policy and expected real adapter families.
 
@@ -50,18 +50,11 @@ type MembershipSnapshotId = string & { readonly __brand: 'MembershipSnapshotId' 
 Membership authority:
 
 ```ts
-interface GroupAuthorityPort {
-  isMember(args: {
-    space: SpaceRef;
-    did: DID;
-    consistency: 'projection-ok' | 'strict';
-  }): Promise<MembershipDecision>;
-
-  resolveMembership(args: {
-    space: SpaceRef;
-    cursor?: MembershipCursor;
-    consistency: 'projection-ok' | 'strict';
-  }): Promise<MembershipSnapshotPage>;
+interface GroupDirectoryPort {
+  listSpaces(args: { arbiterDid: DID; resolverDepth?: number }): Promise<SpaceSummary[]>;
+  getSpaceConfig(args: SpaceRef): Promise<SpaceConfigResult>;
+  getDirectSpaceMembers(args: SpaceRef): Promise<DirectSpaceMember[]>;
+  resolveSpaceMembers(args: SpaceRef & { resolverDepth?: number }): Promise<ResolvedMembers>;
 }
 ```
 
@@ -134,8 +127,8 @@ Verified:
 
 Follow-on Stage 2A status:
 
-- `@coopsource/arbiter-client` now provides `CsnDbGroupAuthorityPort`, `membersSpace()`, and `roleSpace()`.
-- API dispatch uses the CSN-backed group-authority adapter when `SPACES_CONSUMER_ENABLED=true`; permissioned repo verification remains fail-closed by default.
+- `@coopsource/arbiter-client` now provides `CsnDbGroupDirectoryPort`, `CsnDbGroupMutationPort`, `membersSpace()`, and `roleSpace()`.
+- API dispatch uses the CSN-backed Group Directory adapter when `SPACES_CONSUMER_ENABLED=true`; permissioned repo verification remains fail-closed by default.
 
 Known broader-suite blockers unrelated to this slice:
 

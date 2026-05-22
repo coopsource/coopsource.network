@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest';
 import type { DID } from '@coopsource/common';
 import type { Database } from '@coopsource/db';
 import type { Kysely } from 'kysely';
-import { CsnDbGroupAuthorityPort, membersSpace, roleSpace } from '../index.js';
+import { CsnDbGroupDirectoryPort, membersSpace, roleSpace } from '../index.js';
 
 interface MembershipFixture {
   readonly id: string;
   readonly cooperative_did: string;
   readonly member_did: string;
   readonly status: string;
+  readonly member_class: string | null;
   readonly invalidated_at: Date | null;
   readonly indexed_at: Date;
 }
@@ -35,9 +36,9 @@ const aliceDid = 'did:plc:alice' as DID;
 const bobDid = 'did:plc:bob' as DID;
 const chandraDid = 'did:plc:chandra' as DID;
 
-describe('CsnDbGroupAuthorityPort', () => {
+describe('CsnDbGroupDirectoryPort', () => {
   it('treats only active non-invalidated rows as members of the members space', async () => {
-    const authority = new CsnDbGroupAuthorityPort(
+    const directory = new CsnDbGroupDirectoryPort(
       fakeDb({
         memberships: [
           membership('m1', aliceDid, 'active'),
@@ -47,33 +48,13 @@ describe('CsnDbGroupAuthorityPort', () => {
       }),
     );
 
-    await expect(
-      authority.isMember({
-        space: membersSpace(cooperativeDid),
-        did: aliceDid,
-        consistency: 'strict',
-      }),
-    ).resolves.toMatchObject({ ok: true, isMember: true, stale: false });
-
-    await expect(
-      authority.isMember({
-        space: membersSpace(cooperativeDid),
-        did: bobDid,
-        consistency: 'strict',
-      }),
-    ).resolves.toMatchObject({ ok: true, isMember: false, reason: 'not-found' });
-
-    await expect(
-      authority.isMember({
-        space: membersSpace(cooperativeDid),
-        did: chandraDid,
-        consistency: 'strict',
-      }),
-    ).resolves.toMatchObject({ ok: true, isMember: false, reason: 'not-found' });
+    const resolved = await directory.resolveSpaceMembers({ ...membersSpace(cooperativeDid), consistency: 'strict' });
+    expect(resolved.ok).toBe(true);
+    expect(resolved.members.map((member) => member.did)).toEqual([aliceDid]);
   });
 
   it('requires the matching role for role spaces', async () => {
-    const authority = new CsnDbGroupAuthorityPort(
+    const directory = new CsnDbGroupDirectoryPort(
       fakeDb({
         memberships: [membership('m1', aliceDid, 'active'), membership('m2', bobDid, 'active')],
         roles: [
@@ -83,26 +64,13 @@ describe('CsnDbGroupAuthorityPort', () => {
       }),
     );
 
-    await expect(
-      authority.isMember({
-        space: roleSpace(cooperativeDid, 'admin'),
-        did: aliceDid,
-        consistency: 'projection-ok',
-      }),
-    ).resolves.toMatchObject({ ok: true, isMember: true });
-
-    await expect(
-      authority.isMember({
-        space: roleSpace(cooperativeDid, 'admin'),
-        did: bobDid,
-        consistency: 'projection-ok',
-      }),
-    ).resolves.toMatchObject({ ok: true, isMember: false });
+    const resolved = await directory.resolveSpaceMembers({ ...roleSpace(cooperativeDid, 'admin'), consistency: 'projection-ok' });
+    expect(resolved.members.map((member) => member.did)).toEqual([aliceDid]);
   });
 
-  it('paginates resolved membership by indexed_at and membership id', async () => {
+  it('orders resolved membership by indexed_at and membership id', async () => {
     const sameTime = new Date('2026-01-01T00:00:00Z');
-    const authority = new CsnDbGroupAuthorityPort(
+    const directory = new CsnDbGroupDirectoryPort(
       fakeDb({
         memberships: [
           membership('m2', bobDid, 'active', { indexedAt: sameTime }),
@@ -110,58 +78,38 @@ describe('CsnDbGroupAuthorityPort', () => {
           membership('m3', chandraDid, 'active', { indexedAt: new Date('2026-01-02T00:00:00Z') }),
         ],
       }),
-      { pageSize: 2 },
     );
 
-    const firstPage = await authority.resolveMembership({
-      space: membersSpace(cooperativeDid),
-      consistency: 'strict',
-    });
-
-    expect(firstPage.members).toEqual([aliceDid, bobDid]);
-    expect(firstPage.cursor).toBeDefined();
-    expect(firstPage.sourceRevision).toBe('2026-01-01T00:00:00.000Z');
-
-    const secondPage = await authority.resolveMembership({
-      space: membersSpace(cooperativeDid),
-      cursor: firstPage.cursor,
-      consistency: 'strict',
-    });
-
-    expect(secondPage.members).toEqual([chandraDid]);
-    expect(secondPage.cursor).toBeUndefined();
+    const resolved = await directory.resolveSpaceMembers({ ...membersSpace(cooperativeDid), consistency: 'strict' });
+    expect(resolved.members.map((member) => member.did)).toEqual([aliceDid, bobDid, chandraDid]);
+    expect(resolved.sourceRevision).toBe('2026-01-02T00:00:00.000Z');
   });
 
-  it('fails closed for unknown spaces and malformed cursors', async () => {
-    const authority = new CsnDbGroupAuthorityPort(fakeDb({ memberships: [membership('m1', aliceDid, 'active')] }));
+  it('resolves class spaces and fails closed for unknown spaces', async () => {
+    const directory = new CsnDbGroupDirectoryPort(fakeDb({
+      memberships: [
+        membership('m1', aliceDid, 'active', { memberClass: 'worker' }),
+        membership('m2', bobDid, 'active', { memberClass: 'consumer' }),
+      ],
+    }));
     const unknownSpace = {
-      arbiter: cooperativeDid,
-      type: 'network.coopsource.org.unknown',
-      skey: 'members',
+      arbiterDid: cooperativeDid,
+      spaceKey: 'unknown/members',
+      expectedSpaceType: 'network.coopsource.org.unknown',
     };
 
-    await expect(
-      authority.isMember({
-        space: unknownSpace,
-        did: aliceDid,
-        consistency: 'strict',
-      }),
-    ).resolves.toMatchObject({ ok: false, isMember: false, reason: 'invalid-space', stale: true });
+    const classResolved = await directory.resolveSpaceMembers({
+      ...roleSpace(cooperativeDid, 'classes/worker'),
+      consistency: 'strict',
+    });
+    expect(classResolved.members.map((member) => member.did)).toEqual([aliceDid]);
 
     await expect(
-      authority.resolveMembership({
-        space: unknownSpace,
+      directory.resolveSpaceMembers({
+        ...unknownSpace,
         consistency: 'strict',
       }),
-    ).resolves.toMatchObject({ members: [], stale: true });
-
-    await expect(
-      authority.resolveMembership({
-        space: membersSpace(cooperativeDid),
-        cursor: 'not-a-valid-cursor' as never,
-        consistency: 'strict',
-      }),
-    ).resolves.toMatchObject({ members: [], stale: true });
+    ).resolves.toMatchObject({ ok: false, members: [], stale: true, partial: true });
   });
 });
 
@@ -173,6 +121,7 @@ function membership(
     readonly cooperativeDid?: DID;
     readonly indexedAt?: Date;
     readonly invalidatedAt?: Date | null;
+    readonly memberClass?: string | null;
   } = {},
 ): MembershipFixture {
   return {
@@ -180,6 +129,7 @@ function membership(
     member_did: memberDid,
     cooperative_did: options.cooperativeDid ?? cooperativeDid,
     status,
+    member_class: options.memberClass ?? null,
     invalidated_at: options.invalidatedAt ?? null,
     indexed_at: options.indexedAt ?? new Date('2026-01-01T00:00:00Z'),
   };
@@ -215,6 +165,10 @@ class FakeSelectQuery {
   }
 
   select(): this {
+    return this;
+  }
+
+  distinct(): this {
     return this;
   }
 
@@ -313,6 +267,8 @@ function valueForColumn(row: FixtureRow, column: string): unknown {
       return row.membership.cooperative_did;
     case 'membership.status':
       return row.membership.status;
+    case 'membership.member_class':
+      return row.membership.member_class;
     case 'membership.invalidated_at':
       return row.membership.invalidated_at;
     case 'membership.indexed_at':
