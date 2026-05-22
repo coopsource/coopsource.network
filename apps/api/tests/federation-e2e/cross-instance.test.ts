@@ -227,14 +227,16 @@ describe('Cross-Instance Federation', () => {
     const body = {
       memberDid: coopACoopDid,
       cooperativeDid: coopBCoopDid,
+      consentRecordUri: `at://${coopACoopDid}/network.coopsource.org.memberConsent/request`,
+      consentRecordCid: 'bafyconsent',
       message: 'Alpha Co-op wants to join Beta Co-op',
     };
 
     const res = await signedFetch(url, 'POST', body, privateKey, keyId);
     expect(res.status).toBe(201);
     const result = await res.json() as Record<string, unknown>;
-    expect(result).toHaveProperty('memberRecordUri');
-    expect(result).toHaveProperty('memberRecordCid');
+    expect(result).toHaveProperty('consentRecordUri', body.consentRecordUri);
+    expect(result).toHaveProperty('consentRecordCid', body.consentRecordCid);
 
     await db.destroy();
     dbs.pop();
@@ -257,8 +259,9 @@ describe('Cross-Instance Federation', () => {
     const res = await signedFetch(url, 'POST', body, privateKey, keyId);
     expect(res.status).toBe(201);
     const result = await res.json() as Record<string, unknown>;
-    expect(result).toHaveProperty('approvalRecordUri');
-    expect(result).toHaveProperty('approvalRecordCid');
+    expect(result).toHaveProperty('ok', true);
+    expect(result).toHaveProperty('changed');
+    expect(result).toHaveProperty('auditEventId');
 
     await db.destroy();
     dbs.pop();

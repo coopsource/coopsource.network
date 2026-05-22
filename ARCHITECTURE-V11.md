@@ -241,7 +241,7 @@ V9's bilateral membership pattern — the member writes `network.coopsource.org.
 
 Both V9 lexicons retire:
 
-- `network.coopsource.org.membership` retires. (If member-side preferences are wanted later, they get a new lexicon `network.coopsource.org.memberPreferences` stored in the member's personal space.)
+- `network.coopsource.org.membership` retires. Member-authored join evidence moves to `network.coopsource.org.memberConsent`, which is audit evidence only and never active membership authority. If member-side preferences are wanted later, they get a separate `network.coopsource.org.memberPreferences` lexicon stored in the member's personal space.
 - `network.coopsource.org.memberApproval` retires. Role authority moves to role-space membership.
 
 ### 5.2 The `members` space pattern
@@ -971,7 +971,7 @@ V11 is a substantial refactor of V9 (594 source files, 47 lexicons, 100 database
 ### 15.5 Lexicon migrations
 
 - 30+ `network.coopsource.*` lexicons carry through (agreements, finance, legal, alignment, commerce, funding, onboarding)
-- 2 lexicons retire (`membership`, `memberApproval`)
+- 2 lexicons retire (`membership`, `memberApproval`); `memberConsent` is introduced as non-authoritative member evidence
 - 6+ new lexicons in `community.lexicon.governance.*`
 - 4 CSN-specific extensions in `network.coopsource.governance.*`
 - Anchor record lexicons (`community.lexicon.governance.summary`)
@@ -1007,7 +1007,7 @@ A group authority adapter, initially wrapping the Arbiter's XRPC API when a usab
 
 Current Stage 2 implementation follows the latter path: `@coopsource/arbiter-client` exposes `CsnDbGroupAuthorityPort` for reads and `CsnDbGroupAuthorityCommandPort` for writes, both backed by the existing `membership` and `membership_role` tables. This is a temporary authority adapter, not a final Arbiter wire contract. Temporary role spaces use `type: 'network.coopsource.org.role'` with role name in `skey` until upstream role-space shape is settled.
 
-The write-side command port is now the app-facing boundary for setup bootstrap, invitation acceptance, auth registration, federation membership approval, membership role changes, member removal, and network join/leave. Changed commands are projected into `fact_log` as `v11.groupAuthority` audit events until real `$admin` audit consumption exists. Migrated paths no longer mint cooperative-owned V9 `memberApproval` records, and the appview no longer treats `memberApproval` records as authority. Member-authored membership records remain temporary consent evidence, not active authority.
+The write-side command port is now the app-facing boundary for setup bootstrap, invitation acceptance, auth registration, federation membership approval, membership role changes, member removal, and network join/leave. Changed commands are projected into `fact_log` as `v11.groupAuthority` audit events until real `$admin` audit consumption exists. Migrated paths no longer mint cooperative-owned V9 `memberApproval` records, and the appview no longer treats `memberApproval` records as authority. Member-authored `network.coopsource.org.memberConsent` records are consent evidence only; the appview can attach their URI/CID to projection rows but cannot create active membership authority from them.
 
 ### Stage 3 — Membership and roles to spaces
 

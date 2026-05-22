@@ -2,12 +2,12 @@ import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
 import type { FirehoseEvent } from '@coopsource/federation';
 
-export async function indexMembership(
+export async function indexMemberConsent(
   db: Kysely<Database>,
   event: FirehoseEvent,
 ): Promise<void> {
   const record = event.record as
-    | { cooperative?: string; createdAt?: string }
+    | { cooperative?: string; consentType?: string; createdAt?: string }
     | undefined;
   const cooperativeDid = record?.cooperative;
 

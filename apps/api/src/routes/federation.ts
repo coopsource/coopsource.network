@@ -13,6 +13,8 @@ import { requireFederationAuth } from '../middleware/federation-auth.js';
 const MembershipRequestSchema = z.object({
   memberDid: z.string().min(1),
   cooperativeDid: z.string().min(1),
+  consentRecordUri: z.string().min(1),
+  consentRecordCid: z.string().min(1),
   message: z.string().optional(),
 });
 
@@ -167,22 +169,10 @@ export function createFederationRoutes(
     fedAuth,
     asyncHandler(async (req, res) => {
       const params = MembershipRequestSchema.parse(req.body);
-      const now = container.clock.now();
-
-      // Process locally: create membership PDS record on this instance
-      const ref = await container.pdsService.createRecord({
-        did: params.memberDid as DID,
-        collection: 'network.coopsource.org.membership',
-        record: {
-          cooperative: params.cooperativeDid,
-          message: params.message,
-          createdAt: now.toISOString(),
-        },
-      });
 
       res.status(201).json({
-        memberRecordUri: ref.uri,
-        memberRecordCid: ref.cid,
+        consentRecordUri: params.consentRecordUri,
+        consentRecordCid: params.consentRecordCid,
       });
     }),
   );

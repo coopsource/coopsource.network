@@ -140,21 +140,21 @@ export class AuthService {
     // written through the V11 group authority command port.
     const cooperativeDid = params.cooperativeDid;
 
-    // Member's assertion: org.membership record (member-owned → MemberWriteProxy)
-    const membershipRecord = {
+    const consentRecord = {
       cooperative: cooperativeDid,
+      consentType: invitation ? 'invitationAcceptance' : 'joinRequest',
       createdAt: now.toISOString(),
     };
-    const memberRef = this.memberWriteProxy
+    const consentRef = this.memberWriteProxy
       ? await this.memberWriteProxy.writeRecord({
           memberDid: did as DID,
-          collection: 'network.coopsource.org.membership',
-          record: membershipRecord,
+          collection: 'network.coopsource.org.memberConsent',
+          record: consentRecord,
         })
       : await this.pdsService.createRecord({
           did: did as DID,
-          collection: 'network.coopsource.org.membership',
-          record: membershipRecord,
+          collection: 'network.coopsource.org.memberConsent',
+          record: consentRecord,
         });
 
     const authorityResult = await this.groupAuthorityCommands.addMember({
@@ -162,8 +162,8 @@ export class AuthService {
       memberDid: did as DID,
       actorDid: (invitation?.invited_by_did ?? did) as DID,
       roles: invitation?.intended_roles ?? ['member'],
-      memberRecordUri: memberRef.uri,
-      memberRecordCid: memberRef.cid,
+      consentRecordUri: consentRef.uri,
+      consentRecordCid: consentRef.cid,
       invitationId: invitation?.id ?? null,
       joinedAt: now,
       reason: invitation ? 'accept invitation' : 'self registration',

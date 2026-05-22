@@ -77,7 +77,7 @@ describe('firehose-decoder', () => {
         ops: [
           {
             action: 'update',
-            path: 'network.coopsource.org.membership/rkey1',
+            path: 'network.coopsource.org.memberConsent/rkey1',
             cid: { '/': 'bafyupdated' },
           },
         ],

@@ -325,12 +325,12 @@ export class NetworkService {
       throw new ConflictError('Already a member of this network');
     }
 
-    // 1. PDS membership record in cooperative's PDS
-    const memberRef = await this.pdsService.createRecord({
+    const consentRef = await this.pdsService.createRecord({
       did: params.cooperativeDid as DID,
-      collection: 'network.coopsource.org.membership',
+      collection: 'network.coopsource.org.memberConsent',
       record: {
         cooperative: params.networkDid,
+        consentType: 'networkJoin',
         createdAt: now.toISOString(),
       },
     });
@@ -340,8 +340,8 @@ export class NetworkService {
       memberDid: params.cooperativeDid as DID,
       actorDid: params.cooperativeDid as DID,
       roles: ['member'],
-      memberRecordUri: memberRef.uri,
-      memberRecordCid: memberRef.cid,
+      consentRecordUri: consentRef.uri,
+      consentRecordCid: consentRef.cid,
       joinedAt: now,
       reason: 'join network',
     });

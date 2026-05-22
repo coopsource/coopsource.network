@@ -278,12 +278,12 @@ export function createMembershipRoutes(container: Container): Router {
       });
       const memberDid = memberDidDoc.id;
 
-      const memberRef = await container.pdsService.createRecord({
+      const consentRef = await container.pdsService.createRecord({
         did: memberDid as DID,
-        collection: 'network.coopsource.org.membership',
+        collection: 'network.coopsource.org.memberConsent',
         record: {
           cooperative: inv.cooperative_did,
-          invitationUri: `at://invitation/${inv.id}`,
+          consentType: 'invitationAcceptance',
           createdAt: now.toISOString(),
         },
       });
@@ -322,8 +322,8 @@ export function createMembershipRoutes(container: Container): Router {
           memberDid: memberDid as DID,
           actorDid: inv.invited_by_did as DID,
           roles,
-          memberRecordUri: memberRef.uri,
-          memberRecordCid: memberRef.cid,
+          consentRecordUri: consentRef.uri,
+          consentRecordCid: consentRef.cid,
           invitationId: inv.id,
           joinedAt: now,
           reason: 'accept invitation',

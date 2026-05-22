@@ -446,8 +446,8 @@ export type RegisterOidcClientInput = z.infer<typeof RegisterOidcClientSchema>;
 export const EventTypeEnum = z.enum([
   'org.cooperative.created',
   'org.project.created',
-  'org.membership.created',
-  'org.membership.removed',
+  'org.memberConsent.created',
+  'org.memberConsent.removed',
   'alignment.interest.submitted',
   'alignment.interest.updated',
   'alignment.outcome.created',

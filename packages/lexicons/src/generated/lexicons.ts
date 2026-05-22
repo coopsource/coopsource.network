@@ -3087,7 +3087,7 @@ export const lexicons = [
                 "items": {
                   "type": "string"
                 },
-                "description": "Roles assigned to the viewer via memberApproval authority. Only present when active."
+                "description": "Roles assigned to the viewer via group authority. Only present when active."
               },
               "joinedAt": {
                 "type": "string",
@@ -3185,59 +3185,64 @@ export const lexicons = [
   },
   {
     "lexicon": 1,
-    "id": "network.coopsource.org.memberApproval",
+    "id": "network.coopsource.org.memberConsent",
     "defs": {
       "main": {
         "type": "record",
-        "description": "An approval record created by the cooperative in its PDS. Represents the cooperative's side of a bilateral membership. Role authority lives here, never in the membership record.",
-        "key": "tid",
-        "record": {
-          "type": "object",
-          "required": [
-            "member",
-            "createdAt"
-          ],
-          "properties": {
-            "member": {
-              "type": "string",
-              "format": "did",
-              "description": "The DID of the approved member entity (person or cooperative)."
-            },
-            "roles": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "description": "Roles assigned by the cooperative to this member."
-            },
-            "createdAt": {
-              "type": "string",
-              "format": "datetime"
-            }
-          }
-        }
-      }
-    }
-  },
-  {
-    "lexicon": 1,
-    "id": "network.coopsource.org.membership",
-    "defs": {
-      "main": {
-        "type": "record",
-        "description": "A membership record created by the member entity in their own PDS. Represents one side of a bilateral membership; the cooperative must also create a memberApproval record for the membership to become active.",
+        "description": "A member-authored consent evidence record for joining a cooperative or network. Active membership authority lives in the cooperative's group authority, not in this record.",
         "key": "tid",
         "record": {
           "type": "object",
           "required": [
             "cooperative",
+            "consentType",
             "createdAt"
           ],
           "properties": {
             "cooperative": {
               "type": "string",
               "format": "did",
-              "description": "The DID of the cooperative being joined."
+              "description": "The DID of the cooperative or network the member is consenting to join."
+            },
+            "consentType": {
+              "type": "string",
+              "knownValues": [
+                "joinRequest",
+                "invitationAcceptance",
+                "bootstrapOwner",
+                "networkJoin"
+              ],
+              "description": "The kind of consent evidence this record represents."
+            },
+            "message": {
+              "type": "string",
+              "maxLength": 2000,
+              "description": "Optional member-authored note associated with the consent."
+            },
+            "termsUri": {
+              "type": "string",
+              "format": "at-uri",
+              "description": "Optional terms record the member consented to."
+            },
+            "termsCid": {
+              "type": "string",
+              "format": "cid",
+              "description": "CID for the terms record at signing time."
+            },
+            "agreementUri": {
+              "type": "string",
+              "format": "at-uri",
+              "description": "Optional agreement record associated with this consent."
+            },
+            "agreementCid": {
+              "type": "string",
+              "format": "cid",
+              "description": "CID for the agreement record at signing time."
+            },
+            "invitationUri": {
+              "type": "string",
+              "format": "at-uri",
+              "description": "Optional AT URI for an invitation record, when one exists."
             },
             "createdAt": {
               "type": "string",

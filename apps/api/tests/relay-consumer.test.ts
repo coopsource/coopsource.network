@@ -3,8 +3,8 @@ import { collectionFromUri } from '../src/appview/utils.js';
 
 describe('relay-consumer filtering logic', () => {
   it('collectionFromUri extracts collection from AT URI', () => {
-    expect(collectionFromUri('at://did:plc:abc/network.coopsource.org.membership/rkey1'))
-      .toBe('network.coopsource.org.membership');
+    expect(collectionFromUri('at://did:plc:abc/network.coopsource.org.memberConsent/rkey1'))
+      .toBe('network.coopsource.org.memberConsent');
     expect(collectionFromUri('at://did:plc:abc/app.bsky.feed.post/rkey2'))
       .toBe('app.bsky.feed.post');
     expect(collectionFromUri('at://did:plc:abc/network.coopsource.governance.vote/rkey3'))
@@ -20,7 +20,7 @@ describe('relay-consumer filtering logic', () => {
     const prefixes = ['network.coopsource.'];
 
     const matchingCollections = [
-      'network.coopsource.org.membership',
+      'network.coopsource.org.memberConsent',
       'network.coopsource.governance.vote',
       'network.coopsource.governance.proposal',
       'network.coopsource.agreement.master',
@@ -71,7 +71,7 @@ describe('relay-consumer filtering logic', () => {
 
     const uris = [
       'at://did:plc:test/app.bsky.feed.post/abc',
-      'at://did:plc:test/network.coopsource.org.membership/def',
+      'at://did:plc:test/network.coopsource.org.memberConsent/def',
     ];
 
     const hasMatch = uris.some((uri) => {

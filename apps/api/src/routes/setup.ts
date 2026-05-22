@@ -62,11 +62,12 @@ export function createSetupRoutes(container: Container): Router {
         },
       });
 
-      const memberRef = await container.pdsService.createRecord({
+      const consentRef = await container.pdsService.createRecord({
         did: adminDid as DID,
-        collection: 'network.coopsource.org.membership',
+        collection: 'network.coopsource.org.memberConsent',
         record: {
           cooperative: coopDid,
+          consentType: 'bootstrapOwner',
           createdAt: now.toISOString(),
         },
       });
@@ -146,8 +147,8 @@ export function createSetupRoutes(container: Container): Router {
           memberDid: adminDid as DID,
           actorDid: adminDid as DID,
           roles: ['owner', 'admin'],
-          memberRecordUri: memberRef.uri,
-          memberRecordCid: memberRef.cid,
+          consentRecordUri: consentRef.uri,
+          consentRecordCid: consentRef.cid,
           joinedAt: now,
           reason: 'setup bootstrap',
         });

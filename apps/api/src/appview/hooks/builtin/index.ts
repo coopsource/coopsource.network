@@ -4,25 +4,25 @@ import { declarativeConfigs, createDeclarativeHandler } from '../declarative/ind
 
 // ─── Complex indexer imports (kept as hand-written TypeScript) ──────────
 
-import { indexMembership } from '../../indexers/membership-indexer.js';
+import { indexMemberConsent } from '../../indexers/membership-indexer.js';
 import { indexProposal, indexVote } from '../../indexers/proposal-indexer.js';
 import {
   indexAgreement,
   indexSignature,
 } from '../../indexers/agreement-indexer.js';
 
-// ─── Complex builtin hooks (bilateral state machines, counters) ────────
+// ─── Complex builtin hooks (evidence projections, counters) ────────────
 
 const complexHooks: HookRegistration[] = [
-  // ── Membership (bilateral state machine) ─────────────────────────────
+  // ── Member consent evidence ──────────────────────────────────────────
   {
-    id: 'builtin:org.membership',
-    name: 'Membership indexer',
+    id: 'builtin:org.memberConsent',
+    name: 'Member consent evidence indexer',
     phase: 'post-storage',
     source: 'builtin',
-    collections: ['network.coopsource.org.membership'],
+    collections: ['network.coopsource.org.memberConsent'],
     priority: 10,
-    postHandler: async (ctx) => { await indexMembership(ctx.db, ctx.event); },
+    postHandler: async (ctx) => { await indexMemberConsent(ctx.db, ctx.event); },
   },
   // ── Governance (proposals + votes) ───────────────────────────────────
   {
@@ -83,7 +83,7 @@ function buildDeclarativeHooks(): HookRegistration[] {
 
 /**
  * Register all built-in hooks:
- * - 6 complex hand-written indexers (membership, proposal, agreement)
+ * - 5 complex hand-written indexers (member consent, proposal, agreement)
  * - 12 declarative indexers (admin, legal, alignment, external)
  *
  * Called once at startup from container setup.

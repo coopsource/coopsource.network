@@ -62,8 +62,7 @@ export type {
 
   // Org types
   OrgCooperative,
-  OrgMemberApproval,
-  OrgMembership,
+  OrgMemberConsent,
   OrgProject,
   OrgTeam,
   OrgRole,

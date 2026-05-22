@@ -309,7 +309,7 @@
       <label for="script-name" class="block text-sm font-medium text-[var(--cs-text-secondary)]">Name</label>
       <input id="script-name" name="name" type="text" required bind:value={formName}
         class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
-        placeholder="e.g. Validate membership records" />
+        placeholder="e.g. Validate member consent records" />
     </div>
     <div>
       <label for="script-desc" class="block text-sm font-medium text-[var(--cs-text-secondary)]">
@@ -335,7 +335,7 @@
         </label>
         <input id="script-collections" name="collections" type="text" bind:value={formCollections}
           class="mt-1 block w-full rounded-md border border-[var(--cs-input-border)] bg-[var(--cs-input-bg)] px-3 py-2 text-sm text-[var(--cs-text)] focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
-          placeholder="e.g. network.coopsource.org.membership, network.coopsource.governance.vote" />
+          placeholder="e.g. network.coopsource.org.memberConsent, network.coopsource.governance.vote" />
       </div>
     {/if}
     {#if formPhase === 'domain-event'}

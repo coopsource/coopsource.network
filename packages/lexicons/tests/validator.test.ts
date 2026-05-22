@@ -62,39 +62,31 @@ describe('validateRecord', () => {
     });
   });
 
-  describe('org.membership', () => {
-    it('should validate a valid membership record', () => {
-      const membership = {
-        $type: 'network.coopsource.org.membership',
+  describe('org.memberConsent', () => {
+    it('should validate a valid member consent record', () => {
+      const consent = {
+        $type: 'network.coopsource.org.memberConsent',
         cooperative: 'did:plc:abc123',
+        consentType: 'joinRequest',
         createdAt: new Date().toISOString(),
       };
-      const result = validateRecord(LEXICON_IDS.OrgMembership, membership);
+      const result = validateRecord(LEXICON_IDS.OrgMemberConsent, consent);
       expect(result.cooperative).toBe('did:plc:abc123');
-    });
-  });
-
-  describe('org.memberApproval', () => {
-    it('should validate a valid member approval record', () => {
-      const approval = {
-        $type: 'network.coopsource.org.memberApproval',
-        member: 'did:plc:member1',
-        roles: ['admin', 'member'],
-        createdAt: new Date().toISOString(),
-      };
-      const result = validateRecord(LEXICON_IDS.OrgMemberApproval, approval);
-      expect(result.member).toBe('did:plc:member1');
-      expect(result.roles).toEqual(['admin', 'member']);
+      expect(result.consentType).toBe('joinRequest');
     });
 
-    it('should validate a member approval without roles', () => {
-      const approval = {
-        $type: 'network.coopsource.org.memberApproval',
-        member: 'did:plc:member2',
+    it('should validate optional evidence links', () => {
+      const consent = {
+        $type: 'network.coopsource.org.memberConsent',
+        cooperative: 'did:plc:abc123',
+        consentType: 'invitationAcceptance',
+        invitationUri: 'at://did:plc:coop/network.coopsource.org.invitation/abc',
+        termsUri: 'at://did:plc:coop/network.coopsource.legal.document/terms',
+        termsCid: 'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku',
         createdAt: new Date().toISOString(),
       };
-      const result = validateRecord(LEXICON_IDS.OrgMemberApproval, approval);
-      expect(result.member).toBe('did:plc:member2');
+      const result = validateRecord(LEXICON_IDS.OrgMemberConsent, consent);
+      expect(result.consentType).toBe('invitationAcceptance');
     });
   });
 

@@ -9,7 +9,7 @@ function mockPdsService(): IPdsService {
     resolveDid: vi.fn(),
     updateDidDocument: vi.fn(),
     createRecord: vi.fn().mockResolvedValue({
-      uri: 'at://did:plc:test/network.coopsource.org.membership/abc' as AtUri,
+      uri: 'at://did:plc:test/network.coopsource.org.memberConsent/abc' as AtUri,
       cid: 'bafytest' as CID,
     } satisfies RecordRef),
     putRecord: vi.fn(),
@@ -23,8 +23,8 @@ function mockPdsService(): IPdsService {
 const testDid = 'did:plc:member123' as DID;
 const testParams = {
   memberDid: testDid,
-  collection: 'network.coopsource.org.membership',
-  record: { cooperative: 'did:plc:coop1', createdAt: '2026-01-01T00:00:00Z' },
+  collection: 'network.coopsource.org.memberConsent',
+  record: { cooperative: 'did:plc:coop1', consentType: 'joinRequest', createdAt: '2026-01-01T00:00:00Z' },
 };
 
 describe('MemberWriteProxy', () => {
@@ -42,7 +42,7 @@ describe('MemberWriteProxy', () => {
 
       const result = await proxy.writeRecord(testParams);
 
-      expect(result.uri).toBe('at://did:plc:test/network.coopsource.org.membership/abc');
+      expect(result.uri).toBe('at://did:plc:test/network.coopsource.org.memberConsent/abc');
       expect(pdsService.createRecord).toHaveBeenCalledWith({
         did: testDid,
         collection: testParams.collection,

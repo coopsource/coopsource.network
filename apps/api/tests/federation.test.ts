@@ -96,17 +96,19 @@ describe('Federation endpoints', () => {
   });
 
   describe('POST /api/v1/federation/membership/request', () => {
-    it('creates membership record via session auth', async () => {
+    it('echoes caller-supplied member consent evidence via session auth', async () => {
       const res = await testApp.agent
         .post('/api/v1/federation/membership/request')
         .send({
           memberDid: adminDid,
           cooperativeDid: coopDid,
+          consentRecordUri: `at://${adminDid}/network.coopsource.org.memberConsent/test`,
+          consentRecordCid: 'bafyconsent',
         })
         .expect(201);
 
-      expect(res.body.memberRecordUri).toBeDefined();
-      expect(res.body.memberRecordCid).toBeDefined();
+      expect(res.body.consentRecordUri).toBe(`at://${adminDid}/network.coopsource.org.memberConsent/test`);
+      expect(res.body.consentRecordCid).toBe('bafyconsent');
     });
   });
 

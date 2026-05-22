@@ -32,6 +32,6 @@ Unknown space shapes and malformed cursors fail closed. Pagination cursors are o
 
 `CsnDbGroupAuthorityCommandPort` is the temporary write-side companion. It provisions the cooperative DID as its own placeholder arbiter DID, treats role-space creation as a validated no-op, mutates `membership` and `membership_role` in transactions, and records changed commands in `fact_log` with `entity_type = 'v11.groupAuthority'`.
 
-The command port does not create V9 cooperative-owned `memberApproval` records. Migrated API paths keep member-authored membership records only as consent evidence while the active membership authority moves behind this package.
+The command port does not create V9 cooperative-owned `memberApproval` records. Migrated API paths pass member-authored `network.coopsource.org.memberConsent` records only as consent evidence while active membership authority moves behind this package. The temporary CSN adapter still stores consent URI/CID in the existing `membership.member_record_uri/member_record_cid` projection columns until Stage 3 schema cleanup.
 
 Changed commands write structured old/new values to `fact_log`. Invitation acceptance records the inviter as the authority actor; the accepting member's record is evidence only.

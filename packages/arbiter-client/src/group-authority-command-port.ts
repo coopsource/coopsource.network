@@ -49,8 +49,8 @@ export interface AddMemberArgs {
   readonly roles?: ReadonlyArray<string>;
   readonly memberClass?: string | null;
   readonly directoryVisible?: boolean;
-  readonly memberRecordUri?: string | null;
-  readonly memberRecordCid?: string | null;
+  readonly consentRecordUri?: string | null;
+  readonly consentRecordCid?: string | null;
   readonly invitationId?: string | null;
   readonly joinedAt?: Date;
   readonly reason?: string;
@@ -204,8 +204,8 @@ export class CsnDbGroupAuthorityCommandPort implements GroupAuthorityCommandPort
             cooperative_did: args.cooperativeDid,
             status: 'active',
             member_class: args.memberClass ?? null,
-            member_record_uri: args.memberRecordUri ?? null,
-            member_record_cid: args.memberRecordCid ?? null,
+            member_record_uri: args.consentRecordUri ?? null,
+            member_record_cid: args.consentRecordCid ?? null,
             approval_record_uri: null,
             approval_record_cid: null,
             invitation_id: args.invitationId ?? null,
@@ -247,6 +247,8 @@ export class CsnDbGroupAuthorityCommandPort implements GroupAuthorityCommandPort
               roles: roleChange.newRoles,
               memberClass: args.memberClass ?? existing?.member_class ?? null,
               directoryVisible: args.directoryVisible ?? existing?.directory_visible ?? true,
+              consentRecordUri: args.consentRecordUri ?? existing?.member_record_uri ?? null,
+              consentRecordCid: args.consentRecordCid ?? existing?.member_record_cid ?? null,
             },
             reason: args.reason ?? null,
           })
@@ -644,11 +646,11 @@ function buildMemberUpdate(
   if (args.directoryVisible !== undefined) {
     setIfChanged(update, 'directory_visible', existing.directory_visible, args.directoryVisible);
   }
-  if (args.memberRecordUri !== undefined) {
-    setIfChanged(update, 'member_record_uri', existing.member_record_uri, args.memberRecordUri);
+  if (args.consentRecordUri !== undefined) {
+    setIfChanged(update, 'member_record_uri', existing.member_record_uri, args.consentRecordUri);
   }
-  if (args.memberRecordCid !== undefined) {
-    setIfChanged(update, 'member_record_cid', existing.member_record_cid, args.memberRecordCid);
+  if (args.consentRecordCid !== undefined) {
+    setIfChanged(update, 'member_record_cid', existing.member_record_cid, args.consentRecordCid);
   }
   if (args.invitationId !== undefined) {
     setIfChanged(update, 'invitation_id', existing.invitation_id, args.invitationId);
@@ -721,6 +723,8 @@ function memberAuditValue(row: MembershipRow, roles: ReadonlyArray<string>): Rec
     roles,
     memberClass: row.member_class,
     directoryVisible: row.directory_visible,
+    consentRecordUri: row.member_record_uri,
+    consentRecordCid: row.member_record_cid,
     joinedAt: row.joined_at?.toISOString() ?? null,
     departedAt: row.departed_at?.toISOString() ?? null,
     invalidatedAt: row.invalidated_at?.toISOString() ?? null,

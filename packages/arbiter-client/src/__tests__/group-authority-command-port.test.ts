@@ -73,8 +73,8 @@ describe('CsnDbGroupAuthorityCommandPort', () => {
       memberDid: aliceDid,
       actorDid,
       roles: ['member', 'admin'],
-      memberRecordUri: 'at://alice/membership/1',
-      memberRecordCid: 'cid-1',
+      consentRecordUri: 'at://alice/memberConsent/1',
+      consentRecordCid: 'cid-1',
       reason: 'test add',
     });
 
@@ -84,7 +84,7 @@ describe('CsnDbGroupAuthorityCommandPort', () => {
       member_did: aliceDid,
       cooperative_did: cooperativeDid,
       status: 'active',
-      member_record_uri: 'at://alice/membership/1',
+      member_record_uri: 'at://alice/memberConsent/1',
       approval_record_uri: null,
     });
     expect(state.roles.map((row) => row.role)).toEqual(['admin', 'member']);
@@ -100,6 +100,8 @@ describe('CsnDbGroupAuthorityCommandPort', () => {
       operation: 'add-member',
       actorDid,
       memberDid: aliceDid,
+      consentRecordUri: 'at://alice/memberConsent/1',
+      consentRecordCid: 'cid-1',
     });
   });
 

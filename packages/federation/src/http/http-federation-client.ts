@@ -103,8 +103,10 @@ export class HttpFederationClient implements IFederationClient {
   async requestMembership(params: {
     memberDid: string;
     cooperativeDid: string;
+    consentRecordUri: string;
+    consentRecordCid: string;
     message?: string;
-  }): Promise<{ memberRecordUri: string; memberRecordCid: string }> {
+  }): Promise<{ consentRecordUri: string; consentRecordCid: string }> {
     const doc = await this.didResolver.resolve(params.cooperativeDid);
     const pdsUrl = this.getPdsEndpoint(doc);
     const response = await this.signedFetch(
@@ -112,8 +114,8 @@ export class HttpFederationClient implements IFederationClient {
       { method: 'POST', body: params },
     );
     return response.json() as Promise<{
-      memberRecordUri: string;
-      memberRecordCid: string;
+      consentRecordUri: string;
+      consentRecordCid: string;
     }>;
   }
 
@@ -121,7 +123,7 @@ export class HttpFederationClient implements IFederationClient {
     cooperativeDid: string;
     memberDid: string;
     roles: string[];
-  }): Promise<{ approvalRecordUri: string; approvalRecordCid: string }> {
+  }): Promise<{ ok: boolean; changed: boolean; auditEventId: string | null }> {
     const doc = await this.didResolver.resolve(params.cooperativeDid);
     const pdsUrl = this.getPdsEndpoint(doc);
     const response = await this.signedFetch(
@@ -129,8 +131,9 @@ export class HttpFederationClient implements IFederationClient {
       { method: 'POST', body: params },
     );
     return response.json() as Promise<{
-      approvalRecordUri: string;
-      approvalRecordCid: string;
+      ok: boolean;
+      changed: boolean;
+      auditEventId: string | null;
     }>;
   }
 

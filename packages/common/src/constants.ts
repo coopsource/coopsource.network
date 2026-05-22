@@ -8,7 +8,7 @@ export const API_VERSION = '0.1.0';
 export const COLLECTIONS = {
   COOPERATIVE: `${LEXICON_NAMESPACE}.org.cooperative`,
   PROJECT: `${LEXICON_NAMESPACE}.org.project`,
-  MEMBERSHIP: `${LEXICON_NAMESPACE}.org.membership`,
+  MEMBER_CONSENT: `${LEXICON_NAMESPACE}.org.memberConsent`,
   INTEREST: `${LEXICON_NAMESPACE}.alignment.interest`,
   INTEREST_MAP: `${LEXICON_NAMESPACE}.alignment.interestMap`,
   OUTCOME: `${LEXICON_NAMESPACE}.alignment.outcome`,

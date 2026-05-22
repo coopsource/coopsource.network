@@ -50,10 +50,12 @@ Stage 2B/2C implemented on this branch:
 - Changed commands are recorded in `fact_log` with `entity_type = 'v11.groupAuthority'`; `operator_audit_log` remains scoped to legacy operator PDS writes.
 - `MembershipService` role and removal writes use the command port.
 - Setup bootstrap, public invitation acceptance, `AuthService.register`, and network join/leave use the command port for membership and role authority.
-- Migrated paths no longer create cooperative-owned V9 `memberApproval` records. Member-authored `network.coopsource.org.membership` records remain temporary consent evidence.
+- Migrated paths no longer create cooperative-owned V9 `memberApproval` records.
+- Stage 2D replaces member-authored `network.coopsource.org.membership` evidence with `network.coopsource.org.memberConsent`.
 - Invitation acceptance audit uses the inviter as the authority actor; the joining member remains consent evidence, not the actor who added themself.
 - Federation membership approval now writes through `GroupAuthorityCommandPort` instead of creating `memberApproval` records.
-- Appview membership hooks no longer treat member-authored records or `memberApproval` records as active authority. Member-authored records only attach evidence URIs to existing command-created rows.
+- Federation membership requests carry caller-supplied consent evidence instead of minting member-owned records on the receiving instance.
+- Appview member-consent hooks no longer treat member-authored records or `memberApproval` records as active authority. Member-authored records only attach evidence URIs to existing command-created rows.
 - Transactional route flows request a transaction-scoped command port from the container instead of constructing the CSN adapter directly.
 
 Deferred:
@@ -98,8 +100,8 @@ Attempted `pnpm --filter @coopsource/api exec vitest run tests/members.test.ts`,
 
 ## Next Work
 
-The next slice should use the command boundary to migrate remaining legacy authority edges deliberately:
+The next slice should use the command boundary to prepare Stage 3 deliberately:
 
-- Replace the member-authored `network.coopsource.org.membership` consent evidence record with a V11 consent/agreement record.
-- Keep the appview membership evidence hook as a non-authoritative projection until Stage 3, then replace it with Arbiter space consumption.
+- Keep the appview member-consent evidence hook as a non-authoritative projection until Stage 3, then replace it with Arbiter space consumption.
 - Start Stage 3 read migration only after read/write command surfaces agree on source revision, audit semantics, and DID-rotation handling.
+- Decide whether the temporary `membership.member_record_uri/member_record_cid` projection columns need neutral evidence names before Stage 3 migrations begin.
