@@ -108,6 +108,26 @@ export function createMembershipRoutes(container: Container): Router {
     }),
   );
 
+  // PATCH /api/v1/members/me/visibility — a member sets their own directory
+  // visibility (opt-in; no permission required beyond active membership).
+  router.patch(
+    '/api/v1/members/me/visibility',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const directoryVisible = (req.body as { directoryVisible?: unknown })
+        ?.directoryVisible;
+      if (typeof directoryVisible !== 'boolean') {
+        throw new ValidationError('directoryVisible must be a boolean');
+      }
+      await container.membershipService.setDirectoryVisibility(
+        req.actor!.cooperativeDid,
+        req.actor!.did,
+        directoryVisible,
+      );
+      res.json({ directoryVisible });
+    }),
+  );
+
   // PUT /api/v1/members/:did/roles
   router.put(
     '/api/v1/members/:did/roles',

@@ -37,6 +37,39 @@ describe('Members & Invitations', () => {
     expect(admin.handle).toBeDefined();
   });
 
+  // ─── directory visibility is opt-in and member-settable ──────────────
+
+  it('PATCH /api/v1/members/me/visibility lets a member opt into the directory', async () => {
+    const before = await testApp.container.db
+      .selectFrom('membership')
+      .where('member_did', '=', adminDid)
+      .where('cooperative_did', '=', coopDid)
+      .select('directory_visible')
+      .executeTakeFirst();
+    expect(before?.directory_visible).toBe(false); // opt-in default
+
+    const res = await testApp.agent
+      .patch('/api/v1/members/me/visibility')
+      .send({ directoryVisible: true })
+      .expect(200);
+    expect(res.body.directoryVisible).toBe(true);
+
+    const after = await testApp.container.db
+      .selectFrom('membership')
+      .where('member_did', '=', adminDid)
+      .where('cooperative_did', '=', coopDid)
+      .select('directory_visible')
+      .executeTakeFirst();
+    expect(after?.directory_visible).toBe(true);
+  });
+
+  it('PATCH /api/v1/members/me/visibility rejects a non-boolean value', async () => {
+    await testApp.agent
+      .patch('/api/v1/members/me/visibility')
+      .send({ directoryVisible: 'yes' })
+      .expect(400);
+  });
+
   // ─── 2. POST /api/v1/invitations creates invitation ──────────────────
 
   it('POST /api/v1/invitations creates invitation with token, email, roles', async () => {

@@ -280,6 +280,29 @@ export class MembershipService {
     }));
   }
 
+  /**
+   * Set a member's own directory visibility. Directory listing is opt-in
+   * (default false), so this is the member-facing path to appear in the
+   * cooperative's public member directory. Only affects an active membership.
+   */
+  async setDirectoryVisibility(
+    cooperativeDid: string,
+    memberDid: string,
+    visible: boolean,
+  ): Promise<void> {
+    const result = await this.db
+      .updateTable('membership')
+      .set({ directory_visible: visible })
+      .where('cooperative_did', '=', cooperativeDid)
+      .where('member_did', '=', memberDid)
+      .where('status', '=', 'active')
+      .where('invalidated_at', 'is', null)
+      .executeTakeFirst();
+    if (Number(result.numUpdatedRows) === 0) {
+      throw new NotFoundError('Active membership not found');
+    }
+  }
+
   async removeMember(
     cooperativeDid: string,
     memberDid: string,
