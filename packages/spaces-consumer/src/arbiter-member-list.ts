@@ -4,7 +4,7 @@ import { spaceRefKey, type SpaceRef } from './types.js';
 /**
  * The arbiter's authoritative member list for a space.
  *
- * Per CLAUDE-CODE-PROMPT-V11.md "AppView Validation": records authored by
+ * Per ARCHITECTURE-V12.md §9 "Security requirements": records authored by
  * DIDs not on this list MUST be discarded. Cross-checking against this
  * interface is the load-bearing security boundary of the spaces consumer.
  *

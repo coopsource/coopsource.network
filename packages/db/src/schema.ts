@@ -1765,7 +1765,7 @@ export interface MentionTable {
 
 /**
  * Tracks DID rotations so DID-equality code can resolve historical DIDs.
- * Per ARCHITECTURE-V11.md §17.2, all DID-comparing code consults this table.
+ * Per ARCHITECTURE-V12.md §9, all DID-comparing code consults this table.
  * `current_did` is the DID after rotation; `prior_did` is the one that rotated away.
  * `evidence_uri` optionally points to a PLC operation or audit record.
  *

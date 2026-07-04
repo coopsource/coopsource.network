@@ -1,3 +1,5 @@
+> **Status (2026-07-04): superseded on ecosystem facts; design rationale retained.** Upstream moved since this scan (proposal 0016 merged; `at://…/space/…` URIs; LtHash). Current state: `docs/plans/2026-07-04-atproto-shared-spaces-research.md`; canonical spec: `ARCHITECTURE-V12.md`.
+
 # CSN Architectural Direction: Spaces, the Arbiter, GovernanceView, and CoopView
 
 > **Date**: May 8, 2026

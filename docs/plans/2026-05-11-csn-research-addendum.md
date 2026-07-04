@@ -1,3 +1,5 @@
+> **Status (2026-07-04): superseded; forecast graded.** Its §6.4 predictions were scored in `docs/plans/2026-07-04-atproto-shared-spaces-research.md` (7/9 right; `ats://` missed). Current state there; canonical spec `ARCHITECTURE-V12.md`.
+
 # CSN V11 Research Addendum
 
 **Window:** May 1, 2026 – May 11, 2026

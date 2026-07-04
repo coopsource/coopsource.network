@@ -1,3 +1,5 @@
+> **Status (2026-07-04): superseded on ecosystem facts.** See `docs/plans/2026-07-04-atproto-shared-spaces-research.md` (current) and `ARCHITECTURE-V12.md` (canonical). Retained for provenance.
+
 # RESEARCH: ATProto Permissioned Data / Spaces and CSN — Design Direction
 
 > **Date**: May 8, 2026 (rewritten to reflect the project's no-schedule, design-first posture)

@@ -1,6 +1,6 @@
 # Co-op Source Network
 
-> **Status:** Active architecture is V11. See [ARCHITECTURE-V11.md](./ARCHITECTURE-V11.md) and [CLAUDE-CODE-PROMPT-V11.md](./CLAUDE-CODE-PROMPT-V11.md). Some implementation details below still describe the V9-era code that V11 is migrating away from.
+> **Status:** Active architecture is **V12** — see [ARCHITECTURE-V12.md](./ARCHITECTURE-V12.md) (canonical) and [docs/plans/2026-07-04-v12-program-plan.md](./docs/plans/2026-07-04-v12-program-plan.md). V12 is a docs-and-alignment revision of V11 (proposal 0016 merged upstream; `at://…/space/…` URIs; LtHash). Some implementation details below still describe the V9-era code the substrate is migrating away from.
 
 A federated collaboration platform for cooperatives, built on [ATProtocol](https://atproto.com). Cooperatives are genuine ATProto citizens with their own DIDs. Members bring their own ATProto identities. V11 moves private cooperative data from public firehose workarounds and PostgreSQL ACLs toward permissioned spaces, the Group Directory / Arbiter substrate, GovernanceView, and CoopView.
 
