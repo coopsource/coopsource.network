@@ -1,6 +1,8 @@
 # Co-op Source Network
 
-A federated collaboration platform for cooperatives, built on [ATProtocol](https://atproto.com). Cooperatives are genuine ATProto accounts — they appear on Bluesky and any compatible ATProto application. Members bring their own Bluesky identities. Governance records flow through the real relay network alongside posts, commits, and events from other ecosystem apps.
+> **Status:** Active architecture is V11. See [ARCHITECTURE-V11.md](./ARCHITECTURE-V11.md) and [CLAUDE-CODE-PROMPT-V11.md](./CLAUDE-CODE-PROMPT-V11.md). Some implementation details below still describe the V9-era code that V11 is migrating away from.
+
+A federated collaboration platform for cooperatives, built on [ATProtocol](https://atproto.com). Cooperatives are genuine ATProto citizens with their own DIDs. Members bring their own ATProto identities. V11 moves private cooperative data from public firehose workarounds and PostgreSQL ACLs toward permissioned spaces, the Group Directory / Arbiter substrate, GovernanceView, and CoopView.
 
 ## How it works
 
@@ -12,25 +14,23 @@ Everything is an entity — a `person` or a `cooperative`. A network is just a c
 - A cooperative joins a network → same records, same protocol, same governance
 - A project is a mini-cooperative with its own membership → arbitrarily nested
 
-### Bilateral membership
+### Membership via spaces (V11 target)
 
-Membership requires both sides to write matching records. Status becomes `active` only when both exist:
+V11 retires bilateral membership as the active state machine. A cooperative's `members` space is the source of truth for active membership, and role spaces (`board`, `officers`, `treasurer`, member classes, custom roles) carry role authority.
 
-1. **Member** creates `network.coopsource.org.membership` in their own PDS
-2. **Cooperative** creates `network.coopsource.org.memberApproval` in its PDS
-3. AppView matches the pair → status transitions to `active`
+Durable member-authored join/application/agreement records remain useful as consent evidence, but they do not determine active membership by themselves.
 
-Deleting either record immediately revokes access. Role authority lives only in `memberApproval` — never self-declared by the member.
-
-### Three tiers of data
+### Three tiers of data (V11 target)
 
 | Tier | Storage | Visibility | Examples |
 |------|---------|------------|---------|
 | 1 — Public | ATProto PDS repos | On the firehose, visible to any ATProto app | Proposals, vote tallies, ratified agreements, member directories |
-| 2 — Private | PostgreSQL `private_record` | Never published to the firehose | Draft proposals, closed deliberations, financial records |
+| 2 — Permissioned | Permissioned spaces / member repos | Never published to the public firehose | Draft proposals, closed deliberations, member-visible finance projections |
 | 3 — Encrypted | Germ DM / MLS | Platform facilitates, never handles content | Board discussions, salary records, personnel matters |
 
-## Architecture
+## Current Implementation Snapshot
+
+The diagram below reflects the V9-era implementation that V11 is refactoring. Public firehose ingestion remains through Tap, but V11 adds a permissioned spaces consumer and moves private authority away from `private_record` as canonical storage.
 
 ```
   ┌─── ATProto Ecosystem ───────────────────────────────────────────┐
@@ -65,9 +65,9 @@ Deleting either record immediately revokes access. Role authority lives only in 
                     └─────────────────────┘
 ```
 
-**Write path:** Browser → SvelteKit → API → `MemberWriteProxy` (OAuth/DPoP) → member's own PDS, or → `OperatorWriteProxy` → cooperative's PDS. Records appear on the relay firehose.
+**V9 write path:** Browser → SvelteKit → API → `MemberWriteProxy` (OAuth/DPoP) → member's own PDS, or → `OperatorWriteProxy` → cooperative's PDS. Public records appear on the relay firehose; V11 permissioned records must not.
 
-**Read path:** Tap consumes `network.coopsource.*` events from the relay, delivers them to `appview/loop.ts`, which runs the hook pipeline (pre-storage hooks → `pds_record` upsert → post-storage hooks → materialized view updates). The frontend reads from these PostgreSQL views via the API.
+**V9 read path:** Tap consumes `network.coopsource.*` events from the relay, delivers them to `appview/loop.ts`, which runs the hook pipeline (pre-storage hooks → `pds_record` upsert → post-storage hooks → materialized view updates). V11 keeps Tap for public records and adds a permissioned spaces consumer for Tier 2 data.
 
 **In local development,** `LocalPdsService` (PostgreSQL-backed) + `pg_notify` replaces the entire PDS/relay/Tap stack. No Docker containers needed for basic development.
 

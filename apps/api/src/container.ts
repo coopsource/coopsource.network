@@ -1,5 +1,7 @@
 import { createDb } from '@coopsource/db';
-import type { Kysely } from 'kysely';
+import { CsnDbGroupMutationPort } from '@coopsource/arbiter-client';
+import type { GroupMutationPort } from '@coopsource/arbiter-client';
+import type { Kysely, Transaction } from 'kysely';
 import type { Database } from '@coopsource/db';
 import { SystemClock } from '@coopsource/federation';
 import type { IPdsService } from '@coopsource/federation';
@@ -71,6 +73,10 @@ import { ReportingService } from './services/reporting-service.js';
 import { DashboardService } from './services/dashboard-service.js';
 import { MentionService } from './services/mention-service.js';
 import { StarterPackService } from './services/starter-pack-service.js';
+import {
+  ConsentEvidenceVerifier,
+  PdsPublicRepoRecordResolver,
+} from './services/consent-evidence-verifier.js';
 import { HookRegistry } from './appview/hooks/registry.js';
 import { registerBuiltinHooks } from './appview/hooks/builtin/index.js';
 import { lexiconValidatorHook } from './appview/hooks/builtin/lexicon-validator-hook.js';
@@ -85,6 +91,8 @@ export interface Container {
   blobStore: LocalBlobStore;
   clock: SystemClock;
   emailService: IEmailService;
+  groupMutations: GroupMutationPort;
+  groupMutationsForDb: (db: Kysely<Database> | Transaction<Database>) => GroupMutationPort;
   authService: AuthService;
   profileService: ProfileService;
   entityService: EntityService;
@@ -144,6 +152,7 @@ export interface Container {
   dashboardService: DashboardService;
   mentionService: MentionService;
   starterPackService: StarterPackService;
+  consentEvidenceVerifier: ConsentEvidenceVerifier;
   hookRegistry: HookRegistry;
   lexiconManagementService: LexiconManagementService;
   scriptWorkerPool: ScriptWorkerPool;
@@ -250,15 +259,27 @@ export function createContainer(config: AppConfig): Container {
   // For now, services use the proxy in dev-fallback mode (writes to cooperative PDS with warning).
   const memberWriteProxy = new MemberWriteProxy(undefined, pdsService, config.NODE_ENV);
   const operatorWriteProxy = new OperatorWriteProxy(pdsService, db, config);
+  const groupMutationsForDb = (authorityDb: Kysely<Database> | Transaction<Database>) => new CsnDbGroupMutationPort(authorityDb, {
+    now: () => clock.now(),
+  });
+  const groupMutations = groupMutationsForDb(db);
 
   const profileService = new ProfileService(db, clock);
-  const authService = new AuthService(db, pdsService, clock, profileService, config.INSTANCE_URL ?? 'http://localhost:3001', memberWriteProxy);
+  const authService = new AuthService(
+    db,
+    pdsService,
+    clock,
+    profileService,
+    config.INSTANCE_URL ?? 'http://localhost:3001',
+    memberWriteProxy,
+    groupMutations,
+  );
   const entityService = new EntityService(db, blobStore);
   const membershipService = new MembershipService(
     db,
-    pdsService,
     emailService,
     clock,
+    groupMutations,
   );
   const privateRecordService = new PrivateRecordService(db, clock);
   const visibilityRouter = new VisibilityRouter(db, privateRecordService);
@@ -273,7 +294,7 @@ export function createContainer(config: AppConfig): Container {
   const proposalService = new ProposalService(db, pdsService, clock, memberWriteProxy, governanceLabeler, visibilityRouter);
   const agreementService = new AgreementService(db, pdsService, clock, memberWriteProxy);
   const agreementTemplateService = new AgreementTemplateService(db, clock);
-  const networkService = new NetworkService(db, pdsService, clock);
+  const networkService = new NetworkService(db, pdsService, clock, groupMutations);
   const paymentRegistry = new PaymentProviderRegistry(db, config.KEY_ENC_KEY);
   const fundingService = new FundingService(db, pdsService, clock, paymentRegistry, memberWriteProxy);
   const alignmentService = new AlignmentService(db, pdsService, clock, memberWriteProxy);
@@ -315,6 +336,10 @@ export function createContainer(config: AppConfig): Container {
   const dashboardService = new DashboardService(db);
   const mentionService = new MentionService(db, clock);
   const starterPackService = new StarterPackService(db, pdsService);
+  const consentEvidenceVerifier = new ConsentEvidenceVerifier(
+    new PdsPublicRepoRecordResolver(pdsService),
+    { now: () => clock.now() },
+  );
 
   // V7 P6: Hook pipeline — register builtin indexers + lexicon validator
   const hookRegistry = new HookRegistry();
@@ -340,6 +365,8 @@ export function createContainer(config: AppConfig): Container {
     blobStore,
     clock,
     emailService,
+    groupMutations,
+    groupMutationsForDb,
     authService,
     profileService,
     entityService,
@@ -399,6 +426,7 @@ export function createContainer(config: AppConfig): Container {
     dashboardService,
     mentionService,
     starterPackService,
+    consentEvidenceVerifier,
     hookRegistry,
     lexiconManagementService,
     scriptWorkerPool,

@@ -98,7 +98,7 @@ describe('GET /xrpc/com.atproto.label.queryLabels', () => {
         {
           src_did: 'did:plc:coop1',
           subject_uri:
-            'at://did:plc:coop1/network.coopsource.org.membership/xyz',
+            'at://did:plc:coop1/network.coopsource.org.memberConsent/xyz',
           label_value: 'member-suspended',
           created_at: new Date(),
         },

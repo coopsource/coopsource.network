@@ -43,14 +43,16 @@ export interface IFederationClient {
   requestMembership(params: {
     memberDid: string;
     cooperativeDid: string;
+    consentRecordUri: string;
+    consentRecordCid: string;
     message?: string;
-  }): Promise<{ memberRecordUri: string; memberRecordCid: string }>;
+  }): Promise<{ consentRecordUri: string; consentRecordCid: string }>;
 
   approveMembership(params: {
     cooperativeDid: string;
     memberDid: string;
     roles: string[];
-  }): Promise<{ approvalRecordUri: string; approvalRecordCid: string }>;
+  }): Promise<{ ok: boolean; changed: boolean; auditEventId: string | null }>;
 
   // Agreements
   requestSignature(params: {

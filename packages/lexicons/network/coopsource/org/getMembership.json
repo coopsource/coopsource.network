@@ -34,7 +34,7 @@
             "roles": {
               "type": "array",
               "items": { "type": "string" },
-              "description": "Roles assigned to the viewer via memberApproval authority. Only present when active."
+                "description": "Roles assigned to the viewer via Group Directory / Arbiter role spaces. Only present when active."
             },
             "joinedAt": {
               "type": "string",

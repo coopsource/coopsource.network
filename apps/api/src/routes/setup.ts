@@ -62,21 +62,12 @@ export function createSetupRoutes(container: Container): Router {
         },
       });
 
-      const memberRef = await container.pdsService.createRecord({
+      const consentRef = await container.pdsService.createRecord({
         did: adminDid as DID,
-        collection: 'network.coopsource.org.membership',
+        collection: 'network.coopsource.org.memberConsent',
         record: {
           cooperative: coopDid,
-          createdAt: now.toISOString(),
-        },
-      });
-
-      const approvalRef = await container.pdsService.createRecord({
-        did: coopDid as DID,
-        collection: 'network.coopsource.org.memberApproval',
-        record: {
-          member: adminDid,
-          roles: ['owner', 'admin'],
+          consentType: 'bootstrapOwner',
           createdAt: now.toISOString(),
         },
       });
@@ -146,32 +137,21 @@ export function createSetupRoutes(container: Container): Router {
           })
           .execute();
 
-        // Create membership (admin is owner)
-        const [membership] = await trx
-          .insertInto('membership')
-          .values({
-            member_did: adminDid,
-            cooperative_did: coopDid,
-            status: 'active',
-            joined_at: now,
-            member_record_uri: memberRef.uri,
-            member_record_cid: memberRef.cid,
-            approval_record_uri: approvalRef.uri,
-            approval_record_cid: approvalRef.cid,
-            created_at: now,
-            indexed_at: now,
-          })
-          .returning('id')
-          .execute();
-
-        // Set roles
-        await trx
-          .insertInto('membership_role')
-          .values([
-            { membership_id: membership!.id, role: 'owner', indexed_at: now },
-            { membership_id: membership!.id, role: 'admin', indexed_at: now },
-          ])
-          .execute();
+        const authority = container.groupMutationsForDb(trx);
+        await authority.provisionCooperativeAuthority({
+          cooperativeDid: coopDid as DID,
+          actorDid: adminDid as DID,
+        });
+        await authority.addMember({
+          cooperativeDid: coopDid as DID,
+          memberDid: adminDid as DID,
+          actorDid: adminDid as DID,
+          roles: ['owner', 'admin'],
+          consentRecordUri: consentRef.uri,
+          consentRecordCid: consentRef.cid,
+          joinedAt: now,
+          reason: 'setup bootstrap',
+        });
 
         // Set system_config
         await trx

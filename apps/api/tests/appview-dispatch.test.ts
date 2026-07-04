@@ -32,8 +32,7 @@ describe('Hook pipeline dispatch', () => {
   // ─── Hook registration coverage ────────────────────────────────────
 
   const complexCollections = [
-    'network.coopsource.org.membership',
-    'network.coopsource.org.memberApproval',
+    'network.coopsource.org.memberConsent',
     'network.coopsource.governance.proposal',
     'network.coopsource.governance.vote',
     'network.coopsource.agreement.master',
@@ -116,11 +115,11 @@ describe('Hook pipeline dispatch', () => {
 
   it('handles delete events (soft-deletes pds_record)', async () => {
     // Create first
-    const createEvent = makeEvent('network.coopsource.org.membership');
+    const createEvent = makeEvent('network.coopsource.org.memberConsent');
     await processFirehoseEvent(db, registry, createEvent);
 
     // Then delete
-    const deleteEvent = makeEvent('network.coopsource.org.membership', 'delete');
+    const deleteEvent = makeEvent('network.coopsource.org.memberConsent', 'delete');
     await processFirehoseEvent(db, registry, deleteEvent);
 
     const row = await db
@@ -131,6 +130,168 @@ describe('Hook pipeline dispatch', () => {
 
     expect(row).toBeDefined();
     expect(row!.deleted_at).not.toBeNull();
+  });
+
+  it('attaches and clears member consent evidence without creating authority', async () => {
+    const now = new Date('2026-01-01T00:00:00Z');
+    await db
+      .insertInto('entity')
+      .values([
+        {
+          did: 'did:plc:test',
+          type: 'person',
+          handle: null,
+          display_name: 'Test Member',
+          description: null,
+          avatar_cid: null,
+          status: 'active',
+          created_at: now,
+          created_by: null,
+          invalidated_at: null,
+          invalidated_by: null,
+          indexed_at: now,
+        },
+        {
+          did: 'did:plc:coop',
+          type: 'cooperative',
+          handle: null,
+          display_name: 'Test Coop',
+          description: null,
+          avatar_cid: null,
+          status: 'active',
+          created_at: now,
+          created_by: null,
+          invalidated_at: null,
+          invalidated_by: null,
+          indexed_at: now,
+        },
+      ])
+      .execute();
+
+    await db
+      .insertInto('membership')
+      .values({
+        member_did: 'did:plc:test',
+        cooperative_did: 'did:plc:coop',
+        status: 'active',
+        member_class: null,
+        member_record_uri: null,
+        member_record_cid: null,
+        approval_record_uri: null,
+        approval_record_cid: null,
+        invited_by_did: null,
+        invitation_id: null,
+        joined_at: now,
+        departed_at: null,
+        status_reason: null,
+        directory_visible: true,
+        created_at: now,
+        created_by: 'did:plc:coop',
+        invalidated_at: null,
+        invalidated_by: null,
+        indexed_at: now,
+      })
+      .execute();
+
+    const createEvent = makeEvent(
+      'network.coopsource.org.memberConsent',
+      'create',
+      {
+        $type: 'network.coopsource.org.memberConsent',
+        cooperative: 'did:plc:coop',
+        consentType: 'joinRequest',
+        createdAt: now.toISOString(),
+      },
+    );
+    await processFirehoseEvent(db, registry, createEvent);
+
+    const updated = await db
+      .selectFrom('membership')
+      .where('member_did', '=', 'did:plc:test')
+      .where('cooperative_did', '=', 'did:plc:coop')
+      .select(['member_record_uri', 'member_record_cid'])
+      .executeTakeFirstOrThrow();
+
+    expect(updated.member_record_uri).toBe(createEvent.uri);
+    expect(updated.member_record_cid).toBe(createEvent.cid);
+
+    const unrelatedEvent = makeEvent(
+      'network.coopsource.org.memberConsent',
+      'create',
+      {
+        $type: 'network.coopsource.org.memberConsent',
+        cooperative: 'did:plc:other',
+        consentType: 'joinRequest',
+        createdAt: now.toISOString(),
+      },
+      { did: 'did:plc:no-authority' },
+    );
+    await processFirehoseEvent(db, registry, unrelatedEvent);
+
+    const count = await db
+      .selectFrom('membership')
+      .select((eb) => eb.fn.countAll<number>().as('count'))
+      .executeTakeFirstOrThrow();
+    expect(Number(count.count)).toBe(1);
+
+    const updateEvent = makeEvent(
+      'network.coopsource.org.memberConsent',
+      'update',
+      {
+        $type: 'network.coopsource.org.memberConsent',
+        cooperative: 'did:plc:coop',
+        consentType: 'joinRequest',
+        createdAt: now.toISOString(),
+      },
+      { uri: createEvent.uri, cid: 'bafynewconsent', prevCid: createEvent.cid },
+    );
+    await processFirehoseEvent(db, registry, updateEvent);
+
+    const replaced = await db
+      .selectFrom('membership')
+      .where('member_did', '=', 'did:plc:test')
+      .where('cooperative_did', '=', 'did:plc:coop')
+      .select(['member_record_uri', 'member_record_cid'])
+      .executeTakeFirstOrThrow();
+
+    expect(replaced.member_record_uri).toBe(createEvent.uri);
+    expect(replaced.member_record_cid).toBe('bafynewconsent');
+
+    const staleDeleteEvent = makeEvent(
+      'network.coopsource.org.memberConsent',
+      'delete',
+      undefined,
+      { uri: createEvent.uri, cid: createEvent.cid },
+    );
+    await processFirehoseEvent(db, registry, staleDeleteEvent);
+
+    const afterStaleDelete = await db
+      .selectFrom('membership')
+      .where('member_did', '=', 'did:plc:test')
+      .where('cooperative_did', '=', 'did:plc:coop')
+      .select(['member_record_uri', 'member_record_cid'])
+      .executeTakeFirstOrThrow();
+
+    expect(afterStaleDelete.member_record_uri).toBe(createEvent.uri);
+    expect(afterStaleDelete.member_record_cid).toBe('bafynewconsent');
+
+    const deleteEvent = makeEvent(
+      'network.coopsource.org.memberConsent',
+      'delete',
+      undefined,
+      { uri: createEvent.uri, cid: 'bafynewconsent' },
+    );
+    await processFirehoseEvent(db, registry, deleteEvent);
+
+    const cleared = await db
+      .selectFrom('membership')
+      .where('member_did', '=', 'did:plc:test')
+      .where('cooperative_did', '=', 'did:plc:coop')
+      .select(['member_record_uri', 'member_record_cid'])
+      .executeTakeFirstOrThrow();
+
+    expect(cleared.member_record_uri).toBeNull();
+    expect(cleared.member_record_cid).toBeNull();
   });
 
   it('creates pds_record with correct fields', async () => {

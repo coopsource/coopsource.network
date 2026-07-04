@@ -5,7 +5,8 @@ import type { Database, InvitationTable } from '@coopsource/db';
 type InvitationRow = Selectable<InvitationTable>;
 import type { DID } from '@coopsource/common';
 import { NotFoundError, ValidationError, ConflictError } from '@coopsource/common';
-import type { IPdsService, IEmailService, IClock } from '@coopsource/federation';
+import type { GroupMutationPort, GroupMutationResult } from '@coopsource/arbiter-client';
+import type { IEmailService, IClock } from '@coopsource/federation';
 import { logger } from '../middleware/logger.js';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
@@ -23,9 +24,9 @@ export interface MemberWithRoles {
 export class MembershipService {
   constructor(
     private db: Kysely<Database>,
-    private pdsService: IPdsService,
     private emailService: IEmailService,
     private clock: IClock,
+    private groupMutations: GroupMutationPort,
   ) {}
 
   async listMembers(
@@ -240,6 +241,7 @@ export class MembershipService {
     cooperativeDid: string,
     memberDid: string,
     roles: string[],
+    actorDid: string = cooperativeDid,
   ): Promise<void> {
     const membership = await this.db
       .selectFrom('membership')
@@ -254,123 +256,51 @@ export class MembershipService {
     }
 
     const now = this.clock.now();
-
-    // Create memberApproval record directly in cooperative's PDS
-    const approvalRef = await this.pdsService.createRecord({
-      did: cooperativeDid as DID,
-      collection: 'network.coopsource.org.memberApproval',
-      record: {
-        member: memberDid,
-        roles,
-        createdAt: now.toISOString(),
-      },
-    });
-    const approvalResult = {
-      approvalRecordUri: approvalRef.uri,
-      approvalRecordCid: approvalRef.cid,
-    };
-
-    // Update membership with approval info
-    await this.db
-      .updateTable('membership')
-      .set({
-        approval_record_uri: approvalResult.approvalRecordUri,
-        approval_record_cid: approvalResult.approvalRecordCid,
-        status: membership.status === 'pending' ? 'active' : membership.status,
-        joined_at: now,
-        indexed_at: now,
-      })
-      .where('id', '=', membership.id)
-      .execute();
-
-    // Set roles
-    await this.db
-      .deleteFrom('membership_role')
-      .where('membership_id', '=', membership.id)
-      .execute();
-
-    if (roles.length > 0) {
-      await this.db
-        .insertInto('membership_role')
-        .values(
-          roles.map((role) => ({
-            membership_id: membership.id,
-            role,
-            indexed_at: now,
-          })),
-        )
-        .execute();
-    }
+    this.assertCommandOk(await this.groupMutations.addMember({
+      cooperativeDid: cooperativeDid as DID,
+      memberDid: memberDid as DID,
+      actorDid: actorDid as DID,
+      roles,
+      joinedAt: now,
+      reason: membership.status === 'pending' ? 'approve invitation' : undefined,
+    }));
   }
 
   async updateMemberRoles(
     cooperativeDid: string,
     memberDid: string,
     roles: string[],
+    actorDid: string = cooperativeDid,
   ): Promise<void> {
-    const membership = await this.db
-      .selectFrom('membership')
-      .where('member_did', '=', memberDid)
-      .where('cooperative_did', '=', cooperativeDid)
-      .where('invalidated_at', 'is', null)
-      .select(['id', 'approval_record_uri', 'approval_record_cid'])
-      .executeTakeFirst();
-
-    if (!membership) {
-      throw new NotFoundError('Membership not found');
-    }
-
-    const now = this.clock.now();
-
-    // Replace membership_role rows
-    await this.db
-      .deleteFrom('membership_role')
-      .where('membership_id', '=', membership.id)
-      .execute();
-
-    if (roles.length > 0) {
-      await this.db
-        .insertInto('membership_role')
-        .values(
-          roles.map((role) => ({
-            membership_id: membership.id,
-            role,
-            indexed_at: now,
-          })),
-        )
-        .execute();
-    }
+    this.assertCommandOk(await this.groupMutations.setMemberRoles({
+      cooperativeDid: cooperativeDid as DID,
+      memberDid: memberDid as DID,
+      roles,
+      actorDid: actorDid as DID,
+    }));
   }
 
   async removeMember(
     cooperativeDid: string,
     memberDid: string,
     reason?: string,
+    actorDid: string = cooperativeDid,
   ): Promise<void> {
-    const membership = await this.db
-      .selectFrom('membership')
-      .where('member_did', '=', memberDid)
-      .where('cooperative_did', '=', cooperativeDid)
-      .where('invalidated_at', 'is', null)
-      .select('id')
-      .executeTakeFirst();
+    this.assertCommandOk(await this.groupMutations.removeMember({
+      cooperativeDid: cooperativeDid as DID,
+      memberDid: memberDid as DID,
+      actorDid: actorDid as DID,
+      reason,
+    }));
+  }
 
-    if (!membership) {
-      throw new NotFoundError('Membership not found');
+  private assertCommandOk(result: GroupMutationResult): void {
+    if (result.ok && result.reason !== 'not-found') {
+      return;
     }
-
-    const now = this.clock.now();
-
-    await this.db
-      .updateTable('membership')
-      .set({
-        status: 'departed',
-        status_reason: reason ?? null,
-        departed_at: now,
-        invalidated_at: now,
-        indexed_at: now,
-      })
-      .where('id', '=', membership.id)
-      .execute();
+    if (result.reason === 'invalid-role') {
+      throw new ValidationError('Role must be a non-empty string');
+    }
+    throw new NotFoundError('Membership not found');
   }
 }

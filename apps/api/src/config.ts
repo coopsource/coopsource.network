@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+const envBoolean = z.stringbool().default(false);
+
 const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -52,6 +54,9 @@ const envSchema = z
     HUB_URL: z.string().optional(),        // Hub URL for co-op instances to register with
     // Tap firehose consumer (pre-filtered ATProto events over HTTP; unset = local pg_notify)
     TAP_URL: z.string().url().optional(),     // Tap HTTP URL (e.g. http://localhost:2480)
+    // V11 Stage 1: Spaces consumer (pull-based permissioned-data consumer)
+    SPACES_CONSUMER_ENABLED: envBoolean,
+    UNSAFE_ACCEPT_UNVERIFIED_PERMISSIONED_DATA: envBoolean,
     // V9.2.5: Service-auth JWT verification for external ATProto apps
     SERVICE_AUTH_AUDIENCE_DID: z.string().optional(),         // DID external apps use as `aud` (defaults to INSTANCE_DID)
     SERVICE_AUTH_TRUSTED_ISSUERS: z.string().optional(),      // Comma-separated DIDs of trusted service-auth issuers

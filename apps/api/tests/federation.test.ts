@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeAll } from 'vitest';
+import supertest from 'supertest';
+import type { DID } from '@coopsource/common';
 import { truncateAllTables } from './helpers/test-db.js';
 import { createTestApp, setupAndLogin, type TestApp } from './helpers/test-app.js';
+
+const MEMBER_CONSENT_COLLECTION = 'network.coopsource.org.memberConsent';
 
 describe('Federation endpoints', () => {
   let testApp: TestApp;
@@ -72,18 +76,28 @@ describe('Federation endpoints', () => {
   describe('POST /api/v1/federation/membership/approve', () => {
     it('succeeds when called from a local user session (skips signature check)', async () => {
       // In standalone mode with a session, requireFederationAuth skips.
-      // This creates a memberApproval PDS record locally.
+      // V11 routes membership authority through the group mutation port.
+      const consent = await writeConsentRecord(testApp, {
+        authorDid: adminDid,
+        cooperativeDid: coopDid,
+        consentType: 'joinRequest',
+        rkey: 'approve-test',
+      });
+
       const res = await testApp.agent
         .post('/api/v1/federation/membership/approve')
         .send({
           cooperativeDid: coopDid,
           memberDid: adminDid,
+          consentRecordUri: consent.uri,
+          consentRecordCid: consent.cid,
           roles: ['member'],
         })
         .expect(201);
 
-      expect(res.body.approvalRecordUri).toBeDefined();
-      expect(res.body.approvalRecordCid).toBeDefined();
+      expect(res.body.ok).toBe(true);
+      expect(res.body.changed).toBe(true);
+      expect(res.body.auditEventId).toBeDefined();
     });
 
     it('validates request body', async () => {
@@ -92,20 +106,77 @@ describe('Federation endpoints', () => {
         .send({ cooperativeDid: coopDid })
         .expect(400);
     });
+
+    it('rejects approval from a caller without authority over the cooperative (Axis 2)', async () => {
+      // A second user who self-registers is only a plain member — not an
+      // owner/admin — of the cooperative. They must not be able to approve
+      // members (and grant elevated roles) into a coop they do not manage.
+      const attacker = supertest.agent(testApp.app);
+      await attacker
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'mallory@test.com',
+          password: 'password123',
+          displayName: 'Mallory',
+        })
+        .expect(201);
+
+      const res = await attacker
+        .post('/api/v1/federation/membership/approve')
+        .send({
+          cooperativeDid: coopDid,
+          memberDid: 'did:plc:victim',
+          consentRecordUri:
+            'at://did:plc:victim/network.coopsource.org.memberConsent/x',
+          consentRecordCid: 'bafyreiabc',
+          roles: ['roles/board', 'roles/treasurer'],
+        })
+        .expect(403);
+
+      expect(res.body.axis).toBe('spaces');
+    });
   });
 
   describe('POST /api/v1/federation/membership/request', () => {
-    it('creates membership record via session auth', async () => {
+    it('echoes verified caller-supplied member consent evidence via session auth', async () => {
+      const consent = await writeConsentRecord(testApp, {
+        authorDid: adminDid,
+        cooperativeDid: coopDid,
+        consentType: 'joinRequest',
+        rkey: 'request-test',
+      });
+
       const res = await testApp.agent
         .post('/api/v1/federation/membership/request')
         .send({
           memberDid: adminDid,
           cooperativeDid: coopDid,
+          consentRecordUri: consent.uri,
+          consentRecordCid: consent.cid,
         })
         .expect(201);
 
-      expect(res.body.memberRecordUri).toBeDefined();
-      expect(res.body.memberRecordCid).toBeDefined();
+      expect(res.body.consentRecordUri).toBe(consent.uri);
+      expect(res.body.consentRecordCid).toBe(consent.cid);
+    });
+
+    it('rejects consent evidence with a mismatched CID', async () => {
+      const consent = await writeConsentRecord(testApp, {
+        authorDid: adminDid,
+        cooperativeDid: coopDid,
+        consentType: 'joinRequest',
+        rkey: 'bad-cid-test',
+      });
+
+      await testApp.agent
+        .post('/api/v1/federation/membership/request')
+        .send({
+          memberDid: adminDid,
+          cooperativeDid: coopDid,
+          consentRecordUri: consent.uri,
+          consentRecordCid: 'bafywrong',
+        })
+        .expect(400);
     });
   });
 
@@ -500,3 +571,25 @@ describe('Federation endpoints', () => {
 
   // Outbox tests removed — OutboxProcessor and enqueueOutboxMessage retired in V6 Phase F4
 });
+
+async function writeConsentRecord(
+  testApp: TestApp,
+  args: {
+    readonly authorDid: string;
+    readonly cooperativeDid: string;
+    readonly consentType: 'joinRequest' | 'invitationAcceptance' | 'bootstrapOwner' | 'networkJoin';
+    readonly rkey: string;
+  },
+): Promise<{ readonly uri: string; readonly cid: string }> {
+  const ref = await testApp.container.pdsService.putRecord({
+    did: args.authorDid as DID,
+    collection: MEMBER_CONSENT_COLLECTION,
+    rkey: args.rkey,
+    record: {
+      cooperative: args.cooperativeDid,
+      consentType: args.consentType,
+      createdAt: testApp.clock.nowIso(),
+    },
+  });
+  return ref;
+}

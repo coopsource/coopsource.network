@@ -51,11 +51,11 @@ describe('MCP tools data queries (P9)', () => {
 
   it('query by collection returns matching records', async () => {
     await insertRecord({
-      uri: 'at://did:plc:a/network.coopsource.org.membership/r1',
+      uri: 'at://did:plc:a/network.coopsource.org.memberConsent/r1',
       did: 'did:plc:a',
-      collection: 'network.coopsource.org.membership',
+      collection: 'network.coopsource.org.memberConsent',
       rkey: 'r1',
-      content: { $type: 'network.coopsource.org.membership', cooperative: 'did:plc:coop1' },
+      content: { $type: 'network.coopsource.org.memberConsent', cooperative: 'did:plc:coop1', consentType: 'joinRequest' },
     });
 
     await insertRecord({
@@ -66,16 +66,16 @@ describe('MCP tools data queries (P9)', () => {
       content: { $type: 'network.coopsource.governance.proposal', title: 'Budget 2026' },
     });
 
-    // Query for memberships only
+    // Query for member consent records only
     const rows = await db
       .selectFrom('pds_record')
-      .where('collection', '=', 'network.coopsource.org.membership')
+      .where('collection', '=', 'network.coopsource.org.memberConsent')
       .where('deleted_at', 'is', null)
       .select(['uri', 'did', 'collection', 'content', 'indexed_at'])
       .execute();
 
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.uri).toBe('at://did:plc:a/network.coopsource.org.membership/r1');
+    expect(rows[0]!.uri).toBe('at://did:plc:a/network.coopsource.org.memberConsent/r1');
   });
 
   // ─── get-record pattern ───────────────────────────────────────────
@@ -204,19 +204,19 @@ describe('MCP tools data queries (P9)', () => {
   it('list-collections returns correct counts per collection', async () => {
     // Insert records in different collections
     await insertRecord({
-      uri: 'at://did:plc:z/network.coopsource.org.membership/m1',
+      uri: 'at://did:plc:z/network.coopsource.org.memberConsent/m1',
       did: 'did:plc:z',
-      collection: 'network.coopsource.org.membership',
+      collection: 'network.coopsource.org.memberConsent',
       rkey: 'm1',
-      content: { $type: 'network.coopsource.org.membership' },
+      content: { $type: 'network.coopsource.org.memberConsent' },
     });
 
     await insertRecord({
-      uri: 'at://did:plc:z/network.coopsource.org.membership/m2',
+      uri: 'at://did:plc:z/network.coopsource.org.memberConsent/m2',
       did: 'did:plc:z',
-      collection: 'network.coopsource.org.membership',
+      collection: 'network.coopsource.org.memberConsent',
       rkey: 'm2',
-      content: { $type: 'network.coopsource.org.membership' },
+      content: { $type: 'network.coopsource.org.memberConsent' },
     });
 
     await insertRecord({
@@ -243,12 +243,12 @@ describe('MCP tools data queries (P9)', () => {
       count: Number(r.count),
     }));
 
-    // Find membership count (should be >= 2 — may have records from init)
-    const membershipEntry = result.find(
-      (r) => r.collection === 'network.coopsource.org.membership',
+    // Find member consent count (should be >= 2 — may have records from init)
+    const consentEntry = result.find(
+      (r) => r.collection === 'network.coopsource.org.memberConsent',
     );
-    expect(membershipEntry).toBeDefined();
-    expect(membershipEntry!.count).toBeGreaterThanOrEqual(2);
+    expect(consentEntry).toBeDefined();
+    expect(consentEntry!.count).toBeGreaterThanOrEqual(2);
 
     // Find proposal count
     const proposalEntry = result.find(

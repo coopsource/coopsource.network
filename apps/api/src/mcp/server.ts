@@ -211,7 +211,7 @@ function createScopedMcpServer(
     'get-record',
     'Get a single ATProto record by AT URI',
     {
-      uri: z.string().describe('AT URI (e.g., at://did:plc:abc/network.coopsource.org.membership/xyz)'),
+      uri: z.string().describe('AT URI (e.g., at://did:plc:abc/network.coopsource.org.memberConsent/xyz)'),
     },
     async ({ uri }) => {
       const row = await db
@@ -292,7 +292,7 @@ function createScopedMcpServer(
     'introspect-lexicon',
     'Return the lexicon schema JSON for a given NSID',
     {
-      nsid: z.string().describe('Lexicon NSID (e.g., network.coopsource.org.membership)'),
+      nsid: z.string().describe('Lexicon NSID (e.g., network.coopsource.org.memberConsent)'),
     },
     async ({ nsid }) => {
       // Check built-in lexicons first

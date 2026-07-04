@@ -4,6 +4,7 @@ import type { Database } from '@coopsource/db';
 import { sql } from 'kysely';
 import { createRequire } from 'node:module';
 import { getFirehoseHealth } from '../appview/loop.js';
+import { getSpacesConsumerHealth } from '../appview/spaces-consumer-dispatch.js';
 
 const require = createRequire(import.meta.url);
 const { version } = require('../../package.json') as { version: string };
@@ -33,6 +34,7 @@ export function createHealthRoutes(db?: Kysely<Database>): Router {
     }
 
     status.firehose = getFirehoseHealth();
+    status.spacesConsumer = getSpacesConsumerHealth();
 
     res.json(status);
   });

@@ -1,0 +1,56 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.org.memberConsent",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A member-authored consent evidence record for joining a cooperative or network. Active membership authority lives in the cooperative's Group Directory / Arbiter substrate, not in this record.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["cooperative", "consentType", "createdAt"],
+        "properties": {
+          "cooperative": {
+            "type": "string",
+            "format": "did",
+            "description": "The DID of the cooperative or network the member is consenting to join."
+          },
+          "consentType": {
+            "type": "string",
+            "knownValues": ["joinRequest", "invitationAcceptance", "bootstrapOwner", "networkJoin"],
+            "description": "The kind of consent evidence this record represents."
+          },
+          "termsUri": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "Optional terms record the member consented to."
+          },
+          "termsCid": {
+            "type": "string",
+            "format": "cid",
+            "description": "CID for the terms record at signing time."
+          },
+          "agreementUri": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "Optional agreement record associated with this consent."
+          },
+          "agreementCid": {
+            "type": "string",
+            "format": "cid",
+            "description": "CID for the agreement record at signing time."
+          },
+          "invitationUri": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "Optional AT URI for an invitation record, when one exists."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

@@ -89,6 +89,7 @@ import { createDashboardRoutes } from './routes/reports/dashboards.js';
 import { createMentionRoutes } from './routes/notifications/mentions.js';
 import { createAdminScriptRoutes } from './routes/admin-scripts.js';
 import { startAppViewLoop } from './appview/loop.js';
+import { startSpacesConsumer, stopSpacesConsumer } from './appview/spaces-consumer-dispatch.js';
 import { createOAuthClient } from './auth/oauth-client.js';
 import { setupLabelWebSocket } from './routes/xrpc-labels.js';
 import { createXrpcRoutes } from './xrpc/dispatcher.js';
@@ -334,6 +335,16 @@ async function start(): Promise<void> {
     logger.error(err, 'AppView loop failed to start');
   });
 
+  // V11 Stage 1: Pull-based spaces consumer (sketch-only; gated off by default).
+  startSpacesConsumer({
+    enabled: config.SPACES_CONSUMER_ENABLED,
+    unsafeAcceptUnverifiedPermissionedData: config.UNSAFE_ACCEPT_UNVERIFIED_PERMISSIONED_DATA,
+    db: container.db,
+    spaces: [], // Stage 1: empty by design; real subscriptions land with Stage 2.
+  }).catch((err) => {
+    logger.error(err, 'Spaces consumer failed to start');
+  });
+
   // Start event dispatcher for agent triggers
   container.eventDispatcher.start();
   logger.info('Event dispatcher started');
@@ -377,6 +388,9 @@ async function start(): Promise<void> {
     logger.info('Shutting down...');
     clearInterval(proposalResolverHandle);
     clearInterval(matchmakingHandle);
+    await stopSpacesConsumer().catch((err) => {
+      logger.error(err, 'Spaces consumer failed to stop');
+    });
     container.eventDispatcher.stop();
     await container.scriptWorkerPool.shutdown();
     labelWss.close();

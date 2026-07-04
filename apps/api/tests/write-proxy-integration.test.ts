@@ -18,13 +18,13 @@ describe('Write proxy integration (dev-mode fallback)', () => {
     resetSetupCache();
   });
 
-  it('membership creation routes through MemberWriteProxy (fallback)', async () => {
+  it('member consent creation routes through MemberWriteProxy (fallback)', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const testApp = createTestApp();
     await setupAndLogin(testApp);
 
     // Register a new member — this triggers auth-service.register()
-    // which writes org.membership via MemberWriteProxy
+    // which writes org.memberConsent via MemberWriteProxy
     const res = await testApp.agent
       .post('/api/v1/auth/register')
       .send({
@@ -37,13 +37,13 @@ describe('Write proxy integration (dev-mode fallback)', () => {
     expect(res.body.did).toBeDefined();
 
     // Verify MemberWriteProxy fallback warning was emitted
-    const membershipWarnings = warnSpy.mock.calls.filter(
+    const consentWarnings = warnSpy.mock.calls.filter(
       (call) =>
         typeof call[0] === 'string' &&
         call[0].includes('[MemberWriteProxy]') &&
-        call[0].includes('org.membership'),
+        call[0].includes('org.memberConsent'),
     );
-    expect(membershipWarnings.length).toBeGreaterThanOrEqual(1);
+    expect(consentWarnings.length).toBeGreaterThanOrEqual(1);
 
     warnSpy.mockRestore();
   });
@@ -138,10 +138,10 @@ describe('Write proxy integration (dev-mode fallback)', () => {
     const ref = await testApp.container.operatorWriteProxy.writeCoopRecord({
       operatorDid: adminDid,
       cooperativeDid: coopDid as import('@coopsource/common').DID,
-      collection: 'network.coopsource.org.memberApproval',
+      collection: 'network.coopsource.admin.memberNotice',
       record: {
-        member: 'did:plc:testmember',
-        roles: ['member'],
+        title: 'Operator notice',
+        body: 'Test',
         createdAt: new Date().toISOString(),
       },
     });
@@ -157,6 +157,6 @@ describe('Write proxy integration (dev-mode fallback)', () => {
 
     expect(logs).toHaveLength(1);
     expect(logs[0]!.operator_did).toBe(adminDid);
-    expect(logs[0]!.collection).toBe('network.coopsource.org.memberApproval');
+    expect(logs[0]!.collection).toBe('network.coopsource.admin.memberNotice');
   });
 });

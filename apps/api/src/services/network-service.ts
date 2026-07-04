@@ -2,6 +2,7 @@ import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
 import type { DID } from '@coopsource/common';
 import { NotFoundError, ConflictError } from '@coopsource/common';
+import type { GroupMutationPort } from '@coopsource/arbiter-client';
 import type { IPdsService, IClock } from '@coopsource/federation';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
@@ -36,6 +37,7 @@ export class NetworkService {
     private db: Kysely<Database>,
     private pdsService: IPdsService,
     private clock: IClock,
+    private groupMutations: GroupMutationPort,
   ) {}
 
   async listNetworks(params: PageParams): Promise<Page<NetworkSummary>> {
@@ -277,6 +279,11 @@ export class NetworkService {
       })
       .execute();
 
+    await this.groupMutations.provisionCooperativeAuthority({
+      cooperativeDid: did as DID,
+      actorDid: did as DID,
+    });
+
     return { did };
   }
 
@@ -318,60 +325,25 @@ export class NetworkService {
       throw new ConflictError('Already a member of this network');
     }
 
-    // 1. PDS membership record in cooperative's PDS
-    const memberRef = await this.pdsService.createRecord({
+    const consentRef = await this.pdsService.createRecord({
       did: params.cooperativeDid as DID,
-      collection: 'network.coopsource.org.membership',
+      collection: 'network.coopsource.org.memberConsent',
       record: {
         cooperative: params.networkDid,
+        consentType: 'networkJoin',
         createdAt: now.toISOString(),
       },
     });
 
-    // 2. Create memberApproval record directly in network's PDS
-    const approvalRef = await this.pdsService.createRecord({
-      did: params.networkDid as DID,
-      collection: 'network.coopsource.org.memberApproval',
-      record: {
-        member: params.cooperativeDid,
-        roles: ['member'],
-        createdAt: now.toISOString(),
-      },
-    });
-    const approvalResult = {
-      approvalRecordUri: approvalRef.uri,
-      approvalRecordCid: approvalRef.cid,
-    };
-
-    // 3+4. DB writes in transaction
-    await this.db.transaction().execute(async (trx) => {
-      // Insert membership row with both URIs + CIDs
-      const [membership] = await trx
-        .insertInto('membership')
-        .values({
-          member_did: params.cooperativeDid,
-          cooperative_did: params.networkDid,
-          status: 'active',
-          joined_at: now,
-          member_record_uri: memberRef.uri,
-          member_record_cid: memberRef.cid,
-          approval_record_uri: approvalResult.approvalRecordUri,
-          approval_record_cid: approvalResult.approvalRecordCid,
-          created_at: now,
-          indexed_at: now,
-        })
-        .returning('id')
-        .execute();
-
-      // Insert membership_role row with role='member'
-      await trx
-        .insertInto('membership_role')
-        .values({
-          membership_id: membership!.id,
-          role: 'member',
-          indexed_at: now,
-        })
-        .execute();
+    await this.groupMutations.addMember({
+      cooperativeDid: params.networkDid as DID,
+      memberDid: params.cooperativeDid as DID,
+      actorDid: params.cooperativeDid as DID,
+      roles: ['member'],
+      consentRecordUri: consentRef.uri,
+      consentRecordCid: consentRef.cid,
+      joinedAt: now,
+      reason: 'join network',
     });
   }
 
@@ -379,33 +351,16 @@ export class NetworkService {
     networkDid: string,
     cooperativeDid: string,
   ): Promise<void> {
-    const now = this.clock.now();
+    const result = await this.groupMutations.removeMember({
+      cooperativeDid: networkDid as DID,
+      memberDid: cooperativeDid as DID,
+      actorDid: cooperativeDid as DID,
+      reason: 'leave network',
+    });
 
-    // Find active membership
-    const membership = await this.db
-      .selectFrom('membership')
-      .where('member_did', '=', cooperativeDid)
-      .where('cooperative_did', '=', networkDid)
-      .where('invalidated_at', 'is', null)
-      .where('status', '=', 'active')
-      .select('id')
-      .executeTakeFirst();
-
-    if (!membership) {
+    if (result.reason === 'not-found') {
       throw new NotFoundError('Membership not found');
     }
-
-    // Update membership: status='departed', departed_at=now, invalidated_at=now
-    await this.db
-      .updateTable('membership')
-      .set({
-        status: 'departed',
-        departed_at: now,
-        invalidated_at: now,
-        indexed_at: now,
-      })
-      .where('id', '=', membership.id)
-      .execute();
 
     // Hub discovers membership changes via firehose — no explicit notification needed
   }

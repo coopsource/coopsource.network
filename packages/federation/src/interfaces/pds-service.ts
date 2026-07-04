@@ -17,6 +17,11 @@ export interface UpdateDidOptions {
   handle?: string;
   rotateSigningKey?: Record<string, unknown>;
   pdsUrl?: string;
+  services?: Array<{
+    id: string;
+    type: string;
+    serviceEndpoint: string;
+  }>;
 }
 
 export interface CreateRecordParams {

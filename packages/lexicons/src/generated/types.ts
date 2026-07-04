@@ -421,18 +421,16 @@ export interface OrgCooperative {
   createdAt: string;
 }
 
-/** network.coopsource.org.memberApproval — main record */
-export interface OrgMemberApproval {
-  $type?: 'network.coopsource.org.memberApproval';
-  member: string;
-  roles?: string[];
-  createdAt: string;
-}
-
-/** network.coopsource.org.membership — main record */
-export interface OrgMembership {
-  $type?: 'network.coopsource.org.membership';
+/** network.coopsource.org.memberConsent — main record */
+export interface OrgMemberConsent {
+  $type?: 'network.coopsource.org.memberConsent';
   cooperative: string;
+  consentType: 'joinRequest' | 'invitationAcceptance' | 'bootstrapOwner' | 'networkJoin' | (string & {});
+  termsUri?: string;
+  termsCid?: string;
+  agreementUri?: string;
+  agreementCid?: string;
+  invitationUri?: string;
   createdAt: string;
 }
 
@@ -493,8 +491,7 @@ export const LEXICON_IDS = {
   GovernanceProposal: 'network.coopsource.governance.proposal',
   GovernanceVote: 'network.coopsource.governance.vote',
   OrgCooperative: 'network.coopsource.org.cooperative',
-  OrgMemberApproval: 'network.coopsource.org.memberApproval',
-  OrgMembership: 'network.coopsource.org.membership',
+  OrgMemberConsent: 'network.coopsource.org.memberConsent',
   OrgProject: 'network.coopsource.org.project',
   OrgRole: 'network.coopsource.org.role',
   OrgTeam: 'network.coopsource.org.team',
@@ -522,8 +519,7 @@ export interface LexiconRecordMap {
   [LEXICON_IDS.GovernanceProposal]: GovernanceProposal;
   [LEXICON_IDS.GovernanceVote]: GovernanceVote;
   [LEXICON_IDS.OrgCooperative]: OrgCooperative;
-  [LEXICON_IDS.OrgMemberApproval]: OrgMemberApproval;
-  [LEXICON_IDS.OrgMembership]: OrgMembership;
+  [LEXICON_IDS.OrgMemberConsent]: OrgMemberConsent;
   [LEXICON_IDS.OrgProject]: OrgProject;
   [LEXICON_IDS.OrgRole]: OrgRole;
   [LEXICON_IDS.OrgTeam]: OrgTeam;

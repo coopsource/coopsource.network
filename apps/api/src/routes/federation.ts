@@ -8,18 +8,69 @@ import type { AppConfig } from '../config.js';
 import { asyncHandler } from '../lib/async-handler.js';
 import { requireFederationAuth } from '../middleware/federation-auth.js';
 
+// Roles that carry authority to manage a cooperative's membership roster.
+const COOP_MANAGEMENT_ROLES = ['owner', 'admin'];
+
+/**
+ * The authoritative caller identity for a federation request: the verified
+ * peer signer (server-to-server) or the local session subject. Never a
+ * request-body field — those are attacker-controlled.
+ */
+function federationCallerDid(req: {
+  federationSender?: unknown;
+  session?: { did?: string };
+}): string | null {
+  const sender = (req as { federationSender?: unknown }).federationSender;
+  if (typeof sender === 'string' && sender.length > 0) return sender;
+  const sessionDid = req.session?.did;
+  if (typeof sessionDid === 'string' && sessionDid.length > 0) return sessionDid;
+  return null;
+}
+
+/**
+ * Axis 2 authority check: may `callerDid` manage membership for `cooperativeDid`?
+ * True when the caller is the cooperative itself (its server signs as the coop
+ * DID) or holds an active owner/admin role in that cooperative.
+ */
+async function callerHasCoopAuthority(
+  container: Container,
+  callerDid: string | null,
+  cooperativeDid: DID,
+): Promise<boolean> {
+  if (!callerDid) return false;
+  if (callerDid === cooperativeDid) return true;
+  const row = await container.db
+    .selectFrom('membership')
+    .innerJoin(
+      'membership_role',
+      'membership_role.membership_id',
+      'membership.id',
+    )
+    .where('membership.cooperative_did', '=', cooperativeDid)
+    .where('membership.member_did', '=', callerDid)
+    .where('membership.status', '=', 'active')
+    .where('membership.invalidated_at', 'is', null)
+    .where('membership_role.role', 'in', COOP_MANAGEMENT_ROLES)
+    .select('membership_role.role')
+    .executeTakeFirst();
+  return row !== undefined;
+}
+
 // ── Zod schemas for request validation ──
 
 const MembershipRequestSchema = z.object({
   memberDid: z.string().min(1),
   cooperativeDid: z.string().min(1),
-  message: z.string().optional(),
+  consentRecordUri: z.string().min(1),
+  consentRecordCid: z.string().min(1),
 });
 
 const MembershipApproveSchema = z.object({
   cooperativeDid: z.string().min(1),
   memberDid: z.string().min(1),
-  roles: z.array(z.string()),
+  consentRecordUri: z.string().min(1),
+  consentRecordCid: z.string().min(1),
+  roles: z.array(z.string().min(1)),
 });
 
 const AgreementSignRequestSchema = z.object({
@@ -167,22 +218,24 @@ export function createFederationRoutes(
     fedAuth,
     asyncHandler(async (req, res) => {
       const params = MembershipRequestSchema.parse(req.body);
-      const now = container.clock.now();
-
-      // Process locally: create membership PDS record on this instance
-      const ref = await container.pdsService.createRecord({
-        did: params.memberDid as DID,
-        collection: 'network.coopsource.org.membership',
-        record: {
-          cooperative: params.cooperativeDid,
-          message: params.message,
-          createdAt: now.toISOString(),
-        },
+      const verification = await container.consentEvidenceVerifier.verify({
+        expectedAuthorDid: params.memberDid as DID,
+        cooperativeDid: params.cooperativeDid as DID,
+        consentRecordUri: params.consentRecordUri,
+        consentRecordCid: params.consentRecordCid,
+        allowedConsentTypes: ['joinRequest', 'networkJoin'],
       });
+      if (!verification.ok) {
+        res.status(400).json({
+          error: 'InvalidConsentEvidence',
+          message: verification.reason ?? 'Consent evidence verification failed',
+        });
+        return;
+      }
 
       res.status(201).json({
-        memberRecordUri: ref.uri,
-        memberRecordCid: ref.cid,
+        consentRecordUri: params.consentRecordUri,
+        consentRecordCid: params.consentRecordCid,
       });
     }),
   );
@@ -194,20 +247,65 @@ export function createFederationRoutes(
       const params = MembershipApproveSchema.parse(req.body);
       const now = container.clock.now();
 
-      // Process locally: create memberApproval PDS record on this instance
-      const ref = await container.pdsService.createRecord({
-        did: params.cooperativeDid as DID,
-        collection: 'network.coopsource.org.memberApproval',
-        record: {
-          member: params.memberDid,
-          roles: params.roles,
-          createdAt: now.toISOString(),
-        },
+      // Axis 2 (group authority): approving a member into a cooperative is a
+      // cooperative-side act. Consent proves the *member* agreed; it says
+      // nothing about the caller. Bind the caller to authority over the target
+      // cooperative before any mutation — otherwise any authenticated local
+      // user or any peer signing as a DID it controls could inject an active
+      // membership (with arbitrary roles) into an arbitrary cooperative.
+      const callerDid = federationCallerDid(req);
+      const authorized = await callerHasCoopAuthority(
+        container,
+        callerDid,
+        params.cooperativeDid as DID,
+      );
+      if (!authorized) {
+        res.status(403).json({
+          error: 'Forbidden',
+          axis: 'spaces',
+          message:
+            'Caller lacks group authority over the target cooperative',
+        });
+        return;
+      }
+
+      const verification = await container.consentEvidenceVerifier.verify({
+        expectedAuthorDid: params.memberDid as DID,
+        cooperativeDid: params.cooperativeDid as DID,
+        consentRecordUri: params.consentRecordUri,
+        consentRecordCid: params.consentRecordCid,
+        allowedConsentTypes: ['joinRequest', 'invitationAcceptance', 'networkJoin'],
       });
+      if (!verification.ok) {
+        res.status(400).json({
+          error: 'InvalidConsentEvidence',
+          message: verification.reason ?? 'Consent evidence verification failed',
+        });
+        return;
+      }
+
+      const result = await container.groupMutations.addMember({
+        cooperativeDid: params.cooperativeDid as DID,
+        memberDid: params.memberDid as DID,
+        actorDid: (callerDid ?? params.cooperativeDid) as DID,
+        roles: params.roles,
+        consentRecordUri: params.consentRecordUri,
+        consentRecordCid: params.consentRecordCid,
+        joinedAt: now,
+        reason: 'federation membership approve',
+      });
+      if (!result.ok) {
+        res.status(400).json({
+          error: 'ValidationError',
+          message: 'Invalid membership mutation',
+        });
+        return;
+      }
 
       res.status(201).json({
-        approvalRecordUri: ref.uri,
-        approvalRecordCid: ref.cid,
+        ok: true,
+        changed: result.changed,
+        auditEventId: result.auditEventId ?? null,
       });
     }),
   );

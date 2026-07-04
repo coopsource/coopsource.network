@@ -51,7 +51,7 @@ V9 (the most recent shipped architecture) and V10 (designed April 16, 2026 but n
 - **DIDs are authoritative identifiers.** Never use handles for security decisions.
 - **Cooperatives own their DIDs.** Rotation keys are held offline by cooperative governance; CSN holds the signing key only.
 - **Authority is decomposed into distinct axes.** OAuth scope (Axis 1) governs app-to-user authority. Space membership (Axis 2) governs user-to-user authority. Application logic (Axis 3) governs user-to-action authority. Labels (Axis 4) and service-auth JWTs (Axis 5) are adjacent axes. At every write checkpoint, identify which axis applies and route failure modes correctly.
-- **Arbiter spaces are the membership substrate.** The cooperative's `members` space is the single source of truth for membership. Role-spaces (`board`, `treasurer`, `officers`, member classes, custom roles) carry role authority.
+- **Group Directory / Arbiter spaces are the membership substrate.** The cooperative's `members` space is the single source of truth for membership. Role-spaces (`roles/board`, `roles/treasurer`, `roles/officers`, `classes/<slug>`, `roles/custom/<slug>`) carry role authority.
 - **GovernanceView and CoopView are separate layers.** Generic governance primitives live in GovernanceView (`community.lexicon.governance.*`). Cooperative-specific concerns live in CoopView (`network.coopsource.*`). The ten-plugin set (ARCHITECTURE-V11.md §9) is the contract between them.
 - **Records of authority live in PDS repos or arbiter-managed spaces.** PostgreSQL is a materialized projection cache for queries.
 - **Tier 2 data NEVER touches the public firehose.** It lives in members' permissioned repos for the appropriate space.
@@ -63,7 +63,7 @@ These were V9/V10 patterns; they are **no longer in force**:
 - **Bilateral membership.** `network.coopsource.org.membership` and `network.coopsource.org.memberApproval` lexicons retire. The `members` space replaces both.
 - **`VisibilityRouter` and `private_record` six-tier ACL.** V10's design was never implemented. Per-space placement at write time replaces visibility routing.
 - **RFC 9421 HTTP signatures.** Spaces with cross-arbiter space-as-member relationships subsume the closed-coop-to-closed-coop private exchange use case.
-- **Custom labeler service.** Governance labels live in the cooperative arbiter's `$labeler` space.
+- **Custom labeler service.** Governance labels live under cooperative-controlled label policy; labeler spaces are an implementation convention when supported.
 - **`IFederationClient`, `cooperative_link` table, federation outbox.** Retire in V11 Stage 8.
 - **`LocalPdsService`, `LocalPlcClient`, `LocalFederationClient`.** Already retired by V6/V9; any residual references clean up in Stage 8.
 
@@ -131,8 +131,8 @@ Layer 3: GovernanceView    (community.lexicon.governance.*)
   transparency logs, role-state derivation. Co-designed for ecosystem use.
 
 Layer 2: Arbiter           (Meri + Zicklag, Roomy team)
-  Generic group/role/space management: community DIDs, $admin,
-  role-spaces, space-as-member-of-space recursion, $publish, $labeler.
+  Generic group/role/space management: community DIDs, admin/publish/label
+  policy conventions, role-spaces, space-as-member-of-space recursion.
 
 Layer 1: ATProto Spaces    (Holmgren, Bluesky protocol)
   Protocol primitives: permissioned repos, ats:// URIs, ECMH commit chains,
@@ -263,36 +263,36 @@ Cooperatives use domain-as-handle (e.g., `@mycoop.coop`). Members use their exis
 
 **DID rotation aliasing**: V11 introduces `did_rotation_history` table; all DID-comparing code consults it. When a `did:plc` rotates, references to the old DID resolve transparently to the new one.
 
-### Membership via Arbiter Spaces (replaces bilateral membership)
+### Membership via Group Directory / Arbiter Spaces (replaces bilateral membership)
 
 V9's bilateral membership pattern retires. The cooperative's `members` space is the single source of truth. Membership operations go through the Arbiter's XRPC API.
 
 ```
 Member joins:
   1. Member authenticates via OAuth, consents to be added to the cooperative's space
-  2. Operator (Configure Space access on $admin) adds member to cooperative's
-     `members` space via the Arbiter
-  3. Spaces consumer observes the member-list change
+  2. Authorized group-policy operator adds member to cooperative's `members`
+     space through the Group Mutation / Arbiter boundary
+  3. Spaces consumer observes the direct/resolved membership change
   4. PostgreSQL `membership` table is updated as projection cache
   5. Member can now write into space-permissioned repos
 ```
 
-Roles live as separate spaces under the cooperative DID, distinguished by skey:
+Roles live as separate spaces under the cooperative DID, distinguished by `spaceKey`:
 
-| Role | Space (`did:plc:coop / nsid / skey`) |
+| Role | Space key |
 |---|---|
-| Active member roster | `network.coopsource.org.cooperative / members` |
-| Board | `network.coopsource.org.cooperative / board` |
-| Treasurer | `network.coopsource.org.cooperative / treasurer` |
-| Probationary | `network.coopsource.org.cooperative / probationary` |
-| Worker class | `network.coopsource.org.cooperative / class-worker` |
-| Custom roles | `network.coopsource.org.cooperative / <slug>` |
+| Active member roster | `members` |
+| Board | `roles/board` |
+| Treasurer | `roles/treasurer` |
+| Probationary | `roles/probationary` |
+| Worker class | `classes/worker` |
+| Custom roles | `roles/custom/<slug>` |
 
-`SpaceRef = { arbiter: DID, type: string, skey: string }` — independent of URI scheme decisions.
+`SpaceRef = { arbiterDid: DID, spaceKey: string, expectedSpaceType?: NSID }` — independent of URI scheme decisions.
 
 ### The Three-Tier Data Model (V11 reframing)
 
-**Tier 1 (Public ATProto)**: Cooperative profiles, public proposals, vote tallies, ratified agreements. In the cooperative's public repo (`$publish` space).
+**Tier 1 (Public ATProto)**: Cooperative profiles, public proposals, vote tallies, ratified agreements. In the cooperative's public repo or supported publish-space convention.
 
 **Tier 2 (Permissioned-space records)**: Closed deliberations, draft proposals, private votes, confidential agreements, private member directories, financial records. In members' **permissioned repos** for the appropriate space (`members`, `officers`, `board`). Access enforced at the protocol level by arbiter membership. **No more `private_record` table as authoritative storage** — it may persist as projection cache during transition or retire entirely.
 
@@ -327,15 +327,24 @@ Controlled by `INSTANCE_ROLE` env var:
 
 ### Three axes of authorization at every checkpoint
 
-At every write checkpoint, **OAuth scope (Axis 1)** and **space membership (Axis 2)** are both checked, by different services. **Application logic (Axis 3)** is the cooperative-specific layer that gates governance actions (eligibility, quorum, weighted voting). Labels (Axis 4) and service-auth JWTs (Axis 5) are adjacent axes.
+At every write checkpoint, **OAuth scope (Axis 1)** and **resolved group-directory membership (Axis 2)** are both checked, by different services. **Application logic (Axis 3)** is the cooperative-specific layer that gates governance actions (eligibility, quorum, weighted voting). Labels (Axis 4) and service-auth JWTs (Axis 5) are adjacent axes.
 
 When authorization fails, return errors that **name the axis** — that distinction is the difference between debuggable and tangled.
 
 ```typescript
 async function castVote(actor: DID, proposal: ProposalRef): Promise<Result<void, VoteError>> {
   // Axis 1: OAuth scope (handled by oauth middleware before this function)
-  // Axis 2: space membership
-  const inSpace = await spacesConsumer.isMember(actor, membersSpace);
+  // Axis 2: resolved space membership
+  const resolution = await groupDirectory.resolveSpaceMembers({
+    arbiterDid: coop,
+    spaceKey: 'members',
+    expectedSpaceType: 'network.coopsource.org.spaceType.members',
+    resolverDepth: 4,
+  });
+  if (!resolution.ok || resolution.partial || resolution.stale || resolution.missingSpaces.length > 0) {
+    return err({ kind: 'membership_unresolved', axis: 'spaces' });
+  }
+  const inSpace = resolution.members.some((member) => member.did === actor);
   if (!inSpace) return err({ kind: 'not_member', axis: 'spaces' });
   // Axis 3: application eligibility
   const eligible = await plugins.eligibility.checkEligibility({ ... });
@@ -366,7 +375,7 @@ Public records continue to flow through Tap (the existing firehose consumer) alo
 2. Independent DID resolution — don't trust cached data for security decisions
 3. Schema validation against lexicon
 4. Authorization check — record authored by expected DID
-5. Cross-check against arbiter's authoritative member list (records from non-members discarded)
+5. Cross-check against resolved group-directory membership (records from non-members or partial resolution discarded)
 6. Per-DID rate limiting
 7. Reject implausible timestamps
 8. Audit log every state transition with commit CID, rev, signature
@@ -463,7 +472,7 @@ export default defineConfig({
 
 **Retiring across V11 stages**:
 - `visibilityRouter`, `privateRecordService` (ACL paths) — Stages 4–5
-- `governanceLabeler` (custom labeler service) — Stage 3 (replaced by cooperative's `$labeler` space)
+- `governanceLabeler` (custom labeler service) — Stage 3 (replaced by cooperative label policy / supported labeler convention)
 - `IFederationClient`, RFC 9421 HTTP signature paths, federation outbox — Stage 8
 
 ## V11 Implementation Stages
@@ -486,15 +495,15 @@ Nine stages, sequenced logically (not by calendar). Full task lists in CLAUDE-CO
 
 1. **Don't use bilateral membership.** V9's `membership` + `memberApproval` pattern retires entirely. The cooperative's `members` space is the single source of truth.
 2. **Don't six-tier ACL.** V10's `private_record` six-tier model was never implemented and should not be revived. Per-space placement replaces it.
-3. **Don't bake `ats://` as a constant.** Upstream has not finalized the URI scheme. URI handling goes through helpers. The substrate is `SpaceRef = { arbiter: DID, type: string, skey: string }`, not a URI string.
+3. **Don't bake `ats://` as a constant.** Upstream has not finalized the URI scheme. URI handling goes through helpers. The substrate is `SpaceRef = { arbiterDid: DID, spaceKey: string, expectedSpaceType?: NSID }`, not a URI string.
 4. **Don't migrate `apps/api` onto HappyView's Lua + WASM model.** HappyView v2.5+ is a reference implementation for development and validation, not a substrate to migrate onto.
-5. **Don't run a separate labeler service.** Governance labels live in the cooperative arbiter's `$labeler` space.
+5. **Don't run a separate labeler service.** Governance labels live under cooperative-controlled label policy; labeler spaces are a convention only when the selected server supports them.
 6. **Don't use `@skyware/labeler` as a runtime dependency.** Archived February 2026. Acceptable only for one-time DID bootstrapping if needed.
 7. **Don't put application logic in the protocol layer.** The plugin set is what makes single-protocol-mechanism plus multiple-application-semantics work. Resist pushing cooperative-specific logic down into Arbiter or Spaces.
 8. **Don't conflate axes.** OAuth scope, space membership, and application eligibility are distinct. At every checkpoint, identify which axis applies. When authorization fails, return errors that name the axis.
 9. **Don't trust handles for security.** Handles are mutable; DIDs are persistent. All security decisions use DIDs.
 10. **Don't skip the `did_rotation_history` lookup.** DID equality checks must consult the rotation history table.
-11. **Don't trust records from non-members.** The spaces consumer cross-checks records against the arbiter's authoritative member list before accepting them.
+11. **Don't trust records from non-members.** The spaces consumer cross-checks records against resolved group-directory membership before accepting them and fails closed on partial or stale resolution.
 12. **Don't generate fake DIDs.** Use real `did:plc` via PlcClient.
 13. **Don't put Tier 2 data in the public firehose.** Use permissioned repos for the appropriate space.
 14. **Don't make Tier 3 (Germ DM) a required path** for governance flows until cross-platform E2EE substrate exists.
