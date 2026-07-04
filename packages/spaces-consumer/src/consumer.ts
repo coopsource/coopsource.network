@@ -144,8 +144,11 @@ export class SpacesConsumer {
 
     const isMember = resolvedMembers.members.some((member) => member.did === record.location.authorDid);
     if (!isMember) {
+      // A record authored by a non-member is an EXPECTED, successful cross-check
+      // outcome (the trust anchor discards non-member records), not a failure.
+      // memberCrossCheckFailures counts only indeterminate resolution / errors
+      // above, so health checks keyed on it are not tripped by routine traffic.
       this.recordsRejected += 1;
-      this.memberCrossCheckFailures += 1;
       try {
         await this.opts.onRejected?.({ record, reason: 'not-member' });
         return true;
