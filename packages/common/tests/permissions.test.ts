@@ -24,11 +24,21 @@ describe('PERMISSIONS', () => {
 });
 
 describe('BUILT_IN_ROLES', () => {
-  it('defines 4 built-in roles', () => {
+  it('defines 5 built-in roles', () => {
     expect(Object.keys(BUILT_IN_ROLES)).toEqual(
-      expect.arrayContaining(['member', 'coordinator', 'admin', 'observer']),
+      expect.arrayContaining([
+        'member',
+        'coordinator',
+        'admin',
+        'observer',
+        'owner',
+      ]),
     );
-    expect(Object.keys(BUILT_IN_ROLES)).toHaveLength(4);
+    expect(Object.keys(BUILT_IN_ROLES)).toHaveLength(5);
+  });
+
+  it('owner holds the wildcard permission (full authority)', () => {
+    expect(BUILT_IN_ROLES.owner.permissions).toEqual(['*']);
   });
 
   it('member role has expected permissions', () => {

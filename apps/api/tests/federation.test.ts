@@ -135,6 +135,47 @@ describe('Federation endpoints', () => {
 
       expect(res.body.axis).toBe('spaces');
     });
+
+    it('authorizes a non-admin caller who holds member.approve via their role (coordinator)', async () => {
+      // Authority is the member.approve *permission*, not a hardcoded role
+      // list — so a coordinator (who has member.approve but is not admin/owner)
+      // must be able to approve, and the admin promotes them via the port.
+      const coordinator = supertest.agent(testApp.app);
+      const reg = await coordinator
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'coord@test.com',
+          password: 'password123',
+          displayName: 'Coordinator',
+        })
+        .expect(201);
+      // Admin (this suite's logged-in agent) grants the coordinator role.
+      const mut = testApp.container.groupMutationsForDb(testApp.container.db);
+      await mut.setMemberRoles({
+        cooperativeDid: coopDid as DID,
+        memberDid: reg.body.did as DID,
+        actorDid: adminDid as DID,
+        roles: ['coordinator'],
+      });
+
+      const target = await writeConsentRecord(testApp, {
+        authorDid: adminDid,
+        cooperativeDid: coopDid,
+        consentType: 'joinRequest',
+        rkey: 'coord-approve',
+      });
+      const res = await coordinator
+        .post('/api/v1/federation/membership/approve')
+        .send({
+          cooperativeDid: coopDid,
+          memberDid: adminDid,
+          consentRecordUri: target.uri,
+          consentRecordCid: target.cid,
+          roles: ['member'],
+        })
+        .expect(201);
+      expect(res.body.ok).toBe(true);
+    });
   });
 
   describe('POST /api/v1/federation/membership/request', () => {
