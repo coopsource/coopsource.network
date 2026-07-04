@@ -18,9 +18,11 @@
 - Reads move behind ports; the CSN-DB adapter keeps serving them from the projection so behavior is unchanged except where a finding requires a fix.
 - Every task: `pnpm build && pnpm --filter <pkg> test`; full `pnpm test` before merge.
 
-## ⚠️ Decision gate before starting (user)
+## Decision recorded (user, 2026-07-04)
 
-**V2 (invitation auto-activation):** `auth-service.register()` and `/invitations/:token/accept` now create `status='active'` immediately with the invite's `intended_roles`, removing V9's pending→approve checkpoint. **Confirm with the user whether this is intended** before Task 3.7. If they want the checkpoint back, Task 3.7 restores a `pending` state + approval transition; if not, Task 3.7 is dropped and the dead `approveInvitation`/`member.approved` paths are removed instead. Do not guess.
+**V2 (invitation auto-activation): KEEP immediate-active — no approval checkpoint.** Rationale: the decision to admit the member was already made (often voted) at invite-send time, so re-approval on acceptance is redundant. The requirement is not a second approval but a *safe acceptance*: (a) the acceptance is authoritatively from the invited party, and (b) it responds to a specific invitation the cooperative actually issued — never an arbitrary "acceptance" from an unknown actor.
+
+This is the standard **addressed, single-use invitation** pattern, and the schema already supports it (`invitation.invitee_did`, `invitee_email`, `token`, `status`, `invalidated_at`). Task 3.7 implements the three properties that make immediate-active safe against a leaked token; it does NOT add a checkpoint.
 
 ---
 
@@ -90,9 +92,25 @@
 - [ ] Implement rotation-aware equality (resolve both sides through `did_rotation_history`) in the accept path.
 - [ ] Green + commit `fix(spaces-consumer): rotation-aware DID equality in accept path (V9)`.
 
-## Task 3.7: (conditional on V2 decision) invitation approval checkpoint
+## Task 3.7: Harden invitations — addressed, single-use, reference-bound (keep immediate-active)
 
-Only if the user wants the pending→approve checkpoint restored. Otherwise: remove the now-dead `approveInvitation` path and `member.approved` event. See the decision gate above.
+**Files:** `apps/api/src/services/auth-service.ts` (`register()` invitation path ~44–76, 175–186); `apps/api/src/routes/org/memberships.ts` (`/invitations/:token/accept` ~320–330); possibly `apps/api/src/services/consent-evidence-verifier.ts` (bind acceptance consent to the invitation); Tests.
+
+Three properties turn the bearer token into an addressed, unforgeable, one-time credential — immediate-active stays, the leaked-token hole closes:
+
+1. **Addressee binding.** The invitation names its target at send time; redemption must match it.
+   - New-account (email) invites: require the registration `email === invitation.invitee_email` (case-insensitive) when `invitee_email` is set. (Email possession is the out-of-band factor.)
+   - Existing-ATProto invites: require the authenticated/accepting DID `=== invitation.invitee_did` when `invitee_did` is set.
+   - A leaked token is then useless to anyone the coop didn't address.
+   - [ ] Failing test: token addressed to `alice@coop`, redeemed with `mallory@evil` → rejected; redeemed with `alice@coop` → active.
+2. **Atomic single-use consume.** Replace the read-then-later-mark (`register()` marks accepted at ~176, after member creation) with a conditional UPDATE executed **before** member creation, in the same transaction: `UPDATE invitation SET status='accepted', invitee_did=?, invalidated_at=now WHERE id=? AND status='pending' AND invalidated_at IS NULL RETURNING id`. Zero rows affected → the invitation was already consumed/expired → reject. Kills replay and concurrent double-redemption.
+   - [ ] Failing test: two concurrent redemptions of the same token → exactly one succeeds, the other 4xx; a second sequential redemption of a consumed token → rejected.
+3. **Reference binding (requirement b).** Acceptance must cite a real, open, coop-issued invitation (not an arbitrary consent). Local path: the token lookup already establishes this; ensure the `memberConsent` acceptance record's `invitationId`/reference is checked so no membership is created from a consent that doesn't correspond to an issued invitation. Cross-instance path: `consentEvidenceVerifier` for `invitationAcceptance` should additionally confirm the referenced invitation exists and is addressed to the accepter.
+   - [ ] Failing test: an `invitationAcceptance` consent that references no issued invitation (or one addressed to someone else) → rejected.
+
+Also: the expiry check already exists (keep it) and expired/consumed invitations must not resurrect. After this task, `member.approved` (Task 3.3) is dropped from the catalog — there is no approval step.
+
+**Residual risk note (document in the PR):** for a *new-account* invite the only binding factor is email possession, so a party who intercepts the invite email can still redeem before the invitee. That is the normal invite-email threat model; coops needing stronger assurance should issue `invitee_did`-bound invites (existing-ATProto path), which require authoritative DID control. No approval checkpoint is needed for either.
 
 ## Task 3.8: XRPC GroupDirectoryPort adapter (convergence)
 
@@ -104,14 +122,15 @@ Only if the user wants the pending→approve checkpoint restored. Otherwise: rem
 - [ ] Implement behind the port; wire env selection in the container; default stays `csn-db`.
 - [ ] Green + commit.
 
-## Task 3.9: Fix the federation/api test DB-port collision (infra)
+## Task 3.9: Test-DB flakiness — two issues
 
-**Files:** `packages/federation/tests/global-setup.ts` and/or `infrastructure/docker-compose.yml` port mapping / `apps/api/tests/helpers/test-db.ts`.
+**Issue A (cross-suite port collision) — DONE.** The federation Docker Postgres published on host 5432, colliding with the Homebrew Postgres the api suite uses. Fixed on `main` (`eaa57ab`): compose host port parameterized (`POSTGRES_HOST_PORT`, default 5432), federation global-setup publishes it on 5433. Verified federation 120/120 with the two instances on separate ports.
 
-**Problem:** the federation suite starts docker postgres on host `5432`, colliding with the homebrew postgres the api suite uses → intermittent `api#test` failure in full `pnpm test` (turbo serialization only partly mitigates). Per-package runs are green.
+**Issue B (intra-api shared-state flake) — OPEN.** Separate and pre-existing (seen in Phase 0 before any test changes): the api vitest config runs `fileParallelism:false, isolate:false, maxWorkers:1`, so all 81 test files share one process and the `coopsource_test` DB. ~3/834 tests fail intermittently depending on ordering/shared rows; re-runs pass. Per-package/per-file runs are green.
 
-- [ ] Move the docker federation postgres to a non-5432 host port (e.g. 5433) and point federation's connection string at it, or make the api suite use an isolated instance. Verify 5× consecutive green full `pnpm test --force`.
-- [ ] Commit `fix(test): isolate federation docker postgres from the api test DB (5432 collision)`.
+- [ ] Reproduce deterministically (run the full api suite N× to a log; identify which tests fail and what shared state they collide on — likely `truncateAllTables` gaps or module-level state under `isolate:false`).
+- [ ] Fix at the root: ensure each test file that mutates the DB truncates/seeds in `beforeEach` (not just `beforeAll`), or enable per-file isolation for the offending files. Do NOT paper over with retries.
+- [ ] Verify 5× consecutive green full `pnpm test --force`.
 
 ---
 
