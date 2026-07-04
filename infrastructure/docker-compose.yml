@@ -2,7 +2,11 @@ services:
   postgres:
     image: postgres:16-alpine
     ports:
-      - "5432:5432"
+      # Host port is parameterized so the test harness can publish the Docker
+      # Postgres on 5433 and avoid colliding with a Homebrew Postgres on 5432
+      # (the api test DB). Defaults to 5432 for `make dev`. PLC/PDS reach this
+      # container over the internal compose network regardless of host port.
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
     environment:
       POSTGRES_DB: coopsource_dev
       POSTGRES_USER: coopsource

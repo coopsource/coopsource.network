@@ -49,6 +49,11 @@ export async function setup(): Promise<void> {
   }
 
   console.log('[global-setup] Starting PDS + PLC Docker containers...');
+  // Publish the Docker Postgres on 5433 so it never collides with a Homebrew
+  // Postgres on 5432 (the api test DB) during a full `pnpm test`. PLC/PDS reach
+  // it over the internal compose network, so the host port is irrelevant to
+  // them; this setup only uses `docker compose exec` and the PLC/PDS HTTP URLs.
+  process.env.POSTGRES_HOST_PORT ??= '5433';
   try {
     // Ensure plc_dev database exists (PLC needs it)
     execSync(
