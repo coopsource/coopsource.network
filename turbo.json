@@ -30,15 +30,6 @@
       "outputs": [
         "packages/lexicons/generated/**"
       ]
-    },
-    "@coopsource/api#test": {
-      "dependsOn": [
-        "^build",
-        "@coopsource/federation#test"
-      ],
-      "passThroughEnv": [
-        "TEST_DATABASE_URL"
-      ]
     }
   }
 }
