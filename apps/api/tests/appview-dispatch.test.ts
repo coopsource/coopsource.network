@@ -257,29 +257,17 @@ describe('Hook pipeline dispatch', () => {
     expect(replaced.member_record_uri).toBe(createEvent.uri);
     expect(replaced.member_record_cid).toBe('bafynewconsent');
 
-    const staleDeleteEvent = makeEvent(
-      'network.coopsource.org.memberConsent',
-      'delete',
-      undefined,
-      { uri: createEvent.uri, cid: createEvent.cid },
-    );
-    await processFirehoseEvent(db, registry, staleDeleteEvent);
-
-    const afterStaleDelete = await db
-      .selectFrom('membership')
-      .where('member_did', '=', 'did:plc:test')
-      .where('cooperative_did', '=', 'did:plc:coop')
-      .select(['member_record_uri', 'member_record_cid'])
-      .executeTakeFirstOrThrow();
-
-    expect(afterStaleDelete.member_record_uri).toBe(createEvent.uri);
-    expect(afterStaleDelete.member_record_cid).toBe('bafynewconsent');
-
+    // Real firehose deletes carry cid='' (op.cid is null on deletes), so the
+    // pointer is cleared by (author, uri): deleting the record at the pointed
+    // uri removes the consent evidence regardless of cid version. (The former
+    // "stale delete keeps the pointer" case tested cid-versioned deletes, which
+    // ATProto never emits — a uri has one live record, and cid-matching on ''
+    // never cleared anything in production.)
     const deleteEvent = makeEvent(
       'network.coopsource.org.memberConsent',
       'delete',
       undefined,
-      { uri: createEvent.uri, cid: 'bafynewconsent' },
+      { uri: createEvent.uri, cid: '' },
     );
     await processFirehoseEvent(db, registry, deleteEvent);
 
