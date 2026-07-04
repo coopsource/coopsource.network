@@ -13,6 +13,7 @@ import type { IClock } from '@coopsource/federation';
 import type { GroupMutationPort } from '@coopsource/arbiter-client';
 import type { Actor } from '../auth/middleware.js';
 import { BCRYPT_ROUNDS } from '../lib/crypto-config.js';
+import { emitMemberJoined } from '../appview/membership-events.js';
 import type { IMemberRecordWriter } from './member-write-proxy.js';
 import type { ProfileService } from './profile-service.js';
 
@@ -171,6 +172,7 @@ export class AuthService {
     if (!authorityResult.ok) {
       throw new ValidationError('Invalid membership mutation');
     }
+    emitMemberJoined(cooperativeDid, did);
 
     // Mark invitation accepted if token provided
     if (invitation) {

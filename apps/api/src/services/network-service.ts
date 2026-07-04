@@ -6,6 +6,7 @@ import type { GroupMutationPort } from '@coopsource/arbiter-client';
 import type { IPdsService, IClock } from '@coopsource/federation';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
+import { emitMemberJoined, emitMemberDeparted } from '../appview/membership-events.js';
 
 export interface NetworkSummary {
   did: string;
@@ -345,6 +346,7 @@ export class NetworkService {
       joinedAt: now,
       reason: 'join network',
     });
+    emitMemberJoined(params.networkDid, params.cooperativeDid);
   }
 
   async leaveNetwork(
@@ -361,6 +363,7 @@ export class NetworkService {
     if (result.reason === 'not-found') {
       throw new NotFoundError('Membership not found');
     }
+    emitMemberDeparted(networkDid, cooperativeDid);
 
     // Hub discovers membership changes via firehose — no explicit notification needed
   }

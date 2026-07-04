@@ -7,6 +7,7 @@ import { requireAuth } from '../../auth/middleware.js';
 import { requirePermission } from '../../middleware/permissions.js';
 import { parsePagination } from '../../lib/pagination.js';
 import { formatInvitation } from '../../lib/formatters.js';
+import { emitMemberJoined } from '../../appview/membership-events.js';
 import {
   CreateInvitationSchema,
   AcceptInvitationSchema,
@@ -393,6 +394,9 @@ export function createMembershipRoutes(container: Container): Router {
           .where('id', '=', inv.id)
           .execute();
       });
+
+      // Emit after the transaction commits, never inside it.
+      emitMemberJoined(inv.cooperative_did, memberDid);
 
       // Set session and wait for persistence
       req.session.did = memberDid;

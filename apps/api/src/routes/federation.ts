@@ -8,6 +8,7 @@ import type { AppConfig } from '../config.js';
 import { asyncHandler } from '../lib/async-handler.js';
 import { requireFederationAuth } from '../middleware/federation-auth.js';
 import { didHasPermission } from '../middleware/permissions.js';
+import { emitMemberJoined } from '../appview/membership-events.js';
 
 /**
  * The authoritative caller identity for a federation request: the verified
@@ -289,6 +290,9 @@ export function createFederationRoutes(
           message: 'Invalid membership mutation',
         });
         return;
+      }
+      if (result.changed) {
+        emitMemberJoined(params.cooperativeDid, params.memberDid);
       }
 
       res.status(201).json({

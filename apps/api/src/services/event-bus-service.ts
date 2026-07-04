@@ -33,7 +33,7 @@ export class EventBusService {
     { type: 'proposal.resolved', description: 'A proposal was resolved' },
     { type: 'agreement.signed', description: 'An agreement was signed' },
     { type: 'member.joined', description: 'A new member joined' },
-    { type: 'member.approved', description: 'A member was approved' },
+    { type: 'member.departed', description: 'A member departed' },
     { type: 'listing.published', description: 'A commerce listing was published' },
     { type: 'need.published', description: 'A commerce need was published' },
     { type: 'intercoopAgreement.signed', description: 'An inter-coop agreement was signed' },

@@ -3,6 +3,7 @@ import supertest from 'supertest';
 import { truncateAllTables } from './helpers/test-db.js';
 import { createTestApp, setupAndLogin } from './helpers/test-app.js';
 import { resetSetupCache } from '../src/auth/middleware.js';
+import { sseEmitter, type AppEvent } from '../src/appview/sse.js';
 import type { TestApp } from './helpers/test-app.js';
 
 describe('Members & Invitations', () => {
@@ -68,6 +69,37 @@ describe('Members & Invitations', () => {
       .patch('/api/v1/members/me/visibility')
       .send({ directoryVisible: 'yes' })
       .expect(400);
+  });
+
+  // ─── lifecycle events ────────────────────────────────────────────────
+
+  it('emits member.joined on join and member.departed on removal', async () => {
+    const events: AppEvent[] = [];
+    const listener = (e: AppEvent) => events.push(e);
+    sseEmitter.on('event', listener);
+    try {
+      const joiner = supertest.agent(testApp.app);
+      const reg = await joiner
+        .post('/api/v1/auth/register')
+        .send({ email: 'joiner@test.com', password: 'password123', displayName: 'Joiner' })
+        .expect(201);
+      const joinerDid = reg.body.did as string;
+
+      const joined = events.filter((e) => e.type === 'member.joined');
+      expect(joined).toHaveLength(1);
+      expect(joined[0]!.data.did).toBe(joinerDid);
+      expect(joined[0]!.cooperativeDid).toBe(coopDid);
+
+      await testApp.agent
+        .delete(`/api/v1/members/${encodeURIComponent(joinerDid)}`)
+        .expect(204);
+
+      const departed = events.filter((e) => e.type === 'member.departed');
+      expect(departed).toHaveLength(1);
+      expect(departed[0]!.data.did).toBe(joinerDid);
+    } finally {
+      sseEmitter.off('event', listener);
+    }
   });
 
   // ─── suspend / reinstate a member ────────────────────────────────────

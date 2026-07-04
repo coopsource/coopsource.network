@@ -10,6 +10,7 @@ import type { IEmailService, IClock } from '@coopsource/federation';
 import { logger } from '../middleware/logger.js';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
+import { emitMemberJoined, emitMemberDeparted } from '../appview/membership-events.js';
 
 export interface MemberWithRoles {
   did: string;
@@ -264,6 +265,7 @@ export class MembershipService {
       joinedAt: now,
       reason: membership.status === 'pending' ? 'approve invitation' : undefined,
     }));
+    emitMemberJoined(cooperativeDid, memberDid);
   }
 
   async updateMemberRoles(
@@ -315,6 +317,7 @@ export class MembershipService {
       actorDid: actorDid as DID,
       reason,
     }));
+    emitMemberDeparted(cooperativeDid, memberDid);
   }
 
   async suspendMember(
