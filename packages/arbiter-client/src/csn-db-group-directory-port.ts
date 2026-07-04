@@ -97,23 +97,16 @@ export class CsnDbGroupDirectoryPort implements GroupDirectoryPort {
   }): Promise<ReadonlyArray<DirectSpaceMember>> {
     const space = parseCsnSpace(args);
     if (!space) return [];
-    const rows = await this.loadMembers(space);
-    return rows.map((row) => ({
-      member: { kind: 'did', did: row.member_did as DID },
-      source: {
-        adapter: 'csn-db',
-        membershipId: row.id,
-        indexedAt: toIso(row.indexed_at),
-      },
-    }));
+    const { rows } = await this.loadMembers(space);
+    return rows.map((row) => this.toDirectMember(row));
   }
 
   async resolveSpaceMembers(args: SpaceRef & {
     readonly consistency: MembershipConsistency;
     readonly resolverDepth?: number;
   }): Promise<ResolvedMembers> {
-    const directMembers = await this.getDirectSpaceMembers(args);
-    if (!parseCsnSpace(args)) {
+    const space = parseCsnSpace(args);
+    if (!space) {
       return {
         ok: false,
         directMembers: [],
@@ -125,6 +118,8 @@ export class CsnDbGroupDirectoryPort implements GroupDirectoryPort {
       };
     }
 
+    const { rows, truncated } = await this.loadMembers(space);
+    const directMembers = rows.map((row) => this.toDirectMember(row));
     const sourceRevision = rowsSourceRevisionFromDirect(directMembers);
     return {
       ok: true,
@@ -141,7 +136,12 @@ export class CsnDbGroupDirectoryPort implements GroupDirectoryPort {
           : [],
       ),
       missingSpaces: [],
-      partial: false,
+      // A truncated roster is an incomplete member list: mark it partial so the
+      // consumer's fail-closed guard trips instead of rejecting legitimate
+      // members beyond the page cap as non-members. Honoring `consistency`
+      // beyond this (paginating to completion under 'strict') is a future
+      // improvement; partial:true is the safe floor.
+      partial: truncated,
       stale: false,
       resolverDepth: args.resolverDepth ?? 0,
       sourceRevision,
@@ -149,37 +149,57 @@ export class CsnDbGroupDirectoryPort implements GroupDirectoryPort {
     };
   }
 
-  private async loadMembers(space: CsnSpace): Promise<ReadonlyArray<MemberRow | RoleMemberRow>> {
+  private toDirectMember(row: MemberRow | RoleMemberRow): DirectSpaceMember {
+    return {
+      member: { kind: 'did', did: row.member_did as DID },
+      source: {
+        adapter: 'csn-db',
+        membershipId: row.id,
+        indexedAt: toIso(row.indexed_at),
+      },
+    };
+  }
+
+  /**
+   * Load a space's direct members, capped at pageSize. Fetches one extra row to
+   * detect truncation: `truncated` is true when more members exist than the cap
+   * returns, which `resolveSpaceMembers` surfaces as `partial`.
+   */
+  private async loadMembers(
+    space: CsnSpace,
+  ): Promise<{ rows: ReadonlyArray<MemberRow | RoleMemberRow>; truncated: boolean }> {
+    const cap = this.pageSize();
+    let fetched: ReadonlyArray<MemberRow | RoleMemberRow>;
     if (space.kind === 'members') {
-      return this.activeMemberBaseQuery(space.cooperativeDid)
+      fetched = await this.activeMemberBaseQuery(space.cooperativeDid)
         .select(['membership.id', 'membership.member_did', 'membership.indexed_at'])
         .orderBy('membership.indexed_at', 'asc')
         .orderBy('membership.id', 'asc')
-        .limit(this.pageSize())
+        .limit(cap + 1)
         .execute();
-    }
-
-    if (space.kind === 'class') {
-      return this.activeMemberBaseQuery(space.cooperativeDid)
+    } else if (space.kind === 'class') {
+      fetched = await this.activeMemberBaseQuery(space.cooperativeDid)
         .where('membership.member_class', '=', space.memberClass)
         .select(['membership.id', 'membership.member_did', 'membership.indexed_at'])
         .orderBy('membership.indexed_at', 'asc')
         .orderBy('membership.id', 'asc')
-        .limit(this.pageSize())
+        .limit(cap + 1)
+        .execute();
+    } else {
+      fetched = await this.activeRoleMemberBaseQuery(space.cooperativeDid, space.role)
+        .select([
+          'membership.id',
+          'membership.member_did',
+          'membership.indexed_at',
+          'membership_role.indexed_at as role_indexed_at',
+        ])
+        .orderBy('membership.indexed_at', 'asc')
+        .orderBy('membership.id', 'asc')
+        .limit(cap + 1)
         .execute();
     }
-
-    return this.activeRoleMemberBaseQuery(space.cooperativeDid, space.role)
-      .select([
-        'membership.id',
-        'membership.member_did',
-        'membership.indexed_at',
-        'membership_role.indexed_at as role_indexed_at',
-      ])
-      .orderBy('membership.indexed_at', 'asc')
-      .orderBy('membership.id', 'asc')
-      .limit(this.pageSize())
-      .execute();
+    const truncated = fetched.length > cap;
+    return { rows: truncated ? fetched.slice(0, cap) : fetched, truncated };
   }
 
   private activeMemberBaseQuery(cooperativeDid: DID) {

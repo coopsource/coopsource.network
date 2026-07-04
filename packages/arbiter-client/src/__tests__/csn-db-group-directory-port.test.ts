@@ -85,6 +85,48 @@ describe('CsnDbGroupDirectoryPort', () => {
     expect(resolved.sourceRevision).toBe('2026-01-02T00:00:00.000Z');
   });
 
+  it('reports partial resolution when the roster is truncated at the page cap', async () => {
+    // pageSize 2, three active members → the roster is truncated, so the
+    // consumer must not treat the (incomplete) list as authoritative. Member
+    // #3 would otherwise be cross-checked against a partial list and wrongly
+    // rejected as a non-member, while partial:false silently hid the gap.
+    const directory = new CsnDbGroupDirectoryPort(
+      fakeDb({
+        memberships: [
+          membership('m1', aliceDid, 'active'),
+          membership('m2', bobDid, 'active'),
+          membership('m3', chandraDid, 'active'),
+        ],
+      }),
+      { pageSize: 2 },
+    );
+
+    const resolved = await directory.resolveSpaceMembers({
+      ...membersSpace(cooperativeDid),
+      consistency: 'strict',
+    });
+    expect(resolved.ok).toBe(true);
+    expect(resolved.partial).toBe(true);
+  });
+
+  it('reports partial:false when the roster fits within the page cap', async () => {
+    const directory = new CsnDbGroupDirectoryPort(
+      fakeDb({
+        memberships: [
+          membership('m1', aliceDid, 'active'),
+          membership('m2', bobDid, 'active'),
+        ],
+      }),
+      { pageSize: 2 },
+    );
+    const resolved = await directory.resolveSpaceMembers({
+      ...membersSpace(cooperativeDid),
+      consistency: 'strict',
+    });
+    expect(resolved.partial).toBe(false);
+    expect(resolved.members.map((m) => m.did)).toEqual([aliceDid, bobDid]);
+  });
+
   it('resolves class spaces and fails closed for unknown spaces', async () => {
     const directory = new CsnDbGroupDirectoryPort(fakeDb({
       memberships: [
