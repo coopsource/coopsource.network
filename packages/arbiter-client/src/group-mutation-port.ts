@@ -18,6 +18,8 @@ export type GroupMutationOperation =
   | 'ensure-role-space'
   | 'add-member'
   | 'remove-member'
+  | 'suspend-member'
+  | 'reinstate-member'
   | 'add-role-member'
   | 'remove-role-member'
   | 'set-member-roles';
@@ -106,6 +108,30 @@ export interface GroupMutationPort {
   addMember(args: AddMemberArgs): Promise<GroupMutationResult>;
 
   removeMember(args: {
+    readonly cooperativeDid: DID;
+    readonly memberDid: DID;
+    readonly actorDid: DID;
+    readonly reason?: string;
+    readonly auditMetadata?: UnknownLexiconObject;
+    readonly governanceOutcomeRef?: string;
+  }): Promise<GroupMutationResult>;
+
+  /**
+   * Suspend an active member: revoke standing (status → 'suspended') while
+   * keeping the membership row and its roles, so it can be reinstated. Distinct
+   * from removeMember, which departs + invalidates the membership.
+   */
+  suspendMember(args: {
+    readonly cooperativeDid: DID;
+    readonly memberDid: DID;
+    readonly actorDid: DID;
+    readonly reason?: string;
+    readonly auditMetadata?: UnknownLexiconObject;
+    readonly governanceOutcomeRef?: string;
+  }): Promise<GroupMutationResult>;
+
+  /** Reinstate a suspended member: status → 'active', roles preserved. */
+  reinstateMember(args: {
     readonly cooperativeDid: DID;
     readonly memberDid: DID;
     readonly actorDid: DID;
@@ -371,6 +397,114 @@ export class CsnDbGroupMutationPort implements GroupMutationPort {
         ok: true,
         changed: true,
         operation: 'remove-member',
+        cooperativeDid: args.cooperativeDid,
+        memberDid: args.memberDid,
+        space: membersSpace(args.cooperativeDid),
+        sourceRevision: now.toISOString(),
+        auditEventId,
+      };
+    });
+  }
+
+  async suspendMember(args: {
+    readonly cooperativeDid: DID;
+    readonly memberDid: DID;
+    readonly actorDid: DID;
+    readonly reason?: string;
+    readonly auditMetadata?: UnknownLexiconObject;
+    readonly governanceOutcomeRef?: string;
+  }): Promise<GroupMutationResult> {
+    return this.setMembershipStanding(args, {
+      from: 'active',
+      to: 'suspended',
+      operation: 'suspend-member',
+    });
+  }
+
+  async reinstateMember(args: {
+    readonly cooperativeDid: DID;
+    readonly memberDid: DID;
+    readonly actorDid: DID;
+    readonly reason?: string;
+    readonly auditMetadata?: UnknownLexiconObject;
+    readonly governanceOutcomeRef?: string;
+  }): Promise<GroupMutationResult> {
+    return this.setMembershipStanding(args, {
+      from: 'suspended',
+      to: 'active',
+      operation: 'reinstate-member',
+    });
+  }
+
+  /**
+   * Transition a member's standing between active and suspended without
+   * touching roles or invalidating the membership row. Returns not-found when
+   * no non-invalidated membership in the `from` status exists.
+   */
+  private async setMembershipStanding(
+    args: {
+      readonly cooperativeDid: DID;
+      readonly memberDid: DID;
+      readonly actorDid: DID;
+      readonly reason?: string;
+      readonly auditMetadata?: UnknownLexiconObject;
+      readonly governanceOutcomeRef?: string;
+    },
+    transition: {
+      readonly from: string;
+      readonly to: string;
+      readonly operation: 'suspend-member' | 'reinstate-member';
+    },
+  ): Promise<GroupMutationResult> {
+    return runInTransaction(this.db, async (trx) => {
+      const now = this.now();
+      const existing = await findMembershipInStatus(
+        trx,
+        args.cooperativeDid,
+        args.memberDid,
+        transition.from,
+      );
+      if (!existing) {
+        return {
+          ok: true,
+          changed: false,
+          operation: transition.operation,
+          cooperativeDid: args.cooperativeDid,
+          memberDid: args.memberDid,
+          space: membersSpace(args.cooperativeDid),
+          sourceRevision: now.toISOString(),
+          reason: 'not-found',
+        };
+      }
+
+      const roles = await loadRoles(trx, existing.id);
+      await trx
+        .updateTable('membership')
+        .set({
+          status: transition.to,
+          status_reason: args.reason ?? null,
+          indexed_at: now,
+        })
+        .where('id', '=', existing.id)
+        .execute();
+
+      const auditEventId = await insertAuditEvent(trx, {
+        cooperativeDid: args.cooperativeDid,
+        actorDid: args.actorDid,
+        operation: transition.operation,
+        memberDid: args.memberDid,
+        changedAt: now,
+        oldValue: memberAuditValue(existing, roles),
+        newValue: { memberDid: args.memberDid, status: transition.to, roles },
+        reason: args.reason ?? null,
+        auditMetadata: args.auditMetadata,
+        governanceOutcomeRef: args.governanceOutcomeRef,
+      });
+
+      return {
+        ok: true,
+        changed: true,
+        operation: transition.operation,
         cooperativeDid: args.cooperativeDid,
         memberDid: args.memberDid,
         space: membersSpace(args.cooperativeDid),
@@ -648,11 +782,20 @@ async function findActiveMembership(
   cooperativeDid: DID,
   memberDid: DID,
 ): Promise<MembershipRow | undefined> {
+  return findMembershipInStatus(db, cooperativeDid, memberDid, 'active');
+}
+
+async function findMembershipInStatus(
+  db: MutationDb,
+  cooperativeDid: DID,
+  memberDid: DID,
+  status: string,
+): Promise<MembershipRow | undefined> {
   return db
     .selectFrom('membership')
     .where('cooperative_did', '=', cooperativeDid)
     .where('member_did', '=', memberDid)
-    .where('status', '=', 'active')
+    .where('status', '=', status)
     .where('invalidated_at', 'is', null)
     .selectAll()
     .orderBy('created_at', 'desc')

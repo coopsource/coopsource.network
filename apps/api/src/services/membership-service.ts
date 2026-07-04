@@ -317,6 +317,34 @@ export class MembershipService {
     }));
   }
 
+  async suspendMember(
+    cooperativeDid: string,
+    memberDid: string,
+    reason?: string,
+    actorDid: string = cooperativeDid,
+  ): Promise<void> {
+    this.assertCommandOk(await this.groupMutations.suspendMember({
+      cooperativeDid: cooperativeDid as DID,
+      memberDid: memberDid as DID,
+      actorDid: actorDid as DID,
+      reason,
+    }));
+  }
+
+  async reinstateMember(
+    cooperativeDid: string,
+    memberDid: string,
+    reason?: string,
+    actorDid: string = cooperativeDid,
+  ): Promise<void> {
+    this.assertCommandOk(await this.groupMutations.reinstateMember({
+      cooperativeDid: cooperativeDid as DID,
+      memberDid: memberDid as DID,
+      actorDid: actorDid as DID,
+      reason,
+    }));
+  }
+
   private assertCommandOk(result: GroupMutationResult): void {
     if (result.ok && result.reason !== 'not-found') {
       return;

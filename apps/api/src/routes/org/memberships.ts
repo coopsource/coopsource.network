@@ -161,6 +161,40 @@ export function createMembershipRoutes(container: Container): Router {
     }),
   );
 
+  // POST /api/v1/members/:did/suspend — revoke standing, keep the membership.
+  router.post(
+    '/api/v1/members/:did/suspend',
+    requireAuth,
+    requirePermission('member.remove'),
+    asyncHandler(async (req, res) => {
+      const reason = (req.body as { reason?: unknown })?.reason;
+      await container.membershipService.suspendMember(
+        req.actor!.cooperativeDid,
+        validateDid(req.params.did),
+        typeof reason === 'string' ? reason : undefined,
+        req.actor!.did,
+      );
+      res.status(204).send();
+    }),
+  );
+
+  // POST /api/v1/members/:did/reinstate — restore a suspended member to active.
+  router.post(
+    '/api/v1/members/:did/reinstate',
+    requireAuth,
+    requirePermission('member.remove'),
+    asyncHandler(async (req, res) => {
+      const reason = (req.body as { reason?: unknown })?.reason;
+      await container.membershipService.reinstateMember(
+        req.actor!.cooperativeDid,
+        validateDid(req.params.did),
+        typeof reason === 'string' ? reason : undefined,
+        req.actor!.did,
+      );
+      res.status(204).send();
+    }),
+  );
+
   // ─── Invitations ────────────────────────────────────────────────────
 
   // GET /api/v1/invitations
