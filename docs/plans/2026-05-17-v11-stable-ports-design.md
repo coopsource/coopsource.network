@@ -1,3 +1,5 @@
+> **Status (2026-07-04): executed.** This design shipped as code on `main` (`packages/spaces-consumer`, `packages/arbiter-client`, the DB baseline). Implementation record; `ARCHITECTURE-V12.md` is canonical.
+
 # V11 Stable Ports Design
 
 > **Date:** May 17, 2026  

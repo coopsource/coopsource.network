@@ -1,3 +1,5 @@
+> **Status: live feature (V9.3).** Implemented by `apps/api/src/xrpc/handlers/inlay-*` and `packages/federation/src/atproto/inlay-auth-verifier.ts`. Current — not archived.
+
 # Inlay Component Developer Guide
 
 > Internal guide for CSN developers adding or modifying Inlay governance components.

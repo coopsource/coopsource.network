@@ -1,3 +1,5 @@
+> Production **deployment** setup lives in [`DEPLOYMENT.md`](../DEPLOYMENT.md); this file covers day-2 **operations** (backups, restores).
+
 # Production Operations
 
 ## Database Backups

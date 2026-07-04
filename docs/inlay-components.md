@@ -1,3 +1,5 @@
+> **Status: live feature (V9.3).** Implemented by `apps/api/src/xrpc/handlers/inlay-*` and `packages/federation/src/atproto/inlay-auth-verifier.ts`. Current — not archived.
+
 # Co-op Source Network — Inlay Governance Components
 
 > For ATProto app developers embedding CSN governance widgets via [Inlay](https://inlay.at).
