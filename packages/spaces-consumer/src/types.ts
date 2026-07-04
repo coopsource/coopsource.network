@@ -3,8 +3,13 @@ import type { DID, CID } from '@coopsource/common';
 type Brand<T, B extends string> = T & { readonly __brand: B };
 
 /**
- * Per ARCHITECTURE-V12.md §11, SpaceRef is the load-bearing substrate.
- * Independent of URI scheme decisions (ats:// vs at:// is not yet finalized upstream).
+ * Per ARCHITECTURE-V12.md §11, SpaceRef is the load-bearing substrate,
+ * independent of URI-scheme decisions. Upstream proposal 0016 settled on
+ * `at://…/space/…` (see space-uri.ts), but the scheme is still marked likely
+ * to change, so SpaceRef carries identity, not a URI.
+ *
+ * `arbiterDid` is the proposal's *space authority* DID; we keep the arbiter
+ * naming to match the `town.muni.arbiter.*` group-server lexicons.
  */
 export interface SpaceRef {
   readonly arbiterDid: DID;
@@ -70,9 +75,11 @@ export interface SpaceNotification {
   readonly space: SpaceRef;
   readonly since: string; // cursor/rev — upstream-protocol-dependent
   /**
-   * Expected ECMH digest over the records that the notification is announcing.
-   * Provided by the real notification protocol (Stage 2+). Undefined in Stage 1
-   * sketches — the fail-closed verifier rejects regardless of digest input.
+   * Expected set-hash digest over the records the notification is announcing.
+   * Upstream (proposal 0016) uses LtHash; kept algorithm-agnostic here and
+   * verified behind the repo port. Provided by the real notification protocol
+   * (Stage 2+); undefined in Stage 1 sketches — the fail-closed path rejects
+   * regardless of digest input.
    */
   readonly digest?: string;
   readonly receivedAt: Date;
