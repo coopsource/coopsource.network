@@ -2,23 +2,43 @@
   "$schema": "https://turbo.build/schema.json",
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".svelte-kit/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "dist/**",
+        ".svelte-kit/**"
+      ]
     },
     "dev": {
       "cache": false,
       "persistent": true
     },
     "test": {
-      "dependsOn": ["^build"],
-      "passThroughEnv": ["TEST_DATABASE_URL"]
+      "dependsOn": [
+        "^build"
+      ],
+      "passThroughEnv": [
+        "TEST_DATABASE_URL"
+      ]
     },
     "lint": {},
     "clean": {
       "cache": false
     },
     "lex:generate": {
-      "outputs": ["packages/lexicons/generated/**"]
+      "outputs": [
+        "packages/lexicons/generated/**"
+      ]
+    },
+    "@coopsource/api#test": {
+      "dependsOn": [
+        "^build",
+        "@coopsource/federation#test"
+      ],
+      "passThroughEnv": [
+        "TEST_DATABASE_URL"
+      ]
     }
   }
 }
