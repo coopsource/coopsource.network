@@ -3,7 +3,7 @@ import type { DID, CID } from '@coopsource/common';
 type Brand<T, B extends string> = T & { readonly __brand: B };
 
 /**
- * Per ARCHITECTURE-V11.md §17.3, SpaceRef is the load-bearing substrate.
+ * Per ARCHITECTURE-V12.md §11, SpaceRef is the load-bearing substrate.
  * Independent of URI scheme decisions (ats:// vs at:// is not yet finalized upstream).
  */
 export interface SpaceRef {
@@ -152,7 +152,7 @@ export interface ConsumerHealth {
 
 /**
  * Internal error taxonomy for the spaces consumer.
- * Distinct from the V11 5-axis authorization model (CLAUDE.md / ARCHITECTURE-V11.md §3).
+ * Distinct from the V11 5-axis authorization model (CLAUDE.md / ARCHITECTURE-V12.md §3).
  */
 export class SpacesConsumerError extends Error {
   constructor(

@@ -1,6 +1,6 @@
 # Co-op Source Network Lexicon Reference
 
-> **V11 transition snapshot:** This reference describes the current checked-in lexicons during the V11 migration. Active architecture is V11 in [ARCHITECTURE-V11.md](../../ARCHITECTURE-V11.md). V11 retires bilateral membership as active authority, retires `VisibilityRouter` as canonical private-data routing, introduces `community.lexicon.governance.*`, and moves Tier 2 data toward permissioned spaces.
+> **V11 transition snapshot:** This reference describes the current checked-in lexicons during the V12 migration. Active architecture is V12 in [ARCHITECTURE-V12.md](../../ARCHITECTURE-V12.md). V11 retires bilateral membership as active authority, retires `VisibilityRouter` as canonical private-data routing, introduces `community.lexicon.governance.*`, and moves Tier 2 data toward permissioned spaces.
 
 Co-op Source Network is a federated collaboration platform built on the AT Protocol. These lexicon schemas define the current record types and queries that cooperatives, their members, and external applications use to interact with the platform. Most schemas live under the `network.coopsource.*` namespace and are organized into 11 sub-namespaces covering organizational structure, governance, agreements, finance, operations, commerce, alignment, funding, connections, administration, and legal records.
 
