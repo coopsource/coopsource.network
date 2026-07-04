@@ -113,7 +113,7 @@ Diary 6's deliberately minimal protocol auth (one member list, reader-enforced w
 
 ## 7. CoopView (Layer 4)
 
-Cooperative-specific concerns: Subchapter T patronage & capital accounts, multi-stakeholder weighted voting, ICA principles, fiscal periods, 1099-PATR, agreements/signatures/amendments, legal documents, alignment, onboarding, AI agents, commerce. The application substance already exists across ~59 `apps/api` services; Phase 7… (no — Phase 5) codifies it as `packages/coop-view` registering plugin implementations. ATProto-native records are canonical for Subchapter T; Postgres is a projection cache.
+Cooperative-specific concerns: Subchapter T patronage & capital accounts, multi-stakeholder weighted voting, ICA principles, fiscal periods, 1099-PATR, agreements/signatures/amendments, legal documents, alignment, onboarding, AI agents, commerce. The application substance already exists across ~59 `apps/api` services; Phase 5 codifies it as `packages/coop-view` registering plugin implementations. ATProto-native records are canonical for Subchapter T; Postgres is a projection cache.
 
 ---
 

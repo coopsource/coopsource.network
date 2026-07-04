@@ -96,4 +96,10 @@ export const BUILT_IN_ROLES: Record<
   },
   admin: { permissions: ['*' as Permission] },
   observer: { permissions: ['vote.cast'] },
+  // The cooperative's ultimate authority. Full permissions like `admin`, but a
+  // distinct, enumerable role so ownership can be distributed across several
+  // DIDs (mitigating a single "god" DID) and reserved for future owner-only
+  // powers (e.g. removing other owners, dissolving the coop). Setup assigns the
+  // founder both `owner` and `admin`; additional owners can be promoted later.
+  owner: { permissions: ['*' as Permission] },
 };

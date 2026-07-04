@@ -68,11 +68,17 @@ describe('Permissions System', () => {
       .orderBy('name')
       .execute();
 
-    expect(roles).toHaveLength(4);
+    expect(roles).toHaveLength(5);
 
     const roleNames = roles.map((r) => r.name);
     expect(roleNames).toEqual(
-      expect.arrayContaining(['admin', 'coordinator', 'member', 'observer']),
+      expect.arrayContaining([
+        'owner',
+        'admin',
+        'coordinator',
+        'member',
+        'observer',
+      ]),
     );
 
     // All are built-in
@@ -80,9 +86,11 @@ describe('Permissions System', () => {
       expect(role.is_builtin).toBe(true);
     }
 
-    // Admin has wildcard
+    // Admin and owner both hold the wildcard
     const admin = roles.find((r) => r.name === 'admin')!;
     expect(admin.permissions).toEqual(['*']);
+    const owner = roles.find((r) => r.name === 'owner')!;
+    expect(owner.permissions).toEqual(['*']);
 
     // Coordinator inherits member
     const coordinator = roles.find((r) => r.name === 'coordinator')!;
