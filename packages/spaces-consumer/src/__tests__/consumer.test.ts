@@ -66,7 +66,9 @@ describe('SpacesConsumer', () => {
     expect(onRejected).toHaveBeenCalledWith({ record: eveRecord, reason: 'not-member' });
     expect(await repo.committedCheckpoint(ref)).toBe('2');
     expect(consumer.health().recordsRejected).toBe(1);
-    expect(consumer.health().memberCrossCheckFailures).toBe(1);
+    // A non-member record is an expected, successful cross-check outcome — it is
+    // rejected but is NOT a cross-check *failure*, so this counter stays 0.
+    expect(consumer.health().memberCrossCheckFailures).toBe(0);
   });
 
   it('does not call handlers or commit checkpoints when verification fails closed', async () => {
@@ -131,6 +133,8 @@ describe('SpacesConsumer', () => {
     expect(onError).toHaveBeenCalled();
     expect(await repo.committedCheckpoint(ref)).toBeUndefined();
     expect(consumer.health().recordsRejected).toBe(1);
+    // Indeterminate (stale/partial) resolution IS a genuine cross-check failure.
+    expect(consumer.health().memberCrossCheckFailures).toBe(1);
   });
 
   it('does not checkpoint when onAccepted throws', async () => {

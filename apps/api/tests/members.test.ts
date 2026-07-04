@@ -37,6 +37,75 @@ describe('Members & Invitations', () => {
     expect(admin.handle).toBeDefined();
   });
 
+  // ─── directory visibility is opt-in and member-settable ──────────────
+
+  it('PATCH /api/v1/members/me/visibility lets a member opt into the directory', async () => {
+    const before = await testApp.container.db
+      .selectFrom('membership')
+      .where('member_did', '=', adminDid)
+      .where('cooperative_did', '=', coopDid)
+      .select('directory_visible')
+      .executeTakeFirst();
+    expect(before?.directory_visible).toBe(false); // opt-in default
+
+    const res = await testApp.agent
+      .patch('/api/v1/members/me/visibility')
+      .send({ directoryVisible: true })
+      .expect(200);
+    expect(res.body.directoryVisible).toBe(true);
+
+    const after = await testApp.container.db
+      .selectFrom('membership')
+      .where('member_did', '=', adminDid)
+      .where('cooperative_did', '=', coopDid)
+      .select('directory_visible')
+      .executeTakeFirst();
+    expect(after?.directory_visible).toBe(true);
+  });
+
+  it('PATCH /api/v1/members/me/visibility rejects a non-boolean value', async () => {
+    await testApp.agent
+      .patch('/api/v1/members/me/visibility')
+      .send({ directoryVisible: 'yes' })
+      .expect(400);
+  });
+
+  // ─── suspend / reinstate a member ────────────────────────────────────
+
+  it('suspends and reinstates a member, preserving the membership row', async () => {
+    // A second active member to act on.
+    const other = supertest.agent(testApp.app);
+    const reg = await other
+      .post('/api/v1/auth/register')
+      .send({ email: 'target@test.com', password: 'password123', displayName: 'Target' })
+      .expect(201);
+    const targetDid = reg.body.did as string;
+
+    async function status() {
+      const row = await testApp.container.db
+        .selectFrom('membership')
+        .where('member_did', '=', targetDid)
+        .where('cooperative_did', '=', coopDid)
+        .select(['status', 'invalidated_at'])
+        .executeTakeFirst();
+      return row;
+    }
+    expect((await status())?.status).toBe('active');
+
+    await testApp.agent
+      .post(`/api/v1/members/${encodeURIComponent(targetDid)}/suspend`)
+      .send({ reason: 'under review' })
+      .expect(204);
+    const suspended = await status();
+    expect(suspended?.status).toBe('suspended');
+    expect(suspended?.invalidated_at).toBeNull(); // row preserved, not removed
+
+    await testApp.agent
+      .post(`/api/v1/members/${encodeURIComponent(targetDid)}/reinstate`)
+      .expect(204);
+    expect((await status())?.status).toBe('active');
+  });
+
   // ─── 2. POST /api/v1/invitations creates invitation ──────────────────
 
   it('POST /api/v1/invitations creates invitation with token, email, roles', async () => {

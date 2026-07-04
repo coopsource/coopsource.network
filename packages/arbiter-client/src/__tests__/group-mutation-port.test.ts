@@ -218,6 +218,41 @@ describe('CsnDbGroupMutationPort', () => {
     ).resolves.toMatchObject({ ok: true, changed: false, reason: 'not-found' });
   });
 
+  it('suspends and reinstates a member without dropping roles or invalidating', async () => {
+    const { db, state } = fakeDb({
+      memberships: [membership('m1', aliceDid)],
+      roles: [{ membership_id: 'm1', role: 'board', indexed_at: now }],
+    });
+    const authority = new CsnDbGroupMutationPort(db, { now: () => now });
+
+    await expect(
+      authority.suspendMember({ cooperativeDid, memberDid: aliceDid, actorDid, reason: 'under review' }),
+    ).resolves.toMatchObject({ ok: true, changed: true, operation: 'suspend-member' });
+    expect(state.memberships[0]).toMatchObject({
+      status: 'suspended',
+      status_reason: 'under review',
+      invalidated_at: null,
+    });
+    // roles preserved through suspension
+    expect(state.roles.map((r) => r.role)).toEqual(['board']);
+
+    await expect(
+      authority.reinstateMember({ cooperativeDid, memberDid: aliceDid, actorDid }),
+    ).resolves.toMatchObject({ ok: true, changed: true, operation: 'reinstate-member' });
+    expect(state.memberships[0]).toMatchObject({ status: 'active' });
+    expect(state.roles.map((r) => r.role)).toEqual(['board']);
+  });
+
+  it('returns not-found when suspending a member that is not active', async () => {
+    const { db } = fakeDb({
+      memberships: [membership('m1', aliceDid, { status: 'suspended' })],
+    });
+    const authority = new CsnDbGroupMutationPort(db, { now: () => now });
+    await expect(
+      authority.suspendMember({ cooperativeDid, memberDid: aliceDid, actorDid }),
+    ).resolves.toMatchObject({ ok: true, changed: false, reason: 'not-found' });
+  });
+
   it('requires active membership before adding role membership', async () => {
     const { db, state } = fakeDb({
       memberships: [membership('m1', aliceDid, { status: 'pending' })],

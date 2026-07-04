@@ -108,6 +108,26 @@ export function createMembershipRoutes(container: Container): Router {
     }),
   );
 
+  // PATCH /api/v1/members/me/visibility — a member sets their own directory
+  // visibility (opt-in; no permission required beyond active membership).
+  router.patch(
+    '/api/v1/members/me/visibility',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const directoryVisible = (req.body as { directoryVisible?: unknown })
+        ?.directoryVisible;
+      if (typeof directoryVisible !== 'boolean') {
+        throw new ValidationError('directoryVisible must be a boolean');
+      }
+      await container.membershipService.setDirectoryVisibility(
+        req.actor!.cooperativeDid,
+        req.actor!.did,
+        directoryVisible,
+      );
+      res.json({ directoryVisible });
+    }),
+  );
+
   // PUT /api/v1/members/:did/roles
   router.put(
     '/api/v1/members/:did/roles',
@@ -135,6 +155,40 @@ export function createMembershipRoutes(container: Container): Router {
         req.actor!.cooperativeDid,
         validateDid(req.params.did),
         undefined,
+        req.actor!.did,
+      );
+      res.status(204).send();
+    }),
+  );
+
+  // POST /api/v1/members/:did/suspend — revoke standing, keep the membership.
+  router.post(
+    '/api/v1/members/:did/suspend',
+    requireAuth,
+    requirePermission('member.remove'),
+    asyncHandler(async (req, res) => {
+      const reason = (req.body as { reason?: unknown })?.reason;
+      await container.membershipService.suspendMember(
+        req.actor!.cooperativeDid,
+        validateDid(req.params.did),
+        typeof reason === 'string' ? reason : undefined,
+        req.actor!.did,
+      );
+      res.status(204).send();
+    }),
+  );
+
+  // POST /api/v1/members/:did/reinstate — restore a suspended member to active.
+  router.post(
+    '/api/v1/members/:did/reinstate',
+    requireAuth,
+    requirePermission('member.remove'),
+    asyncHandler(async (req, res) => {
+      const reason = (req.body as { reason?: unknown })?.reason;
+      await container.membershipService.reinstateMember(
+        req.actor!.cooperativeDid,
+        validateDid(req.params.did),
+        typeof reason === 'string' ? reason : undefined,
         req.actor!.did,
       );
       res.status(204).send();
