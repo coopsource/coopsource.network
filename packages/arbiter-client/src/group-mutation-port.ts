@@ -155,6 +155,13 @@ export interface CsnDbGroupMutationPortOptions {
   readonly now?: () => Date;
 }
 
+/**
+ * Write side of the Arbiter boundary, temporarily backed by CSN's own
+ * `membership`/`membership_role` tables. Phase 3 swaps this for an XRPC
+ * adapter against the draft `town.muni.arbiter.*` mutation lexicons
+ * (createSpace / removeSpaceMember / setSpaceMemberAccess; createDid /
+ * updateDidDoc for controlled-DID provisioning). See ARCHITECTURE-V12 §4.
+ */
 export class CsnDbGroupMutationPort implements GroupMutationPort {
   constructor(
     private readonly db: MutationDb,

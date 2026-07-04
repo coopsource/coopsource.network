@@ -41,3 +41,9 @@ export {
 } from './permissioned-repo-port.js';
 export type { RejectedPermissionedRecord, SpacesConsumerOptions } from './consumer.js';
 export { SpacesConsumer } from './consumer.js';
+export type { SpaceRecordUri } from './space-uri.js';
+export {
+  formatSpaceRecordUri,
+  isSpaceRecordUri,
+  parseSpaceRecordUri,
+} from './space-uri.js';

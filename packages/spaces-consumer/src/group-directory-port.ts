@@ -29,21 +29,31 @@ export interface SpaceListPage {
   readonly stale?: boolean;
 }
 
+/**
+ * Read side of the Arbiter boundary. Method names track the draft
+ * `town.muni.arbiter.*` group-server lexicons (lexicon.garden, draft as of
+ * 2026-07-04) so the CSN-DB adapter can be swapped for an XRPC adapter in
+ * Phase 3 without changing callers. See ARCHITECTURE-V12 §4 for the mapping.
+ */
 export interface GroupDirectoryPort {
+  /** Upstream draft: town.muni.arbiter.listSpaces */
   listSpaces(args: {
     readonly arbiterDid: DID;
     readonly cursor?: MembershipCursor;
     readonly consistency: MembershipConsistency;
   }): Promise<SpaceListPage>;
 
+  /** Upstream draft: town.muni.arbiter.getSpaceConfig */
   getSpaceConfig(args: SpaceRef & {
     readonly consistency: MembershipConsistency;
   }): Promise<SpaceConfigResult>;
 
+  /** Upstream draft: town.muni.arbiter.getSpaceMembers */
   getDirectSpaceMembers(args: SpaceRef & {
     readonly consistency: MembershipConsistency;
   }): Promise<ReadonlyArray<DirectSpaceMember>>;
 
+  /** Upstream draft: town.muni.arbiter.resolveSpaceMembers (recursive resolution) */
   resolveSpaceMembers(args: SpaceRef & {
     readonly consistency: MembershipConsistency;
     readonly resolverDepth?: number;

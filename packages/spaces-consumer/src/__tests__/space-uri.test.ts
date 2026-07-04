@@ -1,0 +1,49 @@
+import { describe, it, expect } from 'vitest';
+import {
+  formatSpaceRecordUri,
+  parseSpaceRecordUri,
+  isSpaceRecordUri,
+  type SpaceRecordUri,
+} from '../space-uri.js';
+
+const sample: SpaceRecordUri = {
+  spaceDid: 'did:plc:abc',
+  spaceType: 'network.coopsource.org.members',
+  skey: 'main',
+  authorDid: 'did:plc:xyz',
+  collection: 'network.coopsource.governance.vote',
+  rkey: '3k2a4z',
+};
+
+describe('space-uri', () => {
+  it('round-trips a proposal-0016-shaped URI', () => {
+    const uri = formatSpaceRecordUri(sample);
+    expect(uri).toBe(
+      'at://did:plc:abc/space/network.coopsource.org.members/main/did:plc:xyz/network.coopsource.governance.vote/3k2a4z',
+    );
+    expect(parseSpaceRecordUri(uri)).toEqual(sample);
+    expect(isSpaceRecordUri(uri)).toBe(true);
+  });
+
+  it('returns null for a plain public at:// record URI', () => {
+    expect(parseSpaceRecordUri('at://did:plc:abc/app.bsky.feed.post/xyz')).toBeNull();
+    expect(isSpaceRecordUri('at://did:plc:abc/app.bsky.feed.post/xyz')).toBe(false);
+  });
+
+  it('returns null for wrong scheme, missing space marker, and empty components', () => {
+    expect(parseSpaceRecordUri('https://did:plc:abc/space/t/s/a/c/r')).toBeNull();
+    // 7 segments but marker is not "space"
+    expect(parseSpaceRecordUri('at://did:plc:abc/notspace/t/s/a/c/r')).toBeNull();
+    // empty skey component
+    expect(parseSpaceRecordUri('at://did:plc:abc/space/t//a/c/r')).toBeNull();
+  });
+
+  it('returns null for query/fragment suffixes and malformed input', () => {
+    const base = formatSpaceRecordUri(sample);
+    expect(parseSpaceRecordUri(`${base}?foo=1`)).toBeNull();
+    expect(parseSpaceRecordUri(`${base}#frag`)).toBeNull();
+    expect(parseSpaceRecordUri('at://did:plc:abc/space/t/s/a/c')).toBeNull(); // too few
+    expect(parseSpaceRecordUri('at://did:plc:abc/space/t/s/a/c/r/extra')).toBeNull(); // too many
+    expect(parseSpaceRecordUri('')).toBeNull();
+  });
+});
