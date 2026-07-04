@@ -1,5 +1,8 @@
 # V12 Phase 3 — Arbiter Convergence + Membership Reads Through the Port
 
+> **Progress (2026-07-04):** Merged to main — Task 3.1 (roster truncation), 3.1b (visibility opt-in endpoint), 3.3 (lifecycle events), 3.4 (consent-indexer hardening), 3.5 (suspension). **Remaining:** 3.2 (read-seam through the port, ~35 sites — use the `didHasPermission` pattern), 3.6 (DID-rotation lookup in the consumer accept path — needs a rotation-resolution port method; gated-off code), 3.7 (invitation hardening + OAuth bring-your-own-DID accept — scope against the existing oauthClient first; may span Phase 4), 3.8 (XRPC arbiter adapter — awaits a shipped arbiter server / stable town.muni.arbiter.* lexicons), 3.9 Issue B (intra-api parallel-run timeout flake — /admin/hooks times out under contention).
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: use superpowers:subagent-driven-development or superpowers:executing-plans. Steps use `- [ ]` checkboxes. Each task ends with an independently testable deliverable. TDD throughout: failing test → run-red → implement → run-green → commit.
 
 **Goal:** Complete the membership authority seam — route membership *reads* through `GroupDirectoryPort` (writes already go through `GroupMutationPort`), converge the CSN-DB adapters toward the draft `town.muni.arbiter.*` contract, and resolve the verified pre-merge review findings that belong to the membership layer.
