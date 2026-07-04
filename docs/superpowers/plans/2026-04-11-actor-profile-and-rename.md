@@ -1,3 +1,5 @@
+> **Status: shelved (not started).** Predates V11; re-scope against ARCHITECTURE-V12 before starting.
+
 # Lexicon Fixes + actor.profile Feature + Rename Cleanup Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
