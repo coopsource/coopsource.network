@@ -280,7 +280,9 @@ export class CsnDbGroupMutationPort implements GroupMutationPort {
               status: 'active',
               roles: roleChange.newRoles,
               memberClass: args.memberClass ?? existing?.member_class ?? null,
-              directoryVisible: args.directoryVisible ?? existing?.directory_visible ?? true,
+              // Mirror the insert/update default (opt-in, false) so the audit
+              // record matches the row actually written.
+              directoryVisible: args.directoryVisible ?? existing?.directory_visible ?? false,
               consentRecordUri: args.consentRecordUri ?? existing?.member_record_uri ?? null,
               consentRecordCid: args.consentRecordCid ?? existing?.member_record_cid ?? null,
             },
