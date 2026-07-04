@@ -243,7 +243,10 @@ export class CsnDbGroupMutationPort implements GroupMutationPort {
             joined_at: args.joinedAt ?? now,
             departed_at: null,
             status_reason: null,
-            directory_visible: args.directoryVisible ?? true,
+            // Directory visibility is opt-in (matches the column default and
+            // V9 behavior): members appear in unauthenticated listings only
+            // if they explicitly chose to.
+            directory_visible: args.directoryVisible ?? false,
             created_at: now,
             created_by: args.actorDid,
             invalidated_at: null,
@@ -605,10 +608,14 @@ async function runInTransaction<T>(
   db: MutationDb,
   fn: (trx: Transaction<Database>) => Promise<T>,
 ): Promise<T> {
-  if ('transaction' in db && typeof db.transaction === 'function') {
-    return db.transaction().execute(fn);
+  // Kysely's Transaction also has a `transaction` method (it throws when
+  // called), so duck-typing on the method cannot distinguish a root Kysely
+  // from an already-open transaction; `isTransaction` is the discriminator
+  // Kysely provides for exactly this.
+  if (db.isTransaction) {
+    return fn(db as Transaction<Database>);
   }
-  return fn(db as Transaction<Database>);
+  return db.transaction().execute(fn);
 }
 
 async function findOpenMembership(

@@ -64,6 +64,48 @@ const actorDid = 'did:plc:admin' as DID;
 const now = new Date('2026-05-18T12:00:00Z');
 
 describe('CsnDbGroupMutationPort', () => {
+  it('mutates without opening a nested transaction when given an already-open transaction', async () => {
+    const { db, state } = fakeDb();
+    // Mirror real Kysely Transaction semantics: `isTransaction` is true and
+    // calling `.transaction()` throws. FakeDb's permissive transaction()
+    // masked this, which is how the setup.ts regression slipped through.
+    const trx = Object.create(db as object) as Kysely<Database>;
+    Object.defineProperty(trx, 'isTransaction', { value: true });
+    Object.defineProperty(trx, 'transaction', {
+      value: () => {
+        throw new Error('calling the transaction method for a Transaction is not supported');
+      },
+    });
+    const authority = new CsnDbGroupMutationPort(trx, { now: () => now });
+
+    const result = await authority.addMember({
+      cooperativeDid,
+      memberDid: aliceDid,
+      actorDid,
+      roles: ['member'],
+      consentRecordUri: 'at://alice/memberConsent/1',
+      consentRecordCid: 'cid-1',
+    });
+
+    expect(result).toMatchObject({ ok: true, changed: true, memberDid: aliceDid });
+    expect(state.memberships).toHaveLength(1);
+  });
+
+  it('defaults directory_visible to false — directory visibility is opt-in', async () => {
+    const { db, state } = fakeDb();
+    const authority = new CsnDbGroupMutationPort(db, { now: () => now });
+
+    await authority.addMember({
+      cooperativeDid,
+      memberDid: aliceDid,
+      actorDid,
+      consentRecordUri: 'at://alice/memberConsent/1',
+      consentRecordCid: 'cid-1',
+    });
+
+    expect(state.memberships[0]).toMatchObject({ directory_visible: false });
+  });
+
   it('adds active members, role memberships, and an audit event', async () => {
     const { db, state } = fakeDb();
     const authority = new CsnDbGroupMutationPort(db, { now: () => now });
