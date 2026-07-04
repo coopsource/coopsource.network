@@ -49,6 +49,16 @@ This is the standard **addressed, single-use invitation** pattern, and the schem
 - [ ] Route `membership-service` reads (and the federation coop-profile count) through the port method; keep the CSN-DB adapter serving from the projection.
 - [ ] Green per moved site; commit incrementally `refactor(api): route membership reads through GroupDirectoryPort`.
 
+## Task 3.1b: Directory-visibility opt-in path (review finding #5)
+
+**Files:** a member-facing route to set own `directory_visible`; `membership-service.ts`; Test.
+
+**Context:** directory-visible defaults to `false` (opt-in — user decision 2026-07-04) and the audit/insert defaults were aligned (`d1ee942`). But there is **no endpoint for a member to opt IN**, so opt-in is currently unreachable. Add a member-facing route (e.g. `PATCH /coop/:did/members/me/visibility`) letting an active member set their own `directory_visible`; do not let members set others' visibility.
+
+- [ ] Failing test: member sets visibility true → appears in `listMembers`; false → hidden.
+
+**Also note (done in the Fable-5 review pass, `v12-review-fixes`):** the federation approve-authority is now centralized on the permission model via `didHasPermission(db, coopDid, did, 'member.approve')` in `apps/api/src/middleware/permissions.ts`. Use this SAME pattern when routing membership reads/writes through the port in Task 3.2 — do not reintroduce hardcoded role lists. `owner` is now a real built-in role (`*`).
+
 ## Task 3.3: Membership lifecycle events (review finding V5)
 
 **Files:** Modify the membership write path so `member.joined`/`member.departed` (and `member.approved` if kept) emit; likely `apps/api/src/services/membership-service.ts` + the `addMember`/`removeMember` call sites (setup, auth, network, federation). Tests assert emission.
