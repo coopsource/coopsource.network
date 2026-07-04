@@ -534,49 +534,6 @@ export interface PaymentProviderConfigTable {
 }
 
 // ──────────────────────────────────────────────
-// OIDC provider (dormant — no active routes/services)
-// ──────────────────────────────────────────────
-
-export interface OidcClientTable {
-  client_id: string;
-  client_secret_hash: string | null;
-  client_name: string;
-  redirect_uris: ColumnType<string[], string | string[], string | string[]>;
-  grant_types: ColumnType<string[], string | string[], string | string[]>;
-  response_types: ColumnType<string[], string | string[], string | string[]>;
-  scope: string | null;
-  token_endpoint_auth_method: string;
-  logo_uri: string | null;
-  tos_uri: string | null;
-  policy_uri: string | null;
-  owner_did: string | null;
-  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
-  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
-}
-
-export interface OidcPayloadTable {
-  id: string;
-  model: string;
-  payload: ColumnType<Record<string, unknown>, string | Record<string, unknown>, string | Record<string, unknown>>;
-  grant_id: string | null;
-  user_code: string | null;
-  uid: string | null;
-  expires_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
-  consumed_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
-  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
-}
-
-export interface OidcConsentTable {
-  id: string;
-  client_id: string;
-  account_did: string;
-  granted_scopes: ColumnType<string[], string | string[], string | string[]>;
-  granted_claims: ColumnType<string[], string | string[], string | string[]>;
-  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
-  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
-}
-
-// ──────────────────────────────────────────────
 // AI agents, model providers & API tokens
 // ──────────────────────────────────────────────
 
@@ -983,11 +940,6 @@ export interface Database {
   funding_campaign: FundingCampaignTable;
   funding_pledge: FundingPledgeTable;
   payment_provider_config: PaymentProviderConfigTable;
-
-  // OIDC provider (dormant)
-  oidc_client: OidcClientTable;
-  oidc_payload: OidcPayloadTable;
-  oidc_consent: OidcConsentTable;
 
   // AI agents, model providers & API tokens
   model_provider_config: ModelProviderConfigTable;

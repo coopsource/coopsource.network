@@ -420,27 +420,6 @@ export const CreatePledgeSchema = z.object({
 
 export type CreatePledgeInput = z.infer<typeof CreatePledgeSchema>;
 
-// --- OIDC Client Registration ---
-
-export const RegisterOidcClientSchema = z.object({
-  client_name: z.string().min(1).max(255),
-  redirect_uris: z.array(z.string().url()).min(1).max(20),
-  grant_types: z
-    .array(z.enum(['authorization_code', 'refresh_token']))
-    .max(5)
-    .default(['authorization_code']),
-  response_types: z.array(z.string()).max(5).default(['code']),
-  token_endpoint_auth_method: z
-    .enum(['client_secret_basic', 'client_secret_post'])
-    .default('client_secret_basic'),
-  scope: z.string().optional(),
-  logo_uri: z.string().url().optional(),
-  tos_uri: z.string().url().optional(),
-  policy_uri: z.string().url().optional(),
-});
-
-export type RegisterOidcClientInput = z.infer<typeof RegisterOidcClientSchema>;
-
 // --- Automation Schemas ---
 
 export const EventTypeEnum = z.enum([
