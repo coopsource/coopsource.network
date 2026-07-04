@@ -92,6 +92,19 @@ This is the standard **addressed, single-use invitation** pattern, and the schem
 - [ ] Implement rotation-aware equality (resolve both sides through `did_rotation_history`) in the accept path.
 - [ ] Green + commit `fix(spaces-consumer): rotation-aware DID equality in accept path (V9)`.
 
+## Onboarding model (user decision 2026-07-04, community-aligned)
+
+Constraints: match ATProto community convention; give users options; **no email backend** (must deploy and have friends try it without SMTP config); minimize developer friction.
+
+Community norm as of 2026 (sources: atproto.com/specs/oauth; bluesky-social/atproto discussion #4587 "OAuth-based account creation", Jan 2026; docs.bsky.app/blog/oauth-atproto): **OAuth bring-your-own-identity is the idiomatic path** — the app never collects email/passwords; users authenticate as an existing DID via OAuth. The ecosystem is actively moving account *creation* to OAuth too (`prompt=create`, experimental), and explicitly criticizes apps that collect email+password (which is exactly what CSN's current `register()` does). Invite codes are a PDS-level gating mechanism, not app email.
+
+**CSN onboarding (in priority order):**
+1. **OAuth bring-your-own-DID — primary/idiomatic.** Invitee already has an ATProto identity (Bluesky or any PDS); they accept an invite by OAuth sign-in. DID-authoritative by construction (the OAuth flow proves DID control), so it directly satisfies "authoritatively from the invited party." Zero email, zero password, zero SMTP. CSN already has `oauthClient`/`memberWriteProxy`/`operatorWriteProxy` (V9) to build on. **This is the friction-free "friends try it out" path** — a friend with a Bluesky account just signs in.
+2. **Local email+password account — fallback only, for the identity-less.** Keep the existing `register()` as a stopgap, clearly marked non-idiomatic and slated to retire in favor of OAuth account creation (#4587) when it standardizes. Critically it needs **no email *sending*** — email is a stored login credential, not a send channel.
+3. **Invites are single-use links/codes shared out-of-band** (operator copies + hands over via DM/paste). The server never sends email. `invitee_email` becomes optional metadata, never a required channel. → **satisfies "no email backend to deploy."**
+
+**Phase split:** the OAuth bring-your-own-DID *accept* flow overlaps the OAuth work — scope it against the existing `oauthClient` login surface first. If the OAuth login/callback is already wired for existing users, invite-accept-via-OAuth can land in Task 3.7; otherwise it moves to Phase 4 (OAuth-spaces seam) and Task 3.7 hardens the local + out-of-band-link paths now. Do not collect email/passwords for OAuth users.
+
 ## Task 3.7: Harden invitations — addressed, single-use, reference-bound (keep immediate-active)
 
 **Files:** `apps/api/src/services/auth-service.ts` (`register()` invitation path ~44–76, 175–186); `apps/api/src/routes/org/memberships.ts` (`/invitations/:token/accept` ~320–330); possibly `apps/api/src/services/consent-evidence-verifier.ts` (bind acceptance consent to the invitation); Tests.
