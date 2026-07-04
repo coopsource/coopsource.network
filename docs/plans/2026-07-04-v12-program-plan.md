@@ -182,7 +182,7 @@ Expected: origin/main advances from `263ffab` past the 11 docs commits + the mer
 | `AGENTS.md` (7 lines) | Current and load-bearing (PoC posture) | Keep as-is |
 | `README.md` | Likely stale on architecture references | Audit + refresh in place |
 | `DEPLOYMENT.md` (581) / `docs/operations.md` (105) | Overlapping ops content | Verify against `Makefile`/`infrastructure/`; fold operations.md into DEPLOYMENT.md if >50% redundant, else banner-link them |
-| `docs/inlay-components.md`, `docs/inlay-developer-guide.md` | Pre-V9 "Inlay" concept (research archived since April) | Archive after grep confirms no live code references |
+| `docs/inlay-components.md`, `docs/inlay-developer-guide.md` | **Live feature docs** (correction 2026-07-04: `apps/api/src/xrpc/handlers/inlay-*`, `packages/federation` `inlay-auth-verifier.ts` implement V9.3 Inlay components) | Keep; add a status line noting the implementing modules |
 | `docs/plans/2026-05-08-*`, `2026-05-11-*` (research/direction/addendum/design-review) | Historically valuable, factually superseded on upstream state | Keep in place; add a one-line superseded banner pointing at the 2026-07-04 report and ARCHITECTURE-V12 |
 | `docs/plans/2026-05-17-*` (5 stage docs) | Executed (their content is now code on `main`) | Keep; add "executed — see packages/…" banner |
 | `docs/plans/2026-03-02-dev-environment-automation-design.md` | Verify against current `Makefile` | Banner or refresh |
@@ -191,8 +191,7 @@ Expected: origin/main advances from `263ffab` past the 11 docs commits + the mer
 
 ### Task 1.1: Apply the disposition table
 
-- [ ] Grep for live references before archiving: `grep -rn "inlay" --include="*.ts" --include="*.svelte" apps/ packages/ | grep -vi test` → expected: no hits (if hits, keep the doc and note why).
-- [ ] `git mv docs/inlay-components.md docs/inlay-developer-guide.md docs/archive/`
+- [ ] ~~Archive Inlay docs~~ Corrected: Inlay is live code (see disposition table); add status lines pointing docs at the implementing modules instead.
 - [ ] Add superseded/executed/shelved banners (one `> **Status:** …` line at top of each file listed above).
 - [ ] Fold or banner-link `docs/operations.md` ↔ `DEPLOYMENT.md` after diffing their content against `Makefile` targets.
 - [ ] Commit: `git commit -m "docs: apply V12 disposition — archive Inlay docs, banner superseded plans"`
@@ -286,6 +285,14 @@ export function parseSpaceRecordUri(uri: string): SpaceRecordUri | null; // null
 
 - [ ] Add one JSDoc line per method: `Upstream draft: town.muni.arbiter.<nsid> (lexicon.garden, draft as of 2026-07-04)` using the mapping table from ARCHITECTURE-V12 §4. No behavior change; tests stay green; commit.
 
+### Task 2.5: Pre-merge review cleanup carry-ins
+
+From `docs/plans/2026-07-04-v11-merge-review-findings.md` (verified low-severity cleanup):
+- [ ] **V12/URI parsers:** consolidate the three AT-URI parsers (`consent-evidence-verifier` regex, `common/uri.ts`, `federation` split-based) onto the canonical helper from Task 2.2; fix `federation`'s unchecked `parts[2]!` latent crash.
+- [ ] **V11/orphaned ports:** delete the superseded spaces-consumer set with zero consumers (`RepoPuller`, `NotificationSubscriber`, `ArbiterMemberList`, old `EcmhVerifier`/`CursorStore`) — pairs with the Task 2.1 rename; verify `public-api.test.ts` export assertions still hold.
+- [ ] **Reuse:** `consent-evidence-verifier` takes `IClock` (not `() => Date`); replace hand-rolled cursor codecs with a shared `packages/common` codec.
+- [ ] **Simplify:** remove dead `indexMemberApproval` stub, unused `GroupMutationContext` (re-inline sites should `extends` it), `roleResult` positional-boolean tail → options object, `normalizeRoleSpaceKey` dead `custom/` branch, and the duplicated audit-envelope across the 5 mutating methods.
+
 **Phase 2 exit:** merge to main (autonomous, `--no-ff`, tag `v12-phase-2`); `grep -rn "ECMH" --include="*.ts" packages apps` returns only historical comments that explicitly say "formerly ECMH, now LtHash".
 
 ---
@@ -303,6 +310,15 @@ export function parseSpaceRecordUri(uri: string): SpaceRecordUri | null; // null
 6. Replay protection per V12 security §: child-still-member check at write acceptance.
 
 **Exit:** no service reads `membership`/`membership_role` tables except through the ports; `SPACES_CONSUMER_ENABLED=true` in dev exercises a full notification→pull→cross-check→project loop against fixtures.
+
+**Pre-merge review carry-ins (from `docs/plans/2026-07-04-v11-merge-review-findings.md`) — resolve in this phase:**
+- **V3:** add a suspend/reinstate mutation to `GroupMutationPort` (or formally retire label-based suspension) — `status='suspended'` currently has no writer while the labeler/vote-eligibility still assume it.
+- **V5:** emit `member.joined`/`member.departed`/`member.approved` from the membership write path (all `addMember`/`removeMember` callers) — the events are advertised but dead.
+- **V10 + A2-1/A2-2/A2-4:** harden the firehose `indexMemberConsent` — verify consent evidence (don't let an unverified self-published record overwrite the join-verified pointer), fix the delete-branch `cid=''` filter, drop the dead `prevCid` branch, and stop counting expected non-member drops as `memberCrossCheckFailures`.
+- **V4:** `CsnDbGroupDirectoryPort.resolveSpaceMembers` must compute `partial` from truncation and honor `consistency:'strict'` — today it hardcodes `partial:false`, defeating the consumer's fail-closed guard for >5000-member coops.
+- **V9:** consult `did_rotation_history` in the consumer's DID-equality accept path before flipping `SPACES_CONSUMER_ENABLED` on.
+- **Read-seam:** introduce a `GroupDirectoryPort` read path and unify the divergent active/invalidated filters (`listMembers` shows non-active members; `network-service`/coop-profile count require `active`).
+- **V2 (needs user decision):** invitation redemption now goes straight to `active` with the invite's `intended_roles`, removing V9's pending→approve checkpoint. Confirm this is intended before building further onboarding on it; if not, restore a pending state.
 
 - [ ] First task: expand this phase via superpowers:writing-plans into `docs/superpowers/plans/2026-MM-DD-v12-phase-3-arbiter-convergence.md`.
 
