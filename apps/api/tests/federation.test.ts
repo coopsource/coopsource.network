@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
+import supertest from 'supertest';
 import type { DID } from '@coopsource/common';
 import { truncateAllTables } from './helpers/test-db.js';
 import { createTestApp, setupAndLogin, type TestApp } from './helpers/test-app.js';
@@ -104,6 +105,35 @@ describe('Federation endpoints', () => {
         .post('/api/v1/federation/membership/approve')
         .send({ cooperativeDid: coopDid })
         .expect(400);
+    });
+
+    it('rejects approval from a caller without authority over the cooperative (Axis 2)', async () => {
+      // A second user who self-registers is only a plain member — not an
+      // owner/admin — of the cooperative. They must not be able to approve
+      // members (and grant elevated roles) into a coop they do not manage.
+      const attacker = supertest.agent(testApp.app);
+      await attacker
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'mallory@test.com',
+          password: 'password123',
+          displayName: 'Mallory',
+        })
+        .expect(201);
+
+      const res = await attacker
+        .post('/api/v1/federation/membership/approve')
+        .send({
+          cooperativeDid: coopDid,
+          memberDid: 'did:plc:victim',
+          consentRecordUri:
+            'at://did:plc:victim/network.coopsource.org.memberConsent/x',
+          consentRecordCid: 'bafyreiabc',
+          roles: ['roles/board', 'roles/treasurer'],
+        })
+        .expect(403);
+
+      expect(res.body.axis).toBe('spaces');
     });
   });
 
