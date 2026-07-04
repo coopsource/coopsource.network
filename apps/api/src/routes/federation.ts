@@ -1,15 +1,13 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import type { DID } from '@coopsource/common';
+import type { DID, Permission } from '@coopsource/common';
 import { NotFoundError } from '@coopsource/common';
 import type { Container } from '../container.js';
 import type { DidWebResolver } from '@coopsource/federation/http';
 import type { AppConfig } from '../config.js';
 import { asyncHandler } from '../lib/async-handler.js';
 import { requireFederationAuth } from '../middleware/federation-auth.js';
-
-// Roles that carry authority to manage a cooperative's membership roster.
-const COOP_MANAGEMENT_ROLES = ['owner', 'admin'];
+import { didHasPermission } from '../middleware/permissions.js';
 
 /**
  * The authoritative caller identity for a federation request: the verified
@@ -30,30 +28,20 @@ function federationCallerDid(req: {
 /**
  * Axis 2 authority check: may `callerDid` manage membership for `cooperativeDid`?
  * True when the caller is the cooperative itself (its server signs as the coop
- * DID) or holds an active owner/admin role in that cooperative.
+ * DID) or holds the given permission via its roles — resolved through the
+ * shared role_definition model (so any role granted the permission qualifies,
+ * not a hardcoded role list; `admin`/`owner` qualify via the `'*'` wildcard,
+ * `coordinator` via an explicit `member.approve`, plain members do not).
  */
-async function callerHasCoopAuthority(
+async function callerHasCoopPermission(
   container: Container,
   callerDid: string | null,
   cooperativeDid: DID,
+  permission: Permission,
 ): Promise<boolean> {
   if (!callerDid) return false;
   if (callerDid === cooperativeDid) return true;
-  const row = await container.db
-    .selectFrom('membership')
-    .innerJoin(
-      'membership_role',
-      'membership_role.membership_id',
-      'membership.id',
-    )
-    .where('membership.cooperative_did', '=', cooperativeDid)
-    .where('membership.member_did', '=', callerDid)
-    .where('membership.status', '=', 'active')
-    .where('membership.invalidated_at', 'is', null)
-    .where('membership_role.role', 'in', COOP_MANAGEMENT_ROLES)
-    .select('membership_role.role')
-    .executeTakeFirst();
-  return row !== undefined;
+  return didHasPermission(container.db, cooperativeDid, callerDid, permission);
 }
 
 // ── Zod schemas for request validation ──
@@ -254,10 +242,11 @@ export function createFederationRoutes(
       // user or any peer signing as a DID it controls could inject an active
       // membership (with arbitrary roles) into an arbitrary cooperative.
       const callerDid = federationCallerDid(req);
-      const authorized = await callerHasCoopAuthority(
+      const authorized = await callerHasCoopPermission(
         container,
         callerDid,
         params.cooperativeDid as DID,
+        'member.approve',
       );
       if (!authorized) {
         res.status(403).json({
