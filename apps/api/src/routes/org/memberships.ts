@@ -13,6 +13,7 @@ import {
   AcceptInvitationSchema,
   UpdateRolesSchema,
   ValidationError,
+  ConflictError,
 } from '@coopsource/common';
 import { validateDid } from '../../lib/validate-params.js';
 
@@ -347,6 +348,22 @@ export function createMembershipRoutes(container: Container): Router {
 
       // All DB writes wrapped in a transaction
       await container.db.transaction().execute(async (trx) => {
+        // Atomic single-use consume FIRST: only the first accept flips the
+        // invitation pending → accepted (the WHERE status='pending' locks the
+        // row), so a token cannot be replayed or double-redeemed. A concurrent
+        // second accept sees 0 rows and rolls back this whole transaction.
+        // invitee_did is backfilled below, once the entity FK target exists.
+        const consumed = await trx
+          .updateTable('invitation')
+          .set({ status: 'accepted' })
+          .where('id', '=', inv.id)
+          .where('status', '=', 'pending')
+          .where('invalidated_at', 'is', null)
+          .executeTakeFirst();
+        if (Number(consumed.numUpdatedRows) === 0) {
+          throw new ConflictError('Invitation has already been used');
+        }
+
         // Create entity
         await trx
           .insertInto('entity')
@@ -389,10 +406,11 @@ export function createMembershipRoutes(container: Container): Router {
           throw new ValidationError('Invalid membership mutation');
         }
 
-        // Mark invitation accepted
+        // Record which DID redeemed the (already-consumed) invitation, now that
+        // the entity FK target exists.
         await trx
           .updateTable('invitation')
-          .set({ status: 'accepted', invitee_did: memberDid })
+          .set({ invitee_did: memberDid })
           .where('id', '=', inv.id)
           .execute();
       });
