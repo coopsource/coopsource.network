@@ -156,15 +156,13 @@ Also: the expiry check already exists (keep it) and expired/consumed invitations
 
 **Issue A (cross-suite port collision) — DONE.** The federation Docker Postgres published on host 5432, colliding with the Homebrew Postgres the api suite uses. Fixed on `main` (`eaa57ab`): compose host port parameterized (`POSTGRES_HOST_PORT`, default 5432), federation global-setup publishes it on 5433. Verified federation 120/120 with the two instances on separate ports.
 
-**Issue B (intra-api shared-state flake) — OPEN.** Separate and pre-existing (seen in Phase 0 before any test changes): the api vitest config runs `fileParallelism:false, isolate:false, maxWorkers:1`, so all 81 test files share one process and the `coopsource_test` DB. ~3/834 tests fail intermittently depending on ordering/shared rows; re-runs pass. Per-package/per-file runs are green.
+**Issue B (intra-api Supertest listener flake) — FIXED IN WORKTREE.** Root cause was not DB state. `createTestApp()` passed the Express app directly to `supertest.agent(app)`, which made Supertest open a fresh ephemeral `http.Server` for each request and close it after the request. In long serial runs that rapid listen/close cycle occasionally sent the next request to a local port that had already been reused by another process; captured failures showed responses such as `404 page not found` and `Invalid CSRF token` with no matching Express request log, including a failed request to `127.0.0.1:62056` while a `language_` process owned that port.
 
+Fix: `createTestApp()` now starts one owned listener per test app and passes that server to Supertest, while a Vitest setup file closes open test servers at the end of each test file. Verification: `@coopsource/api` typecheck passed; the narrowed repro (`search`, `explore`, `me-matches`) passed 20/20 before final cleanup and 5/5 after final cleanup; the full api suite passed 3/3 consecutive runs after final cleanup (`82 files`, `845 tests` each).
 
-
-**Investigation (2026-07-04):** Confirmed pre-existing (seen in Phase 0, before any V12 change) and NOT product-related — every failing test passes in isolation, and the *set* of failing tests VARIES per run (`/admin/hooks` timeouts, `xrpc-vote-eligibility` assertions, `capital-accounts` 404s), ~20-25% of full runs, even api-alone. Ruled out: federation/api DB-port collision (fixed, Issue A); cross-suite resource contention (turbo `dependsOn` serialization did not eliminate it); EventDispatcher listener accumulation on the shared `sseEmitter` (createTestApp does NOT call `eventDispatcher.start()` — only `index.ts` does, so dispatchers never subscribe in tests); the setup cache (correctly reset per file). Remaining hypothesis: an un-awaited fire-and-forget async DB write in some request path racing with the next file's `truncateAllTables` under `isolate:false` + shared DB singleton. Speculative mitigations (pool bump 5→20, turbo serialization) did NOT fix it and were reverted. **Fix direction:** either set `isolate: true` in `apps/api/vitest.config.ts` (slower, re-imports per file) and audit for un-awaited async writes, or find and await the leaking write. **Not product-blocking; verify per-package (deterministically green).**
-
-- [ ] Reproduce deterministically (run the full api suite N× to a log; identify which tests fail and what shared state they collide on — likely `truncateAllTables` gaps or module-level state under `isolate:false`).
-- [ ] Fix at the root: ensure each test file that mutates the DB truncates/seeds in `beforeEach` (not just `beforeAll`), or enable per-file isolation for the offending files. Do NOT paper over with retries.
-- [ ] Verify 5× consecutive green full `pnpm test --force`.
+- [x] Root-cause the varying 403/404/timeout/socket failures.
+- [x] Fix at the test harness boundary without retries or product-code changes.
+- [x] Verify repeated narrowed repro and repeated full `@coopsource/api` suite runs.
 
 ---
 
