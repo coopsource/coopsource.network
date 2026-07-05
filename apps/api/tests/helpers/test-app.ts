@@ -117,6 +117,7 @@ import { createXrpcRoutes, type XrpcRouteOptions } from '../../src/xrpc/dispatch
 import { buildXrpcHandlers } from '../../src/xrpc/index.js';
 import { errorHandler } from '../../src/middleware/error-handler.js';
 import { getTestDb, getTestConnectionString } from './test-db.js';
+import { trackTestServer } from './test-http-servers.js';
 
 export interface TestApp {
   app: express.Express;
@@ -389,7 +390,9 @@ export function createTestApp(options?: TestAppOptions): TestApp {
   // Error handler (must be last)
   app.use(errorHandler);
 
-  const agent = supertest.agent(app);
+  const server = app.listen(0);
+  trackTestServer(server);
+  const agent = supertest.agent(server);
 
   return { app, container, agent, clock };
 }

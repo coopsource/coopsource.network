@@ -6,6 +6,7 @@ export default defineConfig({
     environment: 'node',
     passWithNoTests: true,
     globalSetup: ['tests/helpers/vitest.setup.ts'],
+    setupFiles: ['tests/helpers/vitest.runtime.ts'],
     testTimeout: 30_000,
     fileParallelism: false,
     pool: 'forks',
