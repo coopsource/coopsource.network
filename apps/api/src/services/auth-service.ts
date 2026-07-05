@@ -48,7 +48,7 @@ export class AuthService {
         .where('token', '=', params.invitationToken)
         .where('status', '=', 'pending')
         .where('invalidated_at', 'is', null)
-        .select(['id', 'cooperative_did', 'expires_at', 'invited_by_did', 'intended_roles'])
+        .select(['id', 'cooperative_did', 'expires_at', 'invited_by_did', 'intended_roles', 'invitee_email'])
         .executeTakeFirst();
 
       if (!inv) {
@@ -56,6 +56,29 @@ export class AuthService {
       }
       if (new Date(inv.expires_at) < this.clock.now()) {
         throw new ValidationError('Invitation has expired');
+      }
+      // Addressee binding: an email-addressed invitation may only be redeemed
+      // by that email, so a leaked token is useless to anyone else. (DID-bound
+      // invites — the canonical path for existing identities — are enforced on
+      // the OAuth accept flow; see Task 3.7.)
+      if (
+        inv.invitee_email &&
+        inv.invitee_email.toLowerCase() !== params.email.toLowerCase()
+      ) {
+        throw new ValidationError('This invitation was issued to a different email address');
+      }
+      // Atomic single-use consume: only the first redeemer flips pending →
+      // accepted, so a token cannot be replayed or double-redeemed. invitee_did
+      // is backfilled once the DID is minted below.
+      const consumed = await this.db
+        .updateTable('invitation')
+        .set({ status: 'accepted', invalidated_at: this.clock.now() })
+        .where('id', '=', inv.id)
+        .where('status', '=', 'pending')
+        .where('invalidated_at', 'is', null)
+        .executeTakeFirst();
+      if (Number(consumed.numUpdatedRows) === 0) {
+        throw new ValidationError('Invitation has already been used');
       }
       invitation = {
         id: inv.id,
@@ -174,15 +197,12 @@ export class AuthService {
     }
     emitMemberJoined(cooperativeDid, did);
 
-    // Mark invitation accepted if token provided
+    // The invitation was already consumed (status→accepted) above; record which
+    // DID redeemed it now that it is minted.
     if (invitation) {
       await this.db
         .updateTable('invitation')
-        .set({
-          status: 'accepted',
-          invitee_did: did,
-          invalidated_at: now,
-        })
+        .set({ invitee_did: did })
         .where('id', '=', invitation.id)
         .execute();
     }

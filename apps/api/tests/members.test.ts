@@ -226,6 +226,54 @@ describe('Members & Invitations', () => {
     expect(acceptRes.body.member.joinedAt).toBeTruthy();
   });
 
+  it('accepts an invitation only once (single-use)', async () => {
+    const invRes = await testApp.agent
+      .post('/api/v1/invitations')
+      .send({ email: 'once@example.com', roles: ['member'] })
+      .expect(201);
+    const token = invRes.body.token;
+
+    await supertest
+      .agent(testApp.app)
+      .post(`/api/v1/invitations/${token}/accept`)
+      .send({ displayName: 'First', password: 'securepass123' })
+      .expect(201);
+
+    // A second redemption of the same token is refused.
+    await supertest
+      .agent(testApp.app)
+      .post(`/api/v1/invitations/${token}/accept`)
+      .send({ displayName: 'Second', password: 'securepass123' })
+      .expect(404);
+  });
+
+  it('rejects register with an invitation addressed to a different email', async () => {
+    const invRes = await testApp.agent
+      .post('/api/v1/invitations')
+      .send({ email: 'invited@example.com', roles: ['member'] })
+      .expect(201);
+    const token = invRes.body.token;
+
+    // Wrong email cannot redeem an email-addressed invite (leaked-token guard).
+    await supertest
+      .agent(testApp.app)
+      .post('/api/v1/auth/register')
+      .send({ email: 'attacker@example.com', password: 'password123', displayName: 'Mallory', invitationToken: token })
+      .expect(400);
+
+    // The addressed email can, and the token is then single-use.
+    await supertest
+      .agent(testApp.app)
+      .post('/api/v1/auth/register')
+      .send({ email: 'invited@example.com', password: 'password123', displayName: 'Invitee', invitationToken: token })
+      .expect(201);
+    await supertest
+      .agent(testApp.app)
+      .post('/api/v1/auth/register')
+      .send({ email: 'invited@example.com', password: 'password123', displayName: 'Again', invitationToken: token })
+      .expect(400);
+  });
+
   // ─── 4. GET /api/v1/members shows both members after invitation accept ─
 
   it('GET /api/v1/members shows both members after invitation accept', async () => {
