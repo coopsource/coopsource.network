@@ -25,9 +25,11 @@ export function createMembershipRoutes(container: Container): Router {
     requireAuth,
     asyncHandler(async (req, res) => {
       const params = parsePagination(req.query as Record<string, unknown>);
+      const statusFilter = req.query.status;
       const result = await container.membershipService.listMembers(
         req.actor!.cooperativeDid,
         params,
+        typeof statusFilter === 'string' ? { status: statusFilter } : {},
       );
 
       // Batch-load handles and emails to avoid N+1 queries

@@ -71,6 +71,38 @@ describe('Members & Invitations', () => {
       .expect(400);
   });
 
+  // ─── member roster filters to active by default ──────────────────────
+
+  it('lists only active members by default; suspended are visible with ?status=suspended', async () => {
+    const other = supertest.agent(testApp.app);
+    const reg = await other
+      .post('/api/v1/auth/register')
+      .send({ email: 'rostertest@test.com', password: 'password123', displayName: 'Roster' })
+      .expect(201);
+    const otherDid = reg.body.did as string;
+
+    // Both active → both on the default roster.
+    let list = (await testApp.agent.get('/api/v1/members').expect(200)).body.members;
+    expect(list.map((m: { did: string }) => m.did)).toEqual(
+      expect.arrayContaining([adminDid, otherDid]),
+    );
+    expect(list).toHaveLength(2);
+
+    await testApp.agent
+      .post(`/api/v1/members/${encodeURIComponent(otherDid)}/suspend`)
+      .expect(204);
+
+    // Default roster now excludes the suspended member (agrees with member count).
+    list = (await testApp.agent.get('/api/v1/members').expect(200)).body.members;
+    expect(list.map((m: { did: string }) => m.did)).toEqual([adminDid]);
+
+    // ...but an admin can still list them explicitly.
+    const suspended = (
+      await testApp.agent.get('/api/v1/members?status=suspended').expect(200)
+    ).body.members;
+    expect(suspended.map((m: { did: string }) => m.did)).toEqual([otherDid]);
+  });
+
   // ─── lifecycle events ────────────────────────────────────────────────
 
   it('emits member.joined on join and member.departed on removal', async () => {

@@ -33,12 +33,18 @@ export class MembershipService {
   async listMembers(
     cooperativeDid: string,
     params: PageParams,
+    // Defaults to the active roster so the list agrees with member counts
+    // (which filter status='active'). Pass a status to view another set, e.g.
+    // 'suspended' for an admin reinstatement view.
+    opts: { status?: string } = {},
   ): Promise<Page<MemberWithRoles>> {
+    const status = opts.status ?? 'active';
     const limit = params.limit ?? 50;
     let query = this.db
       .selectFrom('membership')
       .innerJoin('entity', 'entity.did', 'membership.member_did')
       .where('membership.cooperative_did', '=', cooperativeDid)
+      .where('membership.status', '=', status)
       .where('membership.invalidated_at', 'is', null)
       .select([
         'membership.id',
