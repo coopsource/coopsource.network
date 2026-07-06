@@ -122,13 +122,14 @@ export class XrpcPermissionedRecordWritePort
     args: PermissionedRecordCreateRequest,
   ): Promise<PermissionedRecordWriteResult> {
     const space = formatSpaceRefUri(args.space);
+    const record = recordForCollection(args.collection, args.record);
     const body = withoutUndefined({
       space,
       repo: args.authorDid,
       collection: args.collection,
       rkey: args.rkey,
       validate: this.options.validate,
-      record: args.record,
+      record,
     });
 
     const response = await this.postJson({
@@ -214,6 +215,9 @@ export class XrpcPermissionedRecordWritePort
         body,
       });
     } catch (err) {
+      if (err instanceof PermissionedRecordWriteError) {
+        throw err;
+      }
       throw new PermissionedRecordWriteError(
         'unavailable',
         `Failed to call ${params.nsid}: ${errorMessage(err)}`,
@@ -332,6 +336,23 @@ function locationFromResponseUri(
     authorDid: parsed.authorDid as DID,
     collection: parsed.collection,
     rkey: parsed.rkey,
+  };
+}
+
+function recordForCollection(
+  collection: string,
+  record: JsonObject,
+): JsonObject {
+  const explicitType = record.$type;
+  if (explicitType !== undefined && explicitType !== collection) {
+    throw new PermissionedRecordWriteError(
+      'protocol',
+      `Permissioned record $type must match collection ${collection}`,
+    );
+  }
+  return {
+    ...record,
+    $type: collection,
   };
 }
 

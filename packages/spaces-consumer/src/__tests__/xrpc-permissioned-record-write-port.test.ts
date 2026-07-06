@@ -125,7 +125,7 @@ describe('XrpcPermissionedRecordWritePort', () => {
         collection: voteCollection,
         rkey: 'vote1',
         validate: true,
-        record: { choice: 'yes' },
+        record: { $type: voteCollection, choice: 'yes' },
       },
     });
     expect(server.requests[0]?.headers.authorization).toBe(
@@ -192,6 +192,72 @@ describe('XrpcPermissionedRecordWritePort', () => {
     ).rejects.toMatchObject({
       name: 'PermissionedRecordWriteError',
       kind: 'auth',
+    });
+  });
+
+  it('rejects records whose explicit $type does not match the collection', async () => {
+    let sessionCalled = false;
+    const fetch: XrpcPermissionedRecordWriteFetch = async () => {
+      throw new Error('fetch should not be called for an invalid record');
+    };
+    const port = new XrpcPermissionedRecordWritePort({
+      fetch,
+      sessionProvider: () => {
+        sessionCalled = true;
+        return {
+          serviceUrl: 'https://pds.example',
+          accessToken: 'oauth-token',
+        };
+      },
+    });
+
+    await expect(
+      port.createRecord({
+        space: membersSpace,
+        authorDid: aliceDid,
+        collection: voteCollection,
+        record: { $type: 'network.coopsource.wrong.type', choice: 'yes' },
+      }),
+    ).rejects.toMatchObject({
+      name: 'PermissionedRecordWriteError',
+      kind: 'protocol',
+    });
+    expect(sessionCalled).toBe(false);
+  });
+
+  it('does not let an undefined $type erase the collection type', async () => {
+    const server = await startServer([
+      async () => ({
+        body: {
+          uri: formatSpaceRecordUri({
+            spaceDid: membersSpace.arbiterDid,
+            spaceType: membersSpace.expectedSpaceType!,
+            skey: membersSpace.spaceKey,
+            authorDid: aliceDid,
+            collection: voteCollection,
+            rkey: 'vote1',
+          }),
+          cid: fakeCid('bafyvote'),
+        },
+      }),
+    ]);
+    const port = new XrpcPermissionedRecordWritePort({
+      sessionProvider: () => ({
+        serviceUrl: server.url,
+        accessToken: 'oauth-token',
+      }),
+    });
+
+    await port.createRecord({
+      space: membersSpace,
+      authorDid: aliceDid,
+      collection: voteCollection,
+      record: { $type: undefined, choice: 'yes' },
+      rkey: 'vote1',
+    });
+
+    expect(server.requests[0]?.body).toMatchObject({
+      record: { $type: voteCollection, choice: 'yes' },
     });
   });
 

@@ -69,18 +69,39 @@ export class OAuthPermissionedRecordWriteSessionProvider {
 
     return {
       serviceUrl: tokenInfo.aud,
-      authenticatedFetch: authenticatedFetchForSession(session),
+      authenticatedFetch: authenticatedFetchForSession(session, tokenInfo.aud),
     };
   }
 }
 
 function authenticatedFetchForSession(
   session: OAuthPermissionedRecordWriteSession,
+  audience: string,
 ): XrpcPermissionedRecordWriteFetch {
-  return async (url, init) =>
-    session.fetchHandler(url, {
+  const expectedOrigin = originForAudience(audience);
+  return async (url, init) => {
+    const target = new URL(url);
+    if (target.origin !== expectedOrigin) {
+      throw new PermissionedRecordWriteError(
+        'auth',
+        `OAuth session audience ${expectedOrigin} cannot call ${target.origin}`,
+      );
+    }
+    return session.fetchHandler(`${target.pathname}${target.search}`, {
       method: init.method,
       headers: init.headers,
       body: init.body,
     });
+  };
+}
+
+function originForAudience(audience: string): string {
+  try {
+    return new URL(audience).origin;
+  } catch {
+    throw new PermissionedRecordWriteError(
+      'auth',
+      `OAuth session audience is not a valid URL: ${audience}`,
+    );
+  }
 }

@@ -111,9 +111,11 @@ export type {
 export { SpacesConsumer } from './consumer.js';
 export type { SpaceRecordUri, SpaceUri } from './space-uri.js';
 export {
+  fromAtprotoSpaceSkey,
   formatSpaceRecordUri,
   formatSpaceUri,
   isSpaceRecordUri,
   parseSpaceRecordUri,
   parseSpaceUri,
+  toAtprotoSpaceSkey,
 } from './space-uri.js';

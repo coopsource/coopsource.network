@@ -5,6 +5,8 @@ import {
   parseSpaceUri,
   parseSpaceRecordUri,
   isSpaceRecordUri,
+  toAtprotoSpaceSkey,
+  fromAtprotoSpaceSkey,
   type SpaceRecordUri,
   type SpaceUri,
 } from '../space-uri.js';
@@ -64,6 +66,13 @@ describe('space-uri', () => {
     expect(parseSpaceRecordUri(formatSpaceRecordUri(classSpace))).toEqual(
       classSpace,
     );
+  });
+
+  it('maps CSN slash-bearing space keys to path-safe atproto wire skeys', () => {
+    expect(toAtprotoSpaceSkey('roles/board')).toBe('roles%2Fboard');
+    expect(fromAtprotoSpaceSkey('roles%2Fboard')).toBe('roles/board');
+    expect(toAtprotoSpaceSkey('roles%2Fboard')).toBe('roles%252Fboard');
+    expect(fromAtprotoSpaceSkey('roles%252Fboard')).toBe('roles%2Fboard');
   });
 
   it('returns null for a plain public at:// record URI', () => {

@@ -66,7 +66,7 @@ describe('OAuthPermissionedRecordWriteSessionProvider', () => {
     expect(response.status).toBe(200);
     expect(fetchCalls).toEqual([
       {
-        url: 'https://pds.example/xrpc/com.atproto.space.createRecord',
+        url: '/xrpc/com.atproto.space.createRecord',
         init: {
           method: 'POST',
           headers: { accept: 'application/json' },
@@ -74,6 +74,55 @@ describe('OAuthPermissionedRecordWriteSessionProvider', () => {
         },
       },
     ]);
+  });
+
+  it('rejects authenticated fetch calls outside the OAuth audience', async () => {
+    const provider = new OAuthPermissionedRecordWriteSessionProvider(
+      new FakeOAuthClient({
+        did: authorDid,
+        async getTokenInfo() {
+          return { aud: 'https://pds.example' };
+        },
+        async fetchHandler() {
+          throw new Error('fetchHandler should not receive cross-origin calls');
+        },
+      }),
+    );
+
+    const result = await provider.sessionForWrite(writeRequest);
+
+    await expect(
+      result!.authenticatedFetch!(
+        'https://evil.example/xrpc/com.atproto.space.createRecord',
+        {
+          method: 'POST',
+          headers: {},
+          body: '{}',
+        },
+      ),
+    ).rejects.toMatchObject({
+      name: 'PermissionedRecordWriteError',
+      kind: 'auth',
+    });
+  });
+
+  it('fails closed when the OAuth audience is not a valid URL', async () => {
+    const provider = new OAuthPermissionedRecordWriteSessionProvider(
+      new FakeOAuthClient({
+        did: authorDid,
+        async getTokenInfo() {
+          return { aud: 'not a url' };
+        },
+        async fetchHandler() {
+          return new Response('{}');
+        },
+      }),
+    );
+
+    await expect(provider.sessionForWrite(writeRequest)).rejects.toMatchObject({
+      name: 'PermissionedRecordWriteError',
+      kind: 'auth',
+    });
   });
 
   it('returns null when the author has no restorable OAuth session', async () => {
