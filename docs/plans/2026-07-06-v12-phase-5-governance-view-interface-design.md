@@ -325,9 +325,11 @@ Continue `packages/coop-view` adapters without moving production service logic:
    not currently represented by `requirePermission`, prioritizing vote
    retraction ownership and any member-management owner checks. **Continued
    2026-07-06: vote retraction and delegation revocation now use the composed
-   action authorizer for service-layer ownership checks. Member-management
-   command authorization remains a separate slice because those service methods
-   still support system/bootstrap actor defaults that are not active members.**
+   action authorizer for service-layer ownership checks. Continued again with
+   `MembershipService` command authorization for invitation creation, member
+   approval, role assignment, removal, suspension, and reinstatement; the
+   cooperative DID actor path remains an explicit system/authority bypass for
+   bootstrap-style writes that are not active-member actions.**
 3. Keep delegation command extraction separate if circularity rules need to
    become CoopView-owned policy.
 

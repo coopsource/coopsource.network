@@ -488,6 +488,52 @@ describe('Permissions System', () => {
     ).resolves.toBeUndefined();
   });
 
+  it('membership service management commands use the action authorizer', async () => {
+    const { did: memberDid } = await createMemberWithRoles(testApp, {
+      email: 'service-member-authz@example.com',
+      displayName: 'Service Member Authz',
+      handle: 'service-member-authz',
+      password: 'password123',
+      roles: ['member'],
+    });
+
+    await expect(
+      testApp.container.membershipService.createInvitation({
+        cooperativeDid: coopDid,
+        invitedByDid: memberDid,
+        email: 'service-denied@example.com',
+        instanceUrl: 'http://localhost:5173',
+      }),
+    ).rejects.toThrow('Insufficient permissions');
+
+    await expect(
+      testApp.container.membershipService.updateMemberRoles(
+        coopDid,
+        memberDid,
+        ['member'],
+        memberDid,
+      ),
+    ).rejects.toThrow('Insufficient permissions');
+
+    await expect(
+      testApp.container.membershipService.updateMemberRoles(
+        coopDid,
+        memberDid,
+        ['member'],
+        adminDid,
+      ),
+    ).resolves.toBeUndefined();
+
+    await expect(
+      testApp.container.membershipService.updateMemberRoles(
+        coopDid,
+        memberDid,
+        ['member'],
+        coopDid,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
   // ─── Member role: post creation ───────────────────────────────────
 
   it('member can create threads and posts', async () => {

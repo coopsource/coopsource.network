@@ -272,6 +272,7 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     clock,
     groupMutations,
     membershipReadModel,
+    actionAuthorizer,
   );
   const labelSubscriptionManager = new LabelSubscriptionManager(db);
   const governanceLabeler = new GovernanceLabeler(db, labelSubscriptionManager);

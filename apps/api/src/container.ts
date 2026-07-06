@@ -394,6 +394,7 @@ export function createContainer(config: AppConfig): Container {
     clock,
     groupMutations,
     membershipReadModel,
+    actionAuthorizer,
   );
   const privateRecordService = new PrivateRecordService(db, clock);
   const permissionedRecordWriteSessionProvider =

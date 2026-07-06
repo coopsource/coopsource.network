@@ -6,6 +6,7 @@ type InvitationRow = Selectable<InvitationTable>;
 import type { DID } from '@coopsource/common';
 import {
   NotFoundError,
+  UnauthorizedError,
   ValidationError,
   ConflictError,
 } from '@coopsource/common';
@@ -13,6 +14,11 @@ import type {
   GroupMutationPort,
   GroupMutationResult,
 } from '@coopsource/arbiter-client';
+import { membersSpace } from '@coopsource/arbiter-client';
+import type {
+  ActionAuthorizerPlugin,
+  JsonObject,
+} from '@coopsource/governance-view';
 import type { IEmailService, IClock } from '@coopsource/federation';
 import { logger } from '../middleware/logger.js';
 import {
@@ -28,6 +34,7 @@ export class MembershipService {
     private clock: IClock,
     private groupMutations: GroupMutationPort,
     private membershipReadModel: MembershipReadModel,
+    private actionAuthorizer?: ActionAuthorizerPlugin,
   ) {}
 
   async createInvitation(params: {
@@ -38,6 +45,16 @@ export class MembershipService {
     message?: string;
     instanceUrl: string;
   }): Promise<InvitationRow> {
+    await this.authorizeMemberCommand({
+      cooperativeDid: params.cooperativeDid,
+      actorDid: params.invitedByDid,
+      action: 'member.invite',
+      payload: {
+        inviteeEmail: params.email,
+        intendedRoles: params.intendedRoles ?? ['member'],
+      },
+    });
+
     // Check for existing pending invitation to same email
     const existing = await this.db
       .selectFrom('invitation')
@@ -141,6 +158,13 @@ export class MembershipService {
     roles: string[],
     actorDid: string = cooperativeDid,
   ): Promise<void> {
+    await this.authorizeMemberCommand({
+      cooperativeDid,
+      actorDid,
+      action: 'member.approve',
+      payload: { memberDid, roles },
+    });
+
     const membership =
       await this.membershipReadModel.getProjectedMembershipStatus(
         cooperativeDid as DID,
@@ -172,6 +196,13 @@ export class MembershipService {
     roles: string[],
     actorDid: string = cooperativeDid,
   ): Promise<void> {
+    await this.authorizeMemberCommand({
+      cooperativeDid,
+      actorDid,
+      action: 'member.roles.assign',
+      payload: { memberDid, roles },
+    });
+
     this.assertCommandOk(
       await this.groupMutations.setMemberRoles({
         cooperativeDid: cooperativeDid as DID,
@@ -211,6 +242,13 @@ export class MembershipService {
     reason?: string,
     actorDid: string = cooperativeDid,
   ): Promise<void> {
+    await this.authorizeMemberCommand({
+      cooperativeDid,
+      actorDid,
+      action: 'member.remove',
+      payload: { memberDid, reason: reason ?? null },
+    });
+
     this.assertCommandOk(
       await this.groupMutations.removeMember({
         cooperativeDid: cooperativeDid as DID,
@@ -228,6 +266,13 @@ export class MembershipService {
     reason?: string,
     actorDid: string = cooperativeDid,
   ): Promise<void> {
+    await this.authorizeMemberCommand({
+      cooperativeDid,
+      actorDid,
+      action: 'member.remove',
+      payload: { memberDid, reason: reason ?? null },
+    });
+
     this.assertCommandOk(
       await this.groupMutations.suspendMember({
         cooperativeDid: cooperativeDid as DID,
@@ -244,6 +289,13 @@ export class MembershipService {
     reason?: string,
     actorDid: string = cooperativeDid,
   ): Promise<void> {
+    await this.authorizeMemberCommand({
+      cooperativeDid,
+      actorDid,
+      action: 'member.remove',
+      payload: { memberDid, reason: reason ?? null },
+    });
+
     this.assertCommandOk(
       await this.groupMutations.reinstateMember({
         cooperativeDid: cooperativeDid as DID,
@@ -262,5 +314,33 @@ export class MembershipService {
       throw new ValidationError('Role must be a non-empty string');
     }
     throw new NotFoundError('Membership not found');
+  }
+
+  private async authorizeMemberCommand(args: {
+    readonly cooperativeDid: string;
+    readonly actorDid: string;
+    readonly action: string;
+    readonly payload?: JsonObject;
+  }): Promise<void> {
+    if (!this.actionAuthorizer || args.actorDid === args.cooperativeDid) {
+      return;
+    }
+
+    const memberSpace = membersSpace(args.cooperativeDid as DID);
+    const decision = await this.actionAuthorizer.authorize({
+      actor: { did: args.actorDid },
+      cooperative: {
+        authorityDid: args.cooperativeDid,
+        spaceKey: memberSpace.spaceKey,
+        spaceType: memberSpace.expectedSpaceType,
+      },
+      action: args.action,
+      at: this.clock.now().toISOString(),
+      payload: args.payload ?? null,
+    });
+
+    if (!decision.authorized) {
+      throw new UnauthorizedError('Insufficient permissions');
+    }
   }
 }
