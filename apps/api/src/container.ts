@@ -71,6 +71,10 @@ import { FiscalPeriodService } from './services/fiscal-period-service.js';
 import { PrivateRecordService } from './services/private-record-service.js';
 import { PrivateRecordPermissionedWritePort } from './services/private-record-permissioned-write-port.js';
 import { VisibilityRouter } from './services/visibility-router.js';
+import {
+  PdsPublicGovernanceAnchorWritePort,
+  PublicGovernanceAnchorService,
+} from './services/public-governance-anchor-service.js';
 import { PatronageService } from './services/patronage-service.js';
 import { CapitalAccountService } from './services/capital-account-service.js';
 import { Tax1099Service } from './services/tax-1099-service.js';
@@ -155,6 +159,7 @@ export interface Container {
   privateRecordService: PrivateRecordService;
   permissionedRecordWriter: PermissionedRecordWritePort;
   visibilityRouter: VisibilityRouter;
+  publicGovernanceAnchorService: PublicGovernanceAnchorService;
   patronageService: PatronageService;
   capitalAccountService: CapitalAccountService;
   tax1099Service: Tax1099Service;
@@ -343,6 +348,10 @@ export function createContainer(config: AppConfig): Container {
     privateRecordService,
   );
   const visibilityRouter = new VisibilityRouter(db);
+  const publicGovernanceAnchorService = new PublicGovernanceAnchorService(
+    new PdsPublicGovernanceAnchorWritePort(pdsService),
+    () => clock.now(),
+  );
   const labelSubscriptionManager = new LabelSubscriptionManager(db);
   const labelSigner = config.COOP_ROTATION_KEY_HEX
     ? new LabelSigner(config.COOP_ROTATION_KEY_HEX)
@@ -368,6 +377,7 @@ export function createContainer(config: AppConfig): Container {
     governanceLabeler,
     visibilityRouter,
     permissionedRecordWriter,
+    publicGovernanceAnchorService,
   );
   const agreementService = new AgreementService(
     db,
@@ -566,6 +576,7 @@ export function createContainer(config: AppConfig): Container {
     privateRecordService,
     permissionedRecordWriter,
     visibilityRouter,
+    publicGovernanceAnchorService,
     patronageService,
     capitalAccountService,
     tax1099Service,

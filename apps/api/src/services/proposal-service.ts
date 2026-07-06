@@ -52,6 +52,11 @@ export interface CreateProposalInput {
 import type { IMemberRecordWriter } from './member-write-proxy.js';
 import type { GovernanceLabeler } from './governance-labeler.js';
 import type { VisibilityRouter } from './visibility-router.js';
+import type {
+  PublicGovernanceAnchorService,
+  PublicGovernanceAnchorWriteResult,
+  ProposalAnchorRecord,
+} from './public-governance-anchor-service.js';
 
 export class ProposalService {
   constructor(
@@ -63,6 +68,7 @@ export class ProposalService {
     private labeler?: GovernanceLabeler,
     private visibilityRouter?: VisibilityRouter,
     private permissionedRecordWriter?: PermissionedRecordWritePort,
+    private publicGovernanceAnchorService?: PublicGovernanceAnchorService,
   ) {}
 
   async listProposals(
@@ -288,6 +294,8 @@ export class ProposalService {
       .returningAll()
       .execute();
 
+    await this.upsertPublicGovernanceAnchor(updated!);
+
     return updated!;
   }
 
@@ -311,6 +319,8 @@ export class ProposalService {
       .where('id', '=', id)
       .returningAll()
       .execute();
+
+    await this.upsertPublicGovernanceAnchor(updated!);
 
     return updated!;
   }
@@ -546,12 +556,13 @@ export class ProposalService {
       .returningAll()
       .execute();
 
+    const publicAnchor = await this.upsertPublicGovernanceAnchor(updated!);
+
     // Emit governance label (best-effort)
-    if (
-      this.labeler &&
-      updated?.uri &&
-      shouldEmitPublicGovernanceLabel(updated.uri)
-    ) {
+    const labelSubject = updated
+      ? getPublicGovernanceLabelSubject(updated, publicAnchor)
+      : null;
+    if (this.labeler && labelSubject) {
       const labelValue =
         outcome === 'passed'
           ? 'proposal-approved'
@@ -560,12 +571,12 @@ export class ProposalService {
             : 'proposal-archived';
       await this.labeler.emitLabel(
         updated.cooperative_did,
-        updated.uri,
+        labelSubject.uri,
         labelValue as
           | 'proposal-approved'
           | 'proposal-rejected'
           | 'proposal-archived',
-        updated.cid ?? undefined,
+        labelSubject.cid,
       );
     }
 
@@ -689,6 +700,96 @@ export class ProposalService {
     }
   }
 
+  private async upsertPublicGovernanceAnchor(
+    proposal: ProposalRow,
+  ): Promise<PublicGovernanceAnchorWriteResult | null> {
+    if (
+      !this.publicGovernanceAnchorService ||
+      !proposal.uri ||
+      !isSpaceRecordUri(proposal.uri)
+    ) {
+      return null;
+    }
+
+    try {
+      const policy = await this.db
+        .selectFrom('cooperative_profile')
+        .where('entity_did', '=', proposal.cooperative_did)
+        .select([
+          'public_governance_anchors',
+          'public_governance_anchor_outcomes',
+        ])
+        .executeTakeFirst();
+
+      if (!policy) return null;
+
+      const existingAnchor = await this.db
+        .selectFrom('public_governance_anchor')
+        .where('proposal_id', '=', proposal.id)
+        .select('anchor_uri')
+        .executeTakeFirst();
+
+      const result =
+        await this.publicGovernanceAnchorService.upsertProposalAnchor({
+          policy: {
+            enabled: policy.public_governance_anchors,
+            publishOutcome: policy.public_governance_anchor_outcomes,
+          },
+          proposal: {
+            cooperativeDid: proposal.cooperative_did,
+            proposalId: proposal.id,
+            status: proposal.status,
+            outcome: proposal.outcome,
+            openedAt: proposal.opens_at,
+            closedAt: proposal.closes_at,
+            resolvedAt: proposal.resolved_at,
+          },
+          existingAnchorUri: existingAnchor?.anchor_uri as AtUri | undefined,
+        });
+
+      if (!result) return null;
+      await this.persistPublicGovernanceAnchor(proposal, result);
+      return result;
+    } catch (err) {
+      logger.warn(
+        { err, proposalId: proposal.id },
+        'Failed to publish public governance anchor',
+      );
+      return null;
+    }
+  }
+
+  private async persistPublicGovernanceAnchor(
+    proposal: ProposalRow,
+    result: PublicGovernanceAnchorWriteResult,
+  ): Promise<void> {
+    const now = this.clock.now();
+    const row = publicGovernanceAnchorRow(proposal, result.record, now);
+
+    await this.db
+      .insertInto('public_governance_anchor')
+      .values({
+        ...row,
+        anchor_uri: result.uri,
+        anchor_cid: result.cid,
+        created_at: now,
+      })
+      .onConflict((oc) =>
+        oc.column('proposal_id').doUpdateSet({
+          anchor_uri: result.uri,
+          anchor_cid: result.cid,
+          status: row.status,
+          outcome: row.outcome,
+          opened_at: row.opened_at,
+          closed_at: row.closed_at,
+          resolved_at: row.resolved_at,
+          anchor_version: row.anchor_version,
+          updated_at: now,
+        }),
+      )
+      .execute();
+  }
+
   private async _getOwnedProposal(
     id: string,
     actorDid: string,
@@ -720,4 +821,42 @@ function permissionedRecordRef(
 
 function shouldEmitPublicGovernanceLabel(uri: string): boolean {
   return !isSpaceRecordUri(uri);
+}
+
+function getPublicGovernanceLabelSubject(
+  proposal: ProposalRow,
+  publicAnchor: PublicGovernanceAnchorWriteResult | null,
+): { readonly uri: AtUri; readonly cid?: CID } | null {
+  if (proposal.uri && shouldEmitPublicGovernanceLabel(proposal.uri)) {
+    return {
+      uri: proposal.uri as AtUri,
+      cid: proposal.cid ? (proposal.cid as CID) : undefined,
+    };
+  }
+  if (publicAnchor?.record.outcome) {
+    return { uri: publicAnchor.uri, cid: publicAnchor.cid };
+  }
+  return null;
+}
+
+function publicGovernanceAnchorRow(
+  proposal: ProposalRow,
+  record: ProposalAnchorRecord,
+  updatedAt: Date,
+) {
+  return {
+    cooperative_did: proposal.cooperative_did,
+    proposal_id: proposal.id,
+    status: record.status,
+    outcome: record.outcome ?? null,
+    opened_at: dateOrNull(record.openedAt),
+    closed_at: dateOrNull(record.closedAt),
+    resolved_at: dateOrNull(record.resolvedAt),
+    anchor_version: record.anchorVersion,
+    updated_at: updatedAt,
+  };
+}
+
+function dateOrNull(value: string | undefined): Date | null {
+  return value ? new Date(value) : null;
 }

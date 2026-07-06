@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { PermissionedRecordWritePort } from '@coopsource/spaces-consumer';
 import { parseSpaceRecordUri } from '@coopsource/spaces-consumer';
+import { LEXICON_IDS } from '@coopsource/lexicons';
 import { truncateAllTables } from './helpers/test-db.js';
 import { createTestApp, setupAndLogin } from './helpers/test-app.js';
 import { resetSetupCache } from '../src/auth/middleware.js';
@@ -18,6 +19,8 @@ describe('Governance Visibility', () => {
     const res = await testApp.agent.get('/api/v1/cooperative').expect(200);
 
     expect(res.body.governanceVisibility).toBe('open');
+    expect(res.body.publicGovernanceAnchors).toBe(false);
+    expect(res.body.publicGovernanceAnchorOutcomes).toBe(false);
   });
 
   it('defaults public governance anchors to disabled', async () => {
@@ -59,6 +62,34 @@ describe('Governance Visibility', () => {
       .expect(200);
 
     expect(res.body.governanceVisibility).toBe('mixed');
+  });
+
+  it('updates public governance anchor policy flags', async () => {
+    const testApp = createTestApp();
+    const { coopDid } = await setupAndLogin(testApp);
+
+    const res = await testApp.agent
+      .put('/api/v1/cooperative')
+      .send({
+        publicGovernanceAnchors: true,
+        publicGovernanceAnchorOutcomes: true,
+      })
+      .expect(200);
+
+    expect(res.body.publicGovernanceAnchors).toBe(true);
+    expect(res.body.publicGovernanceAnchorOutcomes).toBe(true);
+
+    const profile = await testApp.container.db
+      .selectFrom('cooperative_profile')
+      .where('entity_did', '=', coopDid)
+      .select([
+        'public_governance_anchors',
+        'public_governance_anchor_outcomes',
+      ])
+      .executeTakeFirstOrThrow();
+
+    expect(profile.public_governance_anchors).toBe(true);
+    expect(profile.public_governance_anchor_outcomes).toBe(true);
   });
 
   it('rejects invalid governance visibility values', async () => {
@@ -420,6 +451,184 @@ describe('Governance Visibility', () => {
     const labels = await testApp.container.db
       .selectFrom('governance_label')
       .where('subject_uri', '=', proposal.uri)
+      .selectAll()
+      .execute();
+    expect(labels).toHaveLength(0);
+
+    const anchors = await testApp.container.db
+      .selectFrom('public_governance_anchor')
+      .where('proposal_id', '=', proposalRes.body.id)
+      .selectAll()
+      .execute();
+    expect(anchors).toHaveLength(0);
+  });
+
+  it('publishes closed-governance anchors and labels the anchor when explicitly enabled', async () => {
+    const testApp = createTestApp();
+    const { coopDid } = await setupAndLogin(testApp);
+
+    await testApp.agent
+      .put('/api/v1/cooperative')
+      .send({
+        governanceVisibility: 'closed',
+        publicGovernanceAnchors: true,
+        publicGovernanceAnchorOutcomes: true,
+      })
+      .expect(200);
+
+    const proposalRes = await testApp.agent
+      .post('/api/v1/proposals')
+      .send({
+        title: 'Private anchored resolution',
+        body: 'Private proposal content must not be in the anchor',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+      })
+      .expect(201);
+
+    const draftAnchors = await testApp.container.db
+      .selectFrom('public_governance_anchor')
+      .where('proposal_id', '=', proposalRes.body.id)
+      .selectAll()
+      .execute();
+    expect(draftAnchors).toHaveLength(0);
+
+    await testApp.agent
+      .post(`/api/v1/proposals/${proposalRes.body.id}/open`)
+      .expect(200);
+
+    const openedAnchor = await testApp.container.db
+      .selectFrom('public_governance_anchor')
+      .where('proposal_id', '=', proposalRes.body.id)
+      .selectAll()
+      .executeTakeFirstOrThrow();
+    expect(openedAnchor.cooperative_did).toBe(coopDid);
+    expect(openedAnchor.status).toBe('open');
+    expect(openedAnchor.outcome).toBeNull();
+
+    await testApp.agent
+      .post(`/api/v1/proposals/${proposalRes.body.id}/vote`)
+      .send({ choice: 'yes', rationale: 'Private rationale' })
+      .expect(201);
+    await testApp.agent
+      .post(`/api/v1/proposals/${proposalRes.body.id}/close`)
+      .expect(200);
+
+    const closedAnchor = await testApp.container.db
+      .selectFrom('public_governance_anchor')
+      .where('proposal_id', '=', proposalRes.body.id)
+      .selectAll()
+      .executeTakeFirstOrThrow();
+    expect(closedAnchor.anchor_uri).toBe(openedAnchor.anchor_uri);
+    expect(closedAnchor.status).toBe('closed');
+    expect(closedAnchor.outcome).toBeNull();
+
+    await testApp.agent
+      .post(`/api/v1/proposals/${proposalRes.body.id}/resolve`)
+      .expect(200);
+
+    const resolvedAnchor = await testApp.container.db
+      .selectFrom('public_governance_anchor')
+      .where('proposal_id', '=', proposalRes.body.id)
+      .selectAll()
+      .executeTakeFirstOrThrow();
+    expect(resolvedAnchor.anchor_uri).toBe(openedAnchor.anchor_uri);
+    expect(resolvedAnchor.status).toBe('resolved');
+    expect(resolvedAnchor.outcome).toBe('passed');
+
+    const proposal = await testApp.container.db
+      .selectFrom('proposal')
+      .where('id', '=', proposalRes.body.id)
+      .select(['uri'])
+      .executeTakeFirstOrThrow();
+    const labelsOnPrivateProposal = await testApp.container.db
+      .selectFrom('governance_label')
+      .where('subject_uri', '=', proposal.uri)
+      .selectAll()
+      .execute();
+    expect(labelsOnPrivateProposal).toHaveLength(0);
+
+    const labelsOnAnchor = await testApp.container.db
+      .selectFrom('governance_label')
+      .where('subject_uri', '=', resolvedAnchor.anchor_uri)
+      .selectAll()
+      .execute();
+    expect(labelsOnAnchor).toHaveLength(1);
+    expect(labelsOnAnchor[0]!.label_value).toBe('proposal-approved');
+
+    const publicRecord = await testApp.container.db
+      .selectFrom('pds_record')
+      .where('uri', '=', resolvedAnchor.anchor_uri)
+      .select('content')
+      .executeTakeFirstOrThrow();
+    const anchorRecord =
+      typeof publicRecord.content === 'string'
+        ? JSON.parse(publicRecord.content)
+        : publicRecord.content;
+    expect(anchorRecord).toMatchObject({
+      $type: LEXICON_IDS.GovernanceProposalAnchor,
+      cooperativeDid: coopDid,
+      proposalId: proposalRes.body.id,
+      status: 'resolved',
+      outcome: 'passed',
+      anchorVersion: 1,
+    });
+    expect(anchorRecord).not.toHaveProperty('title');
+    expect(anchorRecord).not.toHaveProperty('body');
+    expect(anchorRecord).not.toHaveProperty('options');
+    expect(anchorRecord).not.toHaveProperty('authorDid');
+    expect(anchorRecord).not.toHaveProperty('privateProposalUri');
+    expect(anchorRecord).not.toHaveProperty('voterDids');
+    expect(anchorRecord).not.toHaveProperty('tally');
+  });
+
+  it('does not emit private proposal outcome labels when anchor outcomes are disabled', async () => {
+    const testApp = createTestApp();
+    await setupAndLogin(testApp);
+
+    await testApp.agent
+      .put('/api/v1/cooperative')
+      .send({
+        governanceVisibility: 'closed',
+        publicGovernanceAnchors: true,
+        publicGovernanceAnchorOutcomes: false,
+      })
+      .expect(200);
+
+    const proposalRes = await testApp.agent
+      .post('/api/v1/proposals')
+      .send({
+        title: 'Private anchor without outcome',
+        body: 'Outcome labels should stay private',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+      })
+      .expect(201);
+
+    await testApp.agent
+      .post(`/api/v1/proposals/${proposalRes.body.id}/open`)
+      .expect(200);
+    await testApp.agent
+      .post(`/api/v1/proposals/${proposalRes.body.id}/vote`)
+      .send({ choice: 'yes' })
+      .expect(201);
+    await testApp.agent
+      .post(`/api/v1/proposals/${proposalRes.body.id}/close`)
+      .expect(200);
+    await testApp.agent
+      .post(`/api/v1/proposals/${proposalRes.body.id}/resolve`)
+      .expect(200);
+
+    const anchor = await testApp.container.db
+      .selectFrom('public_governance_anchor')
+      .where('proposal_id', '=', proposalRes.body.id)
+      .selectAll()
+      .executeTakeFirstOrThrow();
+    expect(anchor.status).toBe('resolved');
+    expect(anchor.outcome).toBeNull();
+
+    const labels = await testApp.container.db
+      .selectFrom('governance_label')
       .selectAll()
       .execute();
     expect(labels).toHaveLength(0);

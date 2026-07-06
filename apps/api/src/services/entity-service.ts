@@ -31,6 +31,8 @@ export class EntityService {
       public_activity: boolean;
       public_agreements: boolean;
       public_campaigns: boolean;
+      public_governance_anchors: boolean;
+      public_governance_anchor_outcomes: boolean;
       governance_visibility: string;
     };
   } | null> {
@@ -62,6 +64,8 @@ export class EntityService {
         'cooperative_profile.public_activity',
         'cooperative_profile.public_agreements',
         'cooperative_profile.public_campaigns',
+        'cooperative_profile.public_governance_anchors',
+        'cooperative_profile.public_governance_anchor_outcomes',
         'cooperative_profile.governance_visibility',
       ])
       .executeTakeFirst();
@@ -90,6 +94,9 @@ export class EntityService {
         public_activity: row.public_activity,
         public_agreements: row.public_agreements,
         public_campaigns: row.public_campaigns,
+        public_governance_anchors: row.public_governance_anchors,
+        public_governance_anchor_outcomes:
+          row.public_governance_anchor_outcomes,
         governance_visibility: row.governance_visibility,
       },
     };
@@ -119,6 +126,8 @@ export class EntityService {
       public_activity: boolean;
       public_agreements: boolean;
       public_campaigns: boolean;
+      public_governance_anchors: boolean;
+      public_governance_anchor_outcomes: boolean;
       governance_visibility: string;
     };
   } | null> {
@@ -153,6 +162,8 @@ export class EntityService {
         'cooperative_profile.public_activity',
         'cooperative_profile.public_agreements',
         'cooperative_profile.public_campaigns',
+        'cooperative_profile.public_governance_anchors',
+        'cooperative_profile.public_governance_anchor_outcomes',
         'cooperative_profile.governance_visibility',
       ])
       .executeTakeFirst();
@@ -183,6 +194,9 @@ export class EntityService {
         public_activity: row.public_activity,
         public_agreements: row.public_agreements,
         public_campaigns: row.public_campaigns,
+        public_governance_anchors: row.public_governance_anchors,
+        public_governance_anchor_outcomes:
+          row.public_governance_anchor_outcomes,
         governance_visibility: row.governance_visibility,
       },
     };
@@ -200,6 +214,8 @@ export class EntityService {
       publicActivity?: boolean;
       publicAgreements?: boolean;
       publicCampaigns?: boolean;
+      publicGovernanceAnchors?: boolean;
+      publicGovernanceAnchorOutcomes?: boolean;
       governanceVisibility?: string;
     },
   ): Promise<void> {
@@ -236,6 +252,8 @@ export class EntityService {
     if (updates.publicActivity !== undefined) profileUpdates.public_activity = updates.publicActivity;
     if (updates.publicAgreements !== undefined) profileUpdates.public_agreements = updates.publicAgreements;
     if (updates.publicCampaigns !== undefined) profileUpdates.public_campaigns = updates.publicCampaigns;
+    if (updates.publicGovernanceAnchors !== undefined) profileUpdates.public_governance_anchors = updates.publicGovernanceAnchors;
+    if (updates.publicGovernanceAnchorOutcomes !== undefined) profileUpdates.public_governance_anchor_outcomes = updates.publicGovernanceAnchorOutcomes;
     if (updates.governanceVisibility !== undefined) profileUpdates.governance_visibility = updates.governanceVisibility;
 
     if (Object.keys(profileUpdates).length > 0) {

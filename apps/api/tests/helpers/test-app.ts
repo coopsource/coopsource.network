@@ -48,6 +48,10 @@ import { FiscalPeriodService } from '../../src/services/fiscal-period-service.js
 import { PrivateRecordService } from '../../src/services/private-record-service.js';
 import { PrivateRecordPermissionedWritePort } from '../../src/services/private-record-permissioned-write-port.js';
 import { VisibilityRouter } from '../../src/services/visibility-router.js';
+import {
+  PdsPublicGovernanceAnchorWritePort,
+  PublicGovernanceAnchorService,
+} from '../../src/services/public-governance-anchor-service.js';
 import { PatronageService } from '../../src/services/patronage-service.js';
 import { CapitalAccountService } from '../../src/services/capital-account-service.js';
 import { Tax1099Service } from '../../src/services/tax-1099-service.js';
@@ -228,6 +232,10 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     options?.permissionedRecordWriter ??
     new PrivateRecordPermissionedWritePort(privateRecordService);
   const visibilityRouter = new VisibilityRouter(db);
+  const publicGovernanceAnchorService = new PublicGovernanceAnchorService(
+    new PdsPublicGovernanceAnchorWritePort(pdsService),
+    () => clock.now(),
+  );
   const postService = new PostService(db, clock);
   const searchService = new SearchService(db, membershipReadModel);
   const matchmakingService = new MatchmakingService(
@@ -244,6 +252,7 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     governanceLabeler,
     visibilityRouter,
     permissionedRecordWriter,
+    publicGovernanceAnchorService,
   );
   const agreementService = new AgreementService(
     db,
@@ -390,6 +399,7 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     privateRecordService,
     permissionedRecordWriter,
     visibilityRouter,
+    publicGovernanceAnchorService,
     patronageService,
     capitalAccountService,
     tax1099Service,

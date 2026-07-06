@@ -752,6 +752,8 @@ export const UpdateCoopSchema = z.object({
   publicActivity: z.boolean().optional(),
   publicAgreements: z.boolean().optional(),
   publicCampaigns: z.boolean().optional(),
+  publicGovernanceAnchors: z.boolean().optional(),
+  publicGovernanceAnchorOutcomes: z.boolean().optional(),
   governanceVisibility: GovernanceVisibilityEnum.optional(),
 });
 
