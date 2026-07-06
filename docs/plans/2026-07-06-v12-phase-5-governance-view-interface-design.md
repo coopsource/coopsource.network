@@ -317,6 +317,10 @@ Continue `packages/coop-view` adapters without moving production service logic:
    chain reads and weighted expansion are adapted, while delegation
    creation/revocation and circularity checks still live in the API service.
    Treat creation/revocation as a separate command boundary before moving it.
+   **Started 2026-07-06: CoopView now owns pure delegation command policy for
+   self-delegation, proposal URI scope rules, project/proposal replacement, and
+   effective circularity checks. The API service still owns DB reads/writes and
+   maps policy denials to existing validation errors.**
 2. Continue `actionAuthorizer` into remaining service-internal checks that are
    not currently represented by `requirePermission`, prioritizing vote
    retraction ownership and any member-management owner checks. **Continued

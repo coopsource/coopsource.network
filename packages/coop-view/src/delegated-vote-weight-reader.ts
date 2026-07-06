@@ -4,6 +4,10 @@ import type {
   CoopVoteWeightDelegationReader,
   CoopVoteWeightReader,
 } from './ports.js';
+import {
+  effectiveCoopDelegationsForProposal,
+  findCyclicCoopDelegators,
+} from './delegation-command-policy.js';
 
 export interface CoopDelegatedVoteWeightReaderOptions {
   readonly baseWeightReader: CoopBaseVoteWeightReader;
@@ -27,7 +31,7 @@ export class CoopDelegatedVoteWeightReader implements CoopVoteWeightReader {
         at: input.at,
       });
 
-    const effectiveDelegations = effectiveDelegationByDelegator(
+    const effectiveDelegations = effectiveCoopDelegationsForProposal(
       activeDelegations,
       input.proposalUri,
     );
@@ -78,38 +82,12 @@ export function createCoopDelegatedVoteWeightReader(
   return new CoopDelegatedVoteWeightReader(options);
 }
 
-function effectiveDelegationByDelegator(
-  delegations: readonly CoopVoteWeightDelegation[],
-  proposalUri: string,
-): ReadonlyMap<string, CoopVoteWeightDelegation> {
-  const effective = new Map<string, CoopVoteWeightDelegation>();
-
-  for (const delegation of delegations) {
-    const isMatchingProposalDelegation =
-      delegation.scope === 'proposal' &&
-      delegation.proposalUri === proposalUri;
-    if (isMatchingProposalDelegation) {
-      effective.set(delegation.delegatorDid, delegation);
-      continue;
-    }
-
-    if (
-      delegation.scope === 'project' &&
-      !effective.has(delegation.delegatorDid)
-    ) {
-      effective.set(delegation.delegatorDid, delegation);
-    }
-  }
-
-  return effective;
-}
-
 function delegatorsForTerminal(
   delegationsByDelegator: ReadonlyMap<string, CoopVoteWeightDelegation>,
   terminalDid: string,
 ): readonly string[] {
   const delegators = new Set<string>();
-  const cyclicDelegators = findCyclicDelegators(delegationsByDelegator);
+  const cyclicDelegators = findCyclicCoopDelegators(delegationsByDelegator);
 
   if (cyclicDelegators.has(terminalDid)) {
     return [];
@@ -136,37 +114,4 @@ function delegatorsForTerminal(
   }
 
   return [...delegators];
-}
-
-function findCyclicDelegators(
-  delegationsByDelegator: ReadonlyMap<string, CoopVoteWeightDelegation>,
-): ReadonlySet<string> {
-  const cyclic = new Set<string>();
-
-  for (const startDid of delegationsByDelegator.keys()) {
-    const path: string[] = [];
-    const pathIndexes = new Map<string, number>();
-    let currentDid = startDid;
-
-    while (true) {
-      const cycleStart = pathIndexes.get(currentDid);
-      if (cycleStart !== undefined) {
-        for (const did of path.slice(cycleStart)) {
-          cyclic.add(did);
-        }
-        break;
-      }
-
-      if (cyclic.has(currentDid)) break;
-
-      const delegation = delegationsByDelegator.get(currentDid);
-      if (!delegation) break;
-
-      pathIndexes.set(currentDid, path.length);
-      path.push(currentDid);
-      currentDid = delegation.delegateeDid;
-    }
-  }
-
-  return cyclic;
 }

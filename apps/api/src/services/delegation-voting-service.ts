@@ -4,18 +4,15 @@ import type { IClock } from '@coopsource/federation';
 import { membersSpace } from '@coopsource/arbiter-client';
 import { NotFoundError, ValidationError, type DID } from '@coopsource/common';
 import type { ActionAuthorizerPlugin } from '@coopsource/governance-view';
+import {
+  validateCoopDelegationCommand,
+  type CoopVoteWeightDelegation,
+} from '@coopsource/coop-view';
 import type { CreateDelegationInput } from '@coopsource/common';
 import type { PageParams, Page } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
 
 export interface ActiveVoteDelegationRow {
-  readonly delegator_did: string;
-  readonly delegatee_did: string;
-  readonly scope: string;
-  readonly proposal_uri: string | null;
-}
-
-interface EffectiveDelegationRow {
   readonly delegator_did: string;
   readonly delegatee_did: string;
   readonly scope: string;
@@ -34,24 +31,11 @@ export class DelegationVotingService {
     delegatorDid: string,
     data: CreateDelegationInput,
   ) {
-    // Prevent self-delegation
-    if (delegatorDid === data.delegateeDid) {
-      throw new ValidationError('Cannot delegate to yourself');
-    }
-
-    if (data.scope === 'proposal' && !data.proposalUri) {
-      throw new ValidationError('proposalUri is required for proposal scope');
-    }
-
-    if (data.scope === 'project' && data.proposalUri) {
-      throw new ValidationError('proposalUri is only valid for proposal scope');
-    }
-
-    await this.assertNoEffectiveCircularDelegation(cooperativeDid, {
-      delegator_did: delegatorDid,
-      delegatee_did: data.delegateeDid,
+    await this.assertDelegationCommandAllowed(cooperativeDid, {
+      delegatorDid,
+      delegateeDid: data.delegateeDid,
       scope: data.scope,
-      proposal_uri: data.proposalUri ?? null,
+      proposalUri: data.proposalUri ?? null,
     });
 
     // Revoke any existing active delegation in the same scope
@@ -241,30 +225,19 @@ export class DelegationVotingService {
       .execute();
   }
 
-  private async assertNoEffectiveCircularDelegation(
+  private async assertDelegationCommandAllowed(
     cooperativeDid: string,
-    candidate: EffectiveDelegationRow,
+    candidate: CoopVoteWeightDelegation,
   ): Promise<void> {
     const activeDelegations =
       await this.listActiveDelegationsForVoteWeight(cooperativeDid);
-    const delegations = [
-      ...activeDelegations.filter(
-        (delegation) => !replacesDelegation(candidate, delegation),
-      ),
+    const decision = validateCoopDelegationCommand({
+      activeDelegations: activeDelegations.flatMap(toCoopDelegation),
       candidate,
-    ];
+    });
 
-    for (const proposalUri of affectedProposalContexts(
-      delegations,
-      candidate,
-    )) {
-      const effective = effectiveDelegationsForProposal(
-        delegations,
-        proposalUri,
-      );
-      if (hasDelegationCycle(effective)) {
-        throw new ValidationError('Circular delegation detected');
-      }
+    if (!decision.allowed) {
+      throw new ValidationError(decision.message);
     }
   }
 
@@ -301,76 +274,19 @@ export class DelegationVotingService {
   }
 }
 
-function replacesDelegation(
-  candidate: EffectiveDelegationRow,
-  existing: EffectiveDelegationRow,
-): boolean {
-  return (
-    existing.delegator_did === candidate.delegator_did &&
-    existing.scope === candidate.scope &&
-    existing.proposal_uri === candidate.proposal_uri
-  );
-}
-
-function affectedProposalContexts(
-  delegations: readonly EffectiveDelegationRow[],
-  candidate: EffectiveDelegationRow,
-): readonly (string | null)[] {
-  if (candidate.scope === 'proposal') {
-    return [candidate.proposal_uri];
+function toCoopDelegation(
+  row: ActiveVoteDelegationRow,
+): readonly CoopVoteWeightDelegation[] {
+  if (row.scope !== 'project' && row.scope !== 'proposal') {
+    return [];
   }
 
-  const contexts = new Set<string | null>([null]);
-  for (const delegation of delegations) {
-    if (delegation.scope === 'proposal' && delegation.proposal_uri) {
-      contexts.add(delegation.proposal_uri);
-    }
-  }
-  return [...contexts];
-}
-
-function effectiveDelegationsForProposal(
-  delegations: readonly EffectiveDelegationRow[],
-  proposalUri: string | null,
-): ReadonlyMap<string, EffectiveDelegationRow> {
-  const effective = new Map<string, EffectiveDelegationRow>();
-
-  for (const delegation of delegations) {
-    if (delegation.scope === 'proposal') {
-      if (delegation.proposal_uri === proposalUri) {
-        effective.set(delegation.delegator_did, delegation);
-      }
-      continue;
-    }
-
-    if (
-      delegation.scope === 'project' &&
-      !effective.has(delegation.delegator_did)
-    ) {
-      effective.set(delegation.delegator_did, delegation);
-    }
-  }
-
-  return effective;
-}
-
-function hasDelegationCycle(
-  delegationsByDelegator: ReadonlyMap<string, EffectiveDelegationRow>,
-): boolean {
-  for (const startDid of delegationsByDelegator.keys()) {
-    const visited = new Set<string>();
-    let currentDid = startDid;
-
-    while (true) {
-      if (visited.has(currentDid)) return true;
-      visited.add(currentDid);
-
-      const delegation = delegationsByDelegator.get(currentDid);
-      if (!delegation) break;
-
-      currentDid = delegation.delegatee_did;
-    }
-  }
-
-  return false;
+  return [
+    {
+      delegatorDid: row.delegator_did,
+      delegateeDid: row.delegatee_did,
+      scope: row.scope,
+      proposalUri: row.proposal_uri,
+    },
+  ];
 }

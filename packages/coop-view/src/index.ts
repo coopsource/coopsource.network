@@ -27,6 +27,16 @@ export {
   createCoopDelegateChainsPlugin,
 } from './delegate-chains-plugin.js';
 export type {
+  CoopDelegationCommandPolicyDecision,
+  CoopDelegationCommandPolicyInput,
+  CoopDelegationCommandPolicyReason,
+} from './delegation-command-policy.js';
+export {
+  effectiveCoopDelegationsForProposal,
+  findCyclicCoopDelegators,
+  validateCoopDelegationCommand,
+} from './delegation-command-policy.js';
+export type {
   CoopEligibilityEvidence,
   CoopEligibilityPluginOptions,
 } from './eligibility-plugin.js';
