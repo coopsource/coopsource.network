@@ -394,6 +394,20 @@ export interface GovernanceProposal {
   createdAt: string;
 }
 
+/** network.coopsource.governance.proposalAnchor — main record */
+export interface GovernanceProposalAnchor {
+  $type?: 'network.coopsource.governance.proposalAnchor';
+  cooperativeDid: string;
+  proposalId: string;
+  status: 'open' | 'closed' | 'resolved' | 'withdrawn' | 'archived' | (string & {});
+  outcome?: 'passed' | 'failed' | 'no_quorum' | 'class_quorum_not_met' | 'archived' | (string & {});
+  openedAt?: string;
+  closedAt?: string;
+  resolvedAt?: string;
+  updatedAt: string;
+  anchorVersion: 1;
+}
+
 /** network.coopsource.governance.vote — main record */
 export interface GovernanceVote {
   $type?: 'network.coopsource.governance.vote';
@@ -489,6 +503,7 @@ export const LEXICON_IDS = {
   FundingPledge: 'network.coopsource.funding.pledge',
   GovernanceDelegation: 'network.coopsource.governance.delegation',
   GovernanceProposal: 'network.coopsource.governance.proposal',
+  GovernanceProposalAnchor: 'network.coopsource.governance.proposalAnchor',
   GovernanceVote: 'network.coopsource.governance.vote',
   OrgCooperative: 'network.coopsource.org.cooperative',
   OrgMemberConsent: 'network.coopsource.org.memberConsent',
@@ -517,6 +532,7 @@ export interface LexiconRecordMap {
   [LEXICON_IDS.FundingPledge]: FundingPledge;
   [LEXICON_IDS.GovernanceDelegation]: GovernanceDelegation;
   [LEXICON_IDS.GovernanceProposal]: GovernanceProposal;
+  [LEXICON_IDS.GovernanceProposalAnchor]: GovernanceProposalAnchor;
   [LEXICON_IDS.GovernanceVote]: GovernanceVote;
   [LEXICON_IDS.OrgCooperative]: OrgCooperative;
   [LEXICON_IDS.OrgMemberConsent]: OrgMemberConsent;

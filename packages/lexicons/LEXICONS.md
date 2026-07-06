@@ -26,6 +26,7 @@ live OAuth or permissioned-space writes.
 | `org.memberConsent`   | `org.cooperative`               | `org.project`             |
 | `governance.vote`     |                                 | `org.team`                |
 | `agreement.signature` | `governance.proposal` \*        | `org.role`                |
+|                       | `governance.proposalAnchor`     |                           |
 | `alignment.interest`  | `agreement.master`              | `governance.delegation`   |
 | `alignment.outcome`   | `agreement.stakeholderTerms`    | `agreement.amendment`     |
 | `funding.pledge`      | `commerce.intercoopAgreement`   | `agreement.contribution`  |
@@ -45,7 +46,7 @@ live OAuth or permissioned-space writes.
 |                       |                                 | `connection.binding`      |
 |                       |                                 | `connection.sync`         |
 
-\* `governance.proposal` uses the VisibilityRouter: open-governance cooperatives write proposals to their PDS (Tier 1 public), while closed-governance cooperatives store them in the `private_record` table (Tier 2 private).
+\* `governance.proposal` uses the VisibilityRouter: open-governance cooperatives write proposals to their PDS (Tier 1 public), while closed-governance cooperatives write through `PermissionedRecordWritePort` to Tier 2 storage. The current default adapter is still backed by `private_record`, but persisted proposal URIs use structured permissioned-space locations.
 
 **Note:** The four XRPC query schemas (`org.getCooperative`, `org.getMembership`, `governance.listProposals`, `governance.getProposal`) are not records and do not have an ownership location -- they are read-only endpoints served by the AppView.
 
@@ -202,7 +203,7 @@ The `governance` namespace covers cooperative decision-making through proposals,
 
 Quorum is configurable per proposal: `quorumRequired` sets the fraction of participation needed (0-1), and `quorumBasis` determines whether that fraction is calculated against `votesCast` or `totalMembers`. Votes can carry variable `weight` to support delegation -- when a member casts a vote on behalf of a delegator, the `delegatedFrom` field identifies whose authority backs the vote.
 
-Proposals in open-governance cooperatives are written to the cooperative's PDS and appear on the firehose. In closed-governance cooperatives, the VisibilityRouter directs them to the `private_record` table instead. Votes are always written to the voter's own PDS. Delegations are DB-only records that construct an AT URI for identification but store in PostgreSQL; their scope can cover all proposals in a project or a single specific proposal.
+Proposals in open-governance cooperatives are written to the cooperative's PDS and appear on the firehose. In closed-governance cooperatives, the VisibilityRouter routes proposal and vote writes through `PermissionedRecordWritePort`; the current default adapter stores physical rows in `private_record`, while the semantic record location is a permissioned-space URI. Delegations are DB-only records that construct an AT URI for identification but store in PostgreSQL; their scope can cover all proposals in a project or a single specific proposal.
 
 This namespace also includes two XRPC query schemas (`listProposals` and `getProposal`) that provide read-only AppView endpoints for retrieving proposal lists and details with vote tallies.
 
@@ -228,9 +229,25 @@ A governance proposal for cooperative decision-making. Written to the **cooperat
 | `status`           | string                   | Yes      | Known values: `draft`, `discussion`, `voting`, `passed`, `failed`, `withdrawn`                                 |
 | `createdAt`        | datetime                 | Yes      |                                                                                                                |
 
+### `network.coopsource.governance.proposalAnchor`
+
+A public, non-identifying anchor for a private governance proposal. This record is optional and disabled by default. It must not contain the private proposal URI, title, body, options, author DID, voter DIDs, vote rationales, member classes, or aggregate tally details. Public governance labels for private proposals may target this anchor URI only after anchor publication is explicitly enabled.
+
+| Field             | Type     | Required | Description                                                                      |
+| ----------------- | -------- | -------- | -------------------------------------------------------------------------------- |
+| `cooperativeDid`  | did      | Yes      | The cooperative this anchor belongs to                                           |
+| `proposalId`      | string   | Yes      | App-layer proposal UUID; private proposal URIs are intentionally not public      |
+| `status`          | string   | Yes      | Known values: `open`, `closed`, `resolved`, `withdrawn`, `archived`              |
+| `outcome`         | string   | No       | Known values: `passed`, `failed`, `no_quorum`, `class_quorum_not_met`, `archived` |
+| `openedAt`        | datetime | No       | When the private proposal was publicly anchorable                                |
+| `closedAt`        | datetime | No       | When voting closed                                                               |
+| `resolvedAt`      | datetime | No       | When the proposal was resolved                                                   |
+| `updatedAt`       | datetime | Yes      | Last anchor update time                                                          |
+| `anchorVersion`   | integer  | Yes      | Literal `1`, the current public-anchor contract version                          |
+
 ### `network.coopsource.governance.vote`
 
-A vote cast on a governance proposal. Written to the **member's PDS** via MemberWriteProxy.
+A vote cast on a governance proposal. Written to the **member's PDS** via MemberWriteProxy for public/open governance, or through `PermissionedRecordWritePort` for closed/private governance.
 
 | Field           | Type              | Required | Description                                                               |
 | --------------- | ----------------- | -------- | ------------------------------------------------------------------------- |

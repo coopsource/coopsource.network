@@ -58,6 +58,7 @@ export type {
   // Governance types
   GovernanceDelegation,
   GovernanceProposal,
+  GovernanceProposalAnchor,
   GovernanceVote,
 
   // Org types

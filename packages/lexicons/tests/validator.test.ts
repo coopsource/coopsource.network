@@ -273,6 +273,41 @@ describe('validateRecord', () => {
       expect(result.contributionType).toBe('labor');
     });
   });
+
+  describe('governance.proposalAnchor', () => {
+    const validAnchor = {
+      $type: 'network.coopsource.governance.proposalAnchor',
+      cooperativeDid: 'did:plc:coop123',
+      proposalId: '550e8400-e29b-41d4-a716-446655440000',
+      status: 'resolved',
+      outcome: 'passed',
+      openedAt: '2026-07-06T12:00:00.000Z',
+      closedAt: '2026-07-07T12:00:00.000Z',
+      resolvedAt: '2026-07-07T12:30:00.000Z',
+      updatedAt: '2026-07-07T12:30:00.000Z',
+      anchorVersion: 1,
+    };
+
+    it('should validate a public private-governance anchor', () => {
+      const result = validateRecord(
+        LEXICON_IDS.GovernanceProposalAnchor,
+        validAnchor,
+      );
+
+      expect(result.proposalId).toBe(validAnchor.proposalId);
+      expect(result.status).toBe('resolved');
+      expect(result.anchorVersion).toBe(1);
+    });
+
+    it('should reject anchor records with a different contract version', () => {
+      expect(() =>
+        validateRecord(LEXICON_IDS.GovernanceProposalAnchor, {
+          ...validAnchor,
+          anchorVersion: 2,
+        }),
+      ).toThrow(LexiconValidationError);
+    });
+  });
 });
 
 describe('isValidRecord', () => {

@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { lexiconSchemas, LEXICON_IDS } from '../src/index.js';
 
 describe('lexicon schemas', () => {
-  it('should export all 42 valid lexicon schemas', () => {
-    expect(lexiconSchemas).toHaveLength(42);
+  it('should export all 43 valid lexicon schemas', () => {
+    expect(lexiconSchemas).toHaveLength(43);
   });
 
   it('should contain all expected lexicon IDs', () => {
@@ -37,6 +37,7 @@ describe('lexicon schemas', () => {
       'network.coopsource.governance.getProposal',
       'network.coopsource.governance.getVoteEligibility',
       'network.coopsource.governance.listProposals',
+      'network.coopsource.governance.proposalAnchor',
       'network.coopsource.legal.document',
       'network.coopsource.legal.meetingRecord',
       'network.coopsource.ops.schedule',
@@ -54,15 +55,16 @@ describe('lexicon schemas', () => {
     ]);
   });
 
-  it('LEXICON_IDS should map to all 22 collections', () => {
+  it('LEXICON_IDS should map to all 23 collections', () => {
     const values = Object.values(LEXICON_IDS).sort();
-    expect(values).toHaveLength(22);
+    expect(values).toHaveLength(23);
     expect(values).toContain('network.coopsource.org.cooperative');
     expect(values).toContain('network.coopsource.org.memberConsent');
     expect(values).toContain('network.coopsource.alignment.interest');
     expect(values).toContain('network.coopsource.agreement.master');
     expect(values).toContain('network.coopsource.agreement.amendment');
     expect(values).toContain('network.coopsource.governance.proposal');
+    expect(values).toContain('network.coopsource.governance.proposalAnchor');
     expect(values).toContain('network.coopsource.governance.vote');
     expect(values).toContain('network.coopsource.governance.delegation');
     expect(values).toContain('network.coopsource.connection.link');

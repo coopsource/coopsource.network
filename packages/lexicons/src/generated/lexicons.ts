@@ -2472,6 +2472,83 @@ export const lexicons = [
   },
   {
     "lexicon": 1,
+    "id": "network.coopsource.governance.proposalAnchor",
+    "defs": {
+      "main": {
+        "type": "record",
+        "description": "A public, non-identifying anchor for a private governance proposal.",
+        "key": "tid",
+        "record": {
+          "type": "object",
+          "required": [
+            "cooperativeDid",
+            "proposalId",
+            "status",
+            "updatedAt",
+            "anchorVersion"
+          ],
+          "properties": {
+            "cooperativeDid": {
+              "type": "string",
+              "format": "did",
+              "description": "The cooperative this anchor belongs to."
+            },
+            "proposalId": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "The app-layer proposal UUID. Private proposal URIs are intentionally not public."
+            },
+            "status": {
+              "type": "string",
+              "knownValues": [
+                "open",
+                "closed",
+                "resolved",
+                "withdrawn",
+                "archived"
+              ],
+              "description": "Public lifecycle status. Draft private proposals must not have anchors."
+            },
+            "outcome": {
+              "type": "string",
+              "knownValues": [
+                "passed",
+                "failed",
+                "no_quorum",
+                "class_quorum_not_met",
+                "archived"
+              ],
+              "description": "Final public outcome, if the cooperative anchor policy allows outcomes."
+            },
+            "openedAt": {
+              "type": "string",
+              "format": "datetime"
+            },
+            "closedAt": {
+              "type": "string",
+              "format": "datetime"
+            },
+            "resolvedAt": {
+              "type": "string",
+              "format": "datetime"
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "datetime"
+            },
+            "anchorVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1,
+              "description": "Schema version for the public anchor contract."
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
     "id": "network.coopsource.legal.document",
     "defs": {
       "main": {
