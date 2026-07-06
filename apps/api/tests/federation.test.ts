@@ -1,8 +1,13 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import supertest from 'supertest';
 import type { DID } from '@coopsource/common';
 import { truncateAllTables } from './helpers/test-db.js';
-import { createTestApp, setupAndLogin, type TestApp } from './helpers/test-app.js';
+import {
+  createTestApp,
+  setupAndLogin,
+  type TestApp,
+} from './helpers/test-app.js';
+import { membershipAuthorityFailure } from '../src/services/membership-read-model.js';
 
 const MEMBER_CONSENT_COLLECTION = 'network.coopsource.org.memberConsent';
 
@@ -71,6 +76,34 @@ describe('Federation endpoints', () => {
         .get(`/api/v1/federation/coop/${encodeURIComponent(adminDid)}/profile`)
         .expect(404);
     });
+
+    it('surfaces degraded spaces authority while computing member count', async () => {
+      const spy = vi
+        .spyOn(
+          testApp.container.membershipReadModel,
+          'countActiveMembersResult',
+        )
+        .mockResolvedValue(
+          membershipAuthorityFailure(
+            'partial',
+            'Membership authority returned a partial result',
+          ),
+        );
+
+      try {
+        const res = await testApp.agent
+          .get(`/api/v1/federation/coop/${encodeURIComponent(coopDid)}/profile`)
+          .expect(503);
+
+        expect(res.body).toMatchObject({
+          error: 'SPACES_AUTHORITY_UNAVAILABLE',
+          axis: 'spaces',
+          reason: 'partial',
+        });
+      } finally {
+        spy.mockRestore();
+      }
+    });
   });
 
   describe('POST /api/v1/federation/membership/approve', () => {
@@ -134,6 +167,39 @@ describe('Federation endpoints', () => {
         .expect(403);
 
       expect(res.body.axis).toBe('spaces');
+    });
+
+    it('surfaces degraded spaces authority before approving membership', async () => {
+      const spy = vi
+        .spyOn(testApp.container.membershipReadModel, 'hasPermissionResult')
+        .mockResolvedValue(
+          membershipAuthorityFailure(
+            'stale',
+            'Membership authority returned stale data',
+          ),
+        );
+
+      try {
+        const res = await testApp.agent
+          .post('/api/v1/federation/membership/approve')
+          .send({
+            cooperativeDid: coopDid,
+            memberDid: 'did:plc:victim',
+            consentRecordUri:
+              'at://did:plc:victim/network.coopsource.org.memberConsent/x',
+            consentRecordCid: 'bafyreiabc',
+            roles: ['member'],
+          })
+          .expect(503);
+
+        expect(res.body).toMatchObject({
+          error: 'SPACES_AUTHORITY_UNAVAILABLE',
+          axis: 'spaces',
+          reason: 'stale',
+        });
+      } finally {
+        spy.mockRestore();
+      }
     });
 
     it('authorizes a non-admin caller who holds member.approve via their role (coordinator)', async () => {
@@ -258,16 +324,20 @@ describe('Federation endpoints', () => {
 
     beforeAll(async () => {
       // Create an agreement and open it for signing
-      const agreement = await testApp.container.agreementService.createAgreement(
-        adminDid,
-        coopDid,
-        {
-          title: 'Test Federation Agreement',
-          agreementType: 'operating',
-        },
-      );
+      const agreement =
+        await testApp.container.agreementService.createAgreement(
+          adminDid,
+          coopDid,
+          {
+            title: 'Test Federation Agreement',
+            agreementType: 'operating',
+          },
+        );
       agreementUri = agreement.uri;
-      await testApp.container.agreementService.openAgreement(agreementUri, adminDid);
+      await testApp.container.agreementService.openAgreement(
+        agreementUri,
+        adminDid,
+      );
     });
 
     describe('POST /api/v1/federation/agreement/sign-request', () => {
@@ -344,7 +414,9 @@ describe('Federation endpoints', () => {
           .executeTakeFirst();
 
         expect(request).toBeDefined();
-        expect(request!.signature_uri).toBe('at://did:test/agreement.signature/1');
+        expect(request!.signature_uri).toBe(
+          'at://did:test/agreement.signature/1',
+        );
       });
 
       it('returns 404 for unknown agreement', async () => {
@@ -495,12 +567,16 @@ describe('Federation endpoints', () => {
     describe('Agreement voiding cascade', () => {
       it('cancels pending requests when agreement is voided', async () => {
         // Create a new agreement with a pending request
-        const agreement2 = await testApp.container.agreementService.createAgreement(
+        const agreement2 =
+          await testApp.container.agreementService.createAgreement(
+            adminDid,
+            coopDid,
+            { title: 'To Be Voided', agreementType: 'operating' },
+          );
+        await testApp.container.agreementService.openAgreement(
+          agreement2.uri,
           adminDid,
-          coopDid,
-          { title: 'To Be Voided', agreementType: 'operating' },
         );
-        await testApp.container.agreementService.openAgreement(agreement2.uri, adminDid);
 
         // Create a pending signature request
         await testApp.agent
@@ -513,7 +589,10 @@ describe('Federation endpoints', () => {
           .expect(200);
 
         // Void the agreement
-        await testApp.container.agreementService.voidAgreement(agreement2.uri, adminDid);
+        await testApp.container.agreementService.voidAgreement(
+          agreement2.uri,
+          adminDid,
+        );
 
         // Verify the pending request was cancelled
         const request = await testApp.container.db
@@ -532,11 +611,12 @@ describe('Federation endpoints', () => {
     describe('Non-open agreement rejection', () => {
       it('returns 400 for signature on non-open agreement', async () => {
         // Create a draft agreement (not opened)
-        const draftAgreement = await testApp.container.agreementService.createAgreement(
-          adminDid,
-          coopDid,
-          { title: 'Draft Only', agreementType: 'operating' },
-        );
+        const draftAgreement =
+          await testApp.container.agreementService.createAgreement(
+            adminDid,
+            coopDid,
+            { title: 'Draft Only', agreementType: 'operating' },
+          );
 
         await testApp.agent
           .post('/api/v1/federation/agreement/signature')
@@ -595,18 +675,18 @@ describe('Federation endpoints', () => {
 
       // The expired request should not appear
       const expired = res.body.find(
-        (r: { agreementUri: string }) => r.agreementUri === 'at://did:test/agreement/expired',
+        (r: { agreementUri: string }) =>
+          r.agreementUri === 'at://did:test/agreement/expired',
       );
       expect(expired).toBeUndefined();
     });
 
     it('requires authentication', async () => {
       // Make a request without session
-      const { createTestApp: createFreshApp } = await import('./helpers/test-app.js');
+      const { createTestApp: createFreshApp } =
+        await import('./helpers/test-app.js');
       const freshApp = createFreshApp();
-      await freshApp.agent
-        .get('/api/v1/me/signature-requests')
-        .expect(401);
+      await freshApp.agent.get('/api/v1/me/signature-requests').expect(401);
     });
   });
 
@@ -618,7 +698,11 @@ async function writeConsentRecord(
   args: {
     readonly authorDid: string;
     readonly cooperativeDid: string;
-    readonly consentType: 'joinRequest' | 'invitationAcceptance' | 'bootstrapOwner' | 'networkJoin';
+    readonly consentType:
+      | 'joinRequest'
+      | 'invitationAcceptance'
+      | 'bootstrapOwner'
+      | 'networkJoin';
     readonly rkey: string;
   },
 ): Promise<{ readonly uri: string; readonly cid: string }> {

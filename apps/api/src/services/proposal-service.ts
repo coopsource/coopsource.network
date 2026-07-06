@@ -13,6 +13,7 @@ import type { IPdsService, IClock } from '@coopsource/federation';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
 import { logger } from '../middleware/logger.js';
+import type { MembershipReadModel } from './membership-read-model.js';
 
 export interface ProposalWithVotes {
   proposal: ProposalRow;
@@ -32,9 +33,9 @@ export interface CreateProposalInput {
   quorumThreshold?: number;
   closesAt?: string;
   tags?: string[];
-  meetingEvent?: string;      // AT-URI: Smoke Signal calendar event
-  fullDocument?: string;      // AT-URI: WhiteWind blog entry
-  discussionThread?: string;  // AT-URI: Frontpage link submission
+  meetingEvent?: string; // AT-URI: Smoke Signal calendar event
+  fullDocument?: string; // AT-URI: WhiteWind blog entry
+  discussionThread?: string; // AT-URI: Frontpage link submission
 }
 
 import type { IMemberRecordWriter } from './member-write-proxy.js';
@@ -46,6 +47,7 @@ export class ProposalService {
     private db: Kysely<Database>,
     private pdsService: IPdsService,
     private clock: IClock,
+    private membershipReadModel: MembershipReadModel,
     private memberWriteProxy?: IMemberRecordWriter,
     private labeler?: GovernanceLabeler,
     private visibilityRouter?: VisibilityRouter,
@@ -74,10 +76,7 @@ export class ProposalService {
       query = query.where((eb) =>
         eb.or([
           eb('created_at', '<', new Date(t)),
-          eb.and([
-            eb('created_at', '=', new Date(t)),
-            eb('id', '<', i),
-          ]),
+          eb.and([eb('created_at', '=', new Date(t)), eb('id', '<', i)]),
         ]),
       );
     }
@@ -215,12 +214,23 @@ export class ProposalService {
       });
       if (route.tier === 2) {
         // Tier 2: stored in private_record table, not on PDS/firehose
-        ref = { uri: `at://${data.cooperativeDid}/${collection}/${route.rkey}` as const, cid: 'private' as const };
+        ref = {
+          uri: `at://${data.cooperativeDid}/${collection}/${route.rkey}` as const,
+          cid: 'private' as const,
+        };
       } else {
-        ref = await this.pdsService.createRecord({ did: authorDid as DID, collection, record });
+        ref = await this.pdsService.createRecord({
+          did: authorDid as DID,
+          collection,
+          record,
+        });
       }
     } else {
-      ref = await this.pdsService.createRecord({ did: authorDid as DID, collection, record });
+      ref = await this.pdsService.createRecord({
+        did: authorDid as DID,
+        collection,
+        record,
+      });
     }
 
     const [row] = await this.db
@@ -341,19 +351,10 @@ export class ProposalService {
       .where('retracted_at', 'is', null)
       .execute();
 
-    // Look up voter's class weight
-    const membershipRow = await this.db
-      .selectFrom('membership')
-      .leftJoin('member_class', (j) =>
-        j
-          .onRef('member_class.name', '=', 'membership.member_class')
-          .onRef('member_class.cooperative_did', '=', 'membership.cooperative_did'),
-      )
-      .where('membership.member_did', '=', params.voterDid)
-      .where('membership.cooperative_did', '=', proposal.cooperative_did)
-      .select('member_class.vote_weight')
-      .executeTakeFirst();
-    const weight = membershipRow?.vote_weight ?? 1;
+    const weight = await this.membershipReadModel.getProjectedMemberVoteWeight(
+      proposal.cooperative_did as DID,
+      params.voterDid as DID,
+    );
 
     const [vote] = await this.db
       .insertInto('vote')
@@ -376,10 +377,7 @@ export class ProposalService {
     return vote!;
   }
 
-  async retractVote(
-    proposalId: string,
-    voterDid: string,
-  ): Promise<void> {
+  async retractVote(proposalId: string, voterDid: string): Promise<void> {
     const vote = await this.db
       .selectFrom('vote')
       .where('proposal_id', '=', proposalId)
@@ -418,16 +416,11 @@ export class ProposalService {
       .selectAll()
       .execute();
 
-    // Count active members for quorum check
-    const memberCount = await this.db
-      .selectFrom('membership')
-      .where('cooperative_did', '=', proposal.cooperative_did)
-      .where('status', '=', 'active')
-      .where('invalidated_at', 'is', null)
-      .select((eb) => [eb.fn.countAll<number>().as('count')])
-      .executeTakeFirst();
-
-    const totalMembers = memberCount?.count ?? 0;
+    const memberCounts =
+      await this.membershipReadModel.countProjectedActiveMembersByCooperative([
+        proposal.cooperative_did as DID,
+      ]);
+    const totalMembers = memberCounts.get(proposal.cooperative_did) ?? 0;
     const totalVotes = votes.length;
 
     // Determine quorum (fixed: match DB constraint values)
@@ -444,7 +437,8 @@ export class ProposalService {
     const weightedTally: Record<string, number> = {};
     for (const v of votes) {
       tally[v.choice] = (tally[v.choice] ?? 0) + 1;
-      weightedTally[v.choice] = (weightedTally[v.choice] ?? 0) + (v.vote_weight ?? 1);
+      weightedTally[v.choice] =
+        (weightedTally[v.choice] ?? 0) + (v.vote_weight ?? 1);
     }
 
     // Per-class quorum check
@@ -455,20 +449,11 @@ export class ProposalService {
         { minVotes?: number; minWeight?: number }
       >;
 
-      // Look up voter classes for all votes
-      const voterClasses = await this.db
-        .selectFrom('membership')
-        .where('cooperative_did', '=', proposal.cooperative_did)
-        .where(
-          'member_did',
-          'in',
-          votes.map((v) => v.voter_did),
-        )
-        .select(['member_did', 'member_class'])
-        .execute();
-      const classMap = new Map(
-        voterClasses.map((m) => [m.member_did, m.member_class]),
-      );
+      const classMap =
+        await this.membershipReadModel.getProjectedMemberClassMap(
+          proposal.cooperative_did as DID,
+          votes.map((v) => v.voter_did as DID),
+        );
 
       for (const [className, rule] of Object.entries(rules)) {
         const classVotes = votes.filter(
@@ -485,34 +470,15 @@ export class ProposalService {
             (sum, v) => sum + (v.vote_weight ?? 1),
             0,
           );
-          // Get total weight for this class (sum of all active members in class)
-          const totalClassResult = await this.db
-            .selectFrom('membership')
-            .leftJoin('member_class', (j) =>
-              j
-                .onRef('member_class.name', '=', 'membership.member_class')
-                .onRef(
-                  'member_class.cooperative_did',
-                  '=',
-                  'membership.cooperative_did',
-                ),
-            )
-            .where('membership.cooperative_did', '=', proposal.cooperative_did)
-            .where('membership.member_class', '=', className)
-            .where('membership.status', '=', 'active')
-            .where('membership.invalidated_at', 'is', null)
-            .select((eb) => [
-              eb.fn
-                .coalesce(
-                  eb.fn.sum<number>('member_class.vote_weight'),
-                  eb.val(0),
-                )
-                .as('total_weight'),
-            ])
-            .executeTakeFirst();
-
-          const totalClassWeight = Number(totalClassResult?.total_weight ?? 0);
-          if (totalClassWeight > 0 && classWeight / totalClassWeight < rule.minWeight) {
+          const totalClassWeight =
+            await this.membershipReadModel.getProjectedClassWeightDenominator(
+              proposal.cooperative_did as DID,
+              className,
+            );
+          if (
+            totalClassWeight > 0 &&
+            classWeight / totalClassWeight < rule.minWeight
+          ) {
             quorumMet = false;
             break;
           }
@@ -522,7 +488,9 @@ export class ProposalService {
 
     // Determine outcome (using weighted tally for yes/no decisions)
     if (!quorumMet) {
-      outcome = proposal.class_quorum_rules ? 'class_quorum_not_met' : 'no_quorum';
+      outcome = proposal.class_quorum_rules
+        ? 'class_quorum_not_met'
+        : 'no_quorum';
     } else if (proposal.voting_type === 'binary') {
       const yes = weightedTally['yes'] ?? 0;
       const no = weightedTally['no'] ?? 0;
@@ -548,15 +516,19 @@ export class ProposalService {
 
     // Emit governance label (best-effort)
     if (this.labeler && updated?.uri) {
-      const labelValue = outcome === 'passed'
-        ? 'proposal-approved'
-        : outcome === 'failed'
-          ? 'proposal-rejected'
-          : 'proposal-archived';
+      const labelValue =
+        outcome === 'passed'
+          ? 'proposal-approved'
+          : outcome === 'failed'
+            ? 'proposal-rejected'
+            : 'proposal-archived';
       await this.labeler.emitLabel(
         updated.cooperative_did,
         updated.uri,
-        labelValue as 'proposal-approved' | 'proposal-rejected' | 'proposal-archived',
+        labelValue as
+          | 'proposal-approved'
+          | 'proposal-rejected'
+          | 'proposal-archived',
         updated.cid ?? undefined,
       );
     }
@@ -579,7 +551,10 @@ export class ProposalService {
       try {
         await this.resolveProposal(id);
       } catch (err) {
-        logger.error({ err, proposalId: id }, 'Failed to resolve expired proposal');
+        logger.error(
+          { err, proposalId: id },
+          'Failed to resolve expired proposal',
+        );
       }
     }
   }

@@ -22,12 +22,12 @@ export async function handleGetVoteEligibility(
     ctx.container.db,
     proposal.cooperative_did,
     ctx.viewer,
-    ctx.container.membershipService,
+    ctx.container.membershipReadModel,
   );
 
   return checkVoteEligibility(
     ctx.container.db,
-    ctx.container.membershipService,
+    ctx.container.membershipReadModel,
     ctx.container.delegationVotingService,
     proposal,
     viewerDid,

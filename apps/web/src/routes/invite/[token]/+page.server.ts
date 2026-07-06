@@ -19,23 +19,33 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
 export const actions: Actions = {
   accept: async ({ request, params, fetch, cookies }) => {
     const data = await request.formData();
+    const email = String(data.get('email') ?? '').trim();
     const displayName = String(data.get('displayName') ?? '').trim();
     const handle = String(data.get('handle') ?? '').trim();
     const password = String(data.get('password') ?? '');
 
-    if (!displayName || !password) {
-      return fail(400, { error: 'Display name and password are required.' });
+    if (!email || !displayName || !password) {
+      return fail(400, {
+        error: 'Email, display name, and password are required.',
+      });
     }
 
     const api = createApiClient(fetch);
-    const res = await api.acceptInvitationRaw(params.token, { displayName, handle, password });
+    const res = await api.acceptInvitationRaw(params.token, {
+      email,
+      displayName,
+      handle,
+      password,
+    });
 
     if (!res.ok) {
       let msg = 'Failed to accept invitation. Please try again.';
       try {
         const body = (await res.json()) as { message?: string; error?: string };
         msg = body.message ?? body.error ?? msg;
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       return fail(res.status, { error: msg });
     }
 

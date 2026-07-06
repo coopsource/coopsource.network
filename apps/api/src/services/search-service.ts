@@ -1,8 +1,10 @@
 import type { Kysely } from 'kysely';
 import { sql } from 'kysely';
+import type { DID } from '@coopsource/common';
 import type { Database } from '@coopsource/db';
 import type { PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
+import type { MembershipReadModel } from './membership-read-model.js';
 
 /**
  * V8.6 — Postgres FTS over cooperative profiles and posts.
@@ -84,7 +86,10 @@ export interface AlignmentSearchRow {
 }
 
 export class SearchService {
-  constructor(private readonly db: Kysely<Database>) {}
+  constructor(
+    private readonly db: Kysely<Database>,
+    private readonly membershipReadModel: MembershipReadModel,
+  ) {}
 
   async searchCooperatives(
     query: string,
@@ -97,28 +102,18 @@ export class SearchService {
 
     let q = this.db
       .selectFrom('entity')
-      .innerJoin('cooperative_profile', 'cooperative_profile.entity_did', 'entity.did')
-      .leftJoin('membership', (join) =>
-        join
-          .onRef('membership.cooperative_did', '=', 'entity.did')
-          .on('membership.status', '=', 'active'),
+      .innerJoin(
+        'cooperative_profile',
+        'cooperative_profile.entity_did',
+        'entity.did',
       )
       .where('entity.type', '=', 'cooperative')
       .where('entity.status', '=', 'active')
       .where('cooperative_profile.is_network', '=', false)
       .where('cooperative_profile.anon_discoverable', '=', true)
-      .where(sql<boolean>`entity.entity_search_tsv @@ websearch_to_tsquery('english', ${trimmed})`)
-      .groupBy([
-        'entity.did',
-        'entity.handle',
-        'entity.display_name',
-        'entity.description',
-        'entity.created_at',
-        'cooperative_profile.cooperative_type',
-        'cooperative_profile.website',
-        'cooperative_profile.public_description',
-        'cooperative_profile.public_members',
-      ])
+      .where(
+        sql<boolean>`entity.entity_search_tsv @@ websearch_to_tsquery('english', ${trimmed})`,
+      )
       .select([
         'entity.did',
         'entity.handle',
@@ -129,7 +124,6 @@ export class SearchService {
         'cooperative_profile.website',
         'cooperative_profile.public_description as publicDescription',
         'cooperative_profile.public_members as publicMembers',
-        sql<number>`count(membership.id)::int`.as('memberCount'),
       ])
       .orderBy('entity.created_at', 'desc')
       .orderBy('entity.did', 'desc');
@@ -150,10 +144,17 @@ export class SearchService {
     const rows = await q.limit(limit + 1).execute();
     const hasMore = rows.length > limit;
     const items = hasMore ? rows.slice(0, limit) : rows;
+    const memberCounts =
+      await this.membershipReadModel.countProjectedActiveMembersByCooperative(
+        items.map((row) => row.did as DID),
+      );
 
     const nextCursor =
       hasMore && items.length > 0
-        ? encodeCursor(items[items.length - 1]!.createdAt, items[items.length - 1]!.did)
+        ? encodeCursor(
+            items[items.length - 1]!.createdAt,
+            items[items.length - 1]!.did,
+          )
         : null;
 
     return {
@@ -164,7 +165,9 @@ export class SearchService {
         // Mirror getExploreCooperatives: gate description by public_description.
         description: row.publicDescription ? row.description : null,
         cooperativeType: row.cooperativeType,
-        memberCount: row.publicMembers ? row.memberCount : null,
+        memberCount: row.publicMembers
+          ? (memberCounts.get(row.did) ?? 0)
+          : null,
         website: row.website,
         createdAt: row.createdAt,
       })),
@@ -200,7 +203,9 @@ export class SearchService {
       // 'edited' would silently drop edited posts.
       .where('post.status', '!=', 'deleted')
       .where('thread.invalidated_at', 'is', null)
-      .where(sql<boolean>`post.post_search_tsv @@ websearch_to_tsquery('english', ${trimmed})`)
+      .where(
+        sql<boolean>`post.post_search_tsv @@ websearch_to_tsquery('english', ${trimmed})`,
+      )
       .select([
         'post.id',
         'post.thread_id as threadId',
@@ -234,7 +239,10 @@ export class SearchService {
 
     const nextCursor =
       hasMore && items.length > 0
-        ? encodeCursor(items[items.length - 1]!.createdAt, items[items.length - 1]!.id)
+        ? encodeCursor(
+            items[items.length - 1]!.createdAt,
+            items[items.length - 1]!.id,
+          )
         : null;
 
     return {
@@ -315,12 +323,6 @@ export class SearchService {
         'profile.bio',
         'profile.avatar_cid as avatarCid',
         'entity.created_at as createdAt',
-        sql<number>`(
-          SELECT COUNT(*)::int FROM membership m
-          WHERE m.member_did = entity.did
-            AND m.status = 'active'
-            AND m.invalidated_at IS NULL
-        )`.as('membershipCount'),
       ])
       .orderBy('entity.created_at', 'desc')
       .orderBy('entity.did', 'desc');
@@ -341,10 +343,17 @@ export class SearchService {
     const rows = await q.limit(limit + 1).execute();
     const hasMore = rows.length > limit;
     const items = hasMore ? rows.slice(0, limit) : rows;
+    const membershipCounts =
+      await this.membershipReadModel.countProjectedActiveCooperativesByMember(
+        items.map((row) => row.did as DID),
+      );
 
     const nextCursor =
       hasMore && items.length > 0
-        ? encodeCursor(items[items.length - 1]!.createdAt, items[items.length - 1]!.did)
+        ? encodeCursor(
+            items[items.length - 1]!.createdAt,
+            items[items.length - 1]!.did,
+          )
         : null;
 
     return {
@@ -354,7 +363,7 @@ export class SearchService {
         displayName: row.displayName,
         bio: row.bio,
         avatarCid: row.avatarCid,
-        membershipCount: row.membershipCount,
+        membershipCount: membershipCounts.get(row.did) ?? 0,
         createdAt: row.createdAt,
       })),
       cursor: nextCursor,

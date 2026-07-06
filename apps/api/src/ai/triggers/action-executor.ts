@@ -5,6 +5,8 @@ import type { AppEvent } from '../../appview/sse.js';
 import { emitAppEvent } from '../../appview/sse.js';
 import type { TriggerAction } from './types.js';
 import { validateWebhookUrl } from '../../utils/url-validation.js';
+import type { MembershipReadModel } from '../../services/membership-read-model.js';
+import type { DID } from '@coopsource/common';
 
 export interface ActionResult {
   type: string;
@@ -15,6 +17,7 @@ export interface ActionResult {
 
 export interface ActionContext {
   db: Kysely<Database>;
+  membershipReadModel: MembershipReadModel;
   chatEngine: ChatEngine;
   event: AppEvent;
   trigger: {
@@ -59,7 +62,9 @@ export async function executeAction(
         await executeRunScript(action, context);
         break;
       default:
-        throw new Error(`Unknown action type: ${(action as TriggerAction).type}`);
+        throw new Error(
+          `Unknown action type: ${(action as TriggerAction).type}`,
+        );
     }
 
     return {
@@ -171,14 +176,11 @@ async function executeNotify(
 
   // If no recipients specified, notify all active members
   if (!recipientDids || recipientDids.length === 0) {
-    const members = await context.db
-      .selectFrom('membership')
-      .where('cooperative_did', '=', context.trigger.cooperativeDid)
-      .where('status', '=', 'active')
-      .select('member_did')
-      .execute();
-
-    recipientDids = members.map((m) => m.member_did);
+    recipientDids = [
+      ...(await context.membershipReadModel.listProjectedActiveMemberDids(
+        context.trigger.cooperativeDid as DID,
+      )),
+    ];
   }
 
   if (recipientDids.length === 0) return;
@@ -194,10 +196,7 @@ async function executeNotify(
     source_id: context.trigger.id,
   }));
 
-  await context.db
-    .insertInto('notification')
-    .values(rows)
-    .execute();
+  await context.db.insertInto('notification').values(rows).execute();
 
   // Emit SSE event for each recipient
   for (const did of recipientDids) {

@@ -1,6 +1,12 @@
 import type { Kysely, Selectable } from 'kysely';
 import type { Database, ProposalTable } from '@coopsource/db';
-import type { MembershipService, MemberWithRoles } from '../../services/membership-service.js';
+import { AppError, type DID } from '@coopsource/common';
+import {
+  membershipAuthorityErrorCode,
+  membershipAuthorityHttpStatus,
+  type MemberDirectoryEntry,
+  type MembershipReadModel,
+} from '../../services/membership-read-model.js';
 import type { DelegationVotingService } from '../../services/delegation-voting-service.js';
 
 export interface VoteEligibilityResult {
@@ -19,11 +25,11 @@ export interface VoteEligibilityResult {
  */
 export async function checkVoteEligibility(
   db: Kysely<Database>,
-  membershipService: MembershipService,
+  membershipReadModel: MembershipReadModel,
   delegationVotingService: DelegationVotingService,
   proposal: Selectable<ProposalTable>,
   viewerDid: string,
-  viewerMembership?: MemberWithRoles,
+  viewerMembership?: MemberDirectoryEntry,
 ): Promise<VoteEligibilityResult> {
   // Check proposal is in voting phase
   if (proposal.status !== 'open') {
@@ -36,10 +42,24 @@ export async function checkVoteEligibility(
   }
 
   // Check active membership
-  const member = viewerMembership ?? await membershipService.getMember(
-    proposal.cooperative_did,
-    viewerDid,
-  );
+  let member = viewerMembership;
+  if (!member) {
+    const memberResult = await membershipReadModel.getMemberResult(
+      proposal.cooperative_did as DID,
+      viewerDid as DID,
+    );
+    if (!memberResult.ok) {
+      if (memberResult.reason !== 'not-member') {
+        throw new AppError(
+          memberResult.message,
+          membershipAuthorityHttpStatus(memberResult, 404),
+          membershipAuthorityErrorCode(memberResult, 'NotFound'),
+        );
+      }
+    } else {
+      member = memberResult.member ?? undefined;
+    }
+  }
   if (!member || member.status !== 'active') {
     return {
       eligible: false,

@@ -7,7 +7,7 @@ export async function handleListProposals(ctx: XrpcContext): Promise<unknown> {
     ctx.container.db,
     cooperativeDid,
     ctx.viewer,
-    ctx.container.membershipService,
+    ctx.container.membershipReadModel,
   );
 
   const limit = (ctx.params.limit as number | undefined) ?? 50;
@@ -27,13 +27,14 @@ export async function handleListProposals(ctx: XrpcContext): Promise<unknown> {
       votingType: row.voting_type,
       cooperativeDid: row.cooperative_did,
       authorDid: row.author_did,
-      createdAt: row.created_at instanceof Date
-        ? row.created_at.toISOString()
-        : row.created_at,
+      createdAt:
+        row.created_at instanceof Date
+          ? row.created_at.toISOString()
+          : row.created_at,
       resolvedAt: row.resolved_at
-        ? (row.resolved_at instanceof Date
-            ? row.resolved_at.toISOString()
-            : row.resolved_at)
+        ? row.resolved_at instanceof Date
+          ? row.resolved_at.toISOString()
+          : row.resolved_at
         : undefined,
     })),
     cursor: result.cursor,

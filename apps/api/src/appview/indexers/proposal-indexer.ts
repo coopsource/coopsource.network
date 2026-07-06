@@ -1,6 +1,8 @@
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
+import type { DID } from '@coopsource/common';
 import type { FirehoseEvent } from '@coopsource/federation';
+import { loadProjectedMemberVoteWeight } from '../../services/membership-read-model.js';
 import { emitAppEvent } from '../sse.js';
 
 export async function indexProposal(
@@ -82,19 +84,11 @@ export async function indexVote(
     .where('retracted_at', 'is', null)
     .execute();
 
-  // Look up voter's class weight for weighted voting
-  const membershipRow = await db
-    .selectFrom('membership')
-    .leftJoin('member_class', (j) =>
-      j
-        .onRef('member_class.name', '=', 'membership.member_class')
-        .onRef('member_class.cooperative_did', '=', 'membership.cooperative_did'),
-    )
-    .where('membership.member_did', '=', event.did)
-    .where('membership.cooperative_did', '=', proposal.cooperative_did)
-    .select('member_class.vote_weight')
-    .executeTakeFirst();
-  const voteWeight = membershipRow?.vote_weight ?? 1;
+  const voteWeight = await loadProjectedMemberVoteWeight(
+    db,
+    proposal.cooperative_did as DID,
+    event.did as DID,
+  );
 
   await db
     .insertInto('vote')
@@ -111,7 +105,9 @@ export async function indexVote(
       created_at: new Date(),
       indexed_at: new Date(),
     })
-    .onConflict((oc) => oc.column('uri').doUpdateSet({ cid: event.cid, indexed_at: new Date() }))
+    .onConflict((oc) =>
+      oc.column('uri').doUpdateSet({ cid: event.cid, indexed_at: new Date() }),
+    )
     .execute();
 
   emitAppEvent({

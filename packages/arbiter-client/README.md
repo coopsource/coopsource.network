@@ -16,14 +16,19 @@ The first implementation is deliberately a CSN-backed temporary adapter, not a f
 ## Temporary Space Conventions
 
 ```ts
-membersSpace(cooperativeDid)
+membersSpace(cooperativeDid);
 // { arbiterDid: cooperativeDid, spaceKey: 'members', expectedSpaceType: 'network.coopsource.org.spaceType.members' }
 
-roleSpace(cooperativeDid, 'treasurer')
+roleSpace(cooperativeDid, 'treasurer');
 // { arbiterDid: cooperativeDid, spaceKey: 'roles/treasurer', expectedSpaceType: 'network.coopsource.org.spaceType.role' }
 ```
 
-`spaceKey` is the stable identity. `expectedSpaceType` is validation/config metadata.
+`spaceKey` is the stable identity. `expectedSpaceType` is validation/config
+metadata. The current `expectedSpaceType` values have draft Proposal 0016 space
+type declarations in `@coopsource/lexicons`
+(`packages/lexicons/network/coopsource/org/spaceType/`), but this package keeps
+the constants local to avoid coupling the directory adapter to lexicon runtime
+exports.
 
 ## Adapter Semantics
 

@@ -1,6 +1,13 @@
 import type { RequestHandler } from 'express';
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
+import type { DID } from '@coopsource/common';
+import {
+  membershipAuthorityErrorCode,
+  membershipAuthorityFailure,
+  membershipAuthorityHttpStatus,
+  type MembershipReadModel,
+} from '../services/membership-read-model.js';
 
 export interface Actor {
   did: string;
@@ -27,9 +34,14 @@ declare global {
 
 // Database reference — set by container init
 let _db: Kysely<Database>;
+let _membershipReadModel: MembershipReadModel | undefined;
 
 export function setDb(db: Kysely<Database>): void {
   _db = db;
+}
+
+export function setMembershipReadModel(readModel: MembershipReadModel): void {
+  _membershipReadModel = readModel;
 }
 
 // Setup-complete cache
@@ -60,15 +72,13 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
   try {
     const did = req.session?.did;
     if (!did) {
-      res
-        .status(401)
-        .json({
-          error: { code: 'UNAUTHORIZED', message: 'Not authenticated' },
-        });
+      res.status(401).json({
+        error: { code: 'UNAUTHORIZED', message: 'Not authenticated' },
+      });
       return;
     }
 
-    // Look up entity + active membership + roles
+    // Look up entity first to preserve the current account-not-found response.
     const entity = await _db
       .selectFrom('entity')
       .where('did', '=', did)
@@ -78,59 +88,50 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
 
     if (!entity) {
       req.session.destroy(() => {});
-      res
-        .status(401)
-        .json({
-          error: { code: 'UNAUTHORIZED', message: 'Account not found' },
-        });
+      res.status(401).json({
+        error: { code: 'UNAUTHORIZED', message: 'Account not found' },
+      });
       return;
     }
 
-    const membership = await _db
-      .selectFrom('membership')
-      .where('member_did', '=', did)
-      .where('status', '=', 'active')
-      .where('invalidated_at', 'is', null)
-      .select(['id', 'cooperative_did'])
-      .executeTakeFirst();
-
-    if (!membership) {
-      res
-        .status(401)
-        .json({
-          error: {
-            code: 'UNAUTHORIZED',
-            message: 'No active membership',
-          },
-        });
+    const actorMembership = _membershipReadModel
+      ? await _membershipReadModel.getPrimaryActorMembershipResult(did as DID)
+      : membershipAuthorityFailure(
+          'unavailable',
+          'Membership authority is unavailable',
+        );
+    if (!actorMembership.ok) {
+      const status = membershipAuthorityHttpStatus(actorMembership, 401);
+      res.status(status).json({
+        error: {
+          code: membershipAuthorityErrorCode(actorMembership, 'UNAUTHORIZED'),
+          message:
+            actorMembership.reason === 'not-member'
+              ? 'No active membership'
+              : actorMembership.message,
+          axis: actorMembership.axis,
+          reason: actorMembership.reason,
+        },
+      });
       return;
     }
 
-    const roleRows = await _db
-      .selectFrom('membership_role')
-      .where('membership_id', '=', membership.id)
-      .select('role')
-      .execute();
-
-    const roles = roleRows.map((r) => r.role);
+    const roles = [...actorMembership.membership.roles];
 
     req.actor = {
       did: entity.did,
-      displayName: entity.display_name,
+      displayName: actorMembership.membership.displayName,
       roles,
-      cooperativeDid: membership.cooperative_did,
-      membershipId: membership.id,
-      hasRole: (...check: string[]) =>
-        check.some((r) => roles.includes(r)),
+      cooperativeDid: actorMembership.membership.cooperativeDid,
+      membershipId: actorMembership.membership.membershipId,
+      hasRole: (...check: string[]) => check.some((r) => roles.includes(r)),
     };
 
     next();
   } catch {
-    res
-      .status(401)
-      .json({
-        error: { code: 'UNAUTHORIZED', message: 'Session invalid' },
-      });
+    res.status(401).json({
+      error: { code: 'UNAUTHORIZED', message: 'Session invalid' },
+    });
   }
 };
 
@@ -140,11 +141,9 @@ export const requireViewer: RequestHandler = async (req, res, next) => {
   try {
     const did = req.session?.did;
     if (!did) {
-      res
-        .status(401)
-        .json({
-          error: { code: 'UNAUTHORIZED', message: 'Not authenticated' },
-        });
+      res.status(401).json({
+        error: { code: 'UNAUTHORIZED', message: 'Not authenticated' },
+      });
       return;
     }
 
@@ -157,11 +156,9 @@ export const requireViewer: RequestHandler = async (req, res, next) => {
 
     if (!entity) {
       req.session.destroy(() => {});
-      res
-        .status(401)
-        .json({
-          error: { code: 'UNAUTHORIZED', message: 'Account not found' },
-        });
+      res.status(401).json({
+        error: { code: 'UNAUTHORIZED', message: 'Account not found' },
+      });
       return;
     }
 
@@ -172,11 +169,9 @@ export const requireViewer: RequestHandler = async (req, res, next) => {
 
     next();
   } catch {
-    res
-      .status(401)
-      .json({
-        error: { code: 'UNAUTHORIZED', message: 'Session invalid' },
-      });
+    res.status(401).json({
+      error: { code: 'UNAUTHORIZED', message: 'Session invalid' },
+    });
   }
 };
 

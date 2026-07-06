@@ -4,10 +4,12 @@ import type { Request, Response, NextFunction, Router } from 'express';
 import { Router as createRouter } from 'express';
 import { sql, type Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
+import type { DID } from '@coopsource/common';
 import { lexiconSchemas } from '@coopsource/lexicons';
 import { z } from 'zod';
 import crypto from 'node:crypto';
 import { getFirehoseHealth } from '../appview/loop.js';
+import type { MembershipReadModel } from '../services/membership-read-model.js';
 
 /**
  * MCP Server — exposes cooperative data as MCP resources and tools.
@@ -39,7 +41,10 @@ async function resolveToken(
 
   if (!row) return null;
 
-  if (row.expires_at && new Date(row.expires_at as unknown as string) < new Date()) {
+  if (
+    row.expires_at &&
+    new Date(row.expires_at as unknown as string) < new Date()
+  ) {
     return null;
   }
 
@@ -60,6 +65,7 @@ async function resolveToken(
 function createScopedMcpServer(
   db: Kysely<Database>,
   tokenInfo: TokenInfo,
+  membershipReadModel: MembershipReadModel,
 ): McpServer {
   const mcpServer = new McpServer({
     name: 'coopsource',
@@ -74,15 +80,38 @@ function createScopedMcpServer(
     { limit: z.number().optional().describe('Max results (default 50)') },
     async ({ limit }) => {
       const l = Math.min(limit ?? 50, 100);
-      const rows = await db
-        .selectFrom('membership')
-        .innerJoin('entity', 'entity.did', 'membership.member_did')
-        .where('membership.cooperative_did', '=', coopDid)
-        .where('membership.status', '=', 'active')
-        .select(['entity.did', 'entity.display_name', 'entity.handle'])
-        .limit(l)
-        .execute();
-      return { content: [{ type: 'text' as const, text: JSON.stringify(rows, null, 2) }] };
+      const result = await membershipReadModel.listMembersResult(
+        coopDid as DID,
+        { limit: l },
+      );
+      if (!result.ok) {
+        return {
+          content: [
+            { type: 'text' as const, text: JSON.stringify(result, null, 2) },
+          ],
+        };
+      }
+
+      const dids = result.page.items.map((member) => member.did);
+      const handles =
+        dids.length > 0
+          ? await db
+              .selectFrom('entity')
+              .where('did', 'in', dids)
+              .select(['did', 'handle'])
+              .execute()
+          : [];
+      const handleMap = new Map(handles.map((row) => [row.did, row.handle]));
+      const rows = result.page.items.map((member) => ({
+        did: member.did,
+        displayName: member.displayName,
+        handle: handleMap.get(member.did) ?? null,
+      }));
+      return {
+        content: [
+          { type: 'text' as const, text: JSON.stringify(rows, null, 2) },
+        ],
+      };
     },
   );
 
@@ -102,7 +131,14 @@ function createScopedMcpServer(
         .orderBy('created_at', 'desc')
         .limit(l);
       if (status) query = query.where('status', '=', status);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(await query.execute(), null, 2) }] };
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(await query.execute(), null, 2),
+          },
+        ],
+      };
     },
   );
 
@@ -119,7 +155,11 @@ function createScopedMcpServer(
         .orderBy('created_at', 'desc')
         .limit(l)
         .execute();
-      return { content: [{ type: 'text' as const, text: JSON.stringify(rows, null, 2) }] };
+      return {
+        content: [
+          { type: 'text' as const, text: JSON.stringify(rows, null, 2) },
+        ],
+      };
     },
   );
 
@@ -133,7 +173,11 @@ function createScopedMcpServer(
         .where('did', '=', coopDid)
         .select(['did', 'display_name', 'handle', 'type'])
         .executeTakeFirst();
-      return { content: [{ type: 'text' as const, text: JSON.stringify(entity, null, 2) }] };
+      return {
+        content: [
+          { type: 'text' as const, text: JSON.stringify(entity, null, 2) },
+        ],
+      };
     },
   );
 
@@ -145,8 +189,14 @@ function createScopedMcpServer(
     {
       collection: z.string().describe('Collection NSID (required)'),
       did: z.string().optional().describe('Filter by author DID'),
-      since: z.string().optional().describe('ISO datetime — records indexed after this time'),
-      limit: z.number().optional().describe('Max results (default 50, max 100)'),
+      since: z
+        .string()
+        .optional()
+        .describe('ISO datetime — records indexed after this time'),
+      limit: z
+        .number()
+        .optional()
+        .describe('Max results (default 50, max 100)'),
       cursor: z.string().optional().describe('Cursor from previous page'),
     },
     async ({ collection, did, since, limit, cursor }) => {
@@ -199,10 +249,16 @@ function createScopedMcpServer(
       }
 
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({ records: page, cursor: nextCursor }, null, 2),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              { records: page, cursor: nextCursor },
+              null,
+              2,
+            ),
+          },
+        ],
       };
     },
   );
@@ -211,24 +267,45 @@ function createScopedMcpServer(
     'get-record',
     'Get a single ATProto record by AT URI',
     {
-      uri: z.string().describe('AT URI (e.g., at://did:plc:abc/network.coopsource.org.memberConsent/xyz)'),
+      uri: z
+        .string()
+        .describe(
+          'AT URI (e.g., at://did:plc:abc/network.coopsource.org.memberConsent/xyz)',
+        ),
     },
     async ({ uri }) => {
       const row = await db
         .selectFrom('pds_record')
         .where('uri', '=', uri)
         .where('deleted_at', 'is', null)
-        .select(['uri', 'did', 'collection', 'rkey', 'cid', 'content', 'indexed_at'])
+        .select([
+          'uri',
+          'did',
+          'collection',
+          'rkey',
+          'cid',
+          'content',
+          'indexed_at',
+        ])
         .executeTakeFirst();
 
       if (!row) {
         return {
-          content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Record not found' }) }],
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({ error: 'Record not found' }),
+            },
+          ],
           isError: true,
         };
       }
 
-      return { content: [{ type: 'text' as const, text: JSON.stringify(row, null, 2) }] };
+      return {
+        content: [
+          { type: 'text' as const, text: JSON.stringify(row, null, 2) },
+        ],
+      };
     },
   );
 
@@ -237,7 +314,10 @@ function createScopedMcpServer(
     'Search across indexed ATProto records using text matching on record content',
     {
       query: z.string().describe('Search term'),
-      collection: z.string().optional().describe('Limit to specific collection'),
+      collection: z
+        .string()
+        .optional()
+        .describe('Limit to specific collection'),
       limit: z.number().optional().describe('Max results (default 20, max 50)'),
     },
     async ({ query: searchQuery, collection, limit }) => {
@@ -259,7 +339,11 @@ function createScopedMcpServer(
 
       const rows = await q.execute();
 
-      return { content: [{ type: 'text' as const, text: JSON.stringify(rows, null, 2) }] };
+      return {
+        content: [
+          { type: 'text' as const, text: JSON.stringify(rows, null, 2) },
+        ],
+      };
     },
   );
 
@@ -271,10 +355,7 @@ function createScopedMcpServer(
       const rows = await db
         .selectFrom('pds_record')
         .where('deleted_at', 'is', null)
-        .select([
-          'collection',
-          db.fn.countAll<string>().as('count'),
-        ])
+        .select(['collection', db.fn.countAll<string>().as('count')])
         .groupBy('collection')
         .orderBy(sql`count(*) desc`)
         .execute();
@@ -284,7 +365,11 @@ function createScopedMcpServer(
         count: Number(r.count),
       }));
 
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return {
+        content: [
+          { type: 'text' as const, text: JSON.stringify(result, null, 2) },
+        ],
+      };
     },
   );
 
@@ -292,15 +377,25 @@ function createScopedMcpServer(
     'introspect-lexicon',
     'Return the lexicon schema JSON for a given NSID',
     {
-      nsid: z.string().describe('Lexicon NSID (e.g., network.coopsource.org.memberConsent)'),
+      nsid: z
+        .string()
+        .describe('Lexicon NSID (e.g., network.coopsource.org.memberConsent)'),
     },
     async ({ nsid }) => {
       // Check built-in lexicons first
       const builtIn = (lexiconSchemas as unknown[]).find(
-        (lex) => typeof lex === 'object' && lex !== null && 'id' in lex && (lex as { id: string }).id === nsid,
+        (lex) =>
+          typeof lex === 'object' &&
+          lex !== null &&
+          'id' in lex &&
+          (lex as { id: string }).id === nsid,
       );
       if (builtIn) {
-        return { content: [{ type: 'text' as const, text: JSON.stringify(builtIn, null, 2) }] };
+        return {
+          content: [
+            { type: 'text' as const, text: JSON.stringify(builtIn, null, 2) },
+          ],
+        };
       }
 
       // Try registered_lexicon table (may not exist if P7 hasn't been implemented)
@@ -310,14 +405,26 @@ function createScopedMcpServer(
         `.execute(db);
 
         if (result.rows.length > 0) {
-          return { content: [{ type: 'text' as const, text: JSON.stringify(result.rows[0], null, 2) }] };
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify(result.rows[0], null, 2),
+              },
+            ],
+          };
         }
       } catch {
         // registered_lexicon table doesn't exist yet — that's fine
       }
 
       return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ error: `Lexicon not found: ${nsid}` }) }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify({ error: `Lexicon not found: ${nsid}` }),
+          },
+        ],
         isError: true,
       };
     },
@@ -329,45 +436,59 @@ function createScopedMcpServer(
     {},
     async () => {
       const health = getFirehoseHealth();
-      return { content: [{ type: 'text' as const, text: JSON.stringify(health, null, 2) }] };
+      return {
+        content: [
+          { type: 'text' as const, text: JSON.stringify(health, null, 2) },
+        ],
+      };
     },
   );
 
   return mcpServer;
 }
 
-export function createMcpRoutes(db: Kysely<Database>): Router {
+export function createMcpRoutes(
+  db: Kysely<Database>,
+  membershipReadModel: MembershipReadModel,
+): Router {
   const router = createRouter();
 
-  router.all('/mcp', async (req: Request, res: Response, _next: NextFunction) => {
-    const authHeader = req.headers.authorization;
-    let tokenInfo: TokenInfo | null = null;
+  router.all(
+    '/mcp',
+    async (req: Request, res: Response, _next: NextFunction) => {
+      const authHeader = req.headers.authorization;
+      let tokenInfo: TokenInfo | null = null;
 
-    if (authHeader?.startsWith('Bearer ')) {
-      tokenInfo = await resolveToken(db, authHeader.slice(7));
-    }
-
-    if (!tokenInfo) {
-      res.status(401).json({ error: 'Invalid or missing API token' });
-      return;
-    }
-
-    try {
-      // Create a fresh server per request — avoids cross-request token leaks
-      const mcpServer = createScopedMcpServer(db, tokenInfo);
-      const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => crypto.randomUUID(),
-      });
-      await mcpServer.connect(transport);
-      await transport.handleRequest(req, res, req.body);
-    } catch (err) {
-      if (!res.headersSent) {
-        res.status(500).json({
-          error: err instanceof Error ? err.message : 'MCP error',
-        });
+      if (authHeader?.startsWith('Bearer ')) {
+        tokenInfo = await resolveToken(db, authHeader.slice(7));
       }
-    }
-  });
+
+      if (!tokenInfo) {
+        res.status(401).json({ error: 'Invalid or missing API token' });
+        return;
+      }
+
+      try {
+        // Create a fresh server per request — avoids cross-request token leaks
+        const mcpServer = createScopedMcpServer(
+          db,
+          tokenInfo,
+          membershipReadModel,
+        );
+        const transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: () => crypto.randomUUID(),
+        });
+        await mcpServer.connect(transport);
+        await transport.handleRequest(req, res, req.body);
+      } catch (err) {
+        if (!res.headersSent) {
+          res.status(500).json({
+            error: err instanceof Error ? err.message : 'MCP error',
+          });
+        }
+      }
+    },
+  );
 
   return router;
 }

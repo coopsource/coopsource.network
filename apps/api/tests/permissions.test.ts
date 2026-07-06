@@ -29,6 +29,7 @@ async function createMemberWithRoles(
   const acceptRes = await memberAgent
     .post(`/api/v1/invitations/${invRes.body.token}/accept`)
     .send({
+      email: opts.email,
       displayName: opts.displayName,
       handle: opts.handle,
       password: opts.password,

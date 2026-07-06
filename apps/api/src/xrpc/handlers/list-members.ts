@@ -1,4 +1,9 @@
+import { AppError, type DID } from '@coopsource/common';
 import type { XrpcContext } from '../dispatcher.js';
+import {
+  membershipAuthorityErrorCode,
+  membershipAuthorityHttpStatus,
+} from '../../services/membership-read-model.js';
 import { assertGovernanceAccess } from './open-governance-gate.js';
 
 export async function handleListMembers(ctx: XrpcContext): Promise<unknown> {
@@ -7,19 +12,26 @@ export async function handleListMembers(ctx: XrpcContext): Promise<unknown> {
     ctx.container.db,
     cooperativeDid,
     ctx.viewer,
-    ctx.container.membershipService,
+    ctx.container.membershipReadModel,
   );
 
   const limit = (ctx.params.limit as number | undefined) ?? 50;
   const cursor = ctx.params.cursor as string | undefined;
 
-  const result = await ctx.container.membershipService.listMembers(
-    cooperativeDid,
+  const result = await ctx.container.membershipReadModel.listMembersResult(
+    cooperativeDid as DID,
     { limit, cursor },
   );
+  if (!result.ok) {
+    throw new AppError(
+      result.message,
+      membershipAuthorityHttpStatus(result, 503),
+      membershipAuthorityErrorCode(result, 'MembershipAuthorityUnavailable'),
+    );
+  }
 
   // Only include active members in the directory
-  const activeMembers = result.items.filter((m) => m.status === 'active');
+  const activeMembers = result.page.items.filter((m) => m.status === 'active');
 
   // Determine caller context for three-tier privacy
   const viewer = ctx.viewer;
@@ -28,11 +40,21 @@ export async function handleListMembers(ctx: XrpcContext): Promise<unknown> {
   if (viewerMembership) {
     isFellowMember = viewerMembership.status === 'active';
   } else if (viewer) {
-    const membership = await ctx.container.membershipService.getMember(
-      cooperativeDid,
-      viewer.did,
+    const membership = await ctx.container.membershipReadModel.getMemberResult(
+      cooperativeDid as DID,
+      viewer.did as DID,
     );
-    isFellowMember = membership?.status === 'active';
+    if (!membership.ok) {
+      if (membership.reason !== 'not-member') {
+        throw new AppError(
+          membership.message,
+          membershipAuthorityHttpStatus(membership, 404),
+          membershipAuthorityErrorCode(membership, 'NotFound'),
+        );
+      }
+    } else {
+      isFellowMember = membership.member?.status === 'active';
+    }
   }
 
   const members = activeMembers
@@ -50,9 +72,9 @@ export async function handleListMembers(ctx: XrpcContext): Promise<unknown> {
           displayName: m.displayName,
           roles: m.roles,
           joinedAt: m.joinedAt
-            ? (m.joinedAt instanceof Date
-                ? m.joinedAt.toISOString()
-                : m.joinedAt)
+            ? m.joinedAt instanceof Date
+              ? m.joinedAt.toISOString()
+              : m.joinedAt
             : undefined,
           private: false,
         };
@@ -62,9 +84,9 @@ export async function handleListMembers(ctx: XrpcContext): Promise<unknown> {
       return {
         did: m.did,
         joinedAt: m.joinedAt
-          ? (m.joinedAt instanceof Date
-              ? m.joinedAt.toISOString()
-              : m.joinedAt)
+          ? m.joinedAt instanceof Date
+            ? m.joinedAt.toISOString()
+            : m.joinedAt
           : undefined,
         private: true,
       };
@@ -72,6 +94,6 @@ export async function handleListMembers(ctx: XrpcContext): Promise<unknown> {
 
   return {
     members,
-    cursor: result.cursor,
+    cursor: result.page.cursor,
   };
 }

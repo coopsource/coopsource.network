@@ -5,12 +5,18 @@ import {
   NotFoundError,
   ValidationError,
   ConflictError,
+  type DID,
 } from '@coopsource/common';
+import {
+  membershipAuthorityAppError,
+  type MembershipReadModel,
+} from './membership-read-model.js';
 
 export class MemberClassService {
   constructor(
     private db: Kysely<Database>,
     private clock: IClock,
+    private membershipReadModel: MembershipReadModel,
   ) {}
 
   async createClass(
@@ -95,10 +101,18 @@ export class MemberClassService {
       .updateTable('member_class')
       .set({
         ...(data.name !== undefined ? { name: data.name } : {}),
-        ...(data.description !== undefined ? { description: data.description } : {}),
-        ...(data.voteWeight !== undefined ? { vote_weight: data.voteWeight } : {}),
-        ...(data.quorumWeight !== undefined ? { quorum_weight: data.quorumWeight } : {}),
-        ...(data.boardSeats !== undefined ? { board_seats: data.boardSeats } : {}),
+        ...(data.description !== undefined
+          ? { description: data.description }
+          : {}),
+        ...(data.voteWeight !== undefined
+          ? { vote_weight: data.voteWeight }
+          : {}),
+        ...(data.quorumWeight !== undefined
+          ? { quorum_weight: data.quorumWeight }
+          : {}),
+        ...(data.boardSeats !== undefined
+          ? { board_seats: data.boardSeats }
+          : {}),
         updated_at: now,
       })
       .where('id', '=', classId)
@@ -122,16 +136,13 @@ export class MemberClassService {
     }
 
     // Block if members are assigned to this class
-    const assignedCount = await this.db
-      .selectFrom('membership')
-      .where('cooperative_did', '=', cooperativeDid)
-      .where('member_class', '=', existing.name)
-      .where('status', '=', 'active')
-      .where('invalidated_at', 'is', null)
-      .select((eb) => [eb.fn.countAll<number>().as('count')])
-      .executeTakeFirst();
+    const assignedCount =
+      await this.membershipReadModel.countProjectedActiveMembersInClass(
+        cooperativeDid as DID,
+        existing.name,
+      );
 
-    if (assignedCount && assignedCount.count > 0) {
+    if (assignedCount > 0) {
       throw new ValidationError(
         'Cannot delete member class with assigned members. Remove members from this class first.',
       );
@@ -182,24 +193,23 @@ export class MemberClassService {
       throw new NotFoundError(`Member class '${className}' not found`);
     }
 
-    // Validate membership exists
-    const membership = await this.db
-      .selectFrom('membership')
-      .where('cooperative_did', '=', cooperativeDid)
-      .where('member_did', '=', memberDid)
-      .where('status', '=', 'active')
-      .where('invalidated_at', 'is', null)
-      .select('id')
-      .executeTakeFirst();
+    const membershipResult =
+      await this.membershipReadModel.getActiveMembershipResult(
+        cooperativeDid as DID,
+        memberDid as DID,
+      );
 
-    if (!membership) {
+    if (!membershipResult.ok && membershipResult.reason === 'not-member') {
       throw new NotFoundError('Active membership not found');
+    }
+    if (!membershipResult.ok) {
+      throw membershipAuthorityAppError(membershipResult, 404, 'NOT_FOUND');
     }
 
     const [updated] = await this.db
       .updateTable('membership')
       .set({ member_class: className })
-      .where('id', '=', membership.id)
+      .where('id', '=', membershipResult.membership.membershipId)
       .returningAll()
       .execute();
 
@@ -207,23 +217,23 @@ export class MemberClassService {
   }
 
   async removeMemberClass(cooperativeDid: string, memberDid: string) {
-    const membership = await this.db
-      .selectFrom('membership')
-      .where('cooperative_did', '=', cooperativeDid)
-      .where('member_did', '=', memberDid)
-      .where('status', '=', 'active')
-      .where('invalidated_at', 'is', null)
-      .select('id')
-      .executeTakeFirst();
+    const membershipResult =
+      await this.membershipReadModel.getActiveMembershipResult(
+        cooperativeDid as DID,
+        memberDid as DID,
+      );
 
-    if (!membership) {
+    if (!membershipResult.ok && membershipResult.reason === 'not-member') {
       throw new NotFoundError('Active membership not found');
+    }
+    if (!membershipResult.ok) {
+      throw membershipAuthorityAppError(membershipResult, 404, 'NOT_FOUND');
     }
 
     const [updated] = await this.db
       .updateTable('membership')
       .set({ member_class: null })
-      .where('id', '=', membership.id)
+      .where('id', '=', membershipResult.membership.membershipId)
       .returningAll()
       .execute();
 
@@ -234,24 +244,9 @@ export class MemberClassService {
     cooperativeDid: string,
     memberDid: string,
   ): Promise<number> {
-    const result = await this.db
-      .selectFrom('membership')
-      .leftJoin('member_class', (j) =>
-        j
-          .onRef('member_class.name', '=', 'membership.member_class')
-          .onRef(
-            'member_class.cooperative_did',
-            '=',
-            'membership.cooperative_did',
-          ),
-      )
-      .where('membership.cooperative_did', '=', cooperativeDid)
-      .where('membership.member_did', '=', memberDid)
-      .where('membership.status', '=', 'active')
-      .where('membership.invalidated_at', 'is', null)
-      .select('member_class.vote_weight')
-      .executeTakeFirst();
-
-    return result?.vote_weight ?? 1;
+    return this.membershipReadModel.getProjectedMemberVoteWeight(
+      cooperativeDid as DID,
+      memberDid as DID,
+    );
   }
 }

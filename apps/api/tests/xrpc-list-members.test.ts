@@ -1,8 +1,19 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import supertest from 'supertest';
+import type { DID } from '@coopsource/common';
+import {
+  DenyAllGroupDirectoryPort,
+  type ResolvedMembers,
+  type SpaceRef,
+} from '@coopsource/spaces-consumer';
 import { truncateAllTables } from './helpers/test-db.js';
-import { createTestApp, setupAndLogin, type TestApp } from './helpers/test-app.js';
+import {
+  createTestApp,
+  setupAndLogin,
+  type TestApp,
+} from './helpers/test-app.js';
 import { resetSetupCache } from '../src/auth/middleware.js';
+import { MembershipReadModel } from '../src/services/membership-read-model.js';
 
 describe('network.coopsource.org.listMembers', () => {
   let testApp: TestApp;
@@ -153,4 +164,52 @@ describe('network.coopsource.org.listMembers', () => {
       displayName: 'Closed Coop Fellow',
     });
   });
+
+  it('returns 503 when spaces authority returns a partial active roster', async () => {
+    testApp.container.membershipReadModel = new MembershipReadModel(
+      testApp.container.db,
+      new PartialDirectoryPort(adminDid as DID),
+    );
+
+    const bare = supertest(testApp.app);
+    const res = await bare
+      .get('/xrpc/network.coopsource.org.listMembers')
+      .query({ cooperative: coopDid })
+      .expect(503);
+
+    expect(res.body).toMatchObject({
+      error: 'SPACES_AUTHORITY_UNAVAILABLE',
+    });
+    expect(res.body.message).toContain('partial');
+  });
 });
+
+class PartialDirectoryPort extends DenyAllGroupDirectoryPort {
+  constructor(private readonly memberDid: DID) {
+    super();
+  }
+
+  override async resolveSpaceMembers(
+    args: SpaceRef & {
+      readonly consistency: 'projection-ok' | 'strict';
+      readonly resolverDepth?: number;
+    },
+  ): Promise<ResolvedMembers> {
+    return {
+      ok: true,
+      directMembers: [{ member: { kind: 'did', did: this.memberDid } }],
+      members: [
+        {
+          did: this.memberDid,
+          via: [args],
+          directMember: { kind: 'did', did: this.memberDid },
+          resolverDepth: 0,
+        },
+      ],
+      missingSpaces: [],
+      partial: true,
+      stale: false,
+      resolverDepth: args.resolverDepth ?? 0,
+    };
+  }
+}

@@ -38,13 +38,13 @@ export async function handleInlayVoteWidget(
     ctx.container.db,
     proposal.cooperative_did,
     ctx.viewer,
-    ctx.container.membershipService,
+    ctx.container.membershipReadModel,
   );
 
   // Eligibility check (reuse shared logic with getVoteEligibility XRPC handler)
   const eligibility = await checkVoteEligibility(
     ctx.container.db,
-    ctx.container.membershipService,
+    ctx.container.membershipReadModel,
     ctx.container.delegationVotingService,
     proposal,
     viewerDid,
@@ -53,14 +53,17 @@ export async function handleInlayVoteWidget(
 
   // Build tally rows
   const tallyEntries = Object.entries(voteSummary);
-  const tallyRows = tallyEntries.length > 0
-    ? tallyEntries.map(([choice, count]) =>
-        $('org.atsui.Row', { gap: 'small' },
-          $('org.atsui.Caption', {}, choice),
-          $('org.atsui.Caption', {}, String(count)),
-        ),
-      )
-    : [$('org.atsui.Caption', {}, 'No votes yet')];
+  const tallyRows =
+    tallyEntries.length > 0
+      ? tallyEntries.map(([choice, count]) =>
+          $(
+            'org.atsui.Row',
+            { gap: 'small' },
+            $('org.atsui.Caption', {}, choice),
+            $('org.atsui.Caption', {}, String(count)),
+          ),
+        )
+      : [$('org.atsui.Caption', {}, 'No votes yet')];
 
   // Eligibility display
   let eligibilityText: string;
@@ -80,7 +83,11 @@ export async function handleInlayVoteWidget(
 
   const children = [
     $('org.atsui.Title', {}, proposal.title),
-    $('org.atsui.Caption', {}, proposal.status === 'open' ? 'Open for voting' : proposal.status),
+    $(
+      'org.atsui.Caption',
+      {},
+      proposal.status === 'open' ? 'Open for voting' : proposal.status,
+    ),
     ...tallyRows,
     $('org.atsui.Caption', {}, eligibilityText),
   ];
@@ -88,19 +95,19 @@ export async function handleInlayVoteWidget(
   // Show delegation weight if > 1
   if (eligibility.weight > 1) {
     children.push(
-      $('org.atsui.Caption', {}, `Vote weight: ${eligibility.weight} (includes delegations)`),
+      $(
+        'org.atsui.Caption',
+        {},
+        `Vote weight: ${eligibility.weight} (includes delegations)`,
+      ),
     );
   }
 
   // Deep link for voting action
   if (eligibility.eligible) {
-    children.push(
-      $('org.atsui.Link', { uri: deepLinkUrl }, 'Vote now'),
-    );
+    children.push($('org.atsui.Link', { uri: deepLinkUrl }, 'Vote now'));
   } else if (eligibility.reason !== 'not_active_member') {
-    children.push(
-      $('org.atsui.Link', { uri: deepLinkUrl }, 'View proposal'),
-    );
+    children.push($('org.atsui.Link', { uri: deepLinkUrl }, 'View proposal'));
   }
 
   const tree = serializeTree(
@@ -112,8 +119,12 @@ export async function handleInlayVoteWidget(
     cache: {
       life: 'seconds',
       tags: [
-        { uri: `at://${proposal.cooperative_did}/network.coopsource.governance.proposal` },
-        { uri: `at://${proposal.cooperative_did}/network.coopsource.governance.vote` },
+        {
+          uri: `at://${proposal.cooperative_did}/network.coopsource.governance.proposal`,
+        },
+        {
+          uri: `at://${proposal.cooperative_did}/network.coopsource.governance.vote`,
+        },
       ],
     },
   };

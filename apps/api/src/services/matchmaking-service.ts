@@ -1,9 +1,15 @@
 import type { Kysely, Selectable } from 'kysely';
 import { sql } from 'kysely';
-import type { Database, MatchSuggestionTable, MatchReason } from '@coopsource/db';
+import type {
+  Database,
+  MatchSuggestionTable,
+  MatchReason,
+} from '@coopsource/db';
+import type { DID } from '@coopsource/common';
 import type { IClock } from '@coopsource/federation';
 import { logger } from '../middleware/logger.js';
 import { scoreCandidate, SCORING_VERSION } from './matchmaking/score.js';
+import type { MembershipReadModel } from './membership-read-model.js';
 
 /**
  * V8.7 / V8.8 — Match Service.
@@ -145,6 +151,7 @@ export class MatchmakingService {
   constructor(
     private readonly db: Kysely<Database>,
     private readonly clock: IClock,
+    private readonly membershipReadModel: MembershipReadModel,
   ) {}
 
   // ─── Job entry points ─────────────────────────────────────────────
@@ -205,9 +212,7 @@ export class MatchmakingService {
       const insertResult = await trx
         .insertInto('match_suggestion')
         .values(rows)
-        .onConflict((oc) =>
-          oc.columns(['user_did', 'target_did']).doNothing(),
-        )
+        .onConflict((oc) => oc.columns(['user_did', 'target_did']).doNothing())
         .execute();
 
       const inserted = insertResult.reduce(
@@ -224,40 +229,25 @@ export class MatchmakingService {
     // membership. Skipping membership-less users at query time avoids
     // wasted DELETE+INSERT round-trips for users who would 401 on
     // `/me/matches` anyway.
-    const userRows = await this.db
-      .selectFrom('entity as e')
-      .innerJoin('membership as m', (join) =>
-        join
-          .onRef('m.member_did', '=', 'e.did')
-          .on('m.status', '=', 'active')
-          .on('m.invalidated_at', 'is', null),
-      )
-      .where('e.type', '=', 'person')
-      .where('e.status', '=', 'active')
-      .where('e.invalidated_at', 'is', null)
-      .select('e.did')
-      .distinct()
-      .execute();
+    const userDids =
+      await this.membershipReadModel.listProjectedActivePersonMemberDids();
 
     let inserted = 0;
     let deleted = 0;
     let errors = 0;
 
-    for (const { did } of userRows) {
+    for (const did of userDids) {
       try {
         const result = await this.runMatchmakingForUser(did);
         inserted += result.inserted;
         deleted += result.deleted;
       } catch (err) {
         errors += 1;
-        logger.error(
-          { err, userDid: did },
-          'Matchmaking failed for user',
-        );
+        logger.error({ err, userDid: did }, 'Matchmaking failed for user');
       }
     }
 
-    return { users: userRows.length, inserted, deleted, errors };
+    return { users: userDids.length, inserted, deleted, errors };
   }
 
   async pruneStale(): Promise<{ deleted: number }> {
@@ -285,40 +275,16 @@ export class MatchmakingService {
     const include = params.include ?? 'active';
 
     // V8.8 — LEFT JOIN cooperative_profile so person targets (which have
-    // no cp row) are returned with null cooperative_type. The membership
-    // LEFT JOIN naturally yields member_count=0 for persons because the
-    // join predicate `m.cooperative_did = e.did` never matches a person
-    // DID; the mapper nulls that out on the person branch anyway.
+    // no cp row) are returned with null cooperative_type. Member counts are
+    // loaded through MembershipReadModel after pagination.
     let query = this.db
       .selectFrom('match_suggestion as ms')
       .innerJoin('entity as e', 'e.did', 'ms.target_did')
       .leftJoin('cooperative_profile as cp', 'cp.entity_did', 'e.did')
-      .leftJoin('membership as m', (join) =>
-        join
-          .onRef('m.cooperative_did', '=', 'e.did')
-          .on('m.status', '=', 'active')
-          .on('m.invalidated_at', 'is', null),
-      )
       .where('ms.user_did', '=', userDid)
       .where('e.status', '=', 'active')
       .where('e.invalidated_at', 'is', null)
       .select([
-        'ms.id',
-        'ms.match_type',
-        'ms.target_did',
-        'ms.score',
-        'ms.reason',
-        'ms.created_at',
-        'ms.dismissed_at',
-        'ms.acted_on_at',
-        'e.handle',
-        'e.display_name',
-        'e.description',
-        'e.avatar_cid',
-        'cp.cooperative_type',
-      ])
-      .select((eb) => eb.fn.count<number>('m.id').distinct().as('member_count'))
-      .groupBy([
         'ms.id',
         'ms.match_type',
         'ms.target_did',
@@ -344,6 +310,12 @@ export class MatchmakingService {
     }
 
     const rows = await query.execute();
+    const memberCounts =
+      await this.membershipReadModel.countProjectedActiveMembersByCooperative(
+        rows
+          .filter((row) => row.match_type !== 'person')
+          .map((row) => row.target_did as DID),
+      );
 
     return rows.map((r) => {
       const matchType: 'cooperative' | 'person' =
@@ -365,9 +337,14 @@ export class MatchmakingService {
         description: r.description,
         avatarCid: r.avatar_cid,
         cooperativeType: r.cooperative_type ?? null,
-        memberCount: matchType === 'cooperative' ? Number(r.member_count) : null,
+        memberCount:
+          matchType === 'cooperative'
+            ? (memberCounts.get(r.target_did) ?? 0)
+            : null,
         sharedInterestCount:
-          matchType === 'person' ? Number(signals.sharedCategoryCount ?? 0) : null,
+          matchType === 'person'
+            ? Number(signals.sharedCategoryCount ?? 0)
+            : null,
         sharedCoopCount:
           matchType === 'person' ? Number(signals.sharedCoopCount ?? 0) : null,
         score: r.score,
@@ -414,14 +391,10 @@ export class MatchmakingService {
   private async loadUserContext(userDid: string): Promise<UserContext> {
     // 1. Active memberships → existing coop DIDs (exclude from candidate
     //    pool) AND cooperative types (diversity input).
-    const membershipRows = await this.db
-      .selectFrom('membership as m')
-      .innerJoin('cooperative_profile as cp', 'cp.entity_did', 'm.cooperative_did')
-      .where('m.member_did', '=', userDid)
-      .where('m.status', '=', 'active')
-      .where('m.invalidated_at', 'is', null)
-      .select(['m.cooperative_did', 'cp.cooperative_type'])
-      .execute();
+    const memberships =
+      await this.membershipReadModel.listProjectedMemberCooperatives(
+        userDid as DID,
+      );
 
     // 2. V8.8 — User's alignment interests, aggregated by category. Categories
     //    are lowercased to match alignment-service.ts:496. Priority is the
@@ -441,8 +414,8 @@ export class MatchmakingService {
     }
 
     return {
-      existingCoopDids: new Set(membershipRows.map((r) => r.cooperative_did)),
-      userCoopTypes: new Set(membershipRows.map((r) => r.cooperative_type)),
+      existingCoopDids: new Set(memberships.map((r) => r.did)),
+      userCoopTypes: new Set(memberships.map((r) => r.cooperativeType)),
       userInterestPriorityByCategory: finalizeMean(accum),
     };
   }
@@ -485,7 +458,8 @@ export class MatchmakingService {
       type: 'cooperative' as const,
       cooperativeType: r.cooperative_type,
       // Kysely returns Date for timestamptz columns.
-      createdAt: r.created_at instanceof Date ? r.created_at : new Date(r.created_at),
+      createdAt:
+        r.created_at instanceof Date ? r.created_at : new Date(r.created_at),
       interestPriorityByCategory: coopInterestsByDid.get(r.did) ?? new Map(),
       sharedCoopCount: 0 as const,
     }));
@@ -575,7 +549,10 @@ export class MatchmakingService {
         dataByPerson.set(r.did, acc);
       }
       acc.projectUris.add(r.project_uri);
-      accumulateInterests(r.interests as InterestItem[] | null, acc.priorityAccum);
+      accumulateInterests(
+        r.interests as InterestItem[] | null,
+        acc.priorityAccum,
+      );
     }
 
     return rows.map((r) => {
@@ -584,13 +561,16 @@ export class MatchmakingService {
         ? finalizeMean(data.priorityAccum)
         : new Map<string, number>();
       const sharedCoopCount = data
-        ? Array.from(data.projectUris).filter((d) => ctx.existingCoopDids.has(d)).length
+        ? Array.from(data.projectUris).filter((d) =>
+            ctx.existingCoopDids.has(d),
+          ).length
         : 0;
       return {
         did: r.did,
         type: 'person' as const,
         cooperativeType: null,
-        createdAt: r.created_at instanceof Date ? r.created_at : new Date(r.created_at),
+        createdAt:
+          r.created_at instanceof Date ? r.created_at : new Date(r.created_at),
         interestPriorityByCategory,
         sharedCoopCount,
       };

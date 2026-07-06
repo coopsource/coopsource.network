@@ -1,9 +1,14 @@
 import type { Kysely, Selectable } from 'kysely';
-import type { Database, ReportTemplateTable, ReportSnapshotTable } from '@coopsource/db';
-import { NotFoundError, ConflictError } from '@coopsource/common';
+import type {
+  Database,
+  ReportTemplateTable,
+  ReportSnapshotTable,
+} from '@coopsource/db';
+import { NotFoundError, ConflictError, type DID } from '@coopsource/common';
 import type { IClock } from '@coopsource/federation';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
+import type { MembershipReadModel } from './membership-read-model.js';
 
 type TemplateRow = Selectable<ReportTemplateTable>;
 type SnapshotRow = Selectable<ReportSnapshotTable>;
@@ -12,6 +17,7 @@ export class ReportingService {
   constructor(
     private db: Kysely<Database>,
     private clock: IClock,
+    private membershipReadModel: MembershipReadModel,
   ) {}
 
   async createTemplate(
@@ -45,9 +51,11 @@ export class ReportingService {
       if (
         err instanceof Error &&
         (err.message.includes('duplicate key') ||
-         err.message.includes('unique constraint'))
+          err.message.includes('unique constraint'))
       ) {
-        throw new ConflictError('Report template with this name already exists');
+        throw new ConflictError(
+          'Report template with this name already exists',
+        );
       }
       throw err;
     }
@@ -151,10 +159,7 @@ export class ReportingService {
       query = query.where((eb) =>
         eb.or([
           eb('generated_at', '<', new Date(t)),
-          eb.and([
-            eb('generated_at', '=', new Date(t)),
-            eb('id', '<', i),
-          ]),
+          eb.and([eb('generated_at', '=', new Date(t)), eb('id', '<', i)]),
         ]),
       );
     }
@@ -163,7 +168,10 @@ export class ReportingService {
     const slice = rows.slice(0, limit);
     const cursor =
       rows.length > limit
-        ? encodeCursor(slice[slice.length - 1]!.generated_at, slice[slice.length - 1]!.id)
+        ? encodeCursor(
+            slice[slice.length - 1]!.generated_at,
+            slice[slice.length - 1]!.id,
+          )
         : undefined;
 
     return { items: slice, cursor };
@@ -184,7 +192,11 @@ export class ReportingService {
       case 'equity_statement':
         return this.aggregateEquityStatementData(cooperativeDid);
       case 'patronage':
-        return this.aggregatePatronageData(cooperativeDid, periodStart, periodEnd);
+        return this.aggregatePatronageData(
+          cooperativeDid,
+          periodStart,
+          periodEnd,
+        );
       case 'commerce':
         return this.aggregateCommerceData(cooperativeDid);
       case 'custom':
@@ -202,31 +214,41 @@ export class ReportingService {
     const proposalCount = await this.db
       .selectFrom('proposal')
       .where('cooperative_did', '=', cooperativeDid)
-      .$if(!!periodStart, (qb) => qb.where('created_at', '>=', new Date(periodStart!)))
-      .$if(!!periodEnd, (qb) => qb.where('created_at', '<=', new Date(periodEnd!)))
+      .$if(!!periodStart, (qb) =>
+        qb.where('created_at', '>=', new Date(periodStart!)),
+      )
+      .$if(!!periodEnd, (qb) =>
+        qb.where('created_at', '<=', new Date(periodEnd!)),
+      )
       .select((eb) => eb.fn.count('id').as('count'))
       .executeTakeFirst();
 
     const agreementCount = await this.db
       .selectFrom('agreement')
       .where('project_uri', '=', cooperativeDid)
-      .$if(!!periodStart, (qb) => qb.where('created_at', '>=', new Date(periodStart!)))
-      .$if(!!periodEnd, (qb) => qb.where('created_at', '<=', new Date(periodEnd!)))
+      .$if(!!periodStart, (qb) =>
+        qb.where('created_at', '>=', new Date(periodStart!)),
+      )
+      .$if(!!periodEnd, (qb) =>
+        qb.where('created_at', '<=', new Date(periodEnd!)),
+      )
       .select((eb) => eb.fn.count('uri').as('count'))
       .executeTakeFirst();
 
-    const memberCount = await this.db
-      .selectFrom('membership')
-      .where('cooperative_did', '=', cooperativeDid)
-      .where('status', '=', 'active')
-      .select((eb) => eb.fn.count('id').as('count'))
-      .executeTakeFirst();
+    const memberCounts =
+      await this.membershipReadModel.countProjectedActiveMembersByCooperative([
+        cooperativeDid as DID,
+      ]);
 
     const revenueResult = await this.db
       .selectFrom('revenue_entry')
       .where('cooperative_did', '=', cooperativeDid)
-      .$if(!!periodStart, (qb) => qb.where('recorded_at', '>=', new Date(periodStart!)))
-      .$if(!!periodEnd, (qb) => qb.where('recorded_at', '<=', new Date(periodEnd!)))
+      .$if(!!periodStart, (qb) =>
+        qb.where('recorded_at', '>=', new Date(periodStart!)),
+      )
+      .$if(!!periodEnd, (qb) =>
+        qb.where('recorded_at', '<=', new Date(periodEnd!)),
+      )
       .select((eb) => eb.fn.sum('amount').as('total'))
       .executeTakeFirst();
 
@@ -234,15 +256,19 @@ export class ReportingService {
       .selectFrom('expense')
       .where('cooperative_did', '=', cooperativeDid)
       .where('status', '=', 'approved')
-      .$if(!!periodStart, (qb) => qb.where('created_at', '>=', new Date(periodStart!)))
-      .$if(!!periodEnd, (qb) => qb.where('created_at', '<=', new Date(periodEnd!)))
+      .$if(!!periodStart, (qb) =>
+        qb.where('created_at', '>=', new Date(periodStart!)),
+      )
+      .$if(!!periodEnd, (qb) =>
+        qb.where('created_at', '<=', new Date(periodEnd!)),
+      )
       .select((eb) => eb.fn.sum('amount').as('total'))
       .executeTakeFirst();
 
     return {
       proposalCount: Number(proposalCount?.count ?? 0),
       agreementCount: Number(agreementCount?.count ?? 0),
-      memberCount: Number(memberCount?.count ?? 0),
+      memberCount: memberCounts.get(cooperativeDid) ?? 0,
       totalRevenue: Number(revenueResult?.total ?? 0),
       totalExpenses: Number(expenseResult?.total ?? 0),
       periodStart,
@@ -350,9 +376,15 @@ export class ReportingService {
         retainedAmount: Number(r.retained_amount),
         status: r.status,
       })),
-      totalAllocated: records.reduce((sum, r) => sum + Number(r.total_allocation), 0),
+      totalAllocated: records.reduce(
+        (sum, r) => sum + Number(r.total_allocation),
+        0,
+      ),
       totalCash: records.reduce((sum, r) => sum + Number(r.cash_amount), 0),
-      totalRetained: records.reduce((sum, r) => sum + Number(r.retained_amount), 0),
+      totalRetained: records.reduce(
+        (sum, r) => sum + Number(r.retained_amount),
+        0,
+      ),
       recordCount: records.length,
     };
   }

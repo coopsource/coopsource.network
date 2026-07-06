@@ -3,6 +3,7 @@ import type { IPdsService, RecordRef } from '@coopsource/federation';
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
 import type { AppConfig } from '../config.js';
+import type { MembershipReadModel } from './membership-read-model.js';
 
 export interface WriteCoopRecordParams {
   operatorDid: string;
@@ -26,6 +27,7 @@ export class OperatorWriteProxy {
     private pdsService: IPdsService,
     private db: Kysely<Database>,
     config: AppConfig,
+    private membershipReadModel: MembershipReadModel,
   ) {
     this.authorizedOperators = new Set(
       (config.COOP_OPERATORS ?? '')
@@ -36,7 +38,10 @@ export class OperatorWriteProxy {
   }
 
   async writeCoopRecord(params: WriteCoopRecordParams): Promise<RecordRef> {
-    await this.verifyOperatorAuthorized(params.operatorDid, params.cooperativeDid);
+    await this.verifyOperatorAuthorized(
+      params.operatorDid,
+      params.cooperativeDid,
+    );
 
     const ref = await this.pdsService.createRecord({
       did: params.cooperativeDid,
@@ -69,17 +74,25 @@ export class OperatorWriteProxy {
       return;
     }
 
-    const membership = await this.db
-      .selectFrom('membership')
-      .innerJoin('membership_role', 'membership_role.membership_id', 'membership.id')
-      .where('membership.member_did', '=', operatorDid)
-      .where('membership.cooperative_did', '=', cooperativeDid)
-      .where('membership.status', '=', 'active')
-      .where('membership_role.role', 'in', ['admin', 'board-member', 'staff'])
-      .select('membership.id')
-      .executeTakeFirst();
+    const membership = await this.membershipReadModel.getActiveMembershipResult(
+      cooperativeDid as DID,
+      operatorDid as DID,
+    );
+    if (!membership.ok) {
+      if (membership.reason !== 'not-member') {
+        throw new Error(
+          `${membership.message} (${membership.axis}:${membership.reason})`,
+        );
+      }
+      throw new Error(
+        `Operator ${operatorDid} is not authorized to write records for cooperative ${cooperativeDid}`,
+      );
+    }
 
-    if (!membership) {
+    const mayWrite = membership.membership.roles.some((role) =>
+      ['admin', 'board-member', 'staff'].includes(role),
+    );
+    if (!mayWrite) {
       throw new Error(
         `Operator ${operatorDid} is not authorized to write records for cooperative ${cooperativeDid}`,
       );

@@ -7,7 +7,7 @@ export async function handleGetCooperative(ctx: XrpcContext): Promise<unknown> {
     ctx.container.db,
     cooperativeDid,
     ctx.viewer,
-    ctx.container.membershipService,
+    ctx.container.membershipReadModel,
   );
 
   return {

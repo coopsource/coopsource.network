@@ -1,15 +1,17 @@
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
 import type { IClock } from '@coopsource/federation';
-import { NotFoundError, ValidationError } from '@coopsource/common';
+import { NotFoundError, ValidationError, type DID } from '@coopsource/common';
 import type { CreateDelegationInput } from '@coopsource/common';
 import type { PageParams, Page } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
+import type { MembershipReadModel } from './membership-read-model.js';
 
 export class DelegationVotingService {
   constructor(
     private db: Kysely<Database>,
     private clock: IClock,
+    private membershipReadModel: MembershipReadModel,
   ) {}
 
   async createDelegation(
@@ -146,10 +148,7 @@ export class DelegationVotingService {
       query = query.where((eb) =>
         eb.or([
           eb('created_at', '<', new Date(t)),
-          eb.and([
-            eb('created_at', '=', new Date(t)),
-            eb('uri', '<', i),
-          ]),
+          eb.and([eb('created_at', '=', new Date(t)), eb('uri', '<', i)]),
         ]),
       );
     }
@@ -237,7 +236,9 @@ export class DelegationVotingService {
       // Check project-level delegation or proposal-specific delegation
       const isProjectLevel = d.scope === 'project';
       const isProposalLevel =
-        d.scope === 'proposal' && proposal?.uri && d.proposal_uri === proposal.uri;
+        d.scope === 'proposal' &&
+        proposal?.uri &&
+        d.proposal_uri === proposal.uri;
 
       if (isProjectLevel || isProposalLevel) {
         // Trace the chain to see if it leads to voterDid
@@ -268,10 +269,16 @@ export class DelegationVotingService {
     }
 
     // Class-aware weight: voter's class weight + sum of delegators' class weights
-    const voterWeight = await this.getMemberClassWeight(cooperativeDid, voterDid);
+    const voterWeight = await this.getMemberClassWeight(
+      cooperativeDid,
+      voterDid,
+    );
     let totalDelegated = 0;
     for (const delegatorDid of delegators) {
-      totalDelegated += await this.getMemberClassWeight(cooperativeDid, delegatorDid);
+      totalDelegated += await this.getMemberClassWeight(
+        cooperativeDid,
+        delegatorDid,
+      );
     }
     return voterWeight + totalDelegated;
   }
@@ -280,19 +287,9 @@ export class DelegationVotingService {
     cooperativeDid: string,
     memberDid: string,
   ): Promise<number> {
-    const result = await this.db
-      .selectFrom('membership')
-      .leftJoin('member_class', (j) =>
-        j
-          .onRef('member_class.name', '=', 'membership.member_class')
-          .onRef('member_class.cooperative_did', '=', 'membership.cooperative_did'),
-      )
-      .where('membership.cooperative_did', '=', cooperativeDid)
-      .where('membership.member_did', '=', memberDid)
-      .where('membership.status', '=', 'active')
-      .select('member_class.vote_weight')
-      .executeTakeFirst();
-
-    return result?.vote_weight ?? 1;
+    return this.membershipReadModel.getProjectedMemberVoteWeight(
+      cooperativeDid as DID,
+      memberDid as DID,
+    );
   }
 }

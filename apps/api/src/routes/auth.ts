@@ -3,9 +3,18 @@ import { Router } from 'express';
 import type { Container } from '../container.js';
 import { asyncHandler } from '../lib/async-handler.js';
 import { requireAuth, requireSetup } from '../auth/middleware.js';
-import { ValidationError, RegisterSchema, LoginSchema } from '@coopsource/common';
+import type { DID } from '@coopsource/common';
+import {
+  ValidationError,
+  RegisterSchema,
+  LoginSchema,
+} from '@coopsource/common';
 import type { NodeOAuthClient } from '@atproto/oauth-client-node';
 import { OAUTH_SCOPE } from '../auth/oauth-client.js';
+import {
+  membershipAuthorityErrorCode,
+  membershipAuthorityHttpStatus,
+} from '../services/membership-read-model.js';
 
 export interface AuthRoutesOptions {
   oauthClient?: NodeOAuthClient;
@@ -34,9 +43,7 @@ export function createAuthRoutes(
         .select('value')
         .executeTakeFirst();
 
-      const cooperativeDid = coopConfig
-        ? String(coopConfig.value)
-        : null;
+      const cooperativeDid = coopConfig ? String(coopConfig.value) : null;
 
       if (!cooperativeDid) {
         throw new ValidationError('Instance not set up');
@@ -58,13 +65,16 @@ export function createAuthRoutes(
     }),
   );
 
-  async function buildMeResponse(did: string, actor: {
-    did: string;
-    displayName: string;
-    roles: string[];
-    cooperativeDid: string | null;
-    membershipId: string | null;
-  }) {
+  async function buildMeResponse(
+    did: string,
+    actor: {
+      did: string;
+      displayName: string;
+      roles: string[];
+      cooperativeDid: string | null;
+      membershipId: string | null;
+    },
+  ) {
     // Fetch email from auth_credential
     const cred = await container.db
       .selectFrom('auth_credential')
@@ -134,14 +144,10 @@ export function createAuthRoutes(
   );
 
   // DELETE /api/v1/auth/session
-  router.delete(
-    '/api/v1/auth/session',
-    requireAuth,
-    (_req, res) => {
-      _req.session.destroy(() => {});
-      res.status(204).send();
-    },
-  );
+  router.delete('/api/v1/auth/session', requireAuth, (_req, res) => {
+    _req.session.destroy(() => {});
+    res.status(204).send();
+  });
 
   // GET /api/v1/auth/me
   router.get(
@@ -157,48 +163,46 @@ export function createAuthRoutes(
     '/api/v1/me/memberships',
     requireAuth,
     asyncHandler(async (req, res) => {
-      const rows = await container.db
-        .selectFrom('membership')
-        .innerJoin('entity', 'entity.did', 'membership.cooperative_did')
-        .innerJoin('cooperative_profile', 'cooperative_profile.entity_did', 'entity.did')
-        .where('membership.member_did', '=', req.session.did!)
-        .where('membership.status', '=', 'active')
-        .where('membership.invalidated_at', 'is', null)
-        .select([
-          'entity.did',
-          'entity.handle',
-          'entity.display_name',
-          'entity.description',
-          'cooperative_profile.is_network',
-          'cooperative_profile.website',
-          'membership.joined_at',
-        ])
-        .execute();
+      const membershipResult =
+        await container.membershipReadModel.listMemberCooperativesResult(
+          req.session.did! as DID,
+        );
+      if (!membershipResult.ok) {
+        res.status(membershipAuthorityHttpStatus(membershipResult, 403)).json({
+          error: {
+            code: membershipAuthorityErrorCode(membershipResult, 'FORBIDDEN'),
+            message: membershipResult.message,
+            axis: membershipResult.axis,
+            reason: membershipResult.reason,
+          },
+        });
+        return;
+      }
 
-      const cooperatives = rows
-        .filter((r) => !r.is_network)
+      const cooperatives = membershipResult.memberships
+        .filter((r) => !r.isNetwork)
         .map((r) => ({
           did: r.did,
           handle: r.handle,
-          displayName: r.display_name,
+          displayName: r.displayName,
           description: r.description,
           website: r.website,
           isNetwork: false,
           status: 'active',
-          createdAt: r.joined_at ? r.joined_at.toISOString() : null,
+          createdAt: r.createdAt,
         }));
 
-      const networks = rows
-        .filter((r) => r.is_network)
+      const networks = membershipResult.memberships
+        .filter((r) => r.isNetwork)
         .map((r) => ({
           did: r.did,
           handle: r.handle,
-          displayName: r.display_name,
+          displayName: r.displayName,
           description: r.description,
           website: r.website,
           isNetwork: true,
           status: 'active',
-          createdAt: r.joined_at ? r.joined_at.toISOString() : null,
+          createdAt: r.createdAt,
         }));
 
       res.json({ cooperatives, networks });
@@ -246,8 +250,14 @@ export function createAuthRoutes(
           agreementTitle: r.agreement_title,
           cooperativeDid: r.cooperative_did,
           requesterDid: r.requester_did,
-          requestedAt: r.requested_at instanceof Date ? r.requested_at.toISOString() : r.requested_at,
-          expiresAt: r.expires_at instanceof Date ? r.expires_at.toISOString() : r.expires_at,
+          requestedAt:
+            r.requested_at instanceof Date
+              ? r.requested_at.toISOString()
+              : r.requested_at,
+          expiresAt:
+            r.expires_at instanceof Date
+              ? r.expires_at.toISOString()
+              : r.expires_at,
         })),
       );
     }),
@@ -257,12 +267,9 @@ export function createAuthRoutes(
 
   if (oauthClient) {
     // GET /api/v1/auth/oauth/client-metadata.json — Serve client metadata
-    router.get(
-      '/api/v1/auth/oauth/client-metadata.json',
-      (_req, res) => {
-        res.json(oauthClient.clientMetadata);
-      },
-    );
+    router.get('/api/v1/auth/oauth/client-metadata.json', (_req, res) => {
+      res.json(oauthClient.clientMetadata);
+    });
 
     // POST /api/v1/auth/oauth/login — Initiate OAuth flow
     router.post(
@@ -288,9 +295,7 @@ export function createAuthRoutes(
     router.get(
       '/api/v1/auth/oauth/callback',
       asyncHandler(async (req, res) => {
-        const params = new URLSearchParams(
-          req.url.split('?')[1] ?? '',
-        );
+        const params = new URLSearchParams(req.url.split('?')[1] ?? '');
 
         const { session: oauthSession } = await oauthClient.callback(params);
         const did = oauthSession.did;
@@ -380,9 +385,10 @@ export function createAuthRoutes(
           .where('key', '=', key)
           .execute();
 
-        const { did } = typeof row.state === 'string'
-          ? JSON.parse(row.state) as { did: string }
-          : row.state as unknown as { did: string };
+        const { did } =
+          typeof row.state === 'string'
+            ? (JSON.parse(row.state) as { did: string })
+            : (row.state as unknown as { did: string });
 
         // Set session and wait for persistence
         req.session.did = did;

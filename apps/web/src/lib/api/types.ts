@@ -37,9 +37,9 @@ export interface CoopEntity {
 
 export interface WorkspaceContext {
   type: 'coop' | 'home';
-  handle: string;       // 'me' when type === 'home'
-  prefix: string;       // '/me' when type === 'home'
-  cooperative: CoopEntity | null;  // null for home workspace
+  handle: string; // 'me' when type === 'home'
+  prefix: string; // '/me' when type === 'home'
+  cooperative: CoopEntity | null; // null for home workspace
   userRoles?: string[]; // empty for home workspace
 }
 
@@ -61,13 +61,25 @@ export interface Member {
 export interface Invitation {
   id: string;
   token: string;
-  email: string;
+  email: string | null;
+  emailHint?: string | null;
   roles: string[];
   message: string | null;
   status: string;
   expiresAt: string;
   createdAt: string;
   invitedBy: string | null;
+}
+
+export interface PublicInvitationPreview {
+  id: string;
+  status: string;
+  email: null;
+  emailHint: string | null;
+  roles: string[];
+  message: string | null;
+  expiresAt: string;
+  cooperativeName: string | null;
 }
 
 export interface Proposal {
@@ -1310,7 +1322,11 @@ export interface TimeSummary {
 }
 
 export interface ProjectTimeSummary {
-  members: Array<{ memberDid: string; totalMinutes: number; entryCount: number }>;
+  members: Array<{
+    memberDid: string;
+    totalMinutes: number;
+    entryCount: number;
+  }>;
 }
 
 export interface ScheduleShift {

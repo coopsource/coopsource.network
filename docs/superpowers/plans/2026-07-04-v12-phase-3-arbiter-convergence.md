@@ -1,15 +1,14 @@
 # V12 Phase 3 — Arbiter Convergence + Membership Reads Through the Port
 
-> **Progress (2026-07-04):** Merged to main — Task 3.1 (roster truncation), 3.1b (visibility opt-in endpoint), 3.3 (lifecycle events), 3.4 (consent-indexer hardening), 3.5 (suspension). **Remaining:** 3.2 (read-seam through the port, ~35 sites — use the `didHasPermission` pattern), 3.6 (DID-rotation lookup in the consumer accept path — needs a rotation-resolution port method; gated-off code), 3.7 (invitation hardening + OAuth bring-your-own-DID accept — scope against the existing oauthClient first; may span Phase 4), 3.8 (XRPC arbiter adapter — awaits a shipped arbiter server / stable town.muni.arbiter.* lexicons), 3.9 Issue B (intra-api parallel-run timeout flake — /admin/hooks times out under contention).
-
+> **Progress (2026-07-05):** Merged to main — Task 3.1 (roster truncation), 3.1b (visibility opt-in endpoint), 3.2 bug slice (active-member filter divergence), 3.3 (lifecycle events), 3.4 (consent-indexer hardening), 3.5 (suspension), 3.7 partial (single-use local invitation redemption), and 3.9 Issue B (Supertest listener flake). **Remaining:** 3.2 architectural read seam (design first, then migrate direct membership reads), 3.6 DID-rotation-aware equality before enabling the spaces consumer, 3.7 completion for public/OAuth invite acceptance, and 3.8 XRPC arbiter adapter once a real or stable-enough target exists.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: use superpowers:subagent-driven-development or superpowers:executing-plans. Steps use `- [ ]` checkboxes. Each task ends with an independently testable deliverable. TDD throughout: failing test → run-red → implement → run-green → commit.
 
-**Goal:** Complete the membership authority seam — route membership *reads* through `GroupDirectoryPort` (writes already go through `GroupMutationPort`), converge the CSN-DB adapters toward the draft `town.muni.arbiter.*` contract, and resolve the verified pre-merge review findings that belong to the membership layer.
+**Goal:** Complete the membership authority seam — route membership _reads_ through `GroupDirectoryPort` (writes already go through `GroupMutationPort`), converge the CSN-DB adapters toward the draft `town.muni.arbiter.*` contract, and resolve the verified pre-merge review findings that belong to the membership layer.
 
 **Branch:** `feature/v12-phase-3-arbiter-convergence` (already created). Merge `--no-ff` + tag `v12-phase-3` when green.
 
-**Architecture:** ARCHITECTURE-V12 §4–§5, §10. This phase closes the "half-drawn seam": today writes flow through the port but ~35 read sites hit `membership`/`membership_role` directly with divergent filters.
+**Architecture:** ARCHITECTURE-V12 §4–§5, §10, plus `docs/plans/2026-07-05-v12-replan-after-code-deep-dive.md` and `docs/plans/2026-07-05-v12-membership-read-seam-design.md`. This phase closes the "half-drawn seam": today writes flow through the port but application reads still hit `membership`/`membership_role` directly. The active-status filter bug is fixed; the remaining work is architectural.
 
 **Tech stack:** unchanged (TS strict, Kysely, Vitest 4).
 
@@ -23,7 +22,7 @@
 
 ## Decision recorded (user, 2026-07-04)
 
-**V2 (invitation auto-activation): KEEP immediate-active — no approval checkpoint.** Rationale: the decision to admit the member was already made (often voted) at invite-send time, so re-approval on acceptance is redundant. The requirement is not a second approval but a *safe acceptance*: (a) the acceptance is authoritatively from the invited party, and (b) it responds to a specific invitation the cooperative actually issued — never an arbitrary "acceptance" from an unknown actor.
+**V2 (invitation auto-activation): KEEP immediate-active — no approval checkpoint.** Rationale: the decision to admit the member was already made (often voted) at invite-send time, so re-approval on acceptance is redundant. The requirement is not a second approval but a _safe acceptance_: (a) the acceptance is authoritatively from the invited party, and (b) it responds to a specific invitation the cooperative actually issued — never an arbitrary "acceptance" from an unknown actor.
 
 This is the standard **addressed, single-use invitation** pattern, and the schema already supports it (`invitation.invitee_did`, `invitee_email`, `token`, `status`, `invalidated_at`). Task 3.7 implements the three properties that make immediate-active safe against a leaked token; it does NOT add a checkpoint.
 
@@ -41,16 +40,20 @@ This is the standard **addressed, single-use invitation** pattern, and the schem
 - [ ] Implement: query `limit(pageSize()+1)`; if the extra row is present, drop it and set a `truncated` flag; either loop pages under `strict` or surface `partial:true`. Thread `truncated` into the `resolveSpaceMembers` return.
 - [ ] Green + commit `fix(arbiter-client): report partial resolution on roster truncation (V4)`.
 
-## Task 3.2: Membership reads through GroupDirectoryPort
+## Task 3.2: Membership reads through the read seam
 
-**Files:** Add read methods to `packages/spaces-consumer/src/group-directory-port.ts` (or a sibling read port) + `CsnDbGroupDirectoryPort`; Modify `apps/api/src/services/membership-service.ts` (`selectFrom('membership')` at 38/104/247), `network-service.ts`, and other direct readers surfaced by grep; Tests alongside each.
+**Files:** Design doc now exists at `docs/plans/2026-07-05-v12-membership-read-seam-design.md`. Next add the minimum API-layer read facade/port and adapter code required to migrate direct readers. Expected implementation touches `apps/api/src/services/membership-service.ts`, `network-service.ts`, governance/profile/reporting/AI/MCP/script readers surfaced by `rg`, and tests alongside each.
 
-**Problem (review altitude):** ~35 direct reads with divergent filters — `listMembers` shows non-active members (`invalidated_at is null` only) while `network-service` and the coop-profile count require `status='active'`. A coop's member list and its member count disagree.
+**Problem (review altitude):** Direct reads are spread across the API layer. The original filter-divergence bug is already fixed, but the axis boundary is still wrong: application services continue to decide membership by querying projection tables directly instead of going through a single authority seam.
 
-- [ ] Enumerate read sites: `grep -rn "selectFrom('membership')\|selectFrom('membership_role')" apps/api/src` — record the list in the PR.
-- [ ] Decide the canonical active-member filter (`status='active' AND invalidated_at IS NULL`) and encode it once in the port; failing test asserts `listMembers` and the coop member-count agree for a coop with a departed member.
-- [ ] Route `membership-service` reads (and the federation coop-profile count) through the port method; keep the CSN-DB adapter serving from the projection.
-- [ ] Green per moved site; commit incrementally `refactor(api): route membership reads through GroupDirectoryPort`.
+**2026-07-05 correction:** do **not** push display names, profiles, quorum, vote weights, member classes, or cooperative-specific eligibility into the package-level `GroupDirectoryPort`. Keep Layer 2 generic (`resolveSpaceMembers`, direct DIDs/access, partial/stale metadata). Add an API-layer membership read facade that composes the directory answer with local projection/profile/governance tables where needed.
+
+- [ ] Enumerate read sites with `rg "selectFrom\\('membership'\\)|selectFrom\\('membership_role'\\)" apps/api/src` and record the inventory in the PR/design doc.
+- [ ] Design the read seam before code migration: security-critical permission checks, roster/count/profile reads, governance eligibility/quorum/vote-weight reads, and utility/reporting/AI reads each need explicit return types.
+- [ ] Encode the canonical active-member filter (`status='active' AND invalidated_at IS NULL`) once in the seam/adapter; keep fail-closed behavior for partial/stale directory resolution.
+- [ ] Migrate in risk order: auth/middleware/permissions first; roster/count/profile reads second; governance reads third; utility/reporting/AI/MCP/script reads last.
+- [ ] Keep the CSN-DB adapter serving from the projection until a real Arbiter server exists. Direct membership access after this task should be limited to low-level adapters/tests/helpers.
+- [ ] Green per moved slice; commit incrementally with messages like `refactor(api): route security membership reads through authority seam`.
 
 ## Task 3.1b: Directory-visibility opt-in path (review finding #5)
 
@@ -68,7 +71,7 @@ This is the standard **addressed, single-use invitation** pattern, and the schem
 
 **Problem:** V9's indexers were the only emitters; they were rewritten/gutted, so the events advertised in `EVENT_CATALOG` and the web `TriggerPanel` never fire — webhooks/agent-triggers/SSE dashboards are silently dead on join/depart.
 
-**Design note:** emit at the *service* layer where the event bus is available (the port in `packages/arbiter-client` has no bus dependency — do not add one). Emit once per logical join/depart, not per call site duplicated.
+**Design note:** emit at the _service_ layer where the event bus is available (the port in `packages/arbiter-client` has no bus dependency — do not add one). Emit once per logical join/depart, not per call site duplicated.
 
 - [ ] Failing test: a join through `membershipService` emits exactly one `member.joined` with `{did, cooperativeDid}`; a removal emits one `member.departed`.
 - [ ] Implement emission in the service path; ensure setup/auth/network/federation joins all flow through it (or emit at each with a shared helper — no duplicates).
@@ -109,30 +112,34 @@ This is the standard **addressed, single-use invitation** pattern, and the schem
 
 Constraints: match ATProto community convention; give users options; **no email backend** (must deploy and have friends try it without SMTP config); minimize developer friction.
 
-Community norm as of 2026 (sources: atproto.com/specs/oauth; bluesky-social/atproto discussion #4587 "OAuth-based account creation", Jan 2026; docs.bsky.app/blog/oauth-atproto): **OAuth bring-your-own-identity is the idiomatic path** — the app never collects email/passwords; users authenticate as an existing DID via OAuth. The ecosystem is actively moving account *creation* to OAuth too (`prompt=create`, experimental), and explicitly criticizes apps that collect email+password (which is exactly what CSN's current `register()` does). Invite codes are a PDS-level gating mechanism, not app email.
+Community norm as of 2026 (sources: atproto.com/specs/oauth; bluesky-social/atproto discussion #4587 "OAuth-based account creation", Jan 2026; docs.bsky.app/blog/oauth-atproto): **OAuth bring-your-own-identity is the idiomatic path** — the app never collects email/passwords; users authenticate as an existing DID via OAuth. The ecosystem is actively moving account _creation_ to OAuth too (`prompt=create`, experimental), and explicitly criticizes apps that collect email+password (which is exactly what CSN's current `register()` does). Invite codes are a PDS-level gating mechanism, not app email.
 
 **CSN onboarding (in priority order):**
+
 1. **OAuth bring-your-own-DID — primary/idiomatic.** Invitee already has an ATProto identity (Bluesky or any PDS); they accept an invite by OAuth sign-in. DID-authoritative by construction (the OAuth flow proves DID control), so it directly satisfies "authoritatively from the invited party." Zero email, zero password, zero SMTP. CSN already has `oauthClient`/`memberWriteProxy`/`operatorWriteProxy` (V9) to build on. **This is the friction-free "friends try it out" path** — a friend with a Bluesky account just signs in.
-2. **Local email+password account — fallback only, for the identity-less.** Keep the existing `register()` as a stopgap, clearly marked non-idiomatic and slated to retire in favor of OAuth account creation (#4587) when it standardizes. Critically it needs **no email *sending*** — email is a stored login credential, not a send channel.
+2. **Local email+password account — fallback only, for the identity-less.** Keep the existing `register()` as a stopgap, clearly marked non-idiomatic and slated to retire in favor of OAuth account creation (#4587) when it standardizes. Critically it needs **no email _sending_** — email is a stored login credential, not a send channel.
 3. **Invites are single-use links/codes shared out-of-band** (operator copies + hands over via DM/paste). The server never sends email. `invitee_email` becomes optional metadata, never a required channel. → **satisfies "no email backend to deploy."**
 
-**Phase split:** the OAuth bring-your-own-DID *accept* flow overlaps the OAuth work — scope it against the existing `oauthClient` login surface first. If the OAuth login/callback is already wired for existing users, invite-accept-via-OAuth can land in Task 3.7; otherwise it moves to Phase 4 (OAuth-spaces seam) and Task 3.7 hardens the local + out-of-band-link paths now. Do not collect email/passwords for OAuth users.
+**Phase split:** the OAuth bring-your-own-DID _accept_ flow overlaps the OAuth work — scope it against the existing `oauthClient` login surface first. If the OAuth login/callback is already wired for existing users, invite-accept-via-OAuth can land in Task 3.7; otherwise it moves to Phase 4 (OAuth-spaces seam) and Task 3.7 hardens the local + out-of-band-link paths now. Do not collect email/passwords for OAuth users.
 
 ## Task 3.7: Harden invitations — addressed, single-use, reference-bound (keep immediate-active)
 
 **Files:** `apps/api/src/services/auth-service.ts` (`register()` invitation path ~44–76, 175–186); `apps/api/src/routes/org/memberships.ts` (`/invitations/:token/accept` ~320–330); possibly `apps/api/src/services/consent-evidence-verifier.ts` (bind acceptance consent to the invitation); Tests.
 
+**2026-07-05 code-reality note:** `AuthService.register()` now enforces bootstrap email addressee binding and atomic single-use consume. The public `/api/v1/invitations/:token/accept` route is still incomplete: it has no email/DID/OAuth binding, and it creates DID/PDS-consent artifacts before the conditional consume, so a losing concurrent redemption can still leave orphan external artifacts even though membership is protected. Finish this path or explicitly move OAuth BYO-DID acceptance to Phase 4.
+
 Three properties turn the bearer token into an addressed, unforgeable, one-time credential — immediate-active stays, the leaked-token hole closes:
 
-1. **Addressee binding — DID-bound is canonical; email is a bootstrap-only fallback.** (User decision 2026-07-04: the DID is the durable identity — it derives from PLC keys and resolves to a DID doc; CSN's email/password is a separate login credential (`auth_credential.entity_did`) that merely *references* the DID and is one swappable reach channel. Bind to identity, not to the reach channel.)
+1. **Addressee binding — DID-bound is canonical; email is a bootstrap-only fallback.** (User decision 2026-07-04: the DID is the durable identity — it derives from PLC keys and resolves to a DID doc; CSN's email/password is a separate login credential (`auth_credential.entity_did`) that merely _references_ the DID and is one swappable reach channel. Bind to identity, not to the reach channel.)
 
    Two invitation kinds, both already expressible in the schema (`invitee_did` / `invitee_email`):
-   - **Bound invite (`invitee_did` set) — primary/idiomatic.** The coop is inviting a known identity: an existing CSN member, a bring-your-own ATProto user, or a cooperative-as-member (the recursive coop→network / user→coop cases are *inherently* DID-to-DID — email could never bind them). Acceptance requires **authoritative control of that DID**: a local session already authenticated as it, an OAuth token for it (Axis 1), or a `memberConsent` record authored by it (the `consentEvidenceVerifier` author check already provides this). A leaked token is useless to anyone who can't prove they are `invitee_did`.
+   - **Bound invite (`invitee_did` set) — primary/idiomatic.** The coop is inviting a known identity: an existing CSN member, a bring-your-own ATProto user, or a cooperative-as-member (the recursive coop→network / user→coop cases are _inherently_ DID-to-DID — email could never bind them). Acceptance requires **authoritative control of that DID**: a local session already authenticated as it, an OAuth token for it (Axis 1), or a `memberConsent` record authored by it (the `consentEvidenceVerifier` author check already provides this). A leaked token is useless to anyone who can't prove they are `invitee_did`.
    - **Bootstrap invite (`invitee_email` set, no DID yet) — net-new humans only.** `register()` mints the DID at redemption, so a brand-new invitee has no DID to bind at send time. Here email possession is the bootstrap factor: require registration `email === invitee_email` (case-insensitive). On success, **capture the freshly-minted DID into `invitee_did`** so the record is complete and all subsequent authority is DID-based. Explicitly the weaker path; document it as such.
    - [ ] Failing test (bound): invite `invitee_did=did:plc:alice`; accept authenticated as `did:plc:mallory` → rejected; as `did:plc:alice` → active.
    - [ ] Failing test (bootstrap): invite `invitee_email=alice@coop`; register `mallory@evil` → rejected; `alice@coop` → active, and `invitee_did` is backfilled with the new DID.
 
    **Direction (flag for Phase 4/5, do not block Task 3.7):** the most ATProto-native onboarding is bring-your-own-DID — an existing-identity human accepts with their own DID via OAuth, no CSN-minted `did:plc` and no email/password at all. `register()` currently always mints a new `did:plc`; a BYO-DID accept path (OAuth-based, Axis 1) makes the bound path first-class for humans, not just the recursive machinery. Design the invite model to accommodate it now (the `invitee_did` kind already does); implement the accept surface with the OAuth-spaces seam work.
+
 2. **Atomic single-use consume.** Replace the read-then-later-mark (`register()` marks accepted at ~176, after member creation) with a conditional UPDATE executed **before** member creation, in the same transaction: `UPDATE invitation SET status='accepted', invitee_did=?, invalidated_at=now WHERE id=? AND status='pending' AND invalidated_at IS NULL RETURNING id`. Zero rows affected → the invitation was already consumed/expired → reject. Kills replay and concurrent double-redemption.
    - [ ] Failing test: two concurrent redemptions of the same token → exactly one succeeds, the other 4xx; a second sequential redemption of a consumed token → rejected.
 3. **Reference binding (requirement b).** Acceptance must cite a real, open, coop-issued invitation (not an arbitrary consent). Local path: the token lookup already establishes this; ensure the `memberConsent` acceptance record's `invitationId`/reference is checked so no membership is created from a consent that doesn't correspond to an issued invitation. Cross-instance path: `consentEvidenceVerifier` for `invitationAcceptance` should additionally confirm the referenced invitation exists and is addressed to the accepter.
@@ -140,13 +147,13 @@ Three properties turn the bearer token into an addressed, unforgeable, one-time 
 
 Also: the expiry check already exists (keep it) and expired/consumed invitations must not resurrect. After this task, `member.approved` (Task 3.3) is dropped from the catalog — there is no approval step.
 
-**Residual risk note (document in the PR):** for a *new-account* invite the only binding factor is email possession, so a party who intercepts the invite email can still redeem before the invitee. That is the normal invite-email threat model; coops needing stronger assurance should issue `invitee_did`-bound invites (existing-ATProto path), which require authoritative DID control. No approval checkpoint is needed for either.
+**Residual risk note (document in the PR):** for a _new-account_ invite the only binding factor is email possession, so a party who intercepts the invite email can still redeem before the invitee. That is the normal invite-email threat model; coops needing stronger assurance should issue `invitee_did`-bound invites (existing-ATProto path), which require authoritative DID control. No approval checkpoint is needed for either.
 
 ## Task 3.8: XRPC GroupDirectoryPort adapter (convergence)
 
 **Files:** Add `packages/arbiter-client/src/xrpc-group-directory-port.ts` implementing `GroupDirectoryPort` against `town.muni.arbiter.resolveSpaceMembers`/`listSpaces`/`getSpaceConfig`; env-selected (`GROUP_DIRECTORY_ADAPTER=csn-db|xrpc`, default `csn-db`); Tests against a mock arbiter.
 
-**Gate:** re-check the watchlist first — if Muni Town has shipped a real arbiter server, add an integration test against it; if not, target the draft lexicon shapes and keep the CSN-DB adapter as default. HappyView 2.10 (`com.atproto.space.*`) is a candidate harness for the *spaces* side (not the arbiter side).
+**Gate:** re-check the watchlist first — if Muni Town has shipped a real arbiter server, add an integration test against it; if not, target the draft lexicon shapes and keep the CSN-DB adapter as default. HappyView 2.10 (`com.atproto.space.*`) is a candidate harness for the _spaces_ side (not the arbiter side).
 
 - [ ] Failing test: `XrpcGroupDirectoryPort.resolveSpaceMembers` maps a mock `town.muni.arbiter.resolveSpaceMembers` response into `ResolvedMembers`, preserving `partial`/`stale`.
 - [ ] Implement behind the port; wire env selection in the container; default stays `csn-db`.
@@ -156,7 +163,7 @@ Also: the expiry check already exists (keep it) and expired/consumed invitations
 
 **Issue A (cross-suite port collision) — DONE.** The federation Docker Postgres published on host 5432, colliding with the Homebrew Postgres the api suite uses. Fixed on `main` (`eaa57ab`): compose host port parameterized (`POSTGRES_HOST_PORT`, default 5432), federation global-setup publishes it on 5433. Verified federation 120/120 with the two instances on separate ports.
 
-**Issue B (intra-api Supertest listener flake) — FIXED IN WORKTREE.** Root cause was not DB state. `createTestApp()` passed the Express app directly to `supertest.agent(app)`, which made Supertest open a fresh ephemeral `http.Server` for each request and close it after the request. In long serial runs that rapid listen/close cycle occasionally sent the next request to a local port that had already been reused by another process; captured failures showed responses such as `404 page not found` and `Invalid CSRF token` with no matching Express request log, including a failed request to `127.0.0.1:62056` while a `language_` process owned that port.
+**Issue B (intra-api Supertest listener flake) — RESOLVED ON MAIN (`v12-phase-3-task-3.9b`).** Root cause was not DB state. `createTestApp()` passed the Express app directly to `supertest.agent(app)`, which made Supertest open a fresh ephemeral `http.Server` for each request and close it after the request. In long serial runs that rapid listen/close cycle occasionally sent the next request to a local port that had already been reused by another process; captured failures showed responses such as `404 page not found` and `Invalid CSRF token` with no matching Express request log, including a failed request to `127.0.0.1:62056` while a `language_` process owned that port.
 
 Fix: `createTestApp()` now starts one owned listener per test app and passes that server to Supertest, while a Vitest setup file closes open test servers at the end of each test file. Verification: `@coopsource/api` typecheck passed; the narrowed repro (`search`, `explore`, `me-matches`) passed 20/20 before final cleanup and 5/5 after final cleanup; the full api suite passed 3/3 consecutive runs after final cleanup (`82 files`, `845 tests` each).
 

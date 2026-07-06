@@ -1,0 +1,19 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.org.spaceType.members",
+  "defs": {
+    "main": {
+      "type": "space",
+      "description": "A cooperative membership space used as the authority boundary for member-visible Co-op Source records.",
+      "key": "literal:members",
+      "name": "Co-op Source Members",
+      "collections": [
+        "network.coopsource.org.memberConsent",
+        "network.coopsource.governance.proposal",
+        "network.coopsource.governance.vote",
+        "network.coopsource.agreement.master",
+        "network.coopsource.agreement.signature"
+      ]
+    }
+  }
+}

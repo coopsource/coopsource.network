@@ -1,0 +1,18 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.org.spaceType.memberClass",
+  "defs": {
+    "main": {
+      "type": "space",
+      "description": "A cooperative member-class-scoped space used as the authority boundary for class-specific records.",
+      "key": "any",
+      "name": "Co-op Source Member Class",
+      "collections": [
+        "network.coopsource.agreement.stakeholderTerms",
+        "network.coopsource.agreement.contribution",
+        "network.coopsource.funding.pledge",
+        "network.coopsource.ops.timeEntry"
+      ]
+    }
+  }
+}

@@ -1,6 +1,8 @@
 import { type Kysely, sql } from 'kysely';
+import type { DID } from '@coopsource/common';
 import type { Database } from '@coopsource/db';
 import type { IClock } from '@coopsource/federation';
+import type { MembershipReadModel } from './membership-read-model.js';
 
 /**
  * V8.3 — Profile data layer.
@@ -43,6 +45,7 @@ export class ProfileService {
   constructor(
     private db: Kysely<Database>,
     private clock: IClock,
+    private membershipReadModel: MembershipReadModel,
   ) {}
 
   /** Look up a person's default profile. Returns null if none exists. */
@@ -95,7 +98,10 @@ export class ProfileService {
    * creates a default profile for every person — so in practice this will
    * always find a row.
    */
-  async setDiscoverable(entityDid: string, discoverable: boolean): Promise<void> {
+  async setDiscoverable(
+    entityDid: string,
+    discoverable: boolean,
+  ): Promise<void> {
     await this.db
       .updateTable('profile')
       .set({ discoverable, updated_at: this.clock.now() })
@@ -109,7 +115,10 @@ export class ProfileService {
    * V8.9 — Mark the Get Started card as dismissed for the user's default
    * profile. Same scoping and safety model as `setDiscoverable`.
    */
-  async setDismissedGetStarted(entityDid: string, dismissed: boolean): Promise<void> {
+  async setDismissedGetStarted(
+    entityDid: string,
+    dismissed: boolean,
+  ): Promise<void> {
     await this.db
       .updateTable('profile')
       .set({ dismissed_get_started: dismissed, updated_at: this.clock.now() })
@@ -190,7 +199,9 @@ export class ProfileService {
    * Returns null if the person doesn't exist, isn't active, or fails the D1
    * predicate. The route layer maps null to 404.
    */
-  async getPublicPersonProfile(handle: string): Promise<ExplorePersonProfile | null> {
+  async getPublicPersonProfile(
+    handle: string,
+  ): Promise<ExplorePersonProfile | null> {
     // 1. Fetch entity + profile with D1 hybrid predicate
     const row = await this.db
       .selectFrom('entity')
@@ -223,22 +234,15 @@ export class ProfileService {
     if (!row || !row.handle) return null;
 
     // 2. Fetch publicly-discoverable cooperatives the person belongs to
-    const coopRows = await this.db
-      .selectFrom('membership')
-      .innerJoin('entity', 'entity.did', 'membership.cooperative_did')
-      .innerJoin('cooperative_profile', 'cooperative_profile.entity_did', 'entity.did')
-      .where('membership.member_did', '=', row.did)
-      .where('membership.status', '=', 'active')
-      .where('entity.type', '=', 'cooperative')
-      .where('entity.status', '=', 'active')
-      .where('cooperative_profile.anon_discoverable', '=', true)
-      .where('entity.handle', 'is not', null)
-      .select(['entity.handle', 'entity.display_name'])
-      .execute();
+    const coopRows =
+      await this.membershipReadModel.listProjectedMemberCooperatives(
+        row.did as DID,
+        { anonDiscoverable: true, requireHandle: true },
+      );
 
     const cooperatives = coopRows.map((c) => ({
       handle: c.handle!,
-      displayName: c.display_name,
+      displayName: c.displayName,
     }));
 
     // 3. Fetch unique interest categories from stakeholder_interest JSONB

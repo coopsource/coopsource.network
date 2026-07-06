@@ -89,7 +89,9 @@ describe('Private Records', () => {
 
     // Filter by collection
     const filteredRes = await testApp.agent
-      .get('/api/v1/private/records?collection=network.coopsource.financial.budget')
+      .get(
+        '/api/v1/private/records?collection=network.coopsource.financial.budget',
+      )
       .expect(200);
     expect(filteredRes.body.records).toHaveLength(1);
     expect(filteredRes.body.records[0].record.amount).toBe(1000);
@@ -109,7 +111,9 @@ describe('Private Records', () => {
       .expect(201);
 
     const res = await testApp.agent
-      .get(`/api/v1/private/records/${createRes.body.collection}/${createRes.body.rkey}`)
+      .get(
+        `/api/v1/private/records/${createRes.body.collection}/${createRes.body.rkey}`,
+      )
       .expect(200);
 
     expect(res.body.record.title).toBe('Get Me');
@@ -129,7 +133,9 @@ describe('Private Records', () => {
       .expect(201);
 
     const res = await testApp.agent
-      .put('/api/v1/private/records/network.coopsource.governance.draft/update-me')
+      .put(
+        '/api/v1/private/records/network.coopsource.governance.draft/update-me',
+      )
       .send({ record: { title: 'Updated' } })
       .expect(200);
 
@@ -150,12 +156,16 @@ describe('Private Records', () => {
       .expect(201);
 
     await testApp.agent
-      .delete('/api/v1/private/records/network.coopsource.governance.draft/delete-me')
+      .delete(
+        '/api/v1/private/records/network.coopsource.governance.draft/delete-me',
+      )
       .expect(204);
 
     // Verify it's gone
     await testApp.agent
-      .get('/api/v1/private/records/network.coopsource.governance.draft/delete-me')
+      .get(
+        '/api/v1/private/records/network.coopsource.governance.draft/delete-me',
+      )
       .expect(404);
   });
 
@@ -239,9 +249,7 @@ describe('Private Records', () => {
       .execute();
 
     // List should only return our coop's records
-    const res = await testApp.agent
-      .get('/api/v1/private/records')
-      .expect(200);
+    const res = await testApp.agent.get('/api/v1/private/records').expect(200);
 
     expect(res.body.records).toHaveLength(1);
     expect(res.body.records[0].did).toBe(coopDid);
@@ -279,6 +287,7 @@ describe('Private Records', () => {
     await testApp.agent
       .post(`/api/v1/invitations/${token}/accept`)
       .send({
+        email: 'member@test.com',
         displayName: 'Regular Member',
         password: 'password123',
       })
@@ -291,9 +300,7 @@ describe('Private Records', () => {
       .expect(200);
 
     // Read should work
-    const res = await testApp.agent
-      .get('/api/v1/private/records')
-      .expect(200);
+    const res = await testApp.agent.get('/api/v1/private/records').expect(200);
 
     expect(res.body.records).toHaveLength(1);
   });
@@ -318,6 +325,7 @@ describe('Private Records', () => {
     await testApp.agent
       .post(`/api/v1/invitations/${token}/accept`)
       .send({
+        email: 'writer@test.com',
         displayName: 'Writer Member',
         password: 'password123',
       })

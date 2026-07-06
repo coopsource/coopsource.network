@@ -26,7 +26,9 @@ export function wp(path: string): string {
  * Must be called before setupCooperative() to ensure a clean state.
  */
 export async function resetDatabase(request: APIRequestContext): Promise<void> {
-  const res = await request.post('http://localhost:3002/api/v1/admin/test-reset');
+  const res = await request.post(
+    'http://localhost:3002/api/v1/admin/test-reset',
+  );
   if (!res.ok()) {
     throw new Error(`DB reset failed (${res.status()}): ${await res.text()}`);
   }
@@ -42,16 +44,19 @@ export async function setupCooperative(
 ): Promise<{ coopDid: string; adminDid: string; cookie: string }> {
   await resetDatabase(request);
 
-  const res = await request.post('http://localhost:3002/api/v1/setup/initialize', {
-    data: {
-      cooperativeName: COOP.name,
-      cooperativeHandle: COOP.handle,
-      adminEmail: ADMIN.email,
-      adminPassword: ADMIN.password,
-      adminDisplayName: ADMIN.displayName,
-      adminHandle: ADMIN.handle,
+  const res = await request.post(
+    'http://localhost:3002/api/v1/setup/initialize',
+    {
+      data: {
+        cooperativeName: COOP.name,
+        cooperativeHandle: COOP.handle,
+        adminEmail: ADMIN.email,
+        adminPassword: ADMIN.password,
+        adminDisplayName: ADMIN.displayName,
+        adminHandle: ADMIN.handle,
+      },
     },
-  });
+  );
 
   if (!res.ok()) {
     const body = await res.text();
@@ -89,16 +94,24 @@ export async function loginAs(
 export async function createMemberViaInvitation(
   request: APIRequestContext,
   cookie: string,
-  member: { email: string; displayName: string; handle: string; password: string },
+  member: {
+    email: string;
+    displayName: string;
+    handle: string;
+    password: string;
+  },
 ): Promise<{ did: string; token: string }> {
   // Create invitation
-  const invRes = await request.post('http://localhost:3002/api/v1/invitations', {
-    headers: { Cookie: cookie },
-    data: {
-      email: member.email,
-      roles: ['member'],
+  const invRes = await request.post(
+    'http://localhost:3002/api/v1/invitations',
+    {
+      headers: { Cookie: cookie },
+      data: {
+        email: member.email,
+        roles: ['member'],
+      },
     },
-  });
+  );
 
   if (!invRes.ok()) {
     throw new Error(`Create invitation failed: ${await invRes.text()}`);
@@ -111,6 +124,7 @@ export async function createMemberViaInvitation(
     `http://localhost:3002/api/v1/invitations/${invitation.token}/accept`,
     {
       data: {
+        email: member.email,
         displayName: member.displayName,
         handle: member.handle,
         password: member.password,
@@ -148,7 +162,9 @@ export async function setExploreVisibility(
     data: flags,
   });
   if (!res.ok()) {
-    throw new Error(`setExploreVisibility failed (${res.status()}): ${await res.text()}`);
+    throw new Error(
+      `setExploreVisibility failed (${res.status()}): ${await res.text()}`,
+    );
   }
 }
 
@@ -161,18 +177,23 @@ export async function createOpenProposal(
   cookie: string,
   data: { title: string; body: string },
 ): Promise<{ id: string }> {
-  const createRes = await request.post('http://localhost:3002/api/v1/proposals', {
-    headers: { Cookie: cookie },
-    data: {
-      title: data.title,
-      body: data.body,
-      bodyFormat: 'text/markdown',
-      votingType: 'binary',
-      quorumType: 'simpleMajority',
+  const createRes = await request.post(
+    'http://localhost:3002/api/v1/proposals',
+    {
+      headers: { Cookie: cookie },
+      data: {
+        title: data.title,
+        body: data.body,
+        bodyFormat: 'text/markdown',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+      },
     },
-  });
+  );
   if (!createRes.ok()) {
-    throw new Error(`Create proposal failed (${createRes.status()}): ${await createRes.text()}`);
+    throw new Error(
+      `Create proposal failed (${createRes.status()}): ${await createRes.text()}`,
+    );
   }
   const proposal = await createRes.json();
 
@@ -181,7 +202,9 @@ export async function createOpenProposal(
     { headers: { Cookie: cookie } },
   );
   if (!openRes.ok()) {
-    throw new Error(`Open proposal failed (${openRes.status()}): ${await openRes.text()}`);
+    throw new Error(
+      `Open proposal failed (${openRes.status()}): ${await openRes.text()}`,
+    );
   }
 
   return { id: proposal.id };
@@ -210,7 +233,9 @@ export async function seedCandidatePerson(
     },
   );
   if (!res.ok()) {
-    throw new Error(`seedCandidatePerson failed: ${res.status()} ${await res.text()}`);
+    throw new Error(
+      `seedCandidatePerson failed: ${res.status()} ${await res.text()}`,
+    );
   }
 }
 
@@ -220,7 +245,12 @@ export async function seedCandidatePerson(
  */
 export async function registerAs(
   page: Page,
-  user: { displayName: string; handle: string; email: string; password: string },
+  user: {
+    displayName: string;
+    handle: string;
+    email: string;
+    password: string;
+  },
 ): Promise<void> {
   await page.goto('/register');
   await page.getByLabel('Display Name').fill(user.displayName);
@@ -259,7 +289,9 @@ export async function clickAndWaitForDialog(
   await buttonLocator.click();
   await expect(async () => {
     if (typeof dialogContent === 'string') {
-      await expect(page.getByText(dialogContent)).toBeVisible({ timeout: 2_000 });
+      await expect(page.getByText(dialogContent)).toBeVisible({
+        timeout: 2_000,
+      });
     } else if (dialogContent) {
       await expect(dialogContent).toBeVisible({ timeout: 2_000 });
     } else {
@@ -267,4 +299,3 @@ export async function clickAndWaitForDialog(
     }
   }).toPass({ timeout: 15_000 });
 }
-

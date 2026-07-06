@@ -1,0 +1,19 @@
+{
+  "lexicon": 1,
+  "id": "network.coopsource.org.spaceType.role",
+  "defs": {
+    "main": {
+      "type": "space",
+      "description": "A cooperative role-scoped space used as the authority boundary for records visible to a named role.",
+      "key": "any",
+      "name": "Co-op Source Role",
+      "collections": [
+        "network.coopsource.admin.memberNotice",
+        "network.coopsource.legal.document",
+        "network.coopsource.legal.meetingRecord",
+        "network.coopsource.finance.expense",
+        "network.coopsource.finance.revenue"
+      ]
+    }
+  }
+}

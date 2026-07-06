@@ -1,6 +1,8 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { DID } from '@coopsource/common';
 import { truncateAllTables } from './helpers/test-db.js';
 import { createTestApp, setupAndLogin } from './helpers/test-app.js';
+import { membershipAuthorityFailure } from '../src/services/membership-read-model.js';
 
 describe('Networks', () => {
   beforeEach(async () => {
@@ -75,9 +77,7 @@ describe('Networks', () => {
     const networkDid = createRes.body.did;
 
     // Join the network
-    await testApp.agent
-      .post(`/api/v1/networks/${networkDid}/join`)
-      .expect(201);
+    await testApp.agent.post(`/api/v1/networks/${networkDid}/join`).expect(201);
 
     // Check network members
     const membersRes = await testApp.agent
@@ -86,6 +86,11 @@ describe('Networks', () => {
 
     expect(membersRes.body.members).toHaveLength(1);
     expect(membersRes.body.members[0].did).toBe(coopDid);
+
+    const detailRes = await testApp.agent
+      .get(`/api/v1/networks/${networkDid}`)
+      .expect(200);
+    expect(detailRes.body.memberCount).toBe(1);
   });
 
   it('POST /api/v1/networks/:did/join returns 409 if already member', async () => {
@@ -99,14 +104,86 @@ describe('Networks', () => {
 
     const networkDid = createRes.body.did;
 
-    await testApp.agent
-      .post(`/api/v1/networks/${networkDid}/join`)
-      .expect(201);
+    await testApp.agent.post(`/api/v1/networks/${networkDid}/join`).expect(201);
 
     // Try joining again
-    await testApp.agent
-      .post(`/api/v1/networks/${networkDid}/join`)
-      .expect(409);
+    await testApp.agent.post(`/api/v1/networks/${networkDid}/join`).expect(409);
+  });
+
+  it('GET /api/v1/networks/:did/members surfaces degraded spaces authority', async () => {
+    const testApp = createTestApp();
+    await setupAndLogin(testApp);
+
+    const createRes = await testApp.agent
+      .post('/api/v1/networks')
+      .send({ name: 'Partial Network' })
+      .expect(201);
+
+    const spy = vi
+      .spyOn(testApp.container.membershipReadModel, 'listMembersResult')
+      .mockResolvedValue(
+        membershipAuthorityFailure(
+          'partial',
+          'Membership authority returned a partial result',
+        ),
+      );
+
+    try {
+      const res = await testApp.agent
+        .get(`/api/v1/networks/${createRes.body.did}/members`)
+        .expect(503);
+
+      expect(res.body).toMatchObject({
+        error: 'SPACES_AUTHORITY_UNAVAILABLE',
+        axis: 'spaces',
+        reason: 'partial',
+      });
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('POST /api/v1/networks/:did/join fails closed when membership authority is stale', async () => {
+    const testApp = createTestApp();
+    const { coopDid } = await setupAndLogin(testApp);
+
+    const createRes = await testApp.agent
+      .post('/api/v1/networks')
+      .send({ name: 'Stale Network' })
+      .expect(201);
+    const networkDid = createRes.body.did as string;
+
+    const original =
+      testApp.container.membershipReadModel.getActiveMembershipResult.bind(
+        testApp.container.membershipReadModel,
+      );
+    const spy = vi
+      .spyOn(testApp.container.membershipReadModel, 'getActiveMembershipResult')
+      .mockImplementation((cooperativeDid, memberDid) => {
+        if (cooperativeDid === (networkDid as DID) && memberDid === coopDid) {
+          return Promise.resolve(
+            membershipAuthorityFailure(
+              'stale',
+              'Membership authority returned stale data',
+            ),
+          );
+        }
+        return original(cooperativeDid, memberDid);
+      });
+
+    try {
+      const res = await testApp.agent
+        .post(`/api/v1/networks/${networkDid}/join`)
+        .expect(503);
+
+      expect(res.body).toMatchObject({
+        error: 'SPACES_AUTHORITY_UNAVAILABLE',
+        axis: 'spaces',
+        reason: 'stale',
+      });
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('DELETE /api/v1/networks/:did/leave removes co-op from network', async () => {
@@ -121,9 +198,7 @@ describe('Networks', () => {
     const networkDid = createRes.body.did;
 
     // Join
-    await testApp.agent
-      .post(`/api/v1/networks/${networkDid}/join`)
-      .expect(201);
+    await testApp.agent.post(`/api/v1/networks/${networkDid}/join`).expect(201);
 
     // Leave
     await testApp.agent
@@ -142,9 +217,6 @@ describe('Networks', () => {
     const testApp = createTestApp();
     await setupAndLogin(testApp);
 
-    await testApp.agent
-      .post('/api/v1/networks')
-      .send({})
-      .expect(400);
+    await testApp.agent.post('/api/v1/networks').send({}).expect(400);
   });
 });
