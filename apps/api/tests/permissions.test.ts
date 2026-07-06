@@ -337,6 +337,83 @@ describe('Permissions System', () => {
     });
   });
 
+  it('proposal updates remain author-only through the action authorizer', async () => {
+    const proposalRes = await testApp.agent
+      .post('/api/v1/proposals')
+      .send({
+        title: 'Admin-authored proposal',
+        body: 'Original body',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+      })
+      .expect(201);
+
+    const { agent: memberAgent } = await createMemberWithRoles(testApp, {
+      email: 'proposal-editor@example.com',
+      displayName: 'Proposal Editor',
+      handle: 'proposal-editor',
+      password: 'password123',
+      roles: ['member'],
+    });
+
+    const denied = await memberAgent
+      .put(`/api/v1/proposals/${proposalRes.body.id}`)
+      .send({ title: 'Nonauthor edit' })
+      .expect(403);
+    expect(denied.body).toMatchObject({
+      error: 'FORBIDDEN',
+      message: 'Not the proposal author',
+    });
+
+    const ownProposal = await memberAgent
+      .post('/api/v1/proposals')
+      .send({
+        title: 'Member-authored proposal',
+        body: 'Original body',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+      })
+      .expect(201);
+
+    const updated = await memberAgent
+      .put(`/api/v1/proposals/${ownProposal.body.id}`)
+      .send({ title: 'Member edit' })
+      .expect(200);
+    expect(updated.body.title).toBe('Member edit');
+  });
+
+  it('proposal deletes remain author-or-admin through the action authorizer', async () => {
+    const { agent: authorAgent } = await createMemberWithRoles(testApp, {
+      email: 'proposal-author@example.com',
+      displayName: 'Proposal Author',
+      handle: 'proposal-author',
+      password: 'password123',
+      roles: ['member'],
+    });
+    const { agent: nonauthorAgent } = await createMemberWithRoles(testApp, {
+      email: 'proposal-nonauthor@example.com',
+      displayName: 'Proposal Nonauthor',
+      handle: 'proposal-nonauthor',
+      password: 'password123',
+      roles: ['member'],
+    });
+
+    const proposal = await authorAgent
+      .post('/api/v1/proposals')
+      .send({
+        title: 'Member-owned proposal',
+        body: 'Original body',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+      })
+      .expect(201);
+
+    await nonauthorAgent
+      .delete(`/api/v1/proposals/${proposal.body.id}`)
+      .expect(403);
+    await testApp.agent.delete(`/api/v1/proposals/${proposal.body.id}`).expect(204);
+  });
+
   // ─── Member role: post creation ───────────────────────────────────
 
   it('member can create threads and posts', async () => {

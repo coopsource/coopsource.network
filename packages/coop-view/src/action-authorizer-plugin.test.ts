@@ -14,6 +14,9 @@ const input = {
   },
   action: 'proposal.open',
   at: '2026-07-06T12:00:00.000Z',
+  payload: {
+    proposalAuthorDid: 'did:plc:alice',
+  },
 };
 
 describe('CoopActionAuthorizerPlugin', () => {
@@ -21,8 +24,14 @@ describe('CoopActionAuthorizerPlugin', () => {
     const events: string[] = [];
     const reader: CoopActionPermissionReader = {
       async canActorPerformAction(args) {
+        const payload =
+          args.payload &&
+          typeof args.payload === 'object' &&
+          !Array.isArray(args.payload)
+            ? (args.payload as { readonly proposalAuthorDid?: unknown })
+            : {};
         events.push(
-          `reader-start:${args.cooperativeDid}:${args.actorDid}:${args.action}:${args.at}`,
+          `reader-start:${args.cooperativeDid}:${args.actorDid}:${args.action}:${args.at}:${String(payload.proposalAuthorDid)}`,
         );
         await Promise.resolve();
         events.push('reader-finish');
@@ -38,7 +47,7 @@ describe('CoopActionAuthorizerPlugin', () => {
     expect(result).toEqual({ authorized: true });
     expect(events).toEqual([
       'call-start',
-      'reader-start:did:plc:coop:did:plc:alice:proposal.open:2026-07-06T12:00:00.000Z',
+      'reader-start:did:plc:coop:did:plc:alice:proposal.open:2026-07-06T12:00:00.000Z:did:plc:alice',
       'reader-finish',
       'call-finish',
     ]);

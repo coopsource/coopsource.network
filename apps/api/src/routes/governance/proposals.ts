@@ -5,6 +5,7 @@ import { requireAuth } from '../../auth/middleware.js';
 import { requirePermission } from '../../middleware/permissions.js';
 import { parsePagination } from '../../lib/pagination.js';
 import {
+  type DID,
   NotFoundError,
   ValidationError,
   CreateProposalBodySchema,
@@ -17,6 +18,9 @@ import {
   type ProposalResponse,
   type VoteResponse,
 } from '../../lib/formatters.js';
+import { membersSpace } from '@coopsource/arbiter-client';
+
+const PROPOSAL_COLLECTION = 'network.coopsource.governance.proposal';
 
 // Enrich a proposal row with author display name/handle
 async function enrichProposal(
@@ -140,14 +144,24 @@ export function createProposalRoutes(container: Container): Router {
       const proposal = await container.db
         .selectFrom('proposal')
         .where('id', '=', (req.params.id as string))
+        .where('cooperative_did', '=', req.actor!.cooperativeDid)
         .where('invalidated_at', 'is', null)
         .selectAll()
         .executeTakeFirst();
 
       if (!proposal) throw new NotFoundError('Proposal not found');
-      if (proposal.author_did !== req.actor!.did) {
+      const decision = await authorizeProposalAction(container, {
+        cooperativeDid: req.actor!.cooperativeDid,
+        actorDid: req.actor!.did,
+        action: 'proposal.update.own',
+        proposalUri: proposal.uri,
+        proposalCid: proposal.cid,
+        proposalAuthorDid: proposal.author_did,
+      });
+      if (!decision.authorized) {
         res.status(403).json({
-          error: 'FORBIDDEN', message: 'Not the proposal author',
+          error: 'FORBIDDEN',
+          message: 'Not the proposal author',
         });
         return;
       }
@@ -155,7 +169,9 @@ export function createProposalRoutes(container: Container): Router {
         throw new ValidationError('Can only edit draft proposals');
       }
 
-      const { title, body, closesAt, tags } = UpdateProposalBodySchema.parse(req.body);
+      const { title, body, closesAt, tags } = UpdateProposalBodySchema.parse(
+        req.body,
+      );
 
       const [updated] = await container.db
         .updateTable('proposal')
@@ -182,17 +198,25 @@ export function createProposalRoutes(container: Container): Router {
       const proposal = await container.db
         .selectFrom('proposal')
         .where('id', '=', (req.params.id as string))
+        .where('cooperative_did', '=', req.actor!.cooperativeDid)
         .where('invalidated_at', 'is', null)
-        .select(['author_did'])
+        .select(['author_did', 'cid', 'uri'])
         .executeTakeFirst();
 
       if (!proposal) throw new NotFoundError('Proposal not found');
 
-      const isAuthor = proposal.author_did === req.actor!.did;
-      const isAdmin = req.actor!.hasRole('admin', 'owner');
-      if (!isAuthor && !isAdmin) {
+      const decision = await authorizeProposalAction(container, {
+        cooperativeDid: req.actor!.cooperativeDid,
+        actorDid: req.actor!.did,
+        action: 'proposal.delete',
+        proposalUri: proposal.uri,
+        proposalCid: proposal.cid,
+        proposalAuthorDid: proposal.author_did,
+      });
+      if (!decision.authorized) {
         res.status(403).json({
-          error: 'FORBIDDEN', message: 'Not authorized',
+          error: 'FORBIDDEN',
+          message: 'Not authorized',
         });
         return;
       }
@@ -313,4 +337,40 @@ export function createProposalRoutes(container: Container): Router {
   );
 
   return router;
+}
+
+async function authorizeProposalAction(
+  container: Container,
+  input: {
+    readonly cooperativeDid: string;
+    readonly actorDid: string;
+    readonly action: string;
+    readonly proposalUri: string | null;
+    readonly proposalCid: string | null;
+    readonly proposalAuthorDid: string;
+  },
+): ReturnType<Container['governancePlugins']['actionAuthorizer']['authorize']> {
+  const memberSpace = membersSpace(input.cooperativeDid as DID);
+  const proposal = input.proposalUri
+    ? {
+        uri: input.proposalUri,
+        ...(input.proposalCid ? { cid: input.proposalCid } : {}),
+        collection: PROPOSAL_COLLECTION,
+      }
+    : undefined;
+
+  return container.governancePlugins.actionAuthorizer.authorize({
+    actor: { did: input.actorDid },
+    cooperative: {
+      authorityDid: input.cooperativeDid,
+      spaceKey: memberSpace.spaceKey,
+      spaceType: memberSpace.expectedSpaceType,
+    },
+    ...(proposal ? { proposal } : {}),
+    action: input.action,
+    at: container.clock.now().toISOString(),
+    payload: {
+      proposalAuthorDid: input.proposalAuthorDid,
+    },
+  });
 }

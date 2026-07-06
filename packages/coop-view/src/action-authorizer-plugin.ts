@@ -16,6 +16,7 @@ export class CoopActionAuthorizerPlugin implements ActionAuthorizerPlugin {
       actorDid: input.actor.did,
       action: input.action,
       at: input.at,
+      ...(input.payload === undefined ? {} : { payload: input.payload }),
     });
   }
 }

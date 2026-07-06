@@ -1,3 +1,5 @@
+import type { JsonValue } from '@coopsource/governance-view';
+
 export interface CoopVoteWeightReader {
   getProjectedMemberVoteWeight(input: {
     readonly cooperativeDid: string;
@@ -39,6 +41,7 @@ export interface CoopActionPermissionReader {
     readonly actorDid: string;
     readonly action: string;
     readonly at: string;
+    readonly payload?: JsonValue;
   }): Promise<CoopActionAuthorization>;
 }
 
