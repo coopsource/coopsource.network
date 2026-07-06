@@ -50,6 +50,19 @@ export class MembershipReadModelActionPermissionReader
         : { authorized: false, reason: 'not-proposal-author' };
     }
 
+    if (input.action === 'vote.retract.own') {
+      return input.actorDid === payloadString(input.payload, 'voteVoterDid')
+        ? { authorized: true }
+        : { authorized: false, reason: 'not-vote-owner' };
+    }
+
+    if (input.action === 'delegation.revoke.own') {
+      return input.actorDid ===
+        payloadString(input.payload, 'delegationDelegatorDid')
+        ? { authorized: true }
+        : { authorized: false, reason: 'not-delegation-owner' };
+    }
+
     const permissions = await this.permissionsFor(
       input.cooperativeDid,
       membershipResult.membership.roles,

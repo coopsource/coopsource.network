@@ -339,11 +339,11 @@ export function createProposalRoutes(container: Container): Router {
     '/api/v1/proposals/:id/vote',
     requireAuth,
     asyncHandler(async (req, res) => {
-      await container.proposalService.retractVote(
-        (req.params.id as string),
-        req.actor!.did,
-        req.actor!.cooperativeDid,
-      );
+      await container.proposalService.retractVote({
+        proposalId: (req.params.id as string),
+        actorDid: req.actor!.did,
+        cooperativeDid: req.actor!.cooperativeDid,
+      });
       res.status(204).send();
     }),
   );

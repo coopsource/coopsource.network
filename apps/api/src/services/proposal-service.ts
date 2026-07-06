@@ -18,6 +18,7 @@ import type {
   GovernanceProposalRef,
   GovernanceQuorumConfig,
   QuorumPlugin,
+  ActionAuthorizerPlugin,
   VoteWeightPlugin,
 } from '@coopsource/governance-view';
 import {
@@ -90,6 +91,7 @@ export class ProposalService {
     private visibilityRouter?: VisibilityRouter,
     private permissionedRecordWriter?: PermissionedRecordWritePort,
     private publicGovernanceAnchorService?: PublicGovernanceAnchorService,
+    private actionAuthorizer?: ActionAuthorizerPlugin,
   ) {}
 
   async listProposals(
@@ -521,22 +523,24 @@ export class ProposalService {
     return vote!;
   }
 
-  async retractVote(
-    proposalId: string,
-    voterDid: string,
-    cooperativeDid?: string,
-  ): Promise<void> {
+  async retractVote(params: {
+    proposalId: string;
+    actorDid: string;
+    cooperativeDid?: string;
+    voterDid?: string;
+  }): Promise<void> {
+    const voterDid = params.voterDid ?? params.actorDid;
     let proposalQuery = this.db
       .selectFrom('proposal')
-      .where('id', '=', proposalId)
+      .where('id', '=', params.proposalId)
       .where('invalidated_at', 'is', null)
-      .select('id');
+      .select(['id', 'uri', 'cid', 'cooperative_did']);
 
-    if (cooperativeDid) {
+    if (params.cooperativeDid) {
       proposalQuery = proposalQuery.where(
         'cooperative_did',
         '=',
-        cooperativeDid,
+        params.cooperativeDid,
       );
     }
 
@@ -545,13 +549,19 @@ export class ProposalService {
 
     const votes = await this.db
       .selectFrom('vote')
-      .where('proposal_id', '=', proposalId)
+      .where('proposal_id', '=', params.proposalId)
       .where('voter_did', '=', voterDid)
       .where('retracted_at', 'is', null)
-      .select(['id', 'uri'])
+      .select(['id', 'uri', 'voter_did'])
       .execute();
 
     if (votes.length === 0) throw new NotFoundError('Vote not found');
+
+    await this.authorizeVoteRetraction({
+      proposal,
+      actorDid: params.actorDid,
+      voteVoterDid: votes[0]!.voter_did,
+    });
 
     await this.retractVoteRows(votes, voterDid, this.clock.now());
   }
@@ -826,6 +836,43 @@ export class ProposalService {
     });
 
     return result.weight;
+  }
+
+  private async authorizeVoteRetraction(args: {
+    readonly proposal: Pick<
+      ProposalRow,
+      'id' | 'uri' | 'cid' | 'cooperative_did'
+    >;
+    readonly actorDid: string;
+    readonly voteVoterDid: string;
+  }): Promise<void> {
+    if (!this.actionAuthorizer) {
+      if (args.actorDid !== args.voteVoterDid) {
+        throw new UnauthorizedError('Not the vote owner');
+      }
+      return;
+    }
+
+    const decision = await this.actionAuthorizer.authorize({
+      actor: { did: args.actorDid },
+      cooperative: this.cooperativeRef(args.proposal.cooperative_did),
+      action: 'vote.retract.own',
+      at: this.clock.now().toISOString(),
+      ...(args.proposal.uri
+        ? {
+            proposal: {
+              uri: args.proposal.uri,
+              ...(args.proposal.cid ? { cid: args.proposal.cid } : {}),
+              collection: PROPOSAL_COLLECTION,
+            },
+          }
+        : {}),
+      payload: { voteVoterDid: args.voteVoterDid },
+    });
+
+    if (!decision.authorized) {
+      throw new UnauthorizedError('Not the vote owner');
+    }
   }
 
   private proposalRef(proposal: ProposalRow): GovernanceProposalRef {

@@ -438,6 +438,56 @@ describe('Permissions System', () => {
       .expect(204);
   });
 
+  it('vote retraction ownership is enforced through the action authorizer', async () => {
+    const { did: memberDid } = await createMemberWithRoles(testApp, {
+      email: 'vote-retract-nonowner@example.com',
+      displayName: 'Vote Retract Nonauthor',
+      handle: 'vote-retract-nonowner',
+      password: 'password123',
+      roles: ['member'],
+    });
+
+    const proposal = await testApp.agent
+      .post('/api/v1/proposals')
+      .send({
+        title: 'Retract ownership',
+        body: 'Original body',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+      })
+      .expect(201);
+
+    await testApp.agent
+      .post(`/api/v1/proposals/${proposal.body.id}/open`)
+      .expect(200);
+    await testApp.agent
+      .post(`/api/v1/proposals/${proposal.body.id}/vote`)
+      .send({ choice: 'yes' })
+      .expect(201);
+
+    await expect(
+      testApp.container.proposalService.retractVote({
+        proposalId: proposal.body.id,
+        actorDid: memberDid,
+        voterDid: adminDid,
+        cooperativeDid: coopDid,
+      }),
+    ).rejects.toThrow('Not the vote owner');
+
+    const votes = await testApp.agent
+      .get(`/api/v1/proposals/${proposal.body.id}/votes`)
+      .expect(200);
+    expect(votes.body.votes).toHaveLength(1);
+
+    await expect(
+      testApp.container.proposalService.retractVote({
+        proposalId: proposal.body.id,
+        actorDid: adminDid,
+        cooperativeDid: coopDid,
+      }),
+    ).resolves.toBeUndefined();
+  });
+
   // ─── Member role: post creation ───────────────────────────────────
 
   it('member can create threads and posts', async () => {

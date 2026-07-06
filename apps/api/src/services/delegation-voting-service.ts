@@ -1,7 +1,9 @@
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
 import type { IClock } from '@coopsource/federation';
-import { NotFoundError, ValidationError } from '@coopsource/common';
+import { membersSpace } from '@coopsource/arbiter-client';
+import { NotFoundError, ValidationError, type DID } from '@coopsource/common';
+import type { ActionAuthorizerPlugin } from '@coopsource/governance-view';
 import type { CreateDelegationInput } from '@coopsource/common';
 import type { PageParams, Page } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
@@ -24,6 +26,7 @@ export class DelegationVotingService {
   constructor(
     private db: Kysely<Database>,
     private clock: IClock,
+    private actionAuthorizer?: ActionAuthorizerPlugin,
   ) {}
 
   async createDelegation(
@@ -103,9 +106,11 @@ export class DelegationVotingService {
       .executeTakeFirst();
 
     if (!delegation) throw new NotFoundError('Delegation not found');
-    if (delegation.delegator_did !== delegatorDid) {
-      throw new ValidationError('Only the delegator can revoke a delegation');
-    }
+    await this.authorizeDelegationRevocation({
+      cooperativeDid,
+      actorDid: delegatorDid,
+      delegationDelegatorDid: delegation.delegator_did,
+    });
     if (delegation.status !== 'active') {
       throw new ValidationError('Delegation is not active');
     }
@@ -260,6 +265,38 @@ export class DelegationVotingService {
       if (hasDelegationCycle(effective)) {
         throw new ValidationError('Circular delegation detected');
       }
+    }
+  }
+
+  private async authorizeDelegationRevocation(args: {
+    readonly cooperativeDid: string;
+    readonly actorDid: string;
+    readonly delegationDelegatorDid: string;
+  }): Promise<void> {
+    if (!this.actionAuthorizer) {
+      if (args.actorDid !== args.delegationDelegatorDid) {
+        throw new ValidationError('Only the delegator can revoke a delegation');
+      }
+      return;
+    }
+
+    const memberSpace = membersSpace(args.cooperativeDid as DID);
+    const decision = await this.actionAuthorizer.authorize({
+      actor: { did: args.actorDid },
+      cooperative: {
+        authorityDid: args.cooperativeDid,
+        spaceKey: memberSpace.spaceKey,
+        spaceType: memberSpace.expectedSpaceType,
+      },
+      action: 'delegation.revoke.own',
+      at: this.clock.now().toISOString(),
+      payload: {
+        delegationDelegatorDid: args.delegationDelegatorDid,
+      },
+    });
+
+    if (!decision.authorized) {
+      throw new ValidationError('Only the delegator can revoke a delegation');
     }
   }
 }

@@ -342,7 +342,14 @@ export function createContainer(config: AppConfig): Container {
     });
   const groupDirectory = new CsnDbGroupDirectoryPort(db);
   const membershipReadModel = new MembershipReadModel(db, groupDirectory);
-  const delegationVotingService = new DelegationVotingService(db, clock);
+  const actionAuthorizer = createCoopActionAuthorizerPlugin(
+    new MembershipReadModelActionPermissionReader(db, membershipReadModel),
+  );
+  const delegationVotingService = new DelegationVotingService(
+    db,
+    clock,
+    actionAuthorizer,
+  );
   const membershipVoteWeightReader = new MembershipReadModelVoteWeightReader(
     membershipReadModel,
   );
@@ -359,9 +366,7 @@ export function createContainer(config: AppConfig): Container {
       new MembershipReadModelVotingEligibilityReader(membershipReadModel),
     ),
     quorum: createCoopQuorumPlugin(),
-    actionAuthorizer: createCoopActionAuthorizerPlugin(
-      new MembershipReadModelActionPermissionReader(db, membershipReadModel),
-    ),
+    actionAuthorizer,
   });
   const groupMutations = groupMutationsForDb(db);
   const operatorWriteProxy = new OperatorWriteProxy(
@@ -433,6 +438,7 @@ export function createContainer(config: AppConfig): Container {
     visibilityRouter,
     permissionedRecordWriter,
     publicGovernanceAnchorService,
+    governanceCorePlugins.actionAuthorizer,
   );
   const agreementService = new AgreementService(
     db,

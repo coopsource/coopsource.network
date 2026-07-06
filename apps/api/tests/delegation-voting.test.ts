@@ -52,6 +52,37 @@ describe('Delegation Voting API', () => {
     expect(res.body.revokedAt).toBeDefined();
   });
 
+  it('delegation revocation ownership is enforced through the action authorizer', async () => {
+    const testApp = createTestApp();
+    const { adminDid, coopDid } = await setupAndLogin(testApp);
+    const now = testApp.clock.now();
+    const delegationUri = `at://${coopDid}/network.coopsource.governance.delegation/revoke-owner`;
+
+    await testApp.container.db
+      .insertInto('delegation')
+      .values({
+        uri: delegationUri,
+        did: coopDid,
+        rkey: 'revoke-owner',
+        project_uri: coopDid,
+        delegator_did: 'did:web:other-delegator.example.com',
+        delegatee_did: adminDid,
+        scope: 'project',
+        status: 'active',
+        created_at: now,
+        indexed_at: now,
+      })
+      .execute();
+
+    await expect(
+      testApp.container.delegationVotingService.revokeDelegation(
+        coopDid,
+        adminDid,
+        delegationUri,
+      ),
+    ).rejects.toThrow('Only the delegator can revoke a delegation');
+  });
+
   // ─── List ───────────────────────────────────────────────────────────
 
   it('lists delegations (200)', async () => {
