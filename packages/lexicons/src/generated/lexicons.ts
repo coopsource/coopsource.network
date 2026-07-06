@@ -2365,6 +2365,119 @@ export const lexicons = [
   },
   {
     "lexicon": 1,
+    "id": "network.coopsource.governance.listProposalAnchors",
+    "defs": {
+      "main": {
+        "type": "query",
+        "description": "List public proposal anchors without exposing private proposal records.",
+        "parameters": {
+          "type": "params",
+          "required": [
+            "cooperative"
+          ],
+          "properties": {
+            "cooperative": {
+              "type": "string",
+              "format": "did",
+              "description": "DID of the cooperative whose public proposal anchors to list."
+            },
+            "status": {
+              "type": "string",
+              "description": "Filter by public anchor status.",
+              "knownValues": [
+                "open",
+                "closed",
+                "resolved",
+                "withdrawn",
+                "archived"
+              ]
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            },
+            "cursor": {
+              "type": "string"
+            }
+          }
+        },
+        "output": {
+          "encoding": "application/json",
+          "schema": {
+            "type": "object",
+            "required": [
+              "anchors"
+            ],
+            "properties": {
+              "anchors": {
+                "type": "array",
+                "items": {
+                  "type": "ref",
+                  "ref": "#proposalAnchorSummary"
+                }
+              },
+              "cursor": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "proposalAnchorSummary": {
+        "type": "object",
+        "required": [
+          "uri",
+          "cooperativeDid",
+          "proposalId",
+          "status",
+          "updatedAt",
+          "anchorVersion"
+        ],
+        "properties": {
+          "uri": {
+            "type": "string",
+            "format": "at-uri"
+          },
+          "cooperativeDid": {
+            "type": "string",
+            "format": "did"
+          },
+          "proposalId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "openedAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "closedAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "resolvedAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "anchorVersion": {
+            "type": "integer"
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
     "id": "network.coopsource.governance.listProposals",
     "defs": {
       "main": {

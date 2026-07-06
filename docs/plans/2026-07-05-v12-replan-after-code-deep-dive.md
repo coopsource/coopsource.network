@@ -560,22 +560,21 @@ Initial Phase 4 substrate artifact started in this branch:
   locations.
 - `VisibilityRouter` is now a placement decision helper. It returns Tier 1 or a
   concrete `SpaceRef` for Tier 2; it no longer has storage side effects.
-- Closed/private permissioned-space proposals do not emit public governance
-  labels during resolution. Public anchors for private governance are forbidden
-  by default until an explicit optional anchor record is designed.
-- The optional public-anchor design now exists at
+- Closed/private permissioned-space proposals still emit no public governance
+  labels by default.
+- The optional public-anchor implementation now exists, grounded by
   `docs/plans/2026-07-06-v12-phase-4-private-governance-anchor-design.md`.
   It keeps anchors disabled by default, forbids labels on permissioned proposal
-  URIs, and defines a minimal `proposalAnchor` record shape that excludes
-  private proposal payloads, author DIDs, voter DIDs, private URIs, and tally
-  details.
+  URIs, writes a minimal `proposalAnchor` record only after proposal open,
+  requires a separate opt-in for public outcomes and outcome labels, exposes a
+  public `listProposalAnchors` XRPC read, and excludes private proposal
+  payloads, author DIDs, voter DIDs, private URIs, and tally details.
 - Keep `network.coopsource.org.spaceType.*` as the canonical CSN draft space
   type namespace for this PoC. Rename only if upstream final syntax or tooling
   makes the current namespace actively misleading.
-- Next Phase 4 implementation should add the inert optional proposal-anchor
-  lexicon/service seam for closed/private governance, then replace the legacy
-  writer adapter with a real permissioned-space writer when the upstream write
-  API is stable enough to target.
+- Remaining Phase 4 substrate work should replace the legacy
+  `private_record`-backed writer adapter with a real permissioned-space writer
+  when the upstream write API is stable enough to target.
 
 ## Phase 5 Parallelization
 

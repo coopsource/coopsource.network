@@ -2,6 +2,7 @@ import type { XrpcQueryHandler } from './dispatcher.js';
 import type { Container } from '../container.js';
 import { handleGetCooperative } from './handlers/get-cooperative.js';
 import { handleListProposals } from './handlers/list-proposals.js';
+import { handleListProposalAnchors } from './handlers/list-proposal-anchors.js';
 import { handleGetProposal } from './handlers/get-proposal.js';
 import { handleGetMembership } from './handlers/get-membership.js';
 import { handleGetVoteEligibility } from './handlers/get-vote-eligibility.js';
@@ -36,6 +37,12 @@ export function buildXrpcHandlers(
     auth: 'optional',
     rateLimit: { windowMs: FIFTEEN_MINUTES, limit: 60 },
     handler: handleListProposals,
+  });
+
+  handlers.set('network.coopsource.governance.listProposalAnchors', {
+    auth: 'none',
+    rateLimit: { windowMs: FIFTEEN_MINUTES, limit: 60 },
+    handler: handleListProposalAnchors,
   });
 
   handlers.set('network.coopsource.governance.getProposal', {

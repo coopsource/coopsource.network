@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { lexiconSchemas, LEXICON_IDS } from '../src/index.js';
 
 describe('lexicon schemas', () => {
-  it('should export all 43 valid lexicon schemas', () => {
-    expect(lexiconSchemas).toHaveLength(43);
+  it('should export all 44 valid lexicon schemas', () => {
+    expect(lexiconSchemas).toHaveLength(44);
   });
 
   it('should contain all expected lexicon IDs', () => {
@@ -36,6 +36,7 @@ describe('lexicon schemas', () => {
       'network.coopsource.governance.delegation',
       'network.coopsource.governance.getProposal',
       'network.coopsource.governance.getVoteEligibility',
+      'network.coopsource.governance.listProposalAnchors',
       'network.coopsource.governance.listProposals',
       'network.coopsource.governance.proposalAnchor',
       'network.coopsource.legal.document',

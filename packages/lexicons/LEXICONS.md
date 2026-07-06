@@ -48,7 +48,7 @@ live OAuth or permissioned-space writes.
 
 \* `governance.proposal` uses the VisibilityRouter: open-governance cooperatives write proposals to their PDS (Tier 1 public), while closed-governance cooperatives write through `PermissionedRecordWritePort` to Tier 2 storage. The current default adapter is still backed by `private_record`, but persisted proposal URIs use structured permissioned-space locations.
 
-**Note:** The four XRPC query schemas (`org.getCooperative`, `org.getMembership`, `governance.listProposals`, `governance.getProposal`) are not records and do not have an ownership location -- they are read-only endpoints served by the AppView.
+**Note:** XRPC query schemas (`org.getCooperative`, `org.getMembership`, `governance.listProposals`, `governance.getProposal`, `governance.listProposalAnchors`) are not records and do not have an ownership location -- they are read-only endpoints served by the AppView.
 
 ## Data Tiers
 
@@ -205,7 +205,7 @@ Quorum is configurable per proposal: `quorumRequired` sets the fraction of parti
 
 Proposals in open-governance cooperatives are written to the cooperative's PDS and appear on the firehose. In closed-governance cooperatives, the VisibilityRouter routes proposal and vote writes through `PermissionedRecordWritePort`; the current default adapter stores physical rows in `private_record`, while the semantic record location is a permissioned-space URI. Delegations are DB-only records that construct an AT URI for identification but store in PostgreSQL; their scope can cover all proposals in a project or a single specific proposal.
 
-This namespace also includes two XRPC query schemas (`listProposals` and `getProposal`) that provide read-only AppView endpoints for retrieving proposal lists and details with vote tallies.
+This namespace also includes XRPC query schemas for AppView reads. `listProposals` and `getProposal` are governance-access-gated proposal endpoints. `listProposalAnchors` is a public endpoint that returns only public anchor projection fields for private governance proposals.
 
 ### `network.coopsource.governance.proposal`
 
@@ -306,6 +306,41 @@ List governance proposals for an open-governance cooperative, with cursor-based 
 | `authorDid`      | did      | Yes      |             |
 | `createdAt`      | datetime | Yes      |             |
 | `resolvedAt`     | datetime | No       |             |
+
+### `network.coopsource.governance.listProposalAnchors` (Query)
+
+Public AppView endpoint for private-governance proposal anchors. This query returns only fields from the public anchor projection and must not expose proposal title, body, options, author DID, voter DIDs, rationales, private proposal URI, or tally details.
+
+**Parameters:**
+
+| Parameter     | Type                                 | Required | Description                             |
+| ------------- | ------------------------------------ | -------- | --------------------------------------- |
+| `cooperative` | did                                  | Yes      | Cooperative DID whose anchors to list   |
+| `status`      | string                               | No       | Filter by public anchor status          |
+| `limit`       | integer (min 1, max 100, default 50) | No       |                                         |
+| `cursor`      | string                               | No       |                                         |
+
+**Output:**
+
+| Field     | Type                             | Required | Description |
+| --------- | -------------------------------- | -------- | ----------- |
+| `anchors` | ref[] (`#proposalAnchorSummary`) | Yes      |             |
+| `cursor`  | string                           | No       |             |
+
+#### Sub-definition: `proposalAnchorSummary`
+
+| Field            | Type     | Required | Description                                                           |
+| ---------------- | -------- | -------- | --------------------------------------------------------------------- |
+| `uri`            | at-uri   | Yes      | Public anchor record URI; never the private permissioned proposal URI |
+| `cooperativeDid` | did      | Yes      |                                                                       |
+| `proposalId`     | string   | Yes      | App-layer proposal UUID                                               |
+| `status`         | string   | Yes      |                                                                       |
+| `outcome`        | string   | No       | Present only when outcome publication is explicitly enabled           |
+| `openedAt`       | datetime | No       |                                                                       |
+| `closedAt`       | datetime | No       |                                                                       |
+| `resolvedAt`     | datetime | No       |                                                                       |
+| `updatedAt`      | datetime | Yes      |                                                                       |
+| `anchorVersion`  | integer  | Yes      |                                                                       |
 
 ### `network.coopsource.governance.getProposal` (Query)
 

@@ -1,5 +1,10 @@
 import type { Kysely, Selectable } from 'kysely';
-import type { Database, ProposalTable, VoteTable } from '@coopsource/db';
+import type {
+  Database,
+  ProposalTable,
+  PublicGovernanceAnchorTable,
+  VoteTable,
+} from '@coopsource/db';
 import type {
   PermissionedRecordWritePort,
   PermissionedRecordWriteResult,
@@ -13,6 +18,7 @@ import {
 } from '@coopsource/spaces-consumer';
 
 type ProposalRow = Selectable<ProposalTable>;
+type PublicGovernanceAnchorRow = Selectable<PublicGovernanceAnchorTable>;
 type VoteRow = Selectable<VoteTable>;
 import type { AtUri, CID, DID } from '@coopsource/common';
 import {
@@ -148,6 +154,46 @@ export class ProposalService {
       created_at: r.created_at,
       resolved_at: r.resolved_at,
     }));
+  }
+
+  async listPublicProposalAnchors(
+    cooperativeDid: string,
+    params: PageParams & { status?: string } = {},
+  ): Promise<Page<PublicGovernanceAnchorRow>> {
+    const limit = params.limit ?? 50;
+    let query = this.db
+      .selectFrom('public_governance_anchor')
+      .where('cooperative_did', '=', cooperativeDid)
+      .selectAll()
+      .orderBy('updated_at', 'desc')
+      .orderBy('id', 'desc')
+      .limit(limit + 1);
+
+    if (params.status) {
+      query = query.where('status', '=', params.status);
+    }
+
+    if (params.cursor) {
+      const { t, i } = decodeCursor(params.cursor);
+      query = query.where((eb) =>
+        eb.or([
+          eb('updated_at', '<', new Date(t)),
+          eb.and([eb('updated_at', '=', new Date(t)), eb('id', '<', i)]),
+        ]),
+      );
+    }
+
+    const rows = await query.execute();
+    const slice = rows.slice(0, limit);
+    const cursor =
+      rows.length > limit
+        ? encodeCursor(
+            slice[slice.length - 1]!.updated_at,
+            slice[slice.length - 1]!.id,
+          )
+        : undefined;
+
+    return { items: slice, cursor };
   }
 
   async getProposal(id: string): Promise<ProposalWithVotes | null> {

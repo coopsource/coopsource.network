@@ -1,8 +1,10 @@
 # V12 Phase 4 Private Governance Public Anchor Design
 
 **Date:** 2026-07-06
-**Status:** Design gate. No runtime anchor publication is wired by this
-document.
+**Status:** Initial runtime path implemented. The lexicon, service seam,
+projection table, opt-in policy flags, proposal lifecycle wiring, anchor-target
+labels, and public `listProposalAnchors` XRPC read are in place. Public
+aggregate tallies remain intentionally absent.
 
 ## Purpose
 
@@ -37,8 +39,9 @@ Publication is opt-in:
 - Default for closed governance: no anchor, no public label.
 - Default for mixed governance: no private anchor unless the specific proposal
   is routed private and anchor publication is enabled.
-- Future policy flag: use a dedicated setting such as
-  `public_governance_anchors`; do not overload `public_activity`.
+- Policy flags: `public_governance_anchors` controls anchor existence/status
+  publication; `public_governance_anchor_outcomes` separately controls outcome
+  publication and outcome labels.
 - Earliest publication point: proposal open. Draft private proposals must never
   create public anchors.
 
@@ -127,16 +130,16 @@ Future CSN wiring should provide a CoopView adapter that:
 
 ## Implementation Slices
 
-1. Add the `proposalAnchor` lexicon and generated types.
-2. Add a local `PublicGovernanceAnchorService` with an in-memory/write-port test
+1. [x] Add the `proposalAnchor` lexicon and generated types.
+2. [x] Add a local `PublicGovernanceAnchorService` with an in-memory/write-port test
    seam before touching `ProposalService`.
-3. Add a schema migration for the cooperative-level opt-in flag and anchor URI
+3. [x] Add a schema migration for the cooperative-level opt-in flag and anchor URI
    projection, defaulting to disabled.
-4. Wire proposal open/close/resolve to upsert anchors only when policy is
+4. [x] Wire proposal open/close/resolve to upsert anchors only when policy is
    enabled.
-5. Change private-proposal label emission to target the anchor URI only when an
-   anchor exists.
-6. Add public API/XRPC reads that expose anchors without exposing private
+5. [x] Change private-proposal label emission to target the anchor URI only when
+   an anchor exists and outcome publication is enabled.
+6. [x] Add public API/XRPC reads that expose anchors without exposing private
    proposal records.
 
 ## Tests Required
@@ -150,13 +153,14 @@ Future CSN wiring should provide a CoopView adapter that:
 - Disabling the policy prevents new anchor updates without exposing previously
   private data.
 
-## Open Questions For User Review
+## Policy Choices
 
-These do not block the current private-by-default implementation:
+The current implementation chooses the conservative defaults:
 
-1. Should public anchors be enabled at cooperative level only, or should each
-   private proposal also require an author/admin confirmation?
-2. Should final outcomes be public by default when anchors are enabled, or
-   should outcomes require a second opt-in separate from existence/status?
-3. What minimum cooperative size should be required before aggregate tallies can
-   be public?
+1. Public anchors are cooperative-level opt-in only for now. Per-proposal
+   confirmation can be added later if the UI needs finer control.
+2. Final outcomes require the separate
+   `public_governance_anchor_outcomes` opt-in. Without it, anchors may show
+   existence/status but no outcome labels are emitted.
+3. Aggregate tallies remain unpublished. The service seam can enforce a minimum
+   member-count policy later, but no tally policy is exposed yet.
