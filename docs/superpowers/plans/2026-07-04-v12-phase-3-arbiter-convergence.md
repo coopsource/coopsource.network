@@ -104,9 +104,14 @@ This is the standard **addressed, single-use invitation** pattern, and the schem
 
 **Gate:** this must be done before `SPACES_CONSUMER_ENABLED` is ever flipped on. Currently flag-gated off + log-only, so it is a correctness-before-activation task, not a live fix.
 
-- [ ] Failing test: a rotated member DID (old→new in `did_rotation_history`) whose record's `authorDid` is the old DID is accepted (not rejected as not-member) when the member list carries the new DID.
-- [ ] Implement rotation-aware equality (resolve both sides through `did_rotation_history`) in the accept path.
-- [ ] Green + commit `fix(spaces-consumer): rotation-aware DID equality in accept path (V9)`.
+- [x] Failing test: a rotated member DID (old→new in `did_rotation_history`) whose record's `authorDid` is the old DID is accepted (not rejected as not-member) when the member list carries the new DID.
+- [x] Implement rotation-aware equality (resolve both sides through `did_rotation_history`) in the accept path.
+- [x] Green + commit `fix(spaces-consumer): rotation-aware DID equality in accept path (V9)`.
+
+Implementation note (2026-07-05): the consumer now depends on
+`DidEquivalencePort`; CSN dispatch wires `KyselyDidEquivalencePort` over
+`did_rotation_history`. The table still needs a PLC-monitoring writer before
+global DID equality can be trusted outside this gate.
 
 ## Onboarding model (user decision 2026-07-04, community-aligned)
 

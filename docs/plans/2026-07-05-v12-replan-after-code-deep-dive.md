@@ -405,6 +405,15 @@ Remaining plan:
 
 **Branch:** `feature/v12-phase-3-did-rotation-gate`
 
+**Implementation status, 2026-07-05:** the spaces consumer accept path now uses
+a `DidEquivalencePort` instead of raw DID equality. The default port preserves
+raw equality, and the CSN dispatch path wires `KyselyDidEquivalencePort`, which
+resolves both record author DIDs and resolved member DIDs through
+`did_rotation_history` before comparing them. Tests cover rotated old-to-current
+author acceptance, lookup failure fail-closed behavior, chain resolution through
+the DB table, and corrupt cycle rejection. This is still only as strong as the
+table contents: PLC monitoring/writer plumbing remains a Phase 4/6 dependency.
+
 Do not spend this slice pretending the empty `did_rotation_history` table gives
 real protection. Instead:
 

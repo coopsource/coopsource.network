@@ -3,6 +3,7 @@ import type { Database } from '@coopsource/db';
 import { CsnDbGroupDirectoryPort } from '@coopsource/arbiter-client';
 import {
   InMemoryPermissionedRepoPort,
+  KyselyDidEquivalencePort,
   KyselyPermissionedCheckpointStore,
   SpacesConsumer,
   type ConsumerHealth,
@@ -25,24 +26,32 @@ export async function startSpacesConsumer(
   cfg: SpacesConsumerDispatchConfig,
 ): Promise<SpacesConsumer | null> {
   if (!cfg.enabled) {
-    logger.info('Spaces consumer disabled by config (SPACES_CONSUMER_ENABLED=false)');
+    logger.info(
+      'Spaces consumer disabled by config (SPACES_CONSUMER_ENABLED=false)',
+    );
     return null;
   }
 
   if (activeConsumer) {
-    logger.warn('startSpacesConsumer called twice; ignoring (existing consumer remains active)');
+    logger.warn(
+      'startSpacesConsumer called twice; ignoring (existing consumer remains active)',
+    );
     return activeConsumer;
   }
 
-  if (cfg.unsafeAcceptUnverifiedPermissionedData && process.env.NODE_ENV === 'production') {
+  if (
+    cfg.unsafeAcceptUnverifiedPermissionedData &&
+    process.env.NODE_ENV === 'production'
+  ) {
     throw new Error(
       'UNSAFE_ACCEPT_UNVERIFIED_PERMISSIONED_DATA cannot be set in production.',
     );
   }
 
-  const verification: PermissionedVerificationStatus = cfg.unsafeAcceptUnverifiedPermissionedData
-    ? 'unverified-dev-mode'
-    : 'failed-closed';
+  const verification: PermissionedVerificationStatus =
+    cfg.unsafeAcceptUnverifiedPermissionedData
+      ? 'unverified-dev-mode'
+      : 'failed-closed';
 
   if (cfg.unsafeAcceptUnverifiedPermissionedData) {
     logger.warn(
@@ -53,6 +62,7 @@ export async function startSpacesConsumer(
 
   const consumer = new SpacesConsumer({
     groupDirectory: new CsnDbGroupDirectoryPort(cfg.db),
+    didEquivalence: new KyselyDidEquivalencePort(cfg.db),
     permissionedRepo: new InMemoryPermissionedRepoPort({
       records: [],
       verification,
