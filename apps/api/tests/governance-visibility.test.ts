@@ -225,6 +225,108 @@ describe('Governance Visibility', () => {
     warnSpy.mockRestore();
   });
 
+  it('deletes the superseded private vote record when a closed-governance member revotes', async () => {
+    const testApp = createTestApp();
+    await setupAndLogin(testApp);
+
+    await testApp.agent
+      .put('/api/v1/cooperative')
+      .send({ governanceVisibility: 'closed' })
+      .expect(200);
+
+    const proposalRes = await testApp.agent
+      .post('/api/v1/proposals')
+      .send({
+        title: 'Closed revote',
+        body: 'Only the latest private vote should remain',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+      })
+      .expect(201);
+
+    await testApp.agent
+      .post(`/api/v1/proposals/${proposalRes.body.id}/open`)
+      .expect(200);
+
+    const firstVoteRes = await testApp.agent
+      .post(`/api/v1/proposals/${proposalRes.body.id}/vote`)
+      .send({ choice: 'yes' })
+      .expect(201);
+    const firstVote = await testApp.container.db
+      .selectFrom('vote')
+      .where('id', '=', firstVoteRes.body.id)
+      .select('uri')
+      .executeTakeFirstOrThrow();
+    expect(firstVote.uri).not.toBeNull();
+    const firstVoteLocation = parseSpaceRecordUri(firstVote.uri!);
+    expect(firstVoteLocation).not.toBeNull();
+
+    await testApp.agent
+      .post(`/api/v1/proposals/${proposalRes.body.id}/vote`)
+      .send({ choice: 'no' })
+      .expect(201);
+
+    const activePrivateVotes = await testApp.container.db
+      .selectFrom('private_record')
+      .where('collection', '=', 'network.coopsource.governance.vote')
+      .selectAll()
+      .execute();
+    expect(activePrivateVotes).toHaveLength(1);
+    expect(activePrivateVotes[0]!.rkey).not.toBe(firstVoteLocation!.rkey);
+    const activePrivateVoteRecord =
+      typeof activePrivateVotes[0]!.record === 'string'
+        ? JSON.parse(activePrivateVotes[0]!.record)
+        : activePrivateVotes[0]!.record;
+    expect(activePrivateVoteRecord).toMatchObject({ choice: 'no' });
+
+    const votes = await testApp.container.db
+      .selectFrom('vote')
+      .where('proposal_id', '=', proposalRes.body.id)
+      .select(['uri', 'choice', 'retracted_at'])
+      .execute();
+    expect(votes).toHaveLength(2);
+    expect(votes.filter((vote) => vote.retracted_at === null)).toHaveLength(1);
+  });
+
+  it('deletes the private vote record when a closed-governance member retracts a vote', async () => {
+    const testApp = createTestApp();
+    await setupAndLogin(testApp);
+
+    await testApp.agent
+      .put('/api/v1/cooperative')
+      .send({ governanceVisibility: 'closed' })
+      .expect(200);
+
+    const proposalRes = await testApp.agent
+      .post('/api/v1/proposals')
+      .send({
+        title: 'Closed retract',
+        body: 'Retracting should clear the private vote record',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+      })
+      .expect(201);
+
+    await testApp.agent
+      .post(`/api/v1/proposals/${proposalRes.body.id}/open`)
+      .expect(200);
+    await testApp.agent
+      .post(`/api/v1/proposals/${proposalRes.body.id}/vote`)
+      .send({ choice: 'yes' })
+      .expect(201);
+
+    await testApp.agent
+      .delete(`/api/v1/proposals/${proposalRes.body.id}/vote`)
+      .expect(204);
+
+    const activePrivateVotes = await testApp.container.db
+      .selectFrom('private_record')
+      .where('collection', '=', 'network.coopsource.governance.vote')
+      .select('rkey')
+      .execute();
+    expect(activePrivateVotes).toHaveLength(0);
+  });
+
   it('does not persist closed governance proposals when permissioned write fails', async () => {
     const testApp = createTestApp({
       permissionedRecordWriter: new FailingPermissionedRecordWriter(),
@@ -311,5 +413,10 @@ class FailingPermissionedRecordWriter implements PermissionedRecordWritePort {
   async createRecord(): Promise<never> {
     await Promise.resolve();
     throw new Error('permissioned write unavailable');
+  }
+
+  async deleteRecord(): Promise<never> {
+    await Promise.resolve();
+    throw new Error('permissioned delete unavailable');
   }
 }

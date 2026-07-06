@@ -25,15 +25,45 @@ describe('space-uri', () => {
     expect(isSpaceRecordUri(uri)).toBe(true);
   });
 
+  it('round-trips slash-bearing role and class space keys', () => {
+    const roleSpace: SpaceRecordUri = {
+      ...sample,
+      spaceType: 'network.coopsource.org.spaceType.role',
+      skey: 'roles/board',
+    };
+    const classSpace: SpaceRecordUri = {
+      ...sample,
+      spaceType: 'network.coopsource.org.spaceType.class',
+      skey: 'classes/worker',
+    };
+
+    expect(formatSpaceRecordUri(roleSpace)).toContain('/roles%2Fboard/');
+    expect(parseSpaceRecordUri(formatSpaceRecordUri(roleSpace))).toEqual(
+      roleSpace,
+    );
+    expect(formatSpaceRecordUri(classSpace)).toContain('/classes%2Fworker/');
+    expect(parseSpaceRecordUri(formatSpaceRecordUri(classSpace))).toEqual(
+      classSpace,
+    );
+  });
+
   it('returns null for a plain public at:// record URI', () => {
-    expect(parseSpaceRecordUri('at://did:plc:abc/app.bsky.feed.post/xyz')).toBeNull();
-    expect(isSpaceRecordUri('at://did:plc:abc/app.bsky.feed.post/xyz')).toBe(false);
+    expect(
+      parseSpaceRecordUri('at://did:plc:abc/app.bsky.feed.post/xyz'),
+    ).toBeNull();
+    expect(isSpaceRecordUri('at://did:plc:abc/app.bsky.feed.post/xyz')).toBe(
+      false,
+    );
   });
 
   it('returns null for wrong scheme, missing space marker, and empty components', () => {
-    expect(parseSpaceRecordUri('https://did:plc:abc/space/t/s/a/c/r')).toBeNull();
+    expect(
+      parseSpaceRecordUri('https://did:plc:abc/space/t/s/a/c/r'),
+    ).toBeNull();
     // 7 segments but marker is not "space"
-    expect(parseSpaceRecordUri('at://did:plc:abc/notspace/t/s/a/c/r')).toBeNull();
+    expect(
+      parseSpaceRecordUri('at://did:plc:abc/notspace/t/s/a/c/r'),
+    ).toBeNull();
     // empty skey component
     expect(parseSpaceRecordUri('at://did:plc:abc/space/t//a/c/r')).toBeNull();
   });
@@ -43,7 +73,10 @@ describe('space-uri', () => {
     expect(parseSpaceRecordUri(`${base}?foo=1`)).toBeNull();
     expect(parseSpaceRecordUri(`${base}#frag`)).toBeNull();
     expect(parseSpaceRecordUri('at://did:plc:abc/space/t/s/a/c')).toBeNull(); // too few
-    expect(parseSpaceRecordUri('at://did:plc:abc/space/t/s/a/c/r/extra')).toBeNull(); // too many
+    expect(
+      parseSpaceRecordUri('at://did:plc:abc/space/t/s/a/c/r/extra'),
+    ).toBeNull(); // too many
+    expect(parseSpaceRecordUri('at://did:plc:abc/space/t/%/a/c/r')).toBeNull();
     expect(parseSpaceRecordUri('')).toBeNull();
   });
 });

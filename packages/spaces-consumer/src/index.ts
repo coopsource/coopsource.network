@@ -74,6 +74,7 @@ export {
 export type {
   InMemoryPermissionedRecordWritePortOptions,
   PermissionedRecordCreateRequest,
+  PermissionedRecordDeleteRequest,
   PermissionedRecordWritePort,
   PermissionedRecordWriteResult,
   PermissionedRecordWriteErrorKind,

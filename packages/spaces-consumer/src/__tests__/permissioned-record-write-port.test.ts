@@ -13,6 +13,12 @@ const membersSpace: SpaceRef = {
   expectedSpaceType: 'network.coopsource.org.spaceType.members',
 };
 
+const roleSpace: SpaceRef = {
+  arbiterDid: fakeDid('did:plc:coop'),
+  spaceKey: 'roles/board',
+  expectedSpaceType: 'network.coopsource.org.spaceType.role',
+};
+
 describe('PermissionedRecordWritePort', () => {
   it('creates records with structured locations and formatted space URIs', async () => {
     const port = new InMemoryPermissionedRecordWritePort({
@@ -45,6 +51,19 @@ describe('PermissionedRecordWritePort', () => {
     expect(port.writtenRecords()[0]?.record).toEqual({ choice: 'yes' });
   });
 
+  it('formats slash-bearing space keys as parseable URI components', () => {
+    expect(
+      formatPermissionedRecordLocationUri({
+        space: roleSpace,
+        authorDid: fakeDid('did:plc:alice'),
+        collection: 'network.coopsource.governance.vote',
+        rkey: 'vote1',
+      }),
+    ).toBe(
+      'at://did:plc:coop/space/network.coopsource.org.spaceType.role/roles%2Fboard/did:plc:alice/network.coopsource.governance.vote/vote1',
+    );
+  });
+
   it('awaits the async write boundary before recording the write', async () => {
     const events: string[] = [];
     const port = new InMemoryPermissionedRecordWritePort({
@@ -73,6 +92,42 @@ describe('PermissionedRecordWritePort', () => {
     ]);
   });
 
+  it('awaits the async delete boundary before deleting the write', async () => {
+    const events: string[] = [];
+    const port = new InMemoryPermissionedRecordWritePort({
+      beforeDelete: async () => {
+        events.push('before-start');
+        await Promise.resolve();
+        events.push('before-finish');
+      },
+    });
+
+    await port.createRecord({
+      space: membersSpace,
+      authorDid: fakeDid('did:plc:alice'),
+      collection: 'network.coopsource.governance.vote',
+      record: { choice: 'yes' },
+      rkey: 'vote1',
+    });
+
+    events.push('call-start');
+    await port.deleteRecord({
+      space: membersSpace,
+      authorDid: fakeDid('did:plc:alice'),
+      collection: 'network.coopsource.governance.vote',
+      rkey: 'vote1',
+    });
+    events.push('call-finish');
+
+    expect(events).toEqual([
+      'call-start',
+      'before-start',
+      'before-finish',
+      'call-finish',
+    ]);
+    expect(port.writtenRecords()).toHaveLength(0);
+  });
+
   it('rejects duplicate writes at the same permissioned location', async () => {
     const port = new InMemoryPermissionedRecordWritePort();
     const args = {
@@ -87,6 +142,57 @@ describe('PermissionedRecordWritePort', () => {
     await expect(port.createRecord(args)).rejects.toMatchObject({
       name: 'PermissionedRecordWriteError',
       kind: 'conflict',
+    });
+  });
+
+  it('generates monotonic rkeys after deleting a write', async () => {
+    const port = new InMemoryPermissionedRecordWritePort();
+
+    const first = await port.createRecord({
+      space: membersSpace,
+      authorDid: fakeDid('did:plc:alice'),
+      collection: 'network.coopsource.governance.vote',
+      record: { choice: 'yes' },
+    });
+    const second = await port.createRecord({
+      space: membersSpace,
+      authorDid: fakeDid('did:plc:alice'),
+      collection: 'network.coopsource.governance.vote',
+      record: { choice: 'no' },
+    });
+
+    await port.deleteRecord({
+      space: first.location.space,
+      authorDid: first.location.authorDid,
+      collection: first.location.collection,
+      rkey: first.location.rkey,
+    });
+
+    const third = await port.createRecord({
+      space: membersSpace,
+      authorDid: fakeDid('did:plc:alice'),
+      collection: 'network.coopsource.governance.vote',
+      record: { choice: 'abstain' },
+    });
+
+    expect(second.location.rkey).toBe('rk000002');
+    expect(third.location.rkey).toBe('rk000003');
+    expect(port.writtenRecords()).toHaveLength(2);
+  });
+
+  it('rejects deleting an absent permissioned location', async () => {
+    const port = new InMemoryPermissionedRecordWritePort();
+
+    await expect(
+      port.deleteRecord({
+        space: membersSpace,
+        authorDid: fakeDid('did:plc:alice'),
+        collection: 'network.coopsource.governance.vote',
+        rkey: 'missing',
+      }),
+    ).rejects.toMatchObject({
+      name: 'PermissionedRecordWriteError',
+      kind: 'not-found',
     });
   });
 

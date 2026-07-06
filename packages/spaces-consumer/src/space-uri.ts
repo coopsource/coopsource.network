@@ -10,6 +10,9 @@
  * than string literals elsewhere (ARCHITECTURE-V12 §5, Pitfall #3). A plain
  * public `at://did/collection/rkey` URI is deliberately NOT a space URI and
  * parses to `null`.
+ *
+ * Path components are percent-encoded at this boundary because CSN space keys
+ * can contain `/` (for example `roles/board` and `classes/worker`).
  */
 
 export interface SpaceRecordUri {
@@ -25,7 +28,15 @@ const SPACE_SEGMENT = 'space';
 
 /** Format a permissioned-record URI. Does not validate DID/NSID syntax. */
 export function formatSpaceRecordUri(u: SpaceRecordUri): string {
-  return `at://${u.spaceDid}/${SPACE_SEGMENT}/${u.spaceType}/${u.skey}/${u.authorDid}/${u.collection}/${u.rkey}`;
+  return [
+    `at://${u.spaceDid}`,
+    SPACE_SEGMENT,
+    encodePathSegment(u.spaceType),
+    encodePathSegment(u.skey),
+    encodePathSegment(u.authorDid),
+    encodePathSegment(u.collection),
+    encodePathSegment(u.rkey),
+  ].join('/');
 }
 
 /**
@@ -44,22 +55,32 @@ export function parseSpaceRecordUri(uri: string): SpaceRecordUri | null {
   const parts = rest.split('/');
   // spaceDid / "space" / spaceType / skey / authorDid / collection / rkey
   if (parts.length !== 7) return null;
-  const [spaceDid, marker, spaceType, skey, authorDid, collection, rkey] = parts;
+  const [spaceDid, marker, ...encodedParts] = parts;
   if (marker !== SPACE_SEGMENT) return null;
-  if (
-    !spaceDid ||
-    !spaceType ||
-    !skey ||
-    !authorDid ||
-    !collection ||
-    !rkey
-  ) {
+  if (!spaceDid || encodedParts.some((part) => !part)) {
     return null;
   }
+
+  const decodedParts = decodePathSegments(encodedParts);
+  if (!decodedParts || decodedParts.some((part) => !part)) return null;
+  const [spaceType, skey, authorDid, collection, rkey] = decodedParts;
+
   return { spaceDid, spaceType, skey, authorDid, collection, rkey };
 }
 
 /** True if `uri` is a permissioned-space record URI (vs a plain public at:// URI). */
 export function isSpaceRecordUri(uri: string): boolean {
   return parseSpaceRecordUri(uri) !== null;
+}
+
+function encodePathSegment(value: string): string {
+  return encodeURIComponent(value).replace(/%3A/gi, ':');
+}
+
+function decodePathSegments(parts: string[]): string[] | null {
+  try {
+    return parts.map((part) => decodeURIComponent(part));
+  } catch {
+    return null;
+  }
 }

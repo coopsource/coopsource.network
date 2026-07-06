@@ -8,6 +8,8 @@ import type {
 import {
   formatPermissionedRecordLocationUri,
   isSpaceRecordUri,
+  parseSpaceRecordUri,
+  PermissionedRecordWriteError,
 } from '@coopsource/spaces-consumer';
 
 type ProposalRow = Selectable<ProposalTable>;
@@ -379,14 +381,11 @@ export class ProposalService {
       ref = await writePublicVote();
     }
 
-    // Retract any previous vote
-    await this.db
-      .updateTable('vote')
-      .set({ retracted_at: now, retracted_by: params.voterDid })
-      .where('proposal_id', '=', params.proposalId)
-      .where('voter_did', '=', params.voterDid)
-      .where('retracted_at', 'is', null)
-      .execute();
+    await this.retractActiveVotes({
+      proposalId: params.proposalId,
+      voterDid: params.voterDid,
+      retractedAt: now,
+    });
 
     const weight = await this.membershipReadModel.getProjectedMemberVoteWeight(
       proposal.cooperative_did as DID,
@@ -415,21 +414,17 @@ export class ProposalService {
   }
 
   async retractVote(proposalId: string, voterDid: string): Promise<void> {
-    const vote = await this.db
+    const votes = await this.db
       .selectFrom('vote')
       .where('proposal_id', '=', proposalId)
       .where('voter_did', '=', voterDid)
       .where('retracted_at', 'is', null)
-      .select('id')
-      .executeTakeFirst();
-
-    if (!vote) throw new NotFoundError('Vote not found');
-
-    await this.db
-      .updateTable('vote')
-      .set({ retracted_at: this.clock.now(), retracted_by: voterDid })
-      .where('id', '=', vote.id)
+      .select(['id', 'uri'])
       .execute();
+
+    if (votes.length === 0) throw new NotFoundError('Vote not found');
+
+    await this.retractVoteRows(votes, voterDid, this.clock.now());
   }
 
   async resolveProposal(id: string): Promise<ProposalRow> {
@@ -622,6 +617,76 @@ export class ProposalService {
       record: args.record,
     });
     return permissionedRecordRef(write);
+  }
+
+  private async retractActiveVotes(args: {
+    proposalId: string;
+    voterDid: string;
+    retractedAt: Date;
+  }): Promise<void> {
+    const votes = await this.db
+      .selectFrom('vote')
+      .where('proposal_id', '=', args.proposalId)
+      .where('voter_did', '=', args.voterDid)
+      .where('retracted_at', 'is', null)
+      .select(['id', 'uri'])
+      .execute();
+
+    if (votes.length === 0) return;
+    await this.retractVoteRows(votes, args.voterDid, args.retractedAt);
+  }
+
+  private async retractVoteRows(
+    votes: Array<{ id: string; uri: string | null }>,
+    voterDid: string,
+    retractedAt: Date,
+  ): Promise<void> {
+    for (const vote of votes) {
+      if (vote.uri) {
+        await this.deletePermissionedRecordIfNeeded(vote.uri);
+      }
+    }
+
+    await this.db
+      .updateTable('vote')
+      .set({ retracted_at: retractedAt, retracted_by: voterDid })
+      .where(
+        'id',
+        'in',
+        votes.map((vote) => vote.id),
+      )
+      .execute();
+  }
+
+  private async deletePermissionedRecordIfNeeded(uri: string): Promise<void> {
+    const parsed = parseSpaceRecordUri(uri);
+    if (!parsed) return;
+    if (!this.permissionedRecordWriter) {
+      throw new Error(
+        'Permissioned vote retraction requires a PermissionedRecordWritePort',
+      );
+    }
+
+    try {
+      await this.permissionedRecordWriter.deleteRecord({
+        space: {
+          arbiterDid: parsed.spaceDid as DID,
+          spaceKey: parsed.skey,
+          expectedSpaceType: parsed.spaceType,
+        },
+        authorDid: parsed.authorDid as DID,
+        collection: parsed.collection,
+        rkey: parsed.rkey,
+      });
+    } catch (err) {
+      if (
+        err instanceof PermissionedRecordWriteError &&
+        err.kind === 'not-found'
+      ) {
+        return;
+      }
+      throw err;
+    }
   }
 
   private async _getOwnedProposal(
