@@ -1,0 +1,92 @@
+# V12 Phase 4 Space Placement Matrix
+
+**Date:** 2026-07-06
+**Status:** Draft substrate-planning artifact. This does not wire live OAuth or
+permissioned-space writes.
+
+## Purpose
+
+Phase 4 should start by deciding where records belong before changing write
+paths. Proposal 0016 treats a space type declaration as the OAuth consent label
+and collection allow-list, so CSN needs a single placement matrix that connects:
+
+- record collection
+- draft CSN space type
+- space key pattern
+- AppView sync scope (`read`)
+- member-self export scope (`read_self`)
+
+The executable source is `CSN_SPACE_PLACEMENT_MATRIX` in
+`packages/lexicons/src/space-placement.ts`. This document explains the current
+draft choices and their caveats.
+
+## Current Space Types
+
+| Space kind   | Space type NSID                                | Space key pattern       | Meaning                                                  |
+| ------------ | ---------------------------------------------- | ----------------------- | -------------------------------------------------------- |
+| members      | `network.coopsource.org.spaceType.members`     | `members`               | Records visible to the cooperative's active member set   |
+| role         | `network.coopsource.org.spaceType.role`        | `roles/{role}`          | Records visible to holders of a named role               |
+| member class | `network.coopsource.org.spaceType.memberClass` | `classes/{memberClass}` | Records visible to members of a cooperative member class |
+
+These names match the existing constants in `@coopsource/arbiter-client` and
+the draft space declarations in `@coopsource/lexicons`. Phase 4 must still
+decide whether `network.coopsource.org.spaceType.*` is the final publication
+namespace or an internal draft namespace to remap before external use.
+
+## Placement Matrix
+
+| Collection                                      | Space kind   | Space key pattern       | AppView sync scope | Member-self scope | Notes                                                                         |
+| ----------------------------------------------- | ------------ | ----------------------- | ------------------ | ----------------- | ----------------------------------------------------------------------------- |
+| `network.coopsource.org.memberConsent`          | members      | `members`               | `read`             | `read_self`       | Evidence only; active membership authority remains the Group Directory.       |
+| `network.coopsource.governance.proposal`        | members      | `members`               | `read`             | `read_self`       | Closed/private proposals move here; public anchors still need Phase 5 policy. |
+| `network.coopsource.governance.vote`            | members      | `members`               | `read`             | `read_self`       | Private votes must not hit the public firehose.                               |
+| `network.coopsource.agreement.master`           | members      | `members`               | `read`             | `read_self`       | Member-visible agreement body.                                                |
+| `network.coopsource.agreement.signature`        | members      | `members`               | `read`             | `read_self`       | Signer-authored evidence; placement does not replace signature verification.  |
+| `network.coopsource.admin.memberNotice`         | role         | `roles/{role}`          | `read`             | `read_self`       | Role-scoped notices such as board/officer communication.                      |
+| `network.coopsource.legal.document`             | role         | `roles/{role}`          | `read`             | `read_self`       | Role-scoped legal documents.                                                  |
+| `network.coopsource.legal.meetingRecord`        | role         | `roles/{role}`          | `read`             | `read_self`       | Board/officer minutes; Phase 5 maps to `meetingMinutes`.                      |
+| `network.coopsource.finance.expense`            | role         | `roles/{role}`          | `read`             | `read_self`       | Financial claims remain Tier 2.                                               |
+| `network.coopsource.finance.revenue`            | role         | `roles/{role}`          | `read`             | `read_self`       | Financial revenue records remain Tier 2.                                      |
+| `network.coopsource.agreement.stakeholderTerms` | member class | `classes/{memberClass}` | `read`             | `read_self`       | Class-specific agreement terms.                                               |
+| `network.coopsource.agreement.contribution`     | member class | `classes/{memberClass}` | `read`             | `read_self`       | Class-specific contribution evidence.                                         |
+| `network.coopsource.funding.pledge`             | member class | `classes/{memberClass}` | `read`             | `read_self`       | Class-scoped funding pledge records.                                          |
+| `network.coopsource.ops.timeEntry`              | member class | `classes/{memberClass}` | `read`             | `read_self`       | Work-hour records remain Tier 2.                                              |
+
+## Scope Rules
+
+For AppView projection, request collection-narrowed `read` scopes with the
+cooperative authority DID and concrete space key:
+
+```text
+space:network.coopsource.org.spaceType.members?authority=did%3Aplc%3Acoop&skey=members&collection=network.coopsource.governance.vote&action=read
+```
+
+For member-self export or personal-only flows, `read_self` is valid but cannot
+replace AppView sync because it cannot mint a space credential for the whole
+space:
+
+```text
+space:network.coopsource.org.spaceType.members?collection=network.coopsource.governance.vote&action=read_self
+```
+
+## Caveats
+
+- This matrix is a draft target, not a live placement guarantee.
+- Record write actions are not encoded here yet. Phase 4 should decide create,
+  update, and delete permissions per collection after the credential seam is
+  tested.
+- Public governance anchors are a Phase 5 policy concern. This matrix only
+  describes Tier 2/private placement.
+- The current atproto draft exposes direct simplespace member lists, not CSN's
+  recursive role/member-class authority model. Runtime placement still depends
+  on `GroupDirectoryPort` and the CSN-DB adapter until the external substrate
+  stabilizes.
+
+## Next Slice
+
+1. Use `CSN_SPACE_PLACEMENT_MATRIX` in OAuth planning tests.
+2. Decide the final space type namespace before external publication.
+3. Add a non-live `SpaceCredentialStore` implementation that models expiration,
+   refresh-per-batch, and rotation on member-list change.
+4. Spike one collection, likely `network.coopsource.governance.vote`, through a
+   local harness before changing production write paths.

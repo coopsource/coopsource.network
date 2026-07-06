@@ -95,6 +95,19 @@ export type {
   SpaceScopeManageAction,
   SpaceScopeOptions,
 } from './space-scopes.js';
+export {
+  CSN_SPACE_PLACEMENT_MATRIX,
+  findCsnSpacePlacement,
+  formatPlacementAppViewReadScope,
+  formatPlacementMemberSelfReadScope,
+} from './space-placement.js';
+export type {
+  CsnSpacePlacement,
+  CsnSpacePlacementKind,
+  CsnSpaceSkeyPattern,
+  CsnSpaceTypeId,
+  PlacementScopeOptions,
+} from './space-placement.js';
 
 // Runtime validation
 export {

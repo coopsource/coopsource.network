@@ -519,10 +519,13 @@ Initial Phase 4 substrate artifact started in this branch:
   (`formatSpaceScope`, `formatSpaceReadScope`, `formatSpaceReadSelfScope`) with
   tests for encoded authority DIDs, `read` versus `read_self`, collection
   narrowing, and manage scopes. They are not wired into live auth flows yet.
-- Next Phase 4 implementation should build the placement matrix from these
-  declarations, wire scope formatting into OAuth planning/tests, then revisit
-  whether the `spaceType` namespace should be renamed before external
-  publication.
+- `@coopsource/lexicons` now exports `CSN_SPACE_PLACEMENT_MATRIX`, derived from
+  those declarations, plus helpers for collection-narrowed AppView `read` and
+  member-self `read_self` scopes. The companion planning doc is
+  `docs/plans/2026-07-06-v12-phase-4-space-placement-matrix.md`.
+- Next Phase 4 implementation should wire the placement matrix into OAuth
+  planning/tests, then revisit whether the `spaceType` namespace should be
+  renamed before external publication.
 
 ## Phase 5 Parallelization
 

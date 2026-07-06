@@ -10,6 +10,11 @@ The JSON schema files are located alongside this document in the [`network/coops
 
 Proposal 0016 adds Lexicon definitions with `"type": "space"`. The current upstream `@atproto/lex-cli` version used by this repo does not accept that definition type yet, so CSN's draft space type declarations under `network/coopsource/org/spaceType/` are exported from `src/space-types.ts` and intentionally excluded from generated record schemas until atproto tooling catches up. `src/space-scopes.ts` provides inert helpers for formatting `space:` OAuth scopes from these declarations.
 
+Phase 4 placement planning lives in `src/space-placement.ts` and
+`docs/plans/2026-07-06-v12-phase-4-space-placement-matrix.md`. The matrix is
+derived from the declarations below and is still draft-only; it does not wire
+live OAuth or permissioned-space writes.
+
 ## Record Ownership Matrix
 
 | Member's PDS          | Cooperative's PDS               | DB-only                   |
