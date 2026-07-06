@@ -543,7 +543,8 @@ Recommended first Phase 5 slice:
   `packages/coop-view`. (Started at
   `docs/plans/2026-07-06-v12-phase-5-governance-view-interface-design.md`.)
 - Define the ten `GovernancePluginSet` interfaces as plain-value async inputs.
-  (Drafted in the design doc; review before package extraction.)
+  (Reviewed against current proposal/vote/delegation code; generic
+  `packages/governance-view` interface/default extraction has started.)
 - Map existing services to plugin candidates:
   - member classes -> `voteWeight`
   - proposal service checks -> `eligibility`, `quorum`, `actionAuthorizer`
@@ -551,7 +552,9 @@ Recommended first Phase 5 slice:
   - patronage/capital accounts -> patronage/distribution plugins
   - meeting records -> `meetingMinutes`
 - Do not extract code until the interface doc is reviewed against current
-  proposal/vote/delegation tests.
+  proposal/vote/delegation tests. Status: satisfied for the generic defaults
+  package only; `packages/coop-view` adapters and service rewrites still need
+  their own review gate.
 
 This can run beside late Phase 3 slices because it should initially be
 interface/design work, not a broad service rewrite.

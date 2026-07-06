@@ -1,9 +1,11 @@
 # V12 Phase 5 GovernanceView / CoopView Interface Design
 
 **Date:** 2026-07-06
-**Status:** Draft for review before package extraction. Do not create
-`packages/governance-view` or `packages/coop-view` until this interface shape
-has been reviewed against current proposal/vote/delegation tests.
+**Status:** Interface slice reviewed against current proposal/vote/delegation
+code and started. `packages/governance-view` now exists with generic value
+types, the ten plugin interfaces, default no-op/one-member-one-vote behavior,
+and tests. Do not create `packages/coop-view` or move service logic until the
+adapter design is reviewed against the current API suites.
 
 ## Purpose
 
@@ -197,12 +199,32 @@ starts.
 | `meetingMinutes`     | legal/meeting record services and `network.coopsource.legal.meetingRecord`                                             | Starts as a no-op until meeting records are better typed.                            |
 | `delegateChains`     | `DelegationVotingService.getDelegationChain` / vote-weight delegation logic                                            | Keep cycle detection behavior covered by tests.                                      |
 
+## Design Review Notes
+
+Reviewed against the current implementation on 2026-07-06:
+
+- `ProposalService.castVote` still stores `vote_weight` from
+  `MembershipReadModel.getProjectedMemberVoteWeight`. The generic default
+  therefore stays one-member-one-vote; class weights belong in a later
+  `packages/coop-view` adapter.
+- `ProposalService.resolveProposal` evaluates simple/super-majority quorum
+  using headcount and then applies CSN class-quorum rules. The generic
+  `QuorumPlugin` default intentionally covers only headcount quorum; class
+  quorum remains a CoopView adapter responsibility.
+- `checkVoteEligibility` combines active membership, existing-vote detection,
+  and delegated vote weight. The generic `EligibilityPlugin` default remains
+  eligible-by-default because fail-closed membership behavior is CSN-specific.
+- `DelegationVotingService.calculateVoteWeight` combines direct class weight
+  with delegator class weights. Generic `DelegateChainsPlugin` defaults to the
+  direct voter only; cycle/chain expansion stays in the CSN adapter slice.
+
 ## Extraction Order
 
 1. Add `packages/governance-view` with value types, plugin interfaces, and
-   default plugin set only. No service extraction.
+   default plugin set only. No service extraction. **Started 2026-07-06.**
 2. Add tests proving default plugins produce one-member-one-vote behavior,
-   eligible-by-default behavior, and no-op optional outputs.
+   eligible-by-default behavior, and no-op optional outputs. **Started
+   2026-07-06.**
 3. Add `packages/coop-view` as adapters over existing services, starting with
    `voteWeight`, `eligibility`, `quorum`, and `delegateChains`.
 4. Move generic proposal/vote tally reducers out of `ProposalService` only after

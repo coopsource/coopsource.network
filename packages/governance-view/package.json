@@ -1,0 +1,27 @@
+{
+  "name": "@coopsource/governance-view",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Generic governance view interfaces and defaults for CSN V12",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "prebuild": "rm -rf dist",
+    "build": "tsc",
+    "test": "vitest run",
+    "clean": "rm -rf dist",
+    "lint": "eslint src --ext .ts"
+  },
+  "devDependencies": {
+    "@coopsource/config": "workspace:*",
+    "typescript": "^5.9",
+    "vitest": "^4.0"
+  }
+}
