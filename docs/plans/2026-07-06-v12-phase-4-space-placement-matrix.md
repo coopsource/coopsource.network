@@ -103,10 +103,12 @@ Reference links:
 - Record write actions are only partially encoded. `PermissionedRecordWritePort`
   now models create/write placement; update and delete permissions per
   collection still need policy after the credential seam is tested.
-- Public governance anchors are a Phase 5 policy concern. This matrix only
-  describes Tier 2/private placement. Current runtime policy is
+- Public governance anchors sit at the Phase 4 placement / Phase 5
+  GovernanceView policy boundary. This matrix only describes Tier 2/private
+  placement. Current runtime policy is
   private-by-default: permissioned-space proposal URIs do not emit public
-  governance labels.
+  governance labels. The first anchor policy design is
+  `docs/plans/2026-07-06-v12-phase-4-private-governance-anchor-design.md`.
 - Current production writes route closed-governance proposals and votes through
   `PermissionedRecordWritePort`, backed by a legacy Tier 2 `private_record`
   adapter. The semantic record location is now a structured permissioned-space
@@ -121,8 +123,9 @@ Reference links:
 
 ## Next Slice
 
-1. Design an explicit optional public-anchor record for closed/private
-   governance, including what it may reveal and when a cooperative enables it.
+1. Implement the explicitly optional public-anchor record for closed/private
+   governance from
+   `docs/plans/2026-07-06-v12-phase-4-private-governance-anchor-design.md`.
    Until that lands, closed/private proposal labels and anchors are forbidden by
    default.
 2. Replace the legacy `private_record` adapter with a real
