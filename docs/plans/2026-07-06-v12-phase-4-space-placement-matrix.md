@@ -69,6 +69,33 @@ space:
 space:network.coopsource.org.spaceType.members?collection=network.coopsource.governance.vote&action=read_self
 ```
 
+`formatCsnAppViewReadScopePlan()` and
+`formatCsnMemberSelfReadScopePlan()` turn the whole matrix, or an explicit
+collection subset, into these draft `space:` OAuth scope strings. The default
+planning mode uses `skey=members` for the members space and `skey=*` for role
+and member-class spaces because the concrete role or class key is not known at
+client-registration time. Use `skeyMode: "omit"` only for pre-consent displays
+where the scope is intentionally describing a record placement pattern instead
+of a concrete authorization request.
+
+As of the July 2026 upstream check, the permissioned-data spaces proposal is
+still described as exploratory PDS implementation work. The upstream
+permissioned-data PDS design on the `permissioned-data` branch models spaces as
+authorization and sync boundaries, uses `ats://` URIs, and keeps credential,
+member-list, sync, notification, and SetHash details open for further spec
+decisions. The published auth-scope and permission-set docs currently describe
+generic permission strings such as `repo:`, `rpc:`, and `blob:` but not a final
+`space:` scope resource. Treat the strings in this document as CSN planning
+fixtures until upstream OAuth scope syntax for spaces is finalized.
+
+Reference links:
+
+- Permissioned-data PDS design:
+  <https://raw.githubusercontent.com/bluesky-social/atproto/permissioned-data/docs/superpowers/specs/2026-04-22-permissioned-data-pds-design.md>
+- Auth scopes proposal:
+  <https://github.com/bluesky-social/proposals/blob/main/0011-auth-scopes/README.md>
+- Permission sets guide: <https://atproto.com/guides/permission-sets>
+
 ## Caveats
 
 - This matrix is a draft target, not a live placement guarantee.
@@ -84,9 +111,8 @@ space:network.coopsource.org.spaceType.members?collection=network.coopsource.gov
 
 ## Next Slice
 
-1. Use `CSN_SPACE_PLACEMENT_MATRIX` in OAuth planning tests.
-2. Decide the final space type namespace before external publication.
-3. Wire `SpaceCredentialManager` into OAuth/credential planning tests once a
+1. Decide the final space type namespace before external publication.
+2. Wire `SpaceCredentialManager` into OAuth/credential planning tests once a
    concrete issuer seam is selected.
-4. Spike one collection, likely `network.coopsource.governance.vote`, through a
+3. Spike one collection, likely `network.coopsource.governance.vote`, through a
    local harness before changing production write paths.

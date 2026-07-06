@@ -108,6 +108,14 @@ export type {
   CsnSpaceTypeId,
   PlacementScopeOptions,
 } from './space-placement.js';
+export {
+  formatCsnAppViewReadScopePlan,
+  formatCsnMemberSelfReadScopePlan,
+} from './space-oauth-plan.js';
+export type {
+  CsnScopePlanSkeyMode,
+  CsnSpaceScopePlanOptions,
+} from './space-oauth-plan.js';
 
 // Runtime validation
 export {
