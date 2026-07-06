@@ -46,6 +46,28 @@ export interface GovernanceVoteForTally {
   readonly at?: string;
 }
 
+export interface GovernanceVoteChoiceForTally {
+  readonly choice: string;
+  readonly weight?: number;
+}
+
+export interface GovernanceVoteTally {
+  readonly tally: Readonly<Record<string, number>>;
+  readonly weightedTally: Readonly<Record<string, number>>;
+}
+
+export interface GovernanceQuorumEvaluation {
+  readonly met: boolean;
+  readonly outcomeReason?: 'met' | 'no_quorum' | 'class_quorum_not_met';
+  readonly evidence?: JsonValue;
+}
+
+export interface GovernanceProposalOutcomeInput {
+  readonly votingType: string;
+  readonly weightedTally: Readonly<Record<string, number>>;
+  readonly quorum: GovernanceQuorumEvaluation;
+}
+
 export interface GovernanceClassDenominator {
   readonly className: string;
   readonly totalWeight: number;

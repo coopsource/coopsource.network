@@ -12,14 +12,18 @@ import type {
   SpaceRef,
 } from '@coopsource/spaces-consumer';
 import type {
+  ActionAuthorizerPlugin,
   GovernanceClassDenominator,
   GovernanceClassQuorumRule,
   GovernanceGroupRef,
   GovernanceProposalRef,
   GovernanceQuorumConfig,
   QuorumPlugin,
-  ActionAuthorizerPlugin,
   VoteWeightPlugin,
+} from '@coopsource/governance-view';
+import {
+  decideGovernanceProposalOutcome,
+  reduceGovernanceVoteTally,
 } from '@coopsource/governance-view';
 import {
   formatPermissionedRecordLocationUri,
@@ -605,12 +609,12 @@ export class ProposalService {
       ]);
     const totalMembers = memberCounts.get(proposal.cooperative_did) ?? 0;
 
-    // Weighted tally (sum of vote_weight)
-    const weightedTally: Record<string, number> = {};
-    for (const v of votes) {
-      weightedTally[v.choice] =
-        (weightedTally[v.choice] ?? 0) + (v.vote_weight ?? 1);
-    }
+    const { weightedTally } = reduceGovernanceVoteTally(
+      votes.map((vote) => ({
+        choice: vote.choice,
+        weight: vote.vote_weight ?? 1,
+      })),
+    );
 
     // Per-class quorum check
     const classQuorumRules = classQuorumRulesFromRecord(
@@ -647,22 +651,11 @@ export class ProposalService {
         : {}),
     });
 
-    // Determine outcome (using weighted tally for yes/no decisions)
-    let outcome: string;
-    if (!quorumResult.met) {
-      outcome =
-        quorumResult.outcomeReason === 'class_quorum_not_met'
-          ? 'class_quorum_not_met'
-          : 'no_quorum';
-    } else if (proposal.voting_type === 'binary') {
-      const yes = weightedTally['yes'] ?? 0;
-      const no = weightedTally['no'] ?? 0;
-      outcome = yes > no ? 'passed' : 'failed';
-    } else {
-      // For other types, the option with most weighted votes wins
-      const sorted = Object.entries(weightedTally).sort((a, b) => b[1] - a[1]);
-      outcome = sorted.length > 0 ? 'passed' : 'no_quorum';
-    }
+    const outcome = decideGovernanceProposalOutcome({
+      votingType: proposal.voting_type,
+      weightedTally,
+      quorum: quorumResult,
+    });
 
     const now = this.clock.now();
     const [updated] = await this.db

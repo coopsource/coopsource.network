@@ -10,10 +10,14 @@ export type {
   GovernanceGroupRef,
   GovernancePeriodRef,
   GovernanceProposalRef,
+  GovernanceProposalOutcomeInput,
+  GovernanceQuorumEvaluation,
   GovernanceQuorumConfig,
   GovernanceRecordRef,
   GovernanceTallyInput,
+  GovernanceVoteChoiceForTally,
   GovernanceVoteForTally,
+  GovernanceVoteTally,
   GovernanceVoteRef,
 } from './types.js';
 
@@ -45,3 +49,8 @@ export {
   defaultVoteWeightPlugin,
   createDefaultGovernancePluginSet,
 } from './defaults.js';
+
+export {
+  decideGovernanceProposalOutcome,
+  reduceGovernanceVoteTally,
+} from './tally.js';

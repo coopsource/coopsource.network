@@ -283,6 +283,9 @@ Reviewed against the current implementation on 2026-07-06:
    to the actor's cooperative before authorization.**
 5. Move generic proposal/vote tally reducers out of `ProposalService` only after
    the adapter layer is tested against current proposal/vote/delegation suites.
+   **Started 2026-07-06: `GovernanceView` now owns pure tally and outcome
+   reducers for stored vote choices/weights, while `ProposalService` still owns
+   vote queries, quorum plugin execution, persistence, anchors, and labels.**
 6. Add `anchorSummary`, `historicalState`, patronage/distribution, and
    meeting-minutes adapters in separate slices.
 

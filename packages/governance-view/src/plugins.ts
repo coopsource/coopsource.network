@@ -4,6 +4,7 @@ import type {
   GovernanceGroupRef,
   GovernancePeriodRef,
   GovernanceProposalRef,
+  GovernanceQuorumEvaluation,
   GovernanceTallyInput,
   JsonValue,
 } from './types.js';
@@ -32,11 +33,7 @@ export interface EligibilityPlugin {
 }
 
 export interface QuorumPlugin {
-  evaluate(input: GovernanceTallyInput): Promise<{
-    readonly met: boolean;
-    readonly outcomeReason?: 'met' | 'no_quorum' | 'class_quorum_not_met';
-    readonly evidence?: JsonValue;
-  }>;
+  evaluate(input: GovernanceTallyInput): Promise<GovernanceQuorumEvaluation>;
 }
 
 export interface ActionAuthorizerPlugin {
