@@ -566,6 +566,14 @@ Initial Phase 4 substrate artifact started in this branch:
   Coverage uses a local HTTP server and runs in the default
   `@coopsource/spaces-consumer` test suite, so this is not mock-only or
   flag-only progress.
+- `apps/api` now has
+  `OAuthPermissionedRecordWriteSessionProvider`, a real author-session bridge
+  over the existing `NodeOAuthClient.restore()` path. It returns the session's
+  own authenticated fetch handler to the XRPC writer so DPoP proof generation,
+  token refresh, and Authorization scheme selection remain inside the atproto
+  OAuth library. This is deliberately not runtime-selected yet because
+  `OAUTH_SCOPE` still requests only `rpc:` scopes and no space-enabled PDS path
+  is exercised by the app.
 - `ProposalService.castVote()` now asks `VisibilityRouter` before writing the
   `network.coopsource.governance.vote` record. Closed-governance cooperatives
   route votes to Tier 2 private storage under the cooperative DID; open and
@@ -591,9 +599,9 @@ Initial Phase 4 substrate artifact started in this branch:
   type namespace for this PoC. Rename only if upstream final syntax or tooling
   makes the current namespace actively misleading.
 - Remaining Phase 4 substrate work should wire the experimental XRPC writer to
-  a real CSN author-session provider for `space:` OAuth grants, then decide the
-  runtime selection policy. Do not make it the default until a space-enabled PDS
-  can be exercised; do not leave it untested behind a dormant feature flag.
+  draft `space:` OAuth grants and then decide the runtime selection policy. Do
+  not make it the default until a space-enabled PDS can be exercised; do not
+  leave it untested behind a dormant feature flag.
 
 ## Phase 5 Parallelization
 

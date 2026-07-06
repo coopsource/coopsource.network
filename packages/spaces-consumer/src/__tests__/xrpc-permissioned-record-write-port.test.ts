@@ -195,6 +195,50 @@ describe('XrpcPermissionedRecordWritePort', () => {
     });
   });
 
+  it('allows session-bound authenticated fetch to inject OAuth headers', async () => {
+    const server = await startServer([
+      async () => ({
+        body: {
+          uri: formatSpaceRecordUri({
+            spaceDid: membersSpace.arbiterDid,
+            spaceType: membersSpace.expectedSpaceType!,
+            skey: membersSpace.spaceKey,
+            authorDid: aliceDid,
+            collection: voteCollection,
+            rkey: 'vote1',
+          }),
+          cid: fakeCid('bafyvote'),
+        },
+      }),
+    ]);
+    const port = new XrpcPermissionedRecordWritePort({
+      sessionProvider: () => ({
+        serviceUrl: server.url,
+        authenticatedFetch: async (url, init) =>
+          fetch(url, {
+            ...init,
+            headers: {
+              ...init.headers,
+              authorization: 'DPoP oauth-token',
+              dpop: 'proof',
+            },
+          }),
+      }),
+    });
+
+    await port.createRecord({
+      space: membersSpace,
+      authorDid: aliceDid,
+      collection: voteCollection,
+      record: { choice: 'yes' },
+      rkey: 'vote1',
+    });
+
+    expect(server.requests).toHaveLength(1);
+    expect(server.requests[0]?.headers.authorization).toBe('DPoP oauth-token');
+    expect(server.requests[0]?.headers.dpop).toBe('proof');
+  });
+
   it('maps draft protocol errors to specific write errors', async () => {
     const cases = [
       {

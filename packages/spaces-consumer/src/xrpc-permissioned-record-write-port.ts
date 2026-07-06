@@ -69,6 +69,13 @@ export interface XrpcPermissionedRecordWriteSession {
    */
   readonly serviceUrl: string;
   /**
+   * Optional session-bound transport, for OAuth libraries that inject
+   * Authorization/DPoP headers and refresh tokens inside their fetch handler.
+   * When this is provided, the adapter does not require a visible
+   * authorization header from `accessToken` or `headers`.
+   */
+  readonly authenticatedFetch?: XrpcPermissionedRecordWriteFetch;
+  /**
    * Optional bearer token convenience for ordinary OAuth sessions. DPoP or
    * other request-bound proof headers can be supplied through `headers`.
    */
@@ -200,7 +207,8 @@ export class XrpcPermissionedRecordWritePort
 
     let response: XrpcPermissionedRecordWriteFetchResponse;
     try {
-      response = await this.fetcher(url, {
+      const fetcher = session.authenticatedFetch ?? this.fetcher;
+      response = await fetcher(url, {
         method: 'POST',
         headers,
         body,
@@ -247,7 +255,7 @@ export class XrpcPermissionedRecordWritePort
       ...provided,
     };
 
-    if (!hasAuthorizationHeader(headers)) {
+    if (!params.session.authenticatedFetch && !hasAuthorizationHeader(headers)) {
       throw new PermissionedRecordWriteError(
         'auth',
         `Permissioned write to ${params.nsid} requires an OAuth authorization header`,
