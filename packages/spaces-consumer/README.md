@@ -3,6 +3,8 @@
 Stage 1 V11 consumer for ATProto permissioned-space data. The public package boundary is intentionally capability-shaped:
 
 - `GroupDirectoryPort` answers direct and resolved membership questions.
+- `SpaceCredentialStore` and `SpaceCredentialManager` shape short-lived
+  per-space credential refresh without committing to a live upstream issuer.
 - `PermissionedRepoPort` watches and syncs verified permissioned records.
 - `SpacesConsumer` cross-checks each verified record author before emitting it.
 
@@ -14,6 +16,9 @@ The executable sketches now live at the stable-port level:
 
 - `DenyAllGroupDirectoryPort` and `StaticGroupDirectoryPort` sketch the Group Directory contract.
 - `InMemoryPermissionedRepoPort` and `FailClosedPermissionedRepoPort` sketch permissioned watch/sync/verification/checkpoint behavior.
+- `InMemorySpaceCredentialStore` and `SpaceCredentialManager` model
+  expiration, refresh-per-batch, near-expiry refresh, and invalidation after
+  member-list changes for future permissioned-data adapters.
 - `KyselyPermissionedCheckpointStore` sketches durable space-level checkpoint storage against the current PoC table.
 - `@coopsource/arbiter-client` provides the Stage 2A CSN-backed `CsnDbGroupDirectoryPort`.
 
@@ -23,15 +28,16 @@ See `docs/plans/2026-05-17-v11-spaces-consumer-adapter-architecture.md` for the 
 
 ## Public Surface
 
-| Concern | Public API |
-|---|---|
-| Space identity | `SpaceRef` |
-| Permissioned record identity | `PermissionedRecordLocation` |
-| Verified records | `VerifiedPermissionedRecord`, `VerifiedPermissionedChanges` |
-| Group Directory | `GroupDirectoryPort`, `DenyAllGroupDirectoryPort`, `StaticGroupDirectoryPort` |
-| Permissioned sync | `PermissionedRepoPort`, `InMemoryPermissionedRepoPort`, `FailClosedPermissionedRepoPort` |
-| Checkpoints | `PermissionedCheckpointStore`, `KyselyPermissionedCheckpointStore` |
-| Orchestration | `SpacesConsumer` |
+| Concern                      | Public API                                                                               |
+| ---------------------------- | ---------------------------------------------------------------------------------------- |
+| Space identity               | `SpaceRef`                                                                               |
+| Permissioned record identity | `PermissionedRecordLocation`                                                             |
+| Verified records             | `VerifiedPermissionedRecord`, `VerifiedPermissionedChanges`                              |
+| Group Directory              | `GroupDirectoryPort`, `DenyAllGroupDirectoryPort`, `StaticGroupDirectoryPort`            |
+| Space credentials            | `SpaceCredentialStore`, `InMemorySpaceCredentialStore`, `SpaceCredentialManager`         |
+| Permissioned sync            | `PermissionedRepoPort`, `InMemoryPermissionedRepoPort`, `FailClosedPermissionedRepoPort` |
+| Checkpoints                  | `PermissionedCheckpointStore`, `KyselyPermissionedCheckpointStore`                       |
+| Orchestration                | `SpacesConsumer`                                                                         |
 
 Permissioned records use structured locations, not `AtUri`. The permissioned URI scheme is still unsettled upstream, so no public Stage 1 type requires `at://` for permissioned-space data.
 
@@ -64,7 +70,8 @@ Permissioned records use structured locations, not `AtUri`. The permissioned URI
 ```typescript
 await startSpacesConsumer({
   enabled: config.SPACES_CONSUMER_ENABLED,
-  unsafeAcceptUnverifiedPermissionedData: config.UNSAFE_ACCEPT_UNVERIFIED_PERMISSIONED_DATA,
+  unsafeAcceptUnverifiedPermissionedData:
+    config.UNSAFE_ACCEPT_UNVERIFIED_PERMISSIONED_DATA,
   db: container.db,
   spaces: [],
 });

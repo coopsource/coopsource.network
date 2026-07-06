@@ -523,9 +523,14 @@ Initial Phase 4 substrate artifact started in this branch:
   those declarations, plus helpers for collection-narrowed AppView `read` and
   member-self `read_self` scopes. The companion planning doc is
   `docs/plans/2026-07-06-v12-phase-4-space-placement-matrix.md`.
+- `@coopsource/spaces-consumer` now exports `SpaceCredentialManager`, a
+  non-live coordinator over `SpaceCredentialStore` and a future issuer port. It
+  models missing credentials, refresh-per-batch, near-expiry refresh, and
+  member-list-change invalidation without choosing a real upstream issuer yet.
 - Next Phase 4 implementation should wire the placement matrix into OAuth
-  planning/tests, then revisit whether the `spaceType` namespace should be
-  renamed before external publication.
+  planning/tests, connect `SpaceCredentialManager` to the chosen issuer seam,
+  then revisit whether the `spaceType` namespace should be renamed before
+  external publication.
 
 ## Phase 5 Parallelization
 

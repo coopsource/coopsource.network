@@ -21,9 +21,17 @@ export type {
 export { spaceRefKey, SpacesConsumerError } from './types.js';
 export type {
   SpaceCredential,
+  SpaceCredentialIssueRequest,
+  SpaceCredentialIssuerPort,
+  SpaceCredentialManagerOptions,
   SpaceCredentialStore,
+  SpaceCredentialRefreshReason,
 } from './credential-store.js';
-export { InMemorySpaceCredentialStore } from './credential-store.js';
+export {
+  InMemorySpaceCredentialStore,
+  SpaceCredentialError,
+  SpaceCredentialManager,
+} from './credential-store.js';
 export type { DidEquivalencePort } from './did-equivalence-port.js';
 export {
   KyselyDidEquivalencePort,

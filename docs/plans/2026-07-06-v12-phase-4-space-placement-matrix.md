@@ -86,7 +86,7 @@ space:network.coopsource.org.spaceType.members?collection=network.coopsource.gov
 
 1. Use `CSN_SPACE_PLACEMENT_MATRIX` in OAuth planning tests.
 2. Decide the final space type namespace before external publication.
-3. Add a non-live `SpaceCredentialStore` implementation that models expiration,
-   refresh-per-batch, and rotation on member-list change.
+3. Wire `SpaceCredentialManager` into OAuth/credential planning tests once a
+   concrete issuer seam is selected.
 4. Spike one collection, likely `network.coopsource.governance.vote`, through a
    local harness before changing production write paths.
