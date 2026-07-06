@@ -16,6 +16,7 @@ import {
   type GovernancePluginSet,
 } from '@coopsource/governance-view';
 import {
+  CoopDelegatedVoteWeightReader,
   createCoopDelegateChainsPlugin,
   createCoopEligibilityPlugin,
   createCoopQuorumPlugin,
@@ -83,11 +84,12 @@ import { PrivateRecordService } from './services/private-record-service.js';
 import { PrivateRecordPermissionedWritePort } from './services/private-record-permissioned-write-port.js';
 import { OAuthPermissionedRecordWriteSessionProvider } from './services/oauth-permissioned-record-write-session-provider.js';
 import {
+  MembershipReadModelVoteWeightReader,
   MembershipReadModelVotingEligibilityReader,
 } from './services/coop-view-membership-adapters.js';
 import {
   DelegationVotingServiceDelegateChainReader,
-  DelegationVotingServiceVoteWeightReader,
+  DelegationVotingServiceVoteWeightDelegationReader,
 } from './services/coop-view-delegation-adapters.js';
 import { VisibilityRouter } from './services/visibility-router.js';
 import {
@@ -338,14 +340,18 @@ export function createContainer(config: AppConfig): Container {
     });
   const groupDirectory = new CsnDbGroupDirectoryPort(db);
   const membershipReadModel = new MembershipReadModel(db, groupDirectory);
-  const delegationVotingService = new DelegationVotingService(
-    db,
-    clock,
+  const delegationVotingService = new DelegationVotingService(db, clock);
+  const membershipVoteWeightReader = new MembershipReadModelVoteWeightReader(
     membershipReadModel,
   );
   const governanceCorePlugins = createDefaultGovernancePluginSet({
     voteWeight: createCoopVoteWeightPlugin(
-      new DelegationVotingServiceVoteWeightReader(delegationVotingService),
+      new CoopDelegatedVoteWeightReader({
+        baseWeightReader: membershipVoteWeightReader,
+        delegationReader: new DelegationVotingServiceVoteWeightDelegationReader(
+          delegationVotingService,
+        ),
+      }),
     ),
     eligibility: createCoopEligibilityPlugin(
       new MembershipReadModelVotingEligibilityReader(membershipReadModel),

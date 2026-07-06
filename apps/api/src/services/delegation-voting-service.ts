@@ -1,17 +1,22 @@
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
 import type { IClock } from '@coopsource/federation';
-import { NotFoundError, ValidationError, type DID } from '@coopsource/common';
+import { NotFoundError, ValidationError } from '@coopsource/common';
 import type { CreateDelegationInput } from '@coopsource/common';
 import type { PageParams, Page } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
-import type { MembershipReadModel } from './membership-read-model.js';
+
+export interface ActiveVoteDelegationRow {
+  readonly delegator_did: string;
+  readonly delegatee_did: string;
+  readonly scope: string;
+  readonly proposal_uri: string | null;
+}
 
 export class DelegationVotingService {
   constructor(
     private db: Kysely<Database>,
     private clock: IClock,
-    private membershipReadModel: MembershipReadModel,
   ) {}
 
   async createDelegation(
@@ -207,109 +212,16 @@ export class DelegationVotingService {
     return chain;
   }
 
-  async calculateVoteWeight(
+  async listActiveDelegationsForVoteWeight(
     cooperativeDid: string,
-    voterDid: string,
-    proposalId: string,
-  ): Promise<number> {
-    // Find the proposal to get its URI for proposal-scoped delegations
-    const proposal = await this.db
-      .selectFrom('proposal')
-      .where('id', '=', proposalId)
-      .where('cooperative_did', '=', cooperativeDid)
-      .select(['uri'])
-      .executeTakeFirst();
-
-    // Count all active delegations where the voter is the final delegatee
-    // This includes both project-level and proposal-level delegations
-    const allDelegations = await this.db
+  ): Promise<ActiveVoteDelegationRow[]> {
+    return this.db
       .selectFrom('delegation')
       .where('did', '=', cooperativeDid)
       .where('status', '=', 'active')
-      .selectAll()
+      .select(['delegator_did', 'delegatee_did', 'scope', 'proposal_uri'])
+      .orderBy('created_at', 'asc')
+      .orderBy('uri', 'asc')
       .execute();
-
-    // Proposal-scoped delegations override project-level delegations for the
-    // same delegator on the matching proposal.
-    const activeDelegationByDelegator = new Map<
-      string,
-      (typeof allDelegations)[number]
-    >();
-    for (const d of allDelegations) {
-      const isProposalLevel =
-        d.scope === 'proposal' &&
-        proposal?.uri &&
-        d.proposal_uri === proposal.uri;
-      if (isProposalLevel) {
-        activeDelegationByDelegator.set(d.delegator_did, d);
-      } else if (
-        d.scope === 'project' &&
-        !activeDelegationByDelegator.has(d.delegator_did)
-      ) {
-        activeDelegationByDelegator.set(d.delegator_did, d);
-      }
-    }
-
-    const delegators = new Set<string>();
-    for (const d of activeDelegationByDelegator.values()) {
-      let current = d.delegatee_did;
-      const visited = new Set<string>([d.delegator_did]);
-
-      while (current !== voterDid) {
-        if (visited.has(current)) break;
-        visited.add(current);
-
-        const next = activeDelegationByDelegator.get(current);
-        if (!next) break;
-        current = next.delegatee_did;
-      }
-
-      if (current === voterDid) {
-        delegators.add(d.delegator_did);
-      }
-    }
-
-    // Class-aware weight: voter's class weight + sum of delegators' class weights
-    const voterWeight = await this.getMemberClassWeight(
-      cooperativeDid,
-      voterDid,
-    );
-    let totalDelegated = 0;
-    for (const delegatorDid of delegators) {
-      totalDelegated += await this.getMemberClassWeight(
-        cooperativeDid,
-        delegatorDid,
-      );
-    }
-    return voterWeight + totalDelegated;
-  }
-
-  async calculateVoteWeightForProposalUri(
-    cooperativeDid: string,
-    voterDid: string,
-    proposalUri: string,
-  ): Promise<number> {
-    const proposal = await this.db
-      .selectFrom('proposal')
-      .where('cooperative_did', '=', cooperativeDid)
-      .where('uri', '=', proposalUri)
-      .select('id')
-      .executeTakeFirst();
-
-    if (!proposal) {
-      throw new NotFoundError('Proposal not found');
-    }
-
-    return this.calculateVoteWeight(cooperativeDid, voterDid, proposal.id);
-  }
-
-  private async getMemberClassWeight(
-    cooperativeDid: string,
-    memberDid: string,
-  ): Promise<number> {
-    return this.membershipReadModel.getProjectedMemberVoteWeight(
-      cooperativeDid as DID,
-      memberDid as DID,
-    );
   }
 }

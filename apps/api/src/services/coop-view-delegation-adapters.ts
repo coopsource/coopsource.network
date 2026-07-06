@@ -1,30 +1,45 @@
 import type {
   CoopDelegateChainReader,
-  CoopVoteWeightReader,
+  CoopDelegationScope,
+  CoopVoteWeightDelegation,
+  CoopVoteWeightDelegationReader,
 } from '@coopsource/coop-view';
 import type { DelegationVotingService } from './delegation-voting-service.js';
 
-export class DelegationVotingServiceVoteWeightReader
-  implements CoopVoteWeightReader
+export class DelegationVotingServiceVoteWeightDelegationReader
+  implements CoopVoteWeightDelegationReader
 {
   constructor(
     private readonly delegationVotingService: Pick<
       DelegationVotingService,
-      'calculateVoteWeightForProposalUri'
+      'listActiveDelegationsForVoteWeight'
     >,
   ) {}
 
-  getProjectedMemberVoteWeight(input: {
+  async listActiveDelegationsForVoteWeight(input: {
     readonly cooperativeDid: string;
-    readonly memberDid: string;
     readonly proposalUri: string;
-  }): Promise<number> {
-    return this.delegationVotingService.calculateVoteWeightForProposalUri(
-      input.cooperativeDid,
-      input.memberDid,
-      input.proposalUri,
-    );
+    readonly at: string;
+  }): Promise<readonly CoopVoteWeightDelegation[]> {
+    const rows =
+      await this.delegationVotingService.listActiveDelegationsForVoteWeight(
+        input.cooperativeDid,
+      );
+
+    return rows.map((row) => ({
+      delegatorDid: row.delegator_did,
+      delegateeDid: row.delegatee_did,
+      scope: delegationScope(row.scope),
+      proposalUri: row.proposal_uri,
+    }));
   }
+}
+
+function delegationScope(scope: string): CoopDelegationScope {
+  if (scope === 'project' || scope === 'proposal') {
+    return scope;
+  }
+  throw new Error(`Unsupported active delegation scope: ${scope}`);
 }
 
 export class DelegationVotingServiceDelegateChainReader

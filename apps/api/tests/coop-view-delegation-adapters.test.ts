@@ -1,63 +1,107 @@
 import { describe, expect, it } from 'vitest';
 import {
   DelegationVotingServiceDelegateChainReader,
-  DelegationVotingServiceVoteWeightReader,
+  DelegationVotingServiceVoteWeightDelegationReader,
 } from '../src/services/coop-view-delegation-adapters.js';
 
-describe('DelegationVotingServiceVoteWeightReader', () => {
-  it('delegates proposal-contextual vote weight reads to DelegationVotingService', async () => {
+describe('DelegationVotingServiceVoteWeightDelegationReader', () => {
+  it('adapts active delegation rows for CoopView vote-weight expansion', async () => {
     const events: string[] = [];
-    const reader = new DelegationVotingServiceVoteWeightReader({
-      async calculateVoteWeightForProposalUri(
-        cooperativeDid,
-        voterDid,
-        proposalUri,
-      ) {
-        events.push(`reader-start:${cooperativeDid}:${voterDid}:${proposalUri}`);
+    const reader = new DelegationVotingServiceVoteWeightDelegationReader({
+      async listActiveDelegationsForVoteWeight(cooperativeDid) {
+        events.push(`reader-start:${cooperativeDid}`);
         await Promise.resolve();
         events.push('reader-finish');
-        return 3;
+        return [
+          {
+            delegator_did: 'did:plc:alice',
+            delegatee_did: 'did:plc:bob',
+            scope: 'project',
+            proposal_uri: null,
+          },
+          {
+            delegator_did: 'did:plc:carol',
+            delegatee_did: 'did:plc:dora',
+            scope: 'proposal',
+            proposal_uri:
+              'at://did:plc:coop/network.coopsource.governance.proposal/abc',
+          },
+        ];
       },
     });
 
     events.push('call-start');
-    const weight = await reader.getProjectedMemberVoteWeight({
+    const delegations = await reader.listActiveDelegationsForVoteWeight({
       cooperativeDid: 'did:plc:coop',
-      memberDid: 'did:plc:alice',
       proposalUri:
         'at://did:plc:coop/network.coopsource.governance.proposal/abc',
-      voteChoice: 'yes',
       at: '2026-07-06T12:00:00.000Z',
     });
     events.push('call-finish');
 
-    expect(weight).toBe(3);
+    expect(delegations).toEqual([
+      {
+        delegatorDid: 'did:plc:alice',
+        delegateeDid: 'did:plc:bob',
+        scope: 'project',
+        proposalUri: null,
+      },
+      {
+        delegatorDid: 'did:plc:carol',
+        delegateeDid: 'did:plc:dora',
+        scope: 'proposal',
+        proposalUri:
+          'at://did:plc:coop/network.coopsource.governance.proposal/abc',
+      },
+    ]);
     expect(events).toEqual([
       'call-start',
-      'reader-start:did:plc:coop:did:plc:alice:at://did:plc:coop/network.coopsource.governance.proposal/abc',
+      'reader-start:did:plc:coop',
       'reader-finish',
       'call-finish',
     ]);
   });
 
-  it('propagates vote weight reader failures', async () => {
-    const reader = new DelegationVotingServiceVoteWeightReader({
-      async calculateVoteWeightForProposalUri() {
+  it('propagates active delegation reader failures', async () => {
+    const reader = new DelegationVotingServiceVoteWeightDelegationReader({
+      async listActiveDelegationsForVoteWeight() {
         await Promise.resolve();
-        throw new Error('Vote weight query failed');
+        throw new Error('Active delegation query failed');
       },
     });
 
     await expect(
-      reader.getProjectedMemberVoteWeight({
+      reader.listActiveDelegationsForVoteWeight({
         cooperativeDid: 'did:plc:coop',
-        memberDid: 'did:plc:alice',
         proposalUri:
           'at://did:plc:coop/network.coopsource.governance.proposal/abc',
-        voteChoice: 'yes',
         at: '2026-07-06T12:00:00.000Z',
       }),
-    ).rejects.toThrow('Vote weight query failed');
+    ).rejects.toThrow('Active delegation query failed');
+  });
+
+  it('fails closed on unsupported active delegation scopes', async () => {
+    const reader = new DelegationVotingServiceVoteWeightDelegationReader({
+      async listActiveDelegationsForVoteWeight() {
+        return [
+          {
+            delegator_did: 'did:plc:alice',
+            delegatee_did: 'did:plc:bob',
+            scope: 'future-scope',
+            proposal_uri: null,
+          },
+        ];
+      },
+    });
+
+    await expect(
+      reader.listActiveDelegationsForVoteWeight({
+        cooperativeDid: 'did:plc:coop',
+        proposalUri:
+          'at://did:plc:coop/network.coopsource.governance.proposal/abc',
+        at: '2026-07-06T12:00:00.000Z',
+      }),
+    ).rejects.toThrow('Unsupported active delegation scope');
   });
 });
 

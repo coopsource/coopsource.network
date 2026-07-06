@@ -2,11 +2,14 @@ import type { Kysely, Selectable } from 'kysely';
 import type { Database, ProposalTable } from '@coopsource/db';
 import { membersSpace } from '@coopsource/arbiter-client';
 import type { DID } from '@coopsource/common';
-import type { EligibilityPlugin } from '@coopsource/governance-view';
+import type {
+  EligibilityPlugin,
+  VoteWeightPlugin,
+} from '@coopsource/governance-view';
 import type { MemberDirectoryEntry } from '../../services/membership-read-model.js';
-import type { DelegationVotingService } from '../../services/delegation-voting-service.js';
 
 const PROPOSAL_COLLECTION = 'network.coopsource.governance.proposal';
+const VOTE_WEIGHT_PREVIEW_CHOICE = 'preview';
 
 export interface VoteEligibilityResult {
   eligible: boolean;
@@ -25,7 +28,7 @@ export interface VoteEligibilityResult {
 export async function checkVoteEligibility(
   db: Kysely<Database>,
   eligibilityPlugin: EligibilityPlugin,
-  delegationVotingService: DelegationVotingService,
+  voteWeightPlugin: VoteWeightPlugin,
   proposal: Selectable<ProposalTable>,
   viewerDid: string,
   checkedAt: Date,
@@ -57,11 +60,12 @@ export async function checkVoteEligibility(
   }
 
   // Calculate vote weight (includes delegations)
-  const weight = await delegationVotingService.calculateVoteWeight(
-    proposal.cooperative_did,
-    viewerDid,
-    proposal.id,
-  );
+  const weight = (
+    await voteWeightPlugin.weightForVote({
+      ...eligibilityInput(proposal, viewerDid, checkedAt),
+      voteChoice: VOTE_WEIGHT_PREVIEW_CHOICE,
+    })
+  ).weight;
 
   // Check if viewer has already voted (active vote = retracted_at IS NULL)
   const existingVote = await db

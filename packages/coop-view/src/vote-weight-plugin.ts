@@ -38,10 +38,10 @@ export class CoopVoteWeightPlugin implements VoteWeightPlugin {
 
     if (this.options.includeEvidence) {
       const evidence: CoopVoteWeightEvidence = {
-          source: 'coop-membership-read-model',
-          cooperativeDid: input.cooperative.authorityDid,
-          memberDid: input.voter.did,
-          at: input.at,
+        source: 'coop-membership-read-model',
+        cooperativeDid: input.cooperative.authorityDid,
+        memberDid: input.voter.did,
+        at: input.at,
       };
       return {
         weight,

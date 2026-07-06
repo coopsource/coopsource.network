@@ -13,9 +13,10 @@ eligibility path gets active-member gating through the same plugin set; and
 `ProposalService.resolveProposal` now evaluates headcount/class quorum through
 `GovernancePluginSet.quorum`. Outgoing delegate-chain resolution is composed
 through `GovernancePluginSet.delegateChains`. Cast-vote weight snapshots now
-use a proposal-contextual CoopView vote-weight reader backed by
-`DelegationVotingService`, so stored vote weights match delegation-inclusive
-eligibility/display weights. Proposal-scoped delegations now override
+use a CoopView delegated vote-weight reader backed by base membership weights
+and active delegation rows, so stored vote weights match
+delegation-inclusive eligibility/display weights without keeping the expansion
+rule in `DelegationVotingService`. Proposal-scoped delegations now override
 project-level delegations for the same proposal during weight expansion. Do not
 move additional service logic until the adapter layer is tested against current
 API suites.
@@ -229,10 +230,11 @@ Reviewed against the current implementation on 2026-07-06:
   and delegated vote weight. Active-member gating now goes through
   `GovernancePluginSet.eligibility`; existing-vote detection and delegated
   weight remain in the shared handler until later slices.
-- `DelegationVotingService.calculateVoteWeight` combines direct class weight
-  with delegator class weights. Generic `DelegateChainsPlugin` defaults to the
-  direct voter only. CoopView adapts outgoing delegation chains separately from
-  vote-weight expansion; the latter now flows through `VoteWeightPlugin` with
+- `DelegationVotingService` now owns delegation creation/revocation, listing,
+  chain reads, and active delegation-row queries. Generic
+  `DelegateChainsPlugin` defaults to the direct voter only. CoopView adapts
+  outgoing delegation chains separately from vote-weight expansion; the latter
+  now flows through `CoopDelegatedVoteWeightReader` and `VoteWeightPlugin` with
   proposal context.
 
 ## Extraction Order
@@ -255,9 +257,11 @@ Reviewed against the current implementation on 2026-07-06:
    now uses `CoopQuorumPlugin` for headcount and class-quorum decisions.
    `CoopDelegateChainsPlugin` is composed for outgoing chain resolution, with
    proposal-scope chains taking precedence over project-scope fallback. Cast
-   vote now uses a delegation-backed vote-weight reader so stored vote weights
-   include delegated weight, with proposal-scope delegation overriding
-   project-scope delegation for the same delegator/proposal.**
+   vote and XRPC/Inlay eligibility now use `CoopDelegatedVoteWeightReader`,
+   which combines membership base weights with active delegation rows inside
+   `packages/coop-view`; `DelegationVotingService` no longer owns weighted
+   expansion. Proposal-scope delegation still overrides project-scope
+   delegation for the same delegator/proposal.**
 4. Move generic proposal/vote tally reducers out of `ProposalService` only after
    the adapter layer is tested against current proposal/vote/delegation suites.
 5. Add `anchorSummary`, `historicalState`, patronage/distribution, and
@@ -288,8 +292,12 @@ Reviewed against the current implementation on 2026-07-06:
 Continue `packages/coop-view` adapters without moving production service logic:
 
 1. Decide the next extraction boundary for `DelegationVotingService`: outgoing
-   chain reads are already adapted, while delegation creation/revocation,
-   circularity checks, and weighted expansion still live in the API service.
+   chain reads and weighted expansion are adapted, while delegation
+   creation/revocation and circularity checks still live in the API service.
+   Treat creation/revocation as a separate command boundary before moving it.
+2. Start the `actionAuthorizer` adapter slice for proposal/member actions, or
+   keep delegation command extraction first if circularity rules need to become
+   CoopView-owned policy.
 
 When running package checks, avoid running a dependent package's tests while its
 dependency package is rebuilding: current package exports point at `dist`, and

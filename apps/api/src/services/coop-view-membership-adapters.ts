@@ -1,5 +1,6 @@
 import type { DID } from '@coopsource/common';
 import type {
+  CoopBaseVoteWeightReader,
   CoopVoteWeightReader,
   CoopVotingEligibilityReader,
 } from '@coopsource/coop-view';
@@ -9,7 +10,7 @@ import {
 } from './membership-read-model.js';
 
 export class MembershipReadModelVoteWeightReader
-  implements CoopVoteWeightReader
+  implements CoopVoteWeightReader, CoopBaseVoteWeightReader
 {
   constructor(
     private readonly membershipReadModel: Pick<
@@ -21,6 +22,19 @@ export class MembershipReadModelVoteWeightReader
   getProjectedMemberVoteWeight(input: {
     readonly cooperativeDid: string;
     readonly memberDid: string;
+    readonly at: string;
+  }): Promise<number> {
+    return this.getBaseMemberVoteWeight({
+      cooperativeDid: input.cooperativeDid,
+      memberDid: input.memberDid,
+      at: input.at,
+    });
+  }
+
+  getBaseMemberVoteWeight(input: {
+    readonly cooperativeDid: string;
+    readonly memberDid: string;
+    readonly at: string;
   }): Promise<number> {
     return this.membershipReadModel.getProjectedMemberVoteWeight(
       input.cooperativeDid as DID,

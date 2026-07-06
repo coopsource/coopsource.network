@@ -45,7 +45,7 @@ export async function handleInlayVoteWidget(
   const eligibility = await checkVoteEligibility(
     ctx.container.db,
     ctx.container.governancePlugins.eligibility,
-    ctx.container.delegationVotingService,
+    ctx.container.governancePlugins.voteWeight,
     proposal,
     viewerDid,
     ctx.container.clock.now(),

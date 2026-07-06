@@ -8,6 +8,14 @@ export interface CoopVoteWeightReader {
   }): Promise<number>;
 }
 
+export interface CoopBaseVoteWeightReader {
+  getBaseMemberVoteWeight(input: {
+    readonly cooperativeDid: string;
+    readonly memberDid: string;
+    readonly at: string;
+  }): Promise<number>;
+}
+
 export interface CoopVotingEligibility {
   readonly eligible: boolean;
   readonly reason?: string;
@@ -23,6 +31,23 @@ export interface CoopVotingEligibilityReader {
 export interface CoopDelegationLink {
   readonly delegatorDid: string;
   readonly delegateeDid: string;
+}
+
+export type CoopDelegationScope = 'project' | 'proposal';
+
+export interface CoopVoteWeightDelegation {
+  readonly delegatorDid: string;
+  readonly delegateeDid: string;
+  readonly scope: CoopDelegationScope;
+  readonly proposalUri?: string | null;
+}
+
+export interface CoopVoteWeightDelegationReader {
+  listActiveDelegationsForVoteWeight(input: {
+    readonly cooperativeDid: string;
+    readonly proposalUri: string;
+    readonly at: string;
+  }): Promise<readonly CoopVoteWeightDelegation[]>;
 }
 
 export interface CoopDelegateChainReader {

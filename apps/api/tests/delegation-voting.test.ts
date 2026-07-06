@@ -338,20 +338,19 @@ describe('Delegation Voting API', () => {
       ])
       .execute();
 
-    await expect(
-      testApp.container.delegationVotingService.calculateVoteWeight(
-        coopDid,
-        adminDid,
-        proposalRes.body.id as string,
-      ),
-    ).resolves.toBe(1);
-    await expect(
-      testApp.container.delegationVotingService.calculateVoteWeight(
-        coopDid,
-        proposalDelegateDid,
-        proposalRes.body.id as string,
-      ),
-    ).resolves.toBe(2);
+    const adminWeightRes = await testApp.agent
+      .get(
+        `/api/v1/governance/vote-weight/${encodeURIComponent(adminDid)}?proposalId=${proposalRes.body.id}`,
+      )
+      .expect(200);
+    const proposalDelegateWeightRes = await testApp.agent
+      .get(
+        `/api/v1/governance/vote-weight/${encodeURIComponent(proposalDelegateDid)}?proposalId=${proposalRes.body.id}`,
+      )
+      .expect(200);
+
+    expect(adminWeightRes.body.weight).toBe(1);
+    expect(proposalDelegateWeightRes.body.weight).toBe(2);
   });
 
   it('snapshots delegation-inclusive vote weight when casting a vote', async () => {
