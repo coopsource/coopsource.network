@@ -1,5 +1,11 @@
 import type { Kysely, Selectable } from 'kysely';
 import type { Database, ProposalTable, VoteTable } from '@coopsource/db';
+import type {
+  PermissionedRecordWritePort,
+  PermissionedRecordWriteResult,
+  SpaceRef,
+} from '@coopsource/spaces-consumer';
+import { formatPermissionedRecordLocationUri } from '@coopsource/spaces-consumer';
 
 type ProposalRow = Selectable<ProposalTable>;
 type VoteRow = Selectable<VoteTable>;
@@ -51,6 +57,7 @@ export class ProposalService {
     private memberWriteProxy?: IMemberRecordWriter,
     private labeler?: GovernanceLabeler,
     private visibilityRouter?: VisibilityRouter,
+    private permissionedRecordWriter?: PermissionedRecordWritePort,
   ) {}
 
   async listProposals(
@@ -213,8 +220,12 @@ export class ProposalService {
         createdBy: authorDid,
       });
       if (route.tier === 2) {
-        // Tier 2: stored in private_record table, not on PDS/firehose
-        ref = privateRecordRef(data.cooperativeDid, collection, route.rkey);
+        ref = await this.writePermissionedRecordRef({
+          routeSpace: route.space,
+          authorDid,
+          collection,
+          record,
+        });
       } else {
         ref = await this.pdsService.createRecord({
           did: authorDid as DID,
@@ -352,11 +363,12 @@ export class ProposalService {
         createdBy: params.voterDid,
       });
       if (route.tier === 2) {
-        ref = privateRecordRef(
-          proposal.cooperative_did,
+        ref = await this.writePermissionedRecordRef({
+          routeSpace: route.space,
+          authorDid: params.voterDid,
           collection,
-          route.rkey,
-        );
+          record: voteRecord,
+        });
       } else {
         ref = await writePublicVote();
       }
@@ -581,6 +593,30 @@ export class ProposalService {
     }
   }
 
+  private async writePermissionedRecordRef(args: {
+    routeSpace: SpaceRef | undefined;
+    authorDid: string;
+    collection: string;
+    record: Record<string, unknown>;
+  }): Promise<RecordRef> {
+    if (!args.routeSpace) {
+      throw new Error('VisibilityRouter returned Tier 2 without a space');
+    }
+    if (!this.permissionedRecordWriter) {
+      throw new Error(
+        'VisibilityRouter returned Tier 2 without a PermissionedRecordWritePort',
+      );
+    }
+
+    const write = await this.permissionedRecordWriter.createRecord({
+      space: args.routeSpace,
+      authorDid: args.authorDid as DID,
+      collection: args.collection,
+      record: args.record,
+    });
+    return permissionedRecordRef(write);
+  }
+
   private async _getOwnedProposal(
     id: string,
     actorDid: string,
@@ -601,16 +637,11 @@ export class ProposalService {
   }
 }
 
-function privateRecordRef(
-  did: string,
-  collection: string,
-  rkey: string | undefined,
+function permissionedRecordRef(
+  write: PermissionedRecordWriteResult,
 ): RecordRef {
-  if (!rkey) {
-    throw new Error('VisibilityRouter returned Tier 2 without an rkey');
-  }
   return {
-    uri: `at://${did}/${collection}/${rkey}` as AtUri,
-    cid: 'private' as CID,
+    uri: formatPermissionedRecordLocationUri(write.location) as AtUri,
+    cid: write.cid as CID,
   };
 }

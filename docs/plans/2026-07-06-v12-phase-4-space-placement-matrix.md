@@ -100,15 +100,18 @@ Reference links:
 ## Caveats
 
 - This matrix is a draft target, not a live placement guarantee.
-- Record write actions are not encoded here yet. Phase 4 should decide create,
-  update, and delete permissions per collection after the credential seam is
-  tested.
+- Record write actions are only partially encoded. `PermissionedRecordWritePort`
+  now models create/write placement; update and delete permissions per
+  collection still need policy after the credential seam is tested.
 - Public governance anchors are a Phase 5 policy concern. This matrix only
   describes Tier 2/private placement.
-- Current production writes still use the legacy Tier 2 `private_record` table
-  for closed-governance proposals and votes. The local spaces-consumer harness
-  proves credential-gated sync for `network.coopsource.governance.vote`, but it
-  is not a live permissioned-space writer.
+- Current production writes route closed-governance proposals and votes through
+  `PermissionedRecordWritePort`, backed by a legacy Tier 2 `private_record`
+  adapter. The semantic record location is now a structured permissioned-space
+  URI, but the physical storage is still the local table.
+- The local spaces-consumer harness proves credential-gated sync for
+  `network.coopsource.governance.vote`, but it is not a live
+  permissioned-space writer.
 - The current atproto draft exposes direct simplespace member lists, not CSN's
   recursive role/member-class authority model. Runtime placement still depends
   on `GroupDirectoryPort` and the CSN-DB adapter until the external substrate
@@ -116,8 +119,8 @@ Reference links:
 
 ## Next Slice
 
-1. Define the permissioned-space write adapter port that can replace the
-   `private_record` target once upstream `com.atproto.space.*` write APIs are
-   stable enough.
-2. Decide whether proposal public anchors are mandatory, optional, or forbidden
+1. Decide whether proposal public anchors are mandatory, optional, or forbidden
    for closed/private governance.
+2. Replace the legacy `private_record` adapter with a real
+   `com.atproto.space.*`/permissioned-space writer once upstream write APIs are
+   stable enough to target.

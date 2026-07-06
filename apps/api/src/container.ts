@@ -4,7 +4,10 @@ import {
   CsnDbGroupMutationPort,
 } from '@coopsource/arbiter-client';
 import type { GroupMutationPort } from '@coopsource/arbiter-client';
-import type { GroupDirectoryPort } from '@coopsource/spaces-consumer';
+import type {
+  GroupDirectoryPort,
+  PermissionedRecordWritePort,
+} from '@coopsource/spaces-consumer';
 import type { Kysely, Transaction } from 'kysely';
 import type { Database } from '@coopsource/db';
 import { SystemClock } from '@coopsource/federation';
@@ -66,6 +69,7 @@ import { MeetingRecordService } from './services/meeting-record-service.js';
 import { MemberNoticeService } from './services/member-notice-service.js';
 import { FiscalPeriodService } from './services/fiscal-period-service.js';
 import { PrivateRecordService } from './services/private-record-service.js';
+import { PrivateRecordPermissionedWritePort } from './services/private-record-permissioned-write-port.js';
 import { VisibilityRouter } from './services/visibility-router.js';
 import { PatronageService } from './services/patronage-service.js';
 import { CapitalAccountService } from './services/capital-account-service.js';
@@ -149,6 +153,7 @@ export interface Container {
   memberNoticeService: MemberNoticeService;
   fiscalPeriodService: FiscalPeriodService;
   privateRecordService: PrivateRecordService;
+  permissionedRecordWriter: PermissionedRecordWritePort;
   visibilityRouter: VisibilityRouter;
   patronageService: PatronageService;
   capitalAccountService: CapitalAccountService;
@@ -334,7 +339,10 @@ export function createContainer(config: AppConfig): Container {
     membershipReadModel,
   );
   const privateRecordService = new PrivateRecordService(db, clock);
-  const visibilityRouter = new VisibilityRouter(db, privateRecordService);
+  const permissionedRecordWriter = new PrivateRecordPermissionedWritePort(
+    privateRecordService,
+  );
+  const visibilityRouter = new VisibilityRouter(db);
   const labelSubscriptionManager = new LabelSubscriptionManager(db);
   const labelSigner = config.COOP_ROTATION_KEY_HEX
     ? new LabelSigner(config.COOP_ROTATION_KEY_HEX)
@@ -359,6 +367,7 @@ export function createContainer(config: AppConfig): Container {
     memberWriteProxy,
     governanceLabeler,
     visibilityRouter,
+    permissionedRecordWriter,
   );
   const agreementService = new AgreementService(
     db,
@@ -555,6 +564,7 @@ export function createContainer(config: AppConfig): Container {
     memberNoticeService,
     fiscalPeriodService,
     privateRecordService,
+    permissionedRecordWriter,
     visibilityRouter,
     patronageService,
     capitalAccountService,

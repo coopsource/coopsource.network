@@ -3,12 +3,27 @@ import { collectionFromUri } from '../src/appview/utils.js';
 
 describe('relay-consumer filtering logic', () => {
   it('collectionFromUri extracts collection from AT URI', () => {
-    expect(collectionFromUri('at://did:plc:abc/network.coopsource.org.memberConsent/rkey1'))
-      .toBe('network.coopsource.org.memberConsent');
-    expect(collectionFromUri('at://did:plc:abc/app.bsky.feed.post/rkey2'))
-      .toBe('app.bsky.feed.post');
-    expect(collectionFromUri('at://did:plc:abc/network.coopsource.governance.vote/rkey3'))
-      .toBe('network.coopsource.governance.vote');
+    expect(
+      collectionFromUri(
+        'at://did:plc:abc/network.coopsource.org.memberConsent/rkey1',
+      ),
+    ).toBe('network.coopsource.org.memberConsent');
+    expect(collectionFromUri('at://did:plc:abc/app.bsky.feed.post/rkey2')).toBe(
+      'app.bsky.feed.post',
+    );
+    expect(
+      collectionFromUri(
+        'at://did:plc:abc/network.coopsource.governance.vote/rkey3',
+      ),
+    ).toBe('network.coopsource.governance.vote');
+  });
+
+  it('collectionFromUri extracts collection from permissioned space AT URI', () => {
+    expect(
+      collectionFromUri(
+        'at://did:plc:coop/space/network.coopsource.org.spaceType.members/members/did:plc:alice/network.coopsource.governance.vote/rkey3',
+      ),
+    ).toBe('network.coopsource.governance.vote');
   });
 
   it('collectionFromUri returns empty string for malformed URIs', () => {
@@ -87,6 +102,8 @@ describe('relay-consumer filtering logic', () => {
     const cursor = 12345;
     const endpoint = `${relayUrl}/xrpc/com.atproto.sync.subscribeRepos?cursor=${cursor}`;
 
-    expect(endpoint).toBe('wss://bsky.network/xrpc/com.atproto.sync.subscribeRepos?cursor=12345');
+    expect(endpoint).toBe(
+      'wss://bsky.network/xrpc/com.atproto.sync.subscribeRepos?cursor=12345',
+    );
   });
 });

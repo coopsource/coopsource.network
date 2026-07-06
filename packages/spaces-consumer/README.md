@@ -12,6 +12,9 @@ Stage 1 V11 consumer for ATProto permissioned-space data. The public package bou
   sync batch and delegates record verification/checkpointing to the wrapped
   repo adapter.
 - `PermissionedRepoPort` watches and syncs verified permissioned records.
+- `PermissionedRecordWritePort` creates records in a permissioned space behind
+  a replaceable adapter. The current API uses a legacy `private_record` adapter
+  behind this port until upstream write APIs stabilize.
 - `SpacesConsumer` cross-checks each verified record author before emitting it.
 
 The old mechanism sketches (`NotificationSubscriber`, `RepoPuller`, `EcmhVerifier`, `ArbiterMemberList`) remain source-level scaffolding for tests and future adapters, but they are not exported from the package root.
@@ -34,6 +37,9 @@ The executable sketches now live at the stable-port level:
   proves the credential manager gates sync batches before the repo port returns
   verified records; the first covered collection is
   `network.coopsource.governance.vote`.
+- `InMemoryPermissionedRecordWritePort` sketches the write contract with
+  structured record locations, duplicate-location rejection, and an awaited
+  async write boundary for adapter-fidelity tests.
 - `KyselyPermissionedCheckpointStore` sketches durable space-level checkpoint storage against the current PoC table.
 - `@coopsource/arbiter-client` provides the Stage 2A CSN-backed `CsnDbGroupDirectoryPort`.
 
@@ -52,6 +58,7 @@ See `docs/plans/2026-05-17-v11-spaces-consumer-adapter-architecture.md` for the 
 | Space credentials            | `SpaceCredentialStore`, `InMemorySpaceCredentialStore`, `SpaceCredentialManager`, `TwoStepSpaceCredentialIssuer` |
 | Permissioned sync            | `PermissionedRepoPort`, `InMemoryPermissionedRepoPort`, `FailClosedPermissionedRepoPort`                         |
 | Credentialed sync            | `CredentialedPermissionedRepoPort`                                                                               |
+| Permissioned writes          | `PermissionedRecordWritePort`, `InMemoryPermissionedRecordWritePort`                                             |
 | Checkpoints                  | `PermissionedCheckpointStore`, `KyselyPermissionedCheckpointStore`                                               |
 | Orchestration                | `SpacesConsumer`                                                                                                 |
 

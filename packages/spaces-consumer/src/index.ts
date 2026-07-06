@@ -71,6 +71,19 @@ export {
   InMemoryPermissionedRepoPort,
   KyselyPermissionedCheckpointStore,
 } from './permissioned-repo-port.js';
+export type {
+  InMemoryPermissionedRecordWritePortOptions,
+  PermissionedRecordCreateRequest,
+  PermissionedRecordWritePort,
+  PermissionedRecordWriteResult,
+  PermissionedRecordWriteErrorKind,
+  StoredPermissionedRecordWrite,
+} from './permissioned-record-write-port.js';
+export {
+  formatPermissionedRecordLocationUri,
+  InMemoryPermissionedRecordWritePort,
+  PermissionedRecordWriteError,
+} from './permissioned-record-write-port.js';
 export type { CredentialedPermissionedRepoPortOptions } from './credentialed-permissioned-repo-port.js';
 export { CredentialedPermissionedRepoPort } from './credentialed-permissioned-repo-port.js';
 export type {

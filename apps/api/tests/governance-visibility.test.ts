@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { PermissionedRecordWritePort } from '@coopsource/spaces-consumer';
+import { parseSpaceRecordUri } from '@coopsource/spaces-consumer';
 import { truncateAllTables } from './helpers/test-db.js';
 import { createTestApp, setupAndLogin } from './helpers/test-app.js';
 import { resetSetupCache } from '../src/auth/middleware.js';
@@ -75,7 +77,7 @@ describe('Governance Visibility', () => {
     // Default is 'open' → Tier 1
     const openResult = await testApp.container.visibilityRouter.routeWrite({
       cooperativeDid: coopDid,
-      collection: 'test.collection',
+      collection: 'network.coopsource.governance.proposal',
       record: { data: 'test' },
       createdBy: 'did:web:test',
     });
@@ -89,12 +91,16 @@ describe('Governance Visibility', () => {
 
     const closedResult = await testApp.container.visibilityRouter.routeWrite({
       cooperativeDid: coopDid,
-      collection: 'test.collection',
+      collection: 'network.coopsource.governance.proposal',
       record: { data: 'private' },
       createdBy: 'did:web:test',
     });
     expect(closedResult.tier).toBe(2);
-    expect(closedResult.rkey).toBeDefined();
+    expect(closedResult.space).toEqual({
+      arbiterDid: coopDid,
+      spaceKey: 'members',
+      expectedSpaceType: 'network.coopsource.org.spaceType.members',
+    });
 
     // Set to 'mixed' without override → Tier 1 (default)
     await testApp.agent
@@ -104,7 +110,7 @@ describe('Governance Visibility', () => {
 
     const mixedResult = await testApp.container.visibilityRouter.routeWrite({
       cooperativeDid: coopDid,
-      collection: 'test.collection',
+      collection: 'network.coopsource.governance.proposal',
       record: { data: 'mixed' },
       createdBy: 'did:web:test',
     });
@@ -114,13 +120,16 @@ describe('Governance Visibility', () => {
     const mixedPrivateResult =
       await testApp.container.visibilityRouter.routeWrite({
         cooperativeDid: coopDid,
-        collection: 'test.collection',
+        collection: 'network.coopsource.governance.vote',
         record: { data: 'forced-private' },
         createdBy: 'did:web:test',
         visibilityOverride: 'private',
       });
     expect(mixedPrivateResult.tier).toBe(2);
-    expect(mixedPrivateResult.rkey).toBeDefined();
+    expect(mixedPrivateResult.space).toMatchObject({
+      arbiterDid: coopDid,
+      spaceKey: 'members',
+    });
 
     // Open with public override → Tier 1
     await testApp.agent
@@ -131,12 +140,18 @@ describe('Governance Visibility', () => {
     const publicOverrideResult =
       await testApp.container.visibilityRouter.routeWrite({
         cooperativeDid: coopDid,
-        collection: 'test.collection',
+        collection: 'network.coopsource.governance.proposal',
         record: { data: 'forced-public' },
         createdBy: 'did:web:test',
         visibilityOverride: 'public',
       });
     expect(publicOverrideResult.tier).toBe(1);
+
+    const privateRows = await testApp.container.db
+      .selectFrom('private_record')
+      .select('rkey')
+      .execute();
+    expect(privateRows).toHaveLength(0);
   });
 
   it('routes votes for closed governance to private records', async () => {
@@ -174,9 +189,13 @@ describe('Governance Visibility', () => {
       .selectAll()
       .executeTakeFirstOrThrow();
     expect(vote.cid).toBe('private');
-    expect(vote.uri).toContain(
-      `at://${coopDid}/network.coopsource.governance.vote/`,
-    );
+    expect(parseSpaceRecordUri(vote.uri)).toMatchObject({
+      spaceDid: coopDid,
+      spaceType: 'network.coopsource.org.spaceType.members',
+      skey: 'members',
+      authorDid: adminDid,
+      collection: 'network.coopsource.governance.vote',
+    });
 
     const privateVote = await testApp.container.db
       .selectFrom('private_record')
@@ -190,9 +209,7 @@ describe('Governance Visibility', () => {
         ? JSON.parse(privateVote.record)
         : privateVote.record;
     expect(privateVoteRecord).toMatchObject({
-      proposal: expect.stringContaining(
-        'network.coopsource.governance.proposal',
-      ),
+      proposal: expect.stringContaining('/space/'),
       choice: 'yes',
       rationale: 'Private vote',
     });
@@ -207,4 +224,40 @@ describe('Governance Visibility', () => {
 
     warnSpy.mockRestore();
   });
+
+  it('does not persist closed governance proposals when permissioned write fails', async () => {
+    const testApp = createTestApp({
+      permissionedRecordWriter: new FailingPermissionedRecordWriter(),
+    });
+    const { coopDid } = await setupAndLogin(testApp);
+
+    await testApp.agent
+      .put('/api/v1/cooperative')
+      .send({ governanceVisibility: 'closed' })
+      .expect(200);
+
+    await testApp.agent
+      .post('/api/v1/proposals')
+      .send({
+        title: 'Failed private proposal',
+        body: 'This should not persist',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+      })
+      .expect(500);
+
+    const proposals = await testApp.container.db
+      .selectFrom('proposal')
+      .where('cooperative_did', '=', coopDid)
+      .select('id')
+      .execute();
+    expect(proposals).toHaveLength(0);
+  });
 });
+
+class FailingPermissionedRecordWriter implements PermissionedRecordWritePort {
+  async createRecord(): Promise<never> {
+    await Promise.resolve();
+    throw new Error('permissioned write unavailable');
+  }
+}

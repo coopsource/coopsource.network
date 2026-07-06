@@ -3,6 +3,7 @@ import session from 'express-session';
 import supertest from 'supertest';
 import type { Kysely, Transaction } from 'kysely';
 import type { Database } from '@coopsource/db';
+import type { PermissionedRecordWritePort } from '@coopsource/spaces-consumer';
 import {
   CsnDbGroupDirectoryPort,
   CsnDbGroupMutationPort,
@@ -45,6 +46,7 @@ import { MeetingRecordService } from '../../src/services/meeting-record-service.
 import { MemberNoticeService } from '../../src/services/member-notice-service.js';
 import { FiscalPeriodService } from '../../src/services/fiscal-period-service.js';
 import { PrivateRecordService } from '../../src/services/private-record-service.js';
+import { PrivateRecordPermissionedWritePort } from '../../src/services/private-record-permissioned-write-port.js';
 import { VisibilityRouter } from '../../src/services/visibility-router.js';
 import { PatronageService } from '../../src/services/patronage-service.js';
 import { CapitalAccountService } from '../../src/services/capital-account-service.js';
@@ -139,6 +141,7 @@ export interface TestApp {
 
 export interface TestAppOptions {
   xrpcRouteOptions?: XrpcRouteOptions;
+  permissionedRecordWriter?: PermissionedRecordWritePort;
 }
 
 export function createTestApp(options?: TestAppOptions): TestApp {
@@ -221,7 +224,10 @@ export function createTestApp(options?: TestAppOptions): TestApp {
   const labelSubscriptionManager = new LabelSubscriptionManager(db);
   const governanceLabeler = new GovernanceLabeler(db, labelSubscriptionManager);
   const privateRecordService = new PrivateRecordService(db, clock);
-  const visibilityRouter = new VisibilityRouter(db, privateRecordService);
+  const permissionedRecordWriter =
+    options?.permissionedRecordWriter ??
+    new PrivateRecordPermissionedWritePort(privateRecordService);
+  const visibilityRouter = new VisibilityRouter(db);
   const postService = new PostService(db, clock);
   const searchService = new SearchService(db, membershipReadModel);
   const matchmakingService = new MatchmakingService(
@@ -237,6 +243,7 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     memberWriteProxy,
     governanceLabeler,
     visibilityRouter,
+    permissionedRecordWriter,
   );
   const agreementService = new AgreementService(
     db,
@@ -381,6 +388,7 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     memberNoticeService,
     fiscalPeriodService,
     privateRecordService,
+    permissionedRecordWriter,
     visibilityRouter,
     patronageService,
     capitalAccountService,

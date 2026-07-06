@@ -543,16 +543,30 @@ Initial Phase 4 substrate artifact started in this branch:
   space credential before each sync batch. The first harness test runs
   `network.coopsource.governance.vote` through credential issuance, repo sync,
   strict membership cross-check, handler acceptance, and checkpoint commit.
+- `@coopsource/spaces-consumer` now exports `PermissionedRecordWritePort`,
+  `InMemoryPermissionedRecordWritePort`, and structured write-location URI
+  formatting. The API uses this as the write-side seam for closed governance
+  records instead of letting `VisibilityRouter` directly create
+  `private_record` rows.
 - `ProposalService.castVote()` now asks `VisibilityRouter` before writing the
   `network.coopsource.governance.vote` record. Closed-governance cooperatives
   route votes to Tier 2 private storage under the cooperative DID; open and
   mixed-default cooperatives keep the existing member-owned PDS write path.
+- `ProposalService.createProposal()` and `castVote()` now perform Tier 2 writes
+  through `PermissionedRecordWritePort`. The default adapter is
+  `PrivateRecordPermissionedWritePort`, so physical storage is still
+  `private_record`, but persisted proposal/vote URIs use the structured
+  permissioned-space URI helper rather than public-looking `at://did/collection`
+  locations.
+- `VisibilityRouter` is now a placement decision helper. It returns Tier 1 or a
+  concrete `SpaceRef` for Tier 2; it no longer has storage side effects.
 - Keep `network.coopsource.org.spaceType.*` as the canonical CSN draft space
   type namespace for this PoC. Rename only if upstream final syntax or tooling
   makes the current namespace actively misleading.
-- Next Phase 4 implementation should replace the current Tier 2
-  `private_record` write target with a real permissioned-space write adapter
-  when the upstream write API is stable enough to model behind a port.
+- Next Phase 4 implementation should decide the proposal public-anchor policy
+  for closed/private governance, then replace the legacy writer adapter with a
+  real permissioned-space writer when the upstream write API is stable enough to
+  target.
 
 ## Phase 5 Parallelization
 
