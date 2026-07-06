@@ -17,6 +17,7 @@ import {
 } from '@coopsource/governance-view';
 import {
   createCoopEligibilityPlugin,
+  createCoopQuorumPlugin,
   createCoopVoteWeightPlugin,
 } from '@coopsource/coop-view';
 import { SystemClock } from '@coopsource/federation';
@@ -340,6 +341,7 @@ export function createContainer(config: AppConfig): Container {
     eligibility: createCoopEligibilityPlugin(
       new MembershipReadModelVotingEligibilityReader(membershipReadModel),
     ),
+    quorum: createCoopQuorumPlugin(),
   });
   const groupMutations = groupMutationsForDb(db);
   const operatorWriteProxy = new OperatorWriteProxy(
@@ -405,6 +407,7 @@ export function createContainer(config: AppConfig): Container {
     clock,
     membershipReadModel,
     governancePlugins.voteWeight,
+    governancePlugins.quorum,
     memberWriteProxy,
     governanceLabeler,
     visibilityRouter,

@@ -7,6 +7,7 @@ import type { PermissionedRecordWritePort } from '@coopsource/spaces-consumer';
 import { createDefaultGovernancePluginSet } from '@coopsource/governance-view';
 import {
   createCoopEligibilityPlugin,
+  createCoopQuorumPlugin,
   createCoopVoteWeightPlugin,
 } from '@coopsource/coop-view';
 import {
@@ -215,6 +216,7 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     eligibility: createCoopEligibilityPlugin(
       new MembershipReadModelVotingEligibilityReader(membershipReadModel),
     ),
+    quorum: createCoopQuorumPlugin(),
   });
   const groupMutations = groupMutationsForDb(db);
   const operatorWriteProxy = new OperatorWriteProxy(
@@ -269,6 +271,7 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     clock,
     membershipReadModel,
     governancePlugins.voteWeight,
+    governancePlugins.quorum,
     memberWriteProxy,
     governanceLabeler,
     visibilityRouter,

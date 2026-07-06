@@ -9,9 +9,10 @@ eligibility adapters over narrow membership reader ports; `apps/api` composes a
 `GovernancePluginSet` from `MembershipReadModelVoteWeightReader` and
 `MembershipReadModelVotingEligibilityReader`, and `ProposalService.castVote`
 now gets vote weight through that plugin set; the shared XRPC/Inlay vote
-eligibility path gets active-member gating through the same plugin set. Do not
-move additional service logic until the adapter layer is tested against current
-API suites.
+eligibility path gets active-member gating through the same plugin set; and
+`ProposalService.resolveProposal` now evaluates headcount/class quorum through
+`GovernancePluginSet.quorum`. Do not move additional service logic until the
+adapter layer is tested against current API suites.
 
 ## Purpose
 
@@ -215,9 +216,9 @@ Reviewed against the current implementation on 2026-07-06:
   generic default therefore stays one-member-one-vote, while class weights stay
   CSN-specific.
 - `ProposalService.resolveProposal` evaluates simple/super-majority quorum
-  using headcount and then applies CSN class-quorum rules. The generic
-  `QuorumPlugin` default intentionally covers only headcount quorum; class
-  quorum remains a CoopView adapter responsibility.
+  and CSN class-quorum rules through `GovernancePluginSet.quorum`. The API
+  service still reads member counts, member classes, and class denominators,
+  then passes plain values to CoopView.
 - `checkVoteEligibility` combines active membership, existing-vote detection,
   and delegated vote weight. Active-member gating now goes through
   `GovernancePluginSet.eligibility`; existing-vote detection and delegated
@@ -242,7 +243,8 @@ Reviewed against the current implementation on 2026-07-06:
    authority errors through the API bridge. `ProposalService.castVote` is now
    wired through the composed plugin set without changing stored vote-weight
    behavior; shared XRPC/Inlay vote eligibility now uses the composed
-   eligibility plugin for active-member gating.**
+   eligibility plugin for active-member gating; `ProposalService.resolveProposal`
+   now uses `CoopQuorumPlugin` for headcount and class-quorum decisions.**
 4. Move generic proposal/vote tally reducers out of `ProposalService` only after
    the adapter layer is tested against current proposal/vote/delegation suites.
 5. Add `anchorSummary`, `historicalState`, patronage/distribution, and
@@ -272,8 +274,7 @@ Reviewed against the current implementation on 2026-07-06:
 
 Continue `packages/coop-view` adapters without moving production service logic:
 
-1. Add the `QuorumPlugin` adapter in a separate slice.
-2. Add `DelegateChainsPlugin` only after reviewing
+1. Add `DelegateChainsPlugin` only after reviewing
    `DelegationVotingService.calculateVoteWeight` cycle and proposal-scope
    behavior.
 

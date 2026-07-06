@@ -11,7 +11,15 @@ import type {
   PermissionedRecordWriteResult,
   SpaceRef,
 } from '@coopsource/spaces-consumer';
-import type { VoteWeightPlugin } from '@coopsource/governance-view';
+import type {
+  GovernanceClassDenominator,
+  GovernanceClassQuorumRule,
+  GovernanceGroupRef,
+  GovernanceProposalRef,
+  GovernanceQuorumConfig,
+  QuorumPlugin,
+  VoteWeightPlugin,
+} from '@coopsource/governance-view';
 import {
   formatPermissionedRecordLocationUri,
   isSpaceRecordUri,
@@ -76,6 +84,7 @@ export class ProposalService {
     private clock: IClock,
     private membershipReadModel: MembershipReadModel,
     private voteWeightPlugin: VoteWeightPlugin,
+    private quorumPlugin: QuorumPlugin,
     private memberWriteProxy?: IMemberRecordWriter,
     private labeler?: GovernanceLabeler,
     private visibilityRouter?: VisibilityRouter,
@@ -517,76 +526,56 @@ export class ProposalService {
         proposal.cooperative_did as DID,
       ]);
     const totalMembers = memberCounts.get(proposal.cooperative_did) ?? 0;
-    const totalVotes = votes.length;
 
-    // Determine quorum (fixed: match DB constraint values)
-    let quorumMet = true;
-    const threshold = proposal.quorum_threshold ?? 0.5;
-    if (proposal.quorum_type === 'simpleMajority') {
-      quorumMet = totalVotes > totalMembers * threshold;
-    } else if (proposal.quorum_type === 'superMajority') {
-      quorumMet = totalVotes > totalMembers * (threshold || 0.67);
-    }
-
-    // Weighted tally (sum of vote_weight) and head count tally
-    const tally: Record<string, number> = {};
+    // Weighted tally (sum of vote_weight)
     const weightedTally: Record<string, number> = {};
     for (const v of votes) {
-      tally[v.choice] = (tally[v.choice] ?? 0) + 1;
       weightedTally[v.choice] =
         (weightedTally[v.choice] ?? 0) + (v.vote_weight ?? 1);
     }
 
     // Per-class quorum check
-    let outcome: string;
-    if (proposal.class_quorum_rules && quorumMet) {
-      const rules = proposal.class_quorum_rules as Record<
-        string,
-        { minVotes?: number; minWeight?: number }
-      >;
-
-      const classMap =
-        await this.membershipReadModel.getProjectedMemberClassMap(
+    const classQuorumRules = classQuorumRulesFromRecord(
+      proposal.class_quorum_rules,
+    );
+    const classMap = classQuorumRules
+      ? await this.membershipReadModel.getProjectedMemberClassMap(
           proposal.cooperative_did as DID,
           votes.map((v) => v.voter_did as DID),
-        );
-
-      for (const [className, rule] of Object.entries(rules)) {
-        const classVotes = votes.filter(
-          (v) => classMap.get(v.voter_did) === className,
-        );
-
-        if (rule.minVotes && classVotes.length < rule.minVotes) {
-          quorumMet = false;
-          break;
-        }
-
-        if (rule.minWeight) {
-          const classWeight = classVotes.reduce(
-            (sum, v) => sum + (v.vote_weight ?? 1),
-            0,
-          );
-          const totalClassWeight =
-            await this.membershipReadModel.getProjectedClassWeightDenominator(
-              proposal.cooperative_did as DID,
-              className,
-            );
-          if (
-            totalClassWeight > 0 &&
-            classWeight / totalClassWeight < rule.minWeight
-          ) {
-            quorumMet = false;
-            break;
+        )
+      : undefined;
+    const quorumResult = await this.quorumPlugin.evaluate({
+      proposal: this.proposalRef(proposal),
+      cooperative: this.cooperativeRef(proposal.cooperative_did),
+      votes: votes.map((vote) => ({
+        voter: { did: vote.voter_did },
+        choice: vote.choice,
+        weight: vote.vote_weight ?? 1,
+        ...(classMap
+          ? { memberClass: classMap.get(vote.voter_did) ?? null }
+          : {}),
+        at: vote.created_at.toISOString(),
+      })),
+      eligibleVoterCount: totalMembers,
+      quorum: quorumConfigFromProposal(proposal),
+      ...(classQuorumRules ? { classQuorumRules } : {}),
+      ...(classQuorumRules
+        ? {
+            classDenominators: await this.classDenominators(
+              proposal.cooperative_did,
+              classQuorumRules,
+            ),
           }
-        }
-      }
-    }
+        : {}),
+    });
 
     // Determine outcome (using weighted tally for yes/no decisions)
-    if (!quorumMet) {
-      outcome = proposal.class_quorum_rules
-        ? 'class_quorum_not_met'
-        : 'no_quorum';
+    let outcome: string;
+    if (!quorumResult.met) {
+      outcome =
+        quorumResult.outcomeReason === 'class_quorum_not_met'
+          ? 'class_quorum_not_met'
+          : 'no_quorum';
     } else if (proposal.voting_type === 'binary') {
       const yes = weightedTally['yes'] ?? 0;
       const no = weightedTally['no'] ?? 0;
@@ -760,30 +749,58 @@ export class ProposalService {
     readonly choice: string;
     readonly at: Date;
   }): Promise<number> {
-    if (!params.proposal.uri) {
-      throw new Error(
-        `Cannot calculate vote weight for proposal ${params.proposal.id}: missing proposal URI`,
-      );
-    }
-
-    const memberSpace = membersSpace(params.proposal.cooperative_did as DID);
     const result = await this.voteWeightPlugin.weightForVote({
       voter: { did: params.voterDid },
-      proposal: {
-        uri: params.proposal.uri,
-        ...(params.proposal.cid ? { cid: params.proposal.cid } : {}),
-        collection: PROPOSAL_COLLECTION,
-      },
-      cooperative: {
-        authorityDid: params.proposal.cooperative_did,
-        spaceKey: memberSpace.spaceKey,
-        spaceType: memberSpace.expectedSpaceType,
-      },
+      proposal: this.proposalRef(params.proposal),
+      cooperative: this.cooperativeRef(params.proposal.cooperative_did),
       voteChoice: params.choice,
       at: params.at.toISOString(),
     });
 
     return result.weight;
+  }
+
+  private proposalRef(proposal: ProposalRow): GovernanceProposalRef {
+    if (!proposal.uri) {
+      throw new Error(
+        `Cannot evaluate proposal ${proposal.id}: missing proposal URI`,
+      );
+    }
+
+    return {
+      uri: proposal.uri,
+      ...(proposal.cid ? { cid: proposal.cid } : {}),
+      collection: PROPOSAL_COLLECTION,
+    };
+  }
+
+  private cooperativeRef(cooperativeDid: string): GovernanceGroupRef {
+    const memberSpace = membersSpace(cooperativeDid as DID);
+    return {
+      authorityDid: cooperativeDid,
+      spaceKey: memberSpace.spaceKey,
+      spaceType: memberSpace.expectedSpaceType,
+    };
+  }
+
+  private async classDenominators(
+    cooperativeDid: string,
+    rules: Readonly<Record<string, GovernanceClassQuorumRule>>,
+  ): Promise<readonly GovernanceClassDenominator[]> {
+    const classes = Object.entries(rules)
+      .filter(([, rule]) => rule.minWeightRatio !== undefined)
+      .map(([className]) => className);
+
+    return Promise.all(
+      classes.map(async (className) => ({
+        className,
+        totalWeight:
+          await this.membershipReadModel.getProjectedClassWeightDenominator(
+            cooperativeDid as DID,
+            className,
+          ),
+      })),
+    );
   }
 
   private async upsertPublicGovernanceAnchor(
@@ -903,6 +920,67 @@ function permissionedRecordRef(
     uri: formatPermissionedRecordLocationUri(write.location) as AtUri,
     cid: write.cid as CID,
   };
+}
+
+function quorumConfigFromProposal(
+  proposal: ProposalRow,
+): GovernanceQuorumConfig | undefined {
+  if (proposal.quorum_type === 'none') {
+    return { type: 'none' };
+  }
+
+  if (
+    proposal.quorum_type !== 'simpleMajority' &&
+    proposal.quorum_type !== 'superMajority'
+  ) {
+    return undefined;
+  }
+
+  const currentDefaultThreshold = proposal.quorum_threshold ?? 0.5;
+  return {
+    type: proposal.quorum_type,
+    threshold:
+      proposal.quorum_type === 'superMajority'
+        ? currentDefaultThreshold || 0.67
+        : currentDefaultThreshold,
+  };
+}
+
+function classQuorumRulesFromRecord(
+  record: Record<string, unknown> | null,
+): Readonly<Record<string, GovernanceClassQuorumRule>> | undefined {
+  if (!record) return undefined;
+
+  const entries: Array<[string, GovernanceClassQuorumRule]> = [];
+  for (const [className, rawRule] of Object.entries(record)) {
+    if (
+      !rawRule ||
+      typeof rawRule !== 'object' ||
+      Array.isArray(rawRule)
+    ) {
+      continue;
+    }
+
+    const source = rawRule as Record<string, unknown>;
+    const minVotes = numberField(source.minVotes);
+    const minWeightRatio =
+      numberField(source.minWeightRatio) ?? numberField(source.minWeight);
+    const rule: GovernanceClassQuorumRule = {
+      ...(minVotes === undefined ? {} : { minVotes }),
+      ...(minWeightRatio === undefined ? {} : { minWeightRatio }),
+    };
+    if (Object.keys(rule).length > 0) {
+      entries.push([className, rule]);
+    }
+  }
+
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+function numberField(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? value
+    : undefined;
 }
 
 function shouldEmitPublicGovernanceLabel(uri: string): boolean {
