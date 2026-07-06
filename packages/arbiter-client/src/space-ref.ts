@@ -39,12 +39,15 @@ export function roleSpace(cooperativeDid: DID, role: string): SpaceRef {
   return {
     arbiterDid: cooperativeDid,
     spaceKey,
-    expectedSpaceType: spaceKey.startsWith('classes/') ? CLASS_SPACE_TYPE : ROLE_SPACE_TYPE,
+    expectedSpaceType: spaceKey.startsWith('classes/')
+      ? CLASS_SPACE_TYPE
+      : ROLE_SPACE_TYPE,
   };
 }
 
 export function parseCsnSpace(space: SpaceRef): CsnSpace | null {
   if (space.spaceKey === MEMBERS_SPACE_KEY) {
+    if (!matchesExpectedSpaceType(space, MEMBERS_SPACE_TYPE)) return null;
     return {
       kind: 'members',
       cooperativeDid: space.arbiterDid,
@@ -53,6 +56,7 @@ export function parseCsnSpace(space: SpaceRef): CsnSpace | null {
 
   const role = parseRoleSpaceKey(space.spaceKey);
   if (role) {
+    if (!matchesExpectedSpaceType(space, ROLE_SPACE_TYPE)) return null;
     return {
       kind: 'role',
       cooperativeDid: space.arbiterDid,
@@ -62,6 +66,7 @@ export function parseCsnSpace(space: SpaceRef): CsnSpace | null {
 
   const memberClass = parseClassSpaceKey(space.spaceKey);
   if (memberClass) {
+    if (!matchesExpectedSpaceType(space, CLASS_SPACE_TYPE)) return null;
     return {
       kind: 'class',
       cooperativeDid: space.arbiterDid,
@@ -70,6 +75,16 @@ export function parseCsnSpace(space: SpaceRef): CsnSpace | null {
   }
 
   return null;
+}
+
+export function csnSpaceType(space: CsnSpace): string {
+  if (space.kind === 'members') return MEMBERS_SPACE_TYPE;
+  if (space.kind === 'role') return ROLE_SPACE_TYPE;
+  return CLASS_SPACE_TYPE;
+}
+
+function matchesExpectedSpaceType(space: SpaceRef, actual: string): boolean {
+  return !space.expectedSpaceType || space.expectedSpaceType === actual;
 }
 
 function normalizeRoleSpaceKey(role: string): string | null {

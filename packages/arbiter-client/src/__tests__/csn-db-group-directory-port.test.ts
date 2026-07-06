@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import type { DID } from '@coopsource/common';
 import type { Database } from '@coopsource/db';
 import type { Kysely } from 'kysely';
-import { CsnDbGroupDirectoryPort, membersSpace, roleSpace } from '../index.js';
+import {
+  CsnDbGroupDirectoryPort,
+  MEMBERS_SPACE_TYPE,
+  membersSpace,
+  roleSpace,
+} from '../index.js';
 
 interface MembershipFixture {
   readonly id: string;
@@ -23,6 +28,7 @@ interface MembershipRoleFixture {
 interface FixtureRow {
   readonly id: string;
   readonly member_did: string;
+  readonly member_class?: string | null;
   readonly indexed_at: Date;
   readonly role_indexed_at?: Date;
   readonly membership: MembershipFixture;
@@ -85,6 +91,28 @@ describe('CsnDbGroupDirectoryPort', () => {
       consistency: 'projection-ok',
     });
     expect(resolved.members.map((member) => member.did)).toEqual([aliceDid]);
+  });
+
+  it('lists active member-class spaces alongside the members space', async () => {
+    const directory = new CsnDbGroupDirectoryPort(
+      fakeDb({
+        memberships: [
+          membership('m1', aliceDid, 'active', { memberClass: 'worker' }),
+          membership('m2', bobDid, 'pending', { memberClass: 'consumer' }),
+          membership('m3', chandraDid, 'active'),
+        ],
+      }),
+    );
+
+    const page = await directory.listSpaces({
+      arbiterDid: cooperativeDid,
+      consistency: 'strict',
+    });
+
+    expect(page.spaces).toEqual([
+      membersSpace(cooperativeDid),
+      roleSpace(cooperativeDid, 'classes/worker'),
+    ]);
   });
 
   it('orders resolved membership by indexed_at and membership id', async () => {
@@ -215,6 +243,47 @@ describe('CsnDbGroupDirectoryPort', () => {
       partial: true,
     });
   });
+
+  it('fails closed when the expected space type does not match the space key', async () => {
+    const directory = new CsnDbGroupDirectoryPort(
+      fakeDb({
+        memberships: [membership('m1', aliceDid, 'active')],
+        roles: [
+          {
+            membership_id: 'm1',
+            role: 'admin',
+            indexed_at: new Date('2026-01-03T00:00:00Z'),
+          },
+        ],
+      }),
+    );
+    const mismatchedRoleSpace = {
+      ...roleSpace(cooperativeDid, 'admin'),
+      expectedSpaceType: MEMBERS_SPACE_TYPE,
+    };
+
+    await expect(
+      directory.getSpaceConfig({
+        ...mismatchedRoleSpace,
+        consistency: 'strict',
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      reason: 'invalid-space',
+      stale: true,
+    });
+    await expect(
+      directory.resolveSpaceMembers({
+        ...mismatchedRoleSpace,
+        consistency: 'strict',
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      members: [],
+      partial: true,
+      stale: true,
+    });
+  });
 });
 
 function membership(
@@ -328,6 +397,7 @@ class FakeSelectQuery {
       return this.fixtures.memberships.map((row) => ({
         id: row.id,
         member_did: row.member_did,
+        member_class: row.member_class,
         indexed_at: row.indexed_at,
         membership: row,
       }));
@@ -374,6 +444,7 @@ function comparePredicate(
     if (op === '=') return compareValues(actual, value) === 0;
     if (op === '>') return compareValues(actual, value) > 0;
     if (op === 'is') return actual === value;
+    if (op === 'is not') return actual !== value;
     throw new Error(`Unsupported fake Kysely operator: ${op}`);
   };
 }

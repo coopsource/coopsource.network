@@ -7,6 +7,7 @@ import { sseEmitter, type AppEvent } from '../src/appview/sse.js';
 import type { TestApp } from './helpers/test-app.js';
 import { AuthService } from '../src/services/auth-service.js';
 import type { GroupMutationPort } from '@coopsource/arbiter-client';
+import type { IPdsService } from '@coopsource/federation';
 
 describe('Members & Invitations', () => {
   let testApp: TestApp;
@@ -385,6 +386,80 @@ describe('Members & Invitations', () => {
     expect(invitation.invalidated_at).toBeNull();
   });
 
+  it('does not create external PDS artifacts for the losing concurrent redemption', async () => {
+    const invRes = await testApp.agent
+      .post('/api/v1/invitations')
+      .send({ email: 'artifact-race@example.com', roles: ['member'] })
+      .expect(201);
+    const token = invRes.body.token as string;
+
+    const countPdsRecords = async (collection: string): Promise<number> =>
+      (
+        await testApp.container.db
+          .selectFrom('pds_record')
+          .where('collection', '=', collection)
+          .select('uri')
+          .execute()
+      ).length;
+
+    const profileRecordsBefore = await countPdsRecords(
+      'network.coopsource.actor.profile',
+    );
+    const consentRecordsBefore = await countPdsRecords(
+      'network.coopsource.org.memberConsent',
+    );
+
+    const originalAuthService = testApp.container.authService;
+    const delayedPds = new DelayedCreateDidPdsService(
+      testApp.container.pdsService,
+      75,
+    );
+    testApp.container.authService = new AuthService(
+      testApp.container.db,
+      delayedPds,
+      testApp.container.clock,
+      testApp.container.profileService,
+      'http://localhost:3001',
+      undefined,
+      testApp.container.groupMutationsForDb,
+      testApp.container.membershipReadModel,
+    );
+
+    let statuses: number[] = [];
+    try {
+      const payload = {
+        email: 'artifact-race@example.com',
+        displayName: 'Artifact Race',
+        password: 'securepass123',
+      };
+      const attempts = await Promise.all([
+        supertest
+          .agent(testApp.app)
+          .post(`/api/v1/invitations/${token}/accept`)
+          .send(payload),
+        supertest
+          .agent(testApp.app)
+          .post(`/api/v1/invitations/${token}/accept`)
+          .send(payload),
+      ]);
+      statuses = attempts.map((res) => res.status).sort();
+    } finally {
+      testApp.container.authService = originalAuthService;
+    }
+
+    expect(statuses.filter((status) => status === 201)).toHaveLength(1);
+    expect(
+      statuses.every((status) => [201, 400, 404, 409].includes(status)),
+    ).toBe(true);
+    expect(delayedPds.createDidCalls).toBe(1);
+    expect(await countPdsRecords('network.coopsource.actor.profile')).toBe(
+      profileRecordsBefore + 1,
+    );
+    expect(await countPdsRecords('network.coopsource.org.memberConsent')).toBe(
+      consentRecordsBefore + 1,
+    );
+  });
+
   it('does not burn an invitation or create an account if membership authority rejects acceptance', async () => {
     const invRes = await testApp.agent
       .post('/api/v1/invitations')
@@ -689,3 +764,54 @@ describe('Members & Invitations', () => {
     expect(res.body.message).toMatch(/not found/i);
   });
 });
+
+class DelayedCreateDidPdsService implements IPdsService {
+  createDidCalls = 0;
+
+  constructor(
+    private readonly inner: IPdsService,
+    private readonly delayMs: number,
+  ) {}
+
+  async createDid(...args: Parameters<IPdsService['createDid']>) {
+    this.createDidCalls += 1;
+    await delay(this.delayMs);
+    return this.inner.createDid(...args);
+  }
+
+  resolveDid(...args: Parameters<IPdsService['resolveDid']>) {
+    return this.inner.resolveDid(...args);
+  }
+
+  updateDidDocument(...args: Parameters<IPdsService['updateDidDocument']>) {
+    return this.inner.updateDidDocument(...args);
+  }
+
+  createRecord(...args: Parameters<IPdsService['createRecord']>) {
+    return this.inner.createRecord(...args);
+  }
+
+  putRecord(...args: Parameters<IPdsService['putRecord']>) {
+    return this.inner.putRecord(...args);
+  }
+
+  deleteRecord(...args: Parameters<IPdsService['deleteRecord']>) {
+    return this.inner.deleteRecord(...args);
+  }
+
+  getRecord(...args: Parameters<IPdsService['getRecord']>) {
+    return this.inner.getRecord(...args);
+  }
+
+  listRecords(...args: Parameters<IPdsService['listRecords']>) {
+    return this.inner.listRecords(...args);
+  }
+
+  subscribeRepos(...args: Parameters<IPdsService['subscribeRepos']>) {
+    return this.inner.subscribeRepos(...args);
+  }
+}
+
+async function delay(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}

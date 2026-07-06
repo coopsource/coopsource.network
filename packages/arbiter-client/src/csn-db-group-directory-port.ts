@@ -13,8 +13,7 @@ import type {
 } from '@coopsource/spaces-consumer';
 import type { Kysely } from 'kysely';
 import {
-  CLASS_SPACE_TYPE,
-  MEMBERS_SPACE_TYPE,
+  csnSpaceType,
   membersSpace,
   parseCsnSpace,
   roleSpace,
@@ -63,11 +62,26 @@ export class CsnDbGroupDirectoryPort implements GroupDirectoryPort {
       .distinct()
       .orderBy('membership_role.role', 'asc')
       .execute();
+    const memberClasses = await this.db
+      .selectFrom('membership')
+      .where('membership.cooperative_did', '=', args.arbiterDid)
+      .where('membership.status', '=', 'active')
+      .where('membership.invalidated_at', 'is', null)
+      .where('membership.member_class', 'is not', null)
+      .select('membership.member_class')
+      .distinct()
+      .orderBy('membership.member_class', 'asc')
+      .execute();
 
     return {
       spaces: [
         membersSpace(args.arbiterDid),
         ...roles.map((row) => roleSpace(args.arbiterDid, row.role)),
+        ...memberClasses.flatMap((row) =>
+          row.member_class
+            ? [roleSpace(args.arbiterDid, `classes/${row.member_class}`)]
+            : [],
+        ),
       ],
       stale: false,
     };
@@ -87,10 +101,7 @@ export class CsnDbGroupDirectoryPort implements GroupDirectoryPort {
       ok: true,
       space: args,
       config: {
-        spaceType:
-          space.kind === 'class'
-            ? CLASS_SPACE_TYPE
-            : (args.expectedSpaceType ?? MEMBERS_SPACE_TYPE),
+        spaceType: csnSpaceType(space),
         source: 'csn-db',
       },
       stale: false,
