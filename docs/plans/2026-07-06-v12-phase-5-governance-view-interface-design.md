@@ -167,6 +167,7 @@ interface PatronageAllocatorPlugin {
     period: GovernancePeriodRef;
     surplus: number;
     metrics: ReadonlyArray<unknown>;
+    policy?: unknown;
   }): Promise<{ allocations: ReadonlyArray<unknown> }>;
 }
 
@@ -287,7 +288,13 @@ Reviewed against the current implementation on 2026-07-06:
    reducers for stored vote choices/weights, while `ProposalService` still owns
    vote queries, quorum plugin execution, persistence, anchors, and labels.**
 6. Add `anchorSummary`, `historicalState`, patronage/distribution, and
-   meeting-minutes adapters in separate slices.
+   meeting-minutes adapters in separate slices. **Started 2026-07-06:
+   `anchorSummary` and `historicalState` were reviewed and deliberately left
+   unwired for now because the public anchor lexicon/table has no summary
+   field and there is no durable membership snapshot table yet. Patronage
+   allocation is now extracted into CoopView and wired through
+   `GovernancePluginSet.patronageAllocator`; `PatronageService` still owns
+   fiscal-period validation and record persistence.**
 
 ## Non-Goals For The First Package Slice
 

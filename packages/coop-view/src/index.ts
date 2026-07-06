@@ -54,6 +54,18 @@ export {
   createCoopQuorumPlugin,
 } from './quorum-plugin.js';
 export type {
+  CoopPatronageAllocation,
+  CoopPatronageMetric,
+} from './patronage-allocator-plugin.js';
+export {
+  CoopPatronageAllocationError,
+  CoopPatronageAllocatorPlugin,
+  calculateCoopPatronageAllocations,
+  createCoopPatronageAllocatorPlugin,
+  parseCoopPatronageAllocations,
+  parseCoopPatronageMetrics,
+} from './patronage-allocator-plugin.js';
+export type {
   CoopVoteWeightEvidence,
   CoopVoteWeightPluginOptions,
 } from './vote-weight-plugin.js';

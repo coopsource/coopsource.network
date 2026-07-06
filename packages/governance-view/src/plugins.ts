@@ -68,6 +68,7 @@ export interface PatronageAllocatorPlugin {
     readonly period: GovernancePeriodRef;
     readonly surplus: number;
     readonly metrics: ReadonlyArray<JsonValue>;
+    readonly policy?: JsonValue;
   }): Promise<{ readonly allocations: ReadonlyArray<JsonValue> }>;
 }
 

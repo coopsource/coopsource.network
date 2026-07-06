@@ -20,6 +20,7 @@ import {
   createCoopActionAuthorizerPlugin,
   createCoopDelegateChainsPlugin,
   createCoopEligibilityPlugin,
+  createCoopPatronageAllocatorPlugin,
   createCoopQuorumPlugin,
   createCoopVoteWeightPlugin,
 } from '@coopsource/coop-view';
@@ -367,6 +368,7 @@ export function createContainer(config: AppConfig): Container {
     ),
     quorum: createCoopQuorumPlugin(),
     actionAuthorizer,
+    patronageAllocator: createCoopPatronageAllocatorPlugin(),
   });
   const groupMutations = groupMutationsForDb(db);
   const operatorWriteProxy = new OperatorWriteProxy(
@@ -499,7 +501,11 @@ export function createContainer(config: AppConfig): Container {
   const meetingRecordService = new MeetingRecordService(db, clock);
   const memberNoticeService = new MemberNoticeService(db, clock);
   const fiscalPeriodService = new FiscalPeriodService(db, clock);
-  const patronageService = new PatronageService(db, clock);
+  const patronageService = new PatronageService(
+    db,
+    clock,
+    governanceCorePlugins.patronageAllocator,
+  );
   const capitalAccountService = new CapitalAccountService(db, clock);
   const tax1099Service = new Tax1099Service(db, clock);
   const onboardingService = new OnboardingService(db, clock);
