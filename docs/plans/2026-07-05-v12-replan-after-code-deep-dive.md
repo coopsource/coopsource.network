@@ -68,6 +68,21 @@ Verified facts:
   including `resolveSpaceMembers`, `listSpaces`, `getSpaceConfig`,
   `getSpaceMembers`, `createDid`, and `updateDidDoc`.
 
+2026-07-06 re-check:
+
+- `bluesky-social/atproto` branch `permissioned-data` still exists at
+  `3f6c96d5d2d25438bd40fa89d6ecc37865f8e354`, and PR #5187 is still draft/WIP.
+- Direct branch inspection found the current implementation under
+  `com.atproto.space.*` and `com.atproto.simplespace.*`; no
+  `town.muni.arbiter.*` endpoint implementation is present in that branch.
+- `com.atproto.space.listSpaces` lists spaces the authenticated user has
+  written to, not "spaces I am a member of." The host-internal member-list
+  surface is `com.atproto.simplespace.listMembers`, owner-only, and direct-DID
+  only.
+- HappyView's experimental surface remains app-specific
+  `dev.happyview.space.*`, so it is useful as a spaces reference harness but
+  not a shipped `town.muni.arbiter.*` server.
+
 Ecosystem details that change CSN planning:
 
 - Proposal 0016 says the protocol carries no member list. Space credential
@@ -426,22 +441,39 @@ real protection. Instead:
   risk. Do not block the read seam on replacing every equality check in the
   app in one pass.
 
-### Slice R8 - XRPC Arbiter Adapter Spike
+### Slice R8 - XRPC Group Directory Adapter Spike
 
 **Branch:** `feature/v12-phase-3-xrpc-arbiter-spike`
 
 Gate:
 
-- Re-check the watchlist immediately before starting. As of 2026-07-05, no
-  shipped Arbiter server was found.
+- Re-check the watchlist immediately before starting. As of 2026-07-06, no
+  shipped Arbiter server was found, and the current atproto implementation
+  branch exposes `com.atproto.space.*`/`com.atproto.simplespace.*`, not
+  `town.muni.arbiter.*`.
 
 Recommended scope:
 
 - Keep CSN-DB as default.
-- Implement only a mock-server-tested adapter for
-  `town.muni.arbiter.resolveSpaceMembers`, `listSpaces`, and `getSpaceConfig`
-  if it helps harden the port shape after R1-R5.
-- Do not wire a live integration test until a real server exists.
+- Implement only a mock-server-tested adapter for the current draft substrate
+  shape: `com.atproto.space.listSpaces`, `com.atproto.space.getSpace`, and
+  `com.atproto.simplespace.listMembers`.
+- Do not pretend the current draft has a recursive protocol-level
+  `resolveSpaceMembers` primitive. The adapter may implement CSN's
+  `resolveSpaceMembers` by returning the direct DID set from
+  `simplespace.listMembers`, preserving `partial`/`stale` semantics.
+- Do not wire a live integration test or runtime env switch until a real server
+  exists and the auth/credential posture is settled.
+
+Implementation status, 2026-07-06:
+
+- `packages/arbiter-client/src/xrpc-group-directory-port.ts` now exports
+  `XrpcGroupDirectoryPort` plus explicit `SpaceRef` <-> current draft
+  `at://{authorityDid}/space/{spaceType}/{skey}` helpers.
+- Tests cover request shape, config mapping, strict pagination,
+  `projection-ok` partial handling, and fail-closed upstream errors.
+- Production wiring is intentionally deferred; `CsnDbGroupDirectoryPort`
+  remains the default.
 
 ## Phase 4 Reframing
 

@@ -4,7 +4,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: use superpowers:subagent-driven-development or superpowers:executing-plans. Steps use `- [ ]` checkboxes. Each task ends with an independently testable deliverable. TDD throughout: failing test → run-red → implement → run-green → commit.
 
-**Goal:** Complete the membership authority seam — route membership _reads_ through `GroupDirectoryPort` (writes already go through `GroupMutationPort`), converge the CSN-DB adapters toward the draft `town.muni.arbiter.*` contract, and resolve the verified pre-merge review findings that belong to the membership layer.
+**Goal:** Complete the membership authority seam — route membership _reads_ through `GroupDirectoryPort` (writes already go through `GroupMutationPort`), converge the CSN-DB adapters toward the draft atproto space-management / group-authority contract, and resolve the verified pre-merge review findings that belong to the membership layer.
 
 **Branch:** `feature/v12-phase-3-arbiter-convergence` (already created). Merge `--no-ff` + tag `v12-phase-3` when green.
 
@@ -156,13 +156,15 @@ Also: the expiry check already exists (keep it) and expired/consumed invitations
 
 ## Task 3.8: XRPC GroupDirectoryPort adapter (convergence)
 
-**Files:** Add `packages/arbiter-client/src/xrpc-group-directory-port.ts` implementing `GroupDirectoryPort` against `town.muni.arbiter.resolveSpaceMembers`/`listSpaces`/`getSpaceConfig`; env-selected (`GROUP_DIRECTORY_ADAPTER=csn-db|xrpc`, default `csn-db`); Tests against a mock arbiter.
+**Files:** Add `packages/arbiter-client/src/xrpc-group-directory-port.ts` implementing `GroupDirectoryPort` against the current draft substrate (`com.atproto.space.listSpaces`, `com.atproto.space.getSpace`, `com.atproto.simplespace.listMembers`); tests against a mock XRPC server/fetch boundary. Keep CSN-DB as the default runtime adapter.
 
-**Gate:** re-check the watchlist first — if Muni Town has shipped a real arbiter server, add an integration test against it; if not, target the draft lexicon shapes and keep the CSN-DB adapter as default. HappyView 2.10 (`com.atproto.space.*`) is a candidate harness for the _spaces_ side (not the arbiter side).
+**Gate:** re-check the watchlist first — if Muni Town has shipped a real arbiter server, add an integration test against it; if not, target the current draft lexicon shapes and keep the CSN-DB adapter as default. 2026-07-06 re-check: the `permissioned-data` branch exposes `com.atproto.space.*`/`com.atproto.simplespace.*`, not `town.muni.arbiter.*`; HappyView remains a candidate harness for the _spaces_ side, not a shipped Arbiter server.
 
-- [ ] Failing test: `XrpcGroupDirectoryPort.resolveSpaceMembers` maps a mock `town.muni.arbiter.resolveSpaceMembers` response into `ResolvedMembers`, preserving `partial`/`stale`.
-- [ ] Implement behind the port; wire env selection in the container; default stays `csn-db`.
-- [ ] Green + commit.
+- [x] Failing test: `XrpcGroupDirectoryPort.resolveSpaceMembers` maps mock `com.atproto.simplespace.listMembers` pages into `ResolvedMembers`, preserving `partial`/`stale`.
+- [x] Implement behind the port without production wiring; default stays `csn-db`.
+- [x] Tests cover current draft space URI mapping, request shape, strict pagination, projection partials, and fail-closed upstream errors.
+- [ ] Defer env-selected runtime wiring until a shipped/stable server and auth/credential posture exist.
+- [x] Green + commit.
 
 ## Task 3.9: Test-DB flakiness — two issues
 

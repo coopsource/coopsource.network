@@ -30,30 +30,30 @@ export interface SpaceListPage {
 }
 
 /**
- * Read side of the Arbiter boundary. Method names track the draft
- * `town.muni.arbiter.*` group-server lexicons (lexicon.garden, draft as of
- * 2026-07-04) so the CSN-DB adapter can be swapped for an XRPC adapter in
- * Phase 3 without changing callers. See ARCHITECTURE-V12 §4 for the mapping.
+ * Read side of the group-directory boundary. Method names track the semantics
+ * CSN needs, while concrete adapters map them to the available substrate:
+ * CSN-DB today, draft `com.atproto.space.*`/`com.atproto.simplespace.*` where
+ * possible, and any future Arbiter/group-management server once it stabilizes.
  */
 export interface GroupDirectoryPort {
-  /** Upstream draft: town.muni.arbiter.listSpaces */
+  /** List known spaces for an authority. */
   listSpaces(args: {
     readonly arbiterDid: DID;
     readonly cursor?: MembershipCursor;
     readonly consistency: MembershipConsistency;
   }): Promise<SpaceListPage>;
 
-  /** Upstream draft: town.muni.arbiter.getSpaceConfig */
+  /** Return space configuration/policy metadata. */
   getSpaceConfig(args: SpaceRef & {
     readonly consistency: MembershipConsistency;
   }): Promise<SpaceConfigResult>;
 
-  /** Upstream draft: town.muni.arbiter.getSpaceMembers */
+  /** Return direct members without recursive expansion. */
   getDirectSpaceMembers(args: SpaceRef & {
     readonly consistency: MembershipConsistency;
   }): Promise<ReadonlyArray<DirectSpaceMember>>;
 
-  /** Upstream draft: town.muni.arbiter.resolveSpaceMembers (recursive resolution) */
+  /** Return the resolved DID set, including recursive expansion where supported. */
   resolveSpaceMembers(args: SpaceRef & {
     readonly consistency: MembershipConsistency;
     readonly resolverDepth?: number;

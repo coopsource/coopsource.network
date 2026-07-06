@@ -11,6 +11,18 @@ export type { CsnSpace } from './space-ref.js';
 export type { CsnDbGroupDirectoryPortOptions } from './csn-db-group-directory-port.js';
 export { CsnDbGroupDirectoryPort } from './csn-db-group-directory-port.js';
 export type {
+  XrpcFetch,
+  XrpcFetchInit,
+  XrpcFetchResponse,
+  XrpcGroupDirectoryPortOptions,
+  XrpcHeaderProvider,
+} from './xrpc-group-directory-port.js';
+export {
+  formatProtocolSpaceUri,
+  parseProtocolSpaceUri,
+  XrpcGroupDirectoryPort,
+} from './xrpc-group-directory-port.js';
+export type {
   AddMemberArgs,
   CsnDbGroupMutationPortOptions,
   GroupMutationAuditEvent,
