@@ -78,6 +78,9 @@ importers:
       '@coopsource/federation':
         specifier: workspace:*
         version: link:../../packages/federation
+      '@coopsource/governance-view':
+        specifier: workspace:*
+        version: link:../../packages/governance-view
       '@coopsource/lexicons':
         specifier: workspace:*
         version: link:../../packages/lexicons

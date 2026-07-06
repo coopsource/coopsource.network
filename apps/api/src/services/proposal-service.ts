@@ -5,11 +5,13 @@ import type {
   PublicGovernanceAnchorTable,
   VoteTable,
 } from '@coopsource/db';
+import { membersSpace } from '@coopsource/arbiter-client';
 import type {
   PermissionedRecordWritePort,
   PermissionedRecordWriteResult,
   SpaceRef,
 } from '@coopsource/spaces-consumer';
+import type { VoteWeightPlugin } from '@coopsource/governance-view';
 import {
   formatPermissionedRecordLocationUri,
   isSpaceRecordUri,
@@ -64,12 +66,16 @@ import type {
   ProposalAnchorRecord,
 } from './public-governance-anchor-service.js';
 
+const PROPOSAL_COLLECTION = 'network.coopsource.governance.proposal';
+const VOTE_COLLECTION = 'network.coopsource.governance.vote';
+
 export class ProposalService {
   constructor(
     private db: Kysely<Database>,
     private pdsService: IPdsService,
     private clock: IClock,
     private membershipReadModel: MembershipReadModel,
+    private voteWeightPlugin: VoteWeightPlugin,
     private memberWriteProxy?: IMemberRecordWriter,
     private labeler?: GovernanceLabeler,
     private visibilityRouter?: VisibilityRouter,
@@ -253,7 +259,7 @@ export class ProposalService {
     const now = this.clock.now();
 
     // Check visibility routing for closed cooperatives (Tier 2 private data)
-    const collection = 'network.coopsource.governance.proposal';
+    const collection = PROPOSAL_COLLECTION;
     const record = {
       title: data.title,
       body: data.body,
@@ -394,7 +400,7 @@ export class ProposalService {
     // Write vote record. Closed-governance cooperatives route votes to Tier 2
     // private storage; open/mixed-default cooperatives keep member-owned PDS
     // writes through MemberWriteProxy.
-    const collection = 'network.coopsource.governance.vote';
+    const collection = VOTE_COLLECTION;
     const voteRecord = {
       proposal: proposal.uri,
       proposalCid: proposal.cid,
@@ -443,10 +449,12 @@ export class ProposalService {
       retractedAt: now,
     });
 
-    const weight = await this.membershipReadModel.getProjectedMemberVoteWeight(
-      proposal.cooperative_did as DID,
-      params.voterDid as DID,
-    );
+    const weight = await this.weightForVote({
+      proposal,
+      voterDid: params.voterDid,
+      choice: params.choice,
+      at: now,
+    });
 
     const [vote] = await this.db
       .insertInto('vote')
@@ -744,6 +752,38 @@ export class ProposalService {
       }
       throw err;
     }
+  }
+
+  private async weightForVote(params: {
+    readonly proposal: ProposalRow;
+    readonly voterDid: string;
+    readonly choice: string;
+    readonly at: Date;
+  }): Promise<number> {
+    if (!params.proposal.uri) {
+      throw new Error(
+        `Cannot calculate vote weight for proposal ${params.proposal.id}: missing proposal URI`,
+      );
+    }
+
+    const memberSpace = membersSpace(params.proposal.cooperative_did as DID);
+    const result = await this.voteWeightPlugin.weightForVote({
+      voter: { did: params.voterDid },
+      proposal: {
+        uri: params.proposal.uri,
+        ...(params.proposal.cid ? { cid: params.proposal.cid } : {}),
+        collection: PROPOSAL_COLLECTION,
+      },
+      cooperative: {
+        authorityDid: params.proposal.cooperative_did,
+        spaceKey: memberSpace.spaceKey,
+        spaceType: memberSpace.expectedSpaceType,
+      },
+      voteChoice: params.choice,
+      at: params.at.toISOString(),
+    });
+
+    return result.weight;
   }
 
   private async upsertPublicGovernanceAnchor(

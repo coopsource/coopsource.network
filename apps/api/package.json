@@ -28,6 +28,7 @@
     "@coopsource/coop-view": "workspace:*",
     "@coopsource/db": "workspace:*",
     "@coopsource/federation": "workspace:*",
+    "@coopsource/governance-view": "workspace:*",
     "@coopsource/lexicons": "workspace:*",
     "@coopsource/spaces-consumer": "workspace:*",
     "@inlay/core": "0.0.13",

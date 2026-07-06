@@ -4,6 +4,11 @@ import supertest from 'supertest';
 import type { Kysely, Transaction } from 'kysely';
 import type { Database } from '@coopsource/db';
 import type { PermissionedRecordWritePort } from '@coopsource/spaces-consumer';
+import { createDefaultGovernancePluginSet } from '@coopsource/governance-view';
+import {
+  createCoopEligibilityPlugin,
+  createCoopVoteWeightPlugin,
+} from '@coopsource/coop-view';
 import {
   CsnDbGroupDirectoryPort,
   CsnDbGroupMutationPort,
@@ -48,6 +53,10 @@ import { FiscalPeriodService } from '../../src/services/fiscal-period-service.js
 import { PrivateRecordService } from '../../src/services/private-record-service.js';
 import { PrivateRecordPermissionedWritePort } from '../../src/services/private-record-permissioned-write-port.js';
 import { OAuthPermissionedRecordWriteSessionProvider } from '../../src/services/oauth-permissioned-record-write-session-provider.js';
+import {
+  MembershipReadModelVoteWeightReader,
+  MembershipReadModelVotingEligibilityReader,
+} from '../../src/services/coop-view-membership-adapters.js';
 import { VisibilityRouter } from '../../src/services/visibility-router.js';
 import {
   PdsPublicGovernanceAnchorWritePort,
@@ -199,6 +208,14 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     });
   const groupDirectory = new CsnDbGroupDirectoryPort(db);
   const membershipReadModel = new MembershipReadModel(db, groupDirectory);
+  const governancePlugins = createDefaultGovernancePluginSet({
+    voteWeight: createCoopVoteWeightPlugin(
+      new MembershipReadModelVoteWeightReader(membershipReadModel),
+    ),
+    eligibility: createCoopEligibilityPlugin(
+      new MembershipReadModelVotingEligibilityReader(membershipReadModel),
+    ),
+  });
   const groupMutations = groupMutationsForDb(db);
   const operatorWriteProxy = new OperatorWriteProxy(
     pdsService,
@@ -251,6 +268,7 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     pdsService,
     clock,
     membershipReadModel,
+    governancePlugins.voteWeight,
     memberWriteProxy,
     governanceLabeler,
     visibilityRouter,
@@ -367,6 +385,7 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     groupDirectory,
     groupMutations,
     groupMutationsForDb,
+    governancePlugins,
     membershipReadModel,
     authService,
     profileService,

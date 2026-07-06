@@ -11,6 +11,14 @@ import {
 } from '@coopsource/spaces-consumer';
 import type { Kysely, Transaction } from 'kysely';
 import type { Database } from '@coopsource/db';
+import {
+  createDefaultGovernancePluginSet,
+  type GovernancePluginSet,
+} from '@coopsource/governance-view';
+import {
+  createCoopEligibilityPlugin,
+  createCoopVoteWeightPlugin,
+} from '@coopsource/coop-view';
 import { SystemClock } from '@coopsource/federation';
 import type { IPdsService } from '@coopsource/federation';
 import {
@@ -72,6 +80,10 @@ import { FiscalPeriodService } from './services/fiscal-period-service.js';
 import { PrivateRecordService } from './services/private-record-service.js';
 import { PrivateRecordPermissionedWritePort } from './services/private-record-permissioned-write-port.js';
 import { OAuthPermissionedRecordWriteSessionProvider } from './services/oauth-permissioned-record-write-session-provider.js';
+import {
+  MembershipReadModelVoteWeightReader,
+  MembershipReadModelVotingEligibilityReader,
+} from './services/coop-view-membership-adapters.js';
 import { VisibilityRouter } from './services/visibility-router.js';
 import {
   PdsPublicGovernanceAnchorWritePort,
@@ -126,6 +138,7 @@ export interface Container {
   groupMutationsForDb: (
     db: Kysely<Database> | Transaction<Database>,
   ) => GroupMutationPort;
+  governancePlugins: GovernancePluginSet;
   membershipReadModel: MembershipReadModel;
   authService: AuthService;
   profileService: ProfileService;
@@ -320,6 +333,14 @@ export function createContainer(config: AppConfig): Container {
     });
   const groupDirectory = new CsnDbGroupDirectoryPort(db);
   const membershipReadModel = new MembershipReadModel(db, groupDirectory);
+  const governancePlugins = createDefaultGovernancePluginSet({
+    voteWeight: createCoopVoteWeightPlugin(
+      new MembershipReadModelVoteWeightReader(membershipReadModel),
+    ),
+    eligibility: createCoopEligibilityPlugin(
+      new MembershipReadModelVotingEligibilityReader(membershipReadModel),
+    ),
+  });
   const groupMutations = groupMutationsForDb(db);
   const operatorWriteProxy = new OperatorWriteProxy(
     pdsService,
@@ -383,6 +404,7 @@ export function createContainer(config: AppConfig): Container {
     pdsService,
     clock,
     membershipReadModel,
+    governancePlugins.voteWeight,
     memberWriteProxy,
     governanceLabeler,
     visibilityRouter,
@@ -551,6 +573,7 @@ export function createContainer(config: AppConfig): Container {
     groupDirectory,
     groupMutations,
     groupMutationsForDb,
+    governancePlugins,
     membershipReadModel,
     authService,
     profileService,

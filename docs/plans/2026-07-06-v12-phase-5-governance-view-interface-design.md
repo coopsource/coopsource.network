@@ -5,10 +5,11 @@
 code and started. `packages/governance-view` now exists with generic value
 types, the ten plugin interfaces, default no-op/one-member-one-vote behavior,
 and tests. `packages/coop-view` now exists with CSN-specific vote-weight and
-eligibility adapters over narrow membership reader ports; `apps/api` has the
-`MembershipReadModelVoteWeightReader` and
-`MembershipReadModelVotingEligibilityReader` bridges. Do not move service logic
-until the adapter layer is tested against current API suites.
+eligibility adapters over narrow membership reader ports; `apps/api` composes a
+`GovernancePluginSet` from `MembershipReadModelVoteWeightReader` and
+`MembershipReadModelVotingEligibilityReader`, and `ProposalService.castVote`
+now gets vote weight through that plugin set. Do not move additional service
+logic until the adapter layer is tested against current API suites.
 
 ## Purpose
 
@@ -206,10 +207,11 @@ starts.
 
 Reviewed against the current implementation on 2026-07-06:
 
-- `ProposalService.castVote` still stores `vote_weight` from
-  `MembershipReadModel.getProjectedMemberVoteWeight`. The generic default
-  therefore stays one-member-one-vote; class weights belong in a later
-  `packages/coop-view` adapter.
+- `ProposalService.castVote` still stores `vote_weight`, now sourced from
+  the composed `GovernancePluginSet.voteWeight`, backed by
+  `MembershipReadModel.getProjectedMemberVoteWeight` through CoopView. The
+  generic default therefore stays one-member-one-vote, while class weights stay
+  CSN-specific.
 - `ProposalService.resolveProposal` evaluates simple/super-majority quorum
   using headcount and then applies CSN class-quorum rules. The generic
   `QuorumPlugin` default intentionally covers only headcount quorum; class
@@ -234,7 +236,9 @@ Reviewed against the current implementation on 2026-07-06:
    `CoopVoteWeightReader` port instead of importing `MembershipReadModel`
    directly. Continued 2026-07-06 with `CoopEligibilityPlugin`; it depends on a
    `CoopVotingEligibilityReader` port and preserves fail-closed membership
-   authority errors through the API bridge.**
+   authority errors through the API bridge. `ProposalService.castVote` is now
+   wired through the composed plugin set without changing stored vote-weight
+   behavior.**
 4. Move generic proposal/vote tally reducers out of `ProposalService` only after
    the adapter layer is tested against current proposal/vote/delegation suites.
 5. Add `anchorSummary`, `historicalState`, patronage/distribution, and
@@ -264,13 +268,11 @@ Reviewed against the current implementation on 2026-07-06:
 
 Continue `packages/coop-view` adapters without moving production service logic:
 
-1. Wire the `CoopVoteWeightPlugin` through API composition only after current
-   proposal/member-class vote-weight tests prove behavior is unchanged.
-2. Wire the `CoopEligibilityPlugin` through API composition only after current
+1. Wire the `CoopEligibilityPlugin` through API composition only after current
    XRPC vote-eligibility and proposal cast-vote tests prove behavior is
    unchanged.
-3. Add the `QuorumPlugin` adapter in a separate slice.
-4. Add `DelegateChainsPlugin` only after reviewing
+2. Add the `QuorumPlugin` adapter in a separate slice.
+3. Add `DelegateChainsPlugin` only after reviewing
    `DelegationVotingService.calculateVoteWeight` cycle and proposal-scope
    behavior.
 
