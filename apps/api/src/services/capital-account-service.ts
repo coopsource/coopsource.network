@@ -1,6 +1,7 @@
 import type { Kysely, Selectable } from 'kysely';
 import type { Database, CapitalAccountTable, CapitalAccountTransactionTable } from '@coopsource/db';
-import { NotFoundError, ValidationError } from '@coopsource/common';
+import { NotFoundError, ValidationError, type DID } from '@coopsource/common';
+import { membersSpace } from '@coopsource/arbiter-client';
 import type {
   JsonValue,
   SurplusDistributorPlugin,
@@ -191,10 +192,12 @@ export class CapitalAccountService {
         return planCoopSurplusDistributions(input);
       }
 
+      const memberSpace = membersSpace(input.cooperativeDid as DID);
       const result = await this.surplusDistributor.distribute({
         cooperative: {
           authorityDid: input.cooperativeDid,
-          spaceKey: 'members',
+          spaceKey: memberSpace.spaceKey,
+          spaceType: memberSpace.expectedSpaceType,
         },
         period: { id: input.fiscalPeriodId },
         allocations: input.allocations.map(surplusAllocationToJson),
