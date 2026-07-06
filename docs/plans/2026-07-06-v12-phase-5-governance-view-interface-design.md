@@ -4,10 +4,11 @@
 **Status:** Interface slice reviewed against current proposal/vote/delegation
 code and started. `packages/governance-view` now exists with generic value
 types, the ten plugin interfaces, default no-op/one-member-one-vote behavior,
-and tests. `packages/coop-view` now exists with the first CSN-specific
-vote-weight adapter over a narrow membership-weight reader port; `apps/api`
-has the `MembershipReadModelVoteWeightReader` bridge. Do not move service
-logic until the adapter layer is tested against current API suites.
+and tests. `packages/coop-view` now exists with CSN-specific vote-weight and
+eligibility adapters over narrow membership reader ports; `apps/api` has the
+`MembershipReadModelVoteWeightReader` and
+`MembershipReadModelVotingEligibilityReader` bridges. Do not move service logic
+until the adapter layer is tested against current API suites.
 
 ## Purpose
 
@@ -231,7 +232,9 @@ Reviewed against the current implementation on 2026-07-06:
    `voteWeight`, `eligibility`, `quorum`, and `delegateChains`. **Started
    2026-07-06 with `CoopVoteWeightPlugin`; it depends on a
    `CoopVoteWeightReader` port instead of importing `MembershipReadModel`
-   directly.**
+   directly. Continued 2026-07-06 with `CoopEligibilityPlugin`; it depends on a
+   `CoopVotingEligibilityReader` port and preserves fail-closed membership
+   authority errors through the API bridge.**
 4. Move generic proposal/vote tally reducers out of `ProposalService` only after
    the adapter layer is tested against current proposal/vote/delegation suites.
 5. Add `anchorSummary`, `historicalState`, patronage/distribution, and
@@ -263,8 +266,11 @@ Continue `packages/coop-view` adapters without moving production service logic:
 
 1. Wire the `CoopVoteWeightPlugin` through API composition only after current
    proposal/member-class vote-weight tests prove behavior is unchanged.
-2. Add `EligibilityPlugin` and `QuorumPlugin` adapters in separate slices.
-3. Add `DelegateChainsPlugin` only after reviewing
+2. Wire the `CoopEligibilityPlugin` through API composition only after current
+   XRPC vote-eligibility and proposal cast-vote tests prove behavior is
+   unchanged.
+3. Add the `QuorumPlugin` adapter in a separate slice.
+4. Add `DelegateChainsPlugin` only after reviewing
    `DelegationVotingService.calculateVoteWeight` cycle and proposal-scope
    behavior.
 

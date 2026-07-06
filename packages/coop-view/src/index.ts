@@ -1,4 +1,16 @@
-export type { CoopVoteWeightReader } from './ports.js';
+export type {
+  CoopVoteWeightReader,
+  CoopVotingEligibility,
+  CoopVotingEligibilityReader,
+} from './ports.js';
+export type {
+  CoopEligibilityEvidence,
+  CoopEligibilityPluginOptions,
+} from './eligibility-plugin.js';
+export {
+  CoopEligibilityPlugin,
+  createCoopEligibilityPlugin,
+} from './eligibility-plugin.js';
 export type {
   CoopVoteWeightEvidence,
   CoopVoteWeightPluginOptions,
