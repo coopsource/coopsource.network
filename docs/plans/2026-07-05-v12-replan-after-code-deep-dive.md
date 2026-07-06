@@ -540,8 +540,10 @@ defines the read facts available to governance.
 Recommended first Phase 5 slice:
 
 - Create a design doc for `packages/governance-view` and
-  `packages/coop-view`.
+  `packages/coop-view`. (Started at
+  `docs/plans/2026-07-06-v12-phase-5-governance-view-interface-design.md`.)
 - Define the ten `GovernancePluginSet` interfaces as plain-value async inputs.
+  (Drafted in the design doc; review before package extraction.)
 - Map existing services to plugin candidates:
   - member classes -> `voteWeight`
   - proposal service checks -> `eligibility`, `quorum`, `actionAuthorizer`
