@@ -20,6 +20,23 @@ describe('Governance Visibility', () => {
     expect(res.body.governanceVisibility).toBe('open');
   });
 
+  it('defaults public governance anchors to disabled', async () => {
+    const testApp = createTestApp();
+    const { coopDid } = await setupAndLogin(testApp);
+
+    const profile = await testApp.container.db
+      .selectFrom('cooperative_profile')
+      .where('entity_did', '=', coopDid)
+      .select([
+        'public_governance_anchors',
+        'public_governance_anchor_outcomes',
+      ])
+      .executeTakeFirstOrThrow();
+
+    expect(profile.public_governance_anchors).toBe(false);
+    expect(profile.public_governance_anchor_outcomes).toBe(false);
+  });
+
   it('updates governance visibility to closed', async () => {
     const testApp = createTestApp();
     await setupAndLogin(testApp);

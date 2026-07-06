@@ -21,6 +21,7 @@ export type {
   ThreadMemberTable,
   PostTable,
   ProposalTable,
+  PublicGovernanceAnchorTable,
   VoteTable,
   AgreementTable,
   AgreementSignatureTable,

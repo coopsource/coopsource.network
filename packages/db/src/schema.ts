@@ -100,6 +100,8 @@ export interface CooperativeProfileTable {
   public_activity: ColumnType<boolean, boolean | undefined, boolean>;
   public_agreements: ColumnType<boolean, boolean | undefined, boolean>;
   public_campaigns: ColumnType<boolean, boolean | undefined, boolean>;
+  public_governance_anchors: ColumnType<boolean, boolean | undefined, boolean>;
+  public_governance_anchor_outcomes: ColumnType<boolean, boolean | undefined, boolean>;
   governance_visibility: ColumnType<string, string | undefined, string>;
   anon_discoverable: ColumnType<boolean, boolean | undefined, boolean>;
   cross_coop_visible: ColumnType<boolean, boolean | undefined, boolean>;
@@ -258,6 +260,22 @@ export interface ProposalTable {
   invalidated_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
   invalidated_by: string | null;
   indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface PublicGovernanceAnchorTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  proposal_id: string;
+  anchor_uri: string;
+  anchor_cid: string;
+  status: string;
+  outcome: string | null;
+  opened_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  closed_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  resolved_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  anchor_version: ColumnType<number, number | undefined, number>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }
 
 export interface VoteTable {
@@ -918,6 +936,7 @@ export interface Database {
   thread_member: ThreadMemberTable;
   post: PostTable;
   proposal: ProposalTable;
+  public_governance_anchor: PublicGovernanceAnchorTable;
   vote: VoteTable;
   agreement: AgreementTable;
   agreement_signature: AgreementSignatureTable;

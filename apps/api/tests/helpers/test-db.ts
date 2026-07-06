@@ -98,7 +98,7 @@ export async function truncateAllTables(): Promise<void> {
       interest_map, desired_outcome, stakeholder_interest,
       payment_provider_config,
       funding_pledge, funding_campaign,
-      vote, proposal,
+      vote, public_governance_anchor, proposal,
       post, thread_member, thread,
       membership_role, membership, invitation,
       pds_record, pds_firehose_cursor,
