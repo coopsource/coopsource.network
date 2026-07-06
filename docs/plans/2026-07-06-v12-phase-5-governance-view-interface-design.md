@@ -298,7 +298,9 @@ Reviewed against the current implementation on 2026-07-06:
    now extracted into CoopView and wired through
    `GovernancePluginSet.surplusDistributor`; `CapitalAccountService` still
    owns account mutation, transaction writes, and patronage-record status
-   updates.**
+   updates. `meetingMinutes` was reviewed and left unwired because the current
+   meeting-record service stores submitted minutes directly and has no
+   canonicalization contract beyond CRUD yet.**
 
 ## Non-Goals For The First Package Slice
 
