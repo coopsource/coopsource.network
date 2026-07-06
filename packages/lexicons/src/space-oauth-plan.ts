@@ -3,16 +3,27 @@ import {
   type CsnSpacePlacement,
 } from './space-placement.js';
 import {
+  formatSpaceScope,
   formatSpaceReadScope,
   formatSpaceReadSelfScope,
+  type SpaceScopeAction,
 } from './space-scopes.js';
 
 export type CsnScopePlanSkeyMode = 'omit' | 'canonical-or-wildcard';
+export type CsnSpaceWriteAction = Extract<
+  SpaceScopeAction,
+  'create' | 'update' | 'delete'
+>;
 
 export interface CsnSpaceScopePlanOptions {
   readonly authority?: string;
   readonly skeyMode?: CsnScopePlanSkeyMode;
   readonly collections?: readonly string[];
+}
+
+export interface CsnSpaceWriteScopePlanOptions
+  extends CsnSpaceScopePlanOptions {
+  readonly actions?: readonly CsnSpaceWriteAction[];
 }
 
 export function formatCsnAppViewReadScopePlan(
@@ -35,6 +46,20 @@ export function formatCsnMemberSelfReadScopePlan(
       authority: options.authority,
       skey: skeyForPlacement(placement, options.skeyMode),
       collections: [placement.collection],
+    }),
+  );
+}
+
+export function formatCsnMemberWriteScopePlan(
+  options: CsnSpaceWriteScopePlanOptions = {},
+): readonly string[] {
+  const actions = options.actions ?? ['create', 'update', 'delete'];
+  return placementsForPlan(options).map((placement) =>
+    formatSpaceScope(placement.spaceType, {
+      authority: options.authority,
+      skey: skeyForPlacement(placement, options.skeyMode),
+      collections: [placement.collection],
+      actions,
     }),
   );
 }

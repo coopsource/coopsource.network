@@ -112,10 +112,13 @@ export type {
 export {
   formatCsnAppViewReadScopePlan,
   formatCsnMemberSelfReadScopePlan,
+  formatCsnMemberWriteScopePlan,
 } from './space-oauth-plan.js';
 export type {
   CsnScopePlanSkeyMode,
   CsnSpaceScopePlanOptions,
+  CsnSpaceWriteAction,
+  CsnSpaceWriteScopePlanOptions,
 } from './space-oauth-plan.js';
 
 // Runtime validation

@@ -533,9 +533,13 @@ Initial Phase 4 substrate artifact started in this branch:
 - `@coopsource/lexicons` now exports
   `formatCsnAppViewReadScopePlan()` and
   `formatCsnMemberSelfReadScopePlan()`, turning that placement matrix into
-  draft `space:` OAuth scope strings for either the full CSN matrix or an
-  explicit collection subset. Unknown collection names fail fast so OAuth
-  planning cannot silently under-scope a caller.
+  draft `space:` OAuth read scope strings for either the full CSN matrix or an
+  explicit collection subset. `formatCsnMemberWriteScopePlan()` now does the
+  same for permissioned-space record writes (`create`/`update`/`delete`).
+  Unknown collection names fail fast so OAuth planning cannot silently
+  under-scope a caller. These helpers are still planning artifacts; live OAuth
+  metadata continues to request only `rpc:` scopes until a space-enabled PDS
+  path is exercised.
 - `@coopsource/spaces-consumer` now exports `SpaceCredentialManager`, a
   non-live coordinator over `SpaceCredentialStore` and a future issuer port. It
   models missing credentials, refresh-per-batch, near-expiry refresh, and

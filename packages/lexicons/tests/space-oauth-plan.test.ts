@@ -3,6 +3,7 @@ import {
   CSN_SPACE_PLACEMENT_MATRIX,
   formatCsnAppViewReadScopePlan,
   formatCsnMemberSelfReadScopePlan,
+  formatCsnMemberWriteScopePlan,
 } from '../src/index.js';
 
 describe('CSN space OAuth scope plan', () => {
@@ -41,6 +42,32 @@ describe('CSN space OAuth scope plan', () => {
       }),
     ).toEqual([
       'space:network.coopsource.org.spaceType.members?skey=members&collection=network.coopsource.governance.vote&action=read_self',
+    ]);
+  });
+
+  it('formats member write scope plans for permissioned-space records', () => {
+    expect(
+      formatCsnMemberWriteScopePlan({
+        collections: ['network.coopsource.governance.vote'],
+        actions: ['create', 'delete'],
+      }),
+    ).toEqual([
+      'space:network.coopsource.org.spaceType.members?skey=members&collection=network.coopsource.governance.vote&action=create&action=delete',
+    ]);
+  });
+
+  it('can format broad draft member write scopes before the cooperative authority is known', () => {
+    expect(
+      formatCsnMemberWriteScopePlan({
+        collections: [
+          'network.coopsource.governance.proposal',
+          'network.coopsource.governance.vote',
+        ],
+        skeyMode: 'omit',
+      }),
+    ).toEqual([
+      'space:network.coopsource.org.spaceType.members?collection=network.coopsource.governance.proposal&action=create&action=update&action=delete',
+      'space:network.coopsource.org.spaceType.members?collection=network.coopsource.governance.vote&action=create&action=update&action=delete',
     ]);
   });
 
