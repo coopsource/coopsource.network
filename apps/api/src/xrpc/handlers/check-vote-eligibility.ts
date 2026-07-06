@@ -1,13 +1,12 @@
 import type { Kysely, Selectable } from 'kysely';
 import type { Database, ProposalTable } from '@coopsource/db';
-import { AppError, type DID } from '@coopsource/common';
-import {
-  membershipAuthorityErrorCode,
-  membershipAuthorityHttpStatus,
-  type MemberDirectoryEntry,
-  type MembershipReadModel,
-} from '../../services/membership-read-model.js';
+import { membersSpace } from '@coopsource/arbiter-client';
+import type { DID } from '@coopsource/common';
+import type { EligibilityPlugin } from '@coopsource/governance-view';
+import type { MemberDirectoryEntry } from '../../services/membership-read-model.js';
 import type { DelegationVotingService } from '../../services/delegation-voting-service.js';
+
+const PROPOSAL_COLLECTION = 'network.coopsource.governance.proposal';
 
 export interface VoteEligibilityResult {
   eligible: boolean;
@@ -25,10 +24,11 @@ export interface VoteEligibilityResult {
  */
 export async function checkVoteEligibility(
   db: Kysely<Database>,
-  membershipReadModel: MembershipReadModel,
+  eligibilityPlugin: EligibilityPlugin,
   delegationVotingService: DelegationVotingService,
   proposal: Selectable<ProposalTable>,
   viewerDid: string,
+  checkedAt: Date,
   viewerMembership?: MemberDirectoryEntry,
 ): Promise<VoteEligibilityResult> {
   // Check proposal is in voting phase
@@ -42,25 +42,12 @@ export async function checkVoteEligibility(
   }
 
   // Check active membership
-  let member = viewerMembership;
-  if (!member) {
-    const memberResult = await membershipReadModel.getMemberResult(
-      proposal.cooperative_did as DID,
-      viewerDid as DID,
-    );
-    if (!memberResult.ok) {
-      if (memberResult.reason !== 'not-member') {
-        throw new AppError(
-          memberResult.message,
-          membershipAuthorityHttpStatus(memberResult, 404),
-          membershipAuthorityErrorCode(memberResult, 'NotFound'),
-        );
-      }
-    } else {
-      member = memberResult.member ?? undefined;
-    }
-  }
-  if (!member || member.status !== 'active') {
+  const membershipEligible = viewerMembership
+    ? viewerMembership.status === 'active'
+    : (await eligibilityPlugin.canVote(
+        eligibilityInput(proposal, viewerDid, checkedAt),
+      )).eligible;
+  if (!membershipEligible) {
     return {
       eligible: false,
       weight: 0,
@@ -100,5 +87,33 @@ export async function checkVoteEligibility(
     eligible: true,
     weight,
     hasVoted: false,
+  };
+}
+
+function eligibilityInput(
+  proposal: Selectable<ProposalTable>,
+  viewerDid: string,
+  checkedAt: Date,
+): Parameters<EligibilityPlugin['canVote']>[0] {
+  if (!proposal.uri) {
+    throw new Error(
+      `Cannot check vote eligibility for proposal ${proposal.id}: missing proposal URI`,
+    );
+  }
+
+  const memberSpace = membersSpace(proposal.cooperative_did as DID);
+  return {
+    voter: { did: viewerDid },
+    proposal: {
+      uri: proposal.uri,
+      ...(proposal.cid ? { cid: proposal.cid } : {}),
+      collection: PROPOSAL_COLLECTION,
+    },
+    cooperative: {
+      authorityDid: proposal.cooperative_did,
+      spaceKey: memberSpace.spaceKey,
+      spaceType: memberSpace.expectedSpaceType,
+    },
+    at: checkedAt.toISOString(),
   };
 }

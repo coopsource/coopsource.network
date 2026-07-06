@@ -27,10 +27,11 @@ export async function handleGetVoteEligibility(
 
   return checkVoteEligibility(
     ctx.container.db,
-    ctx.container.membershipReadModel,
+    ctx.container.governancePlugins.eligibility,
     ctx.container.delegationVotingService,
     proposal,
     viewerDid,
+    ctx.container.clock.now(),
     viewerMembership,
   );
 }
