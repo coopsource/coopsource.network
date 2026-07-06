@@ -186,10 +186,7 @@ describe('Delegation Voting API', () => {
       });
 
     expect(result).toEqual({
-      chain: [
-        { did: adminDid },
-        { did: 'did:web:delegate1.example.com' },
-      ],
+      chain: [{ did: adminDid }, { did: 'did:web:delegate1.example.com' }],
       terminal: { did: 'did:web:delegate1.example.com' },
     });
   });
@@ -231,6 +228,134 @@ describe('Delegation Voting API', () => {
       .expect(400);
 
     expect(res.body.message).toContain('Circular delegation');
+  });
+
+  it('prevents mixed project and proposal delegation cycles', async () => {
+    const testApp = createTestApp();
+    const { adminDid, coopDid } = await setupAndLogin(testApp);
+
+    const proposalRes = await testApp.agent
+      .post('/api/v1/proposals')
+      .send({
+        title: 'Mixed Cycle',
+        body: 'Test body',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+      })
+      .expect(201);
+    const proposal = await testApp.container.db
+      .selectFrom('proposal')
+      .where('id', '=', proposalRes.body.id as string)
+      .select('uri')
+      .executeTakeFirstOrThrow();
+    if (!proposal.uri) {
+      throw new Error('Expected proposal URI');
+    }
+
+    const now = testApp.clock.now();
+    const delegatorDid = 'did:web:mixed-cycle-delegator.example.com';
+    await testApp.container.db
+      .insertInto('delegation')
+      .values({
+        uri: `at://${coopDid}/network.coopsource.governance.delegation/mixed-cycle-project`,
+        did: coopDid,
+        rkey: 'mixed-cycle-project',
+        project_uri: coopDid,
+        delegator_did: delegatorDid,
+        delegatee_did: adminDid,
+        scope: 'project',
+        status: 'active',
+        created_at: now,
+        indexed_at: now,
+      })
+      .execute();
+
+    const res = await testApp.agent
+      .post('/api/v1/governance/delegations')
+      .send({
+        delegateeDid: delegatorDid,
+        scope: 'proposal',
+        proposalUri: proposal.uri,
+      })
+      .expect(400);
+
+    expect(res.body.message).toContain('Circular delegation');
+  });
+
+  it('prevents project delegations that would close an existing proposal cycle', async () => {
+    const testApp = createTestApp();
+    const { adminDid, coopDid } = await setupAndLogin(testApp);
+
+    const proposalRes = await testApp.agent
+      .post('/api/v1/proposals')
+      .send({
+        title: 'Project Cycle',
+        body: 'Test body',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+      })
+      .expect(201);
+    const proposal = await testApp.container.db
+      .selectFrom('proposal')
+      .where('id', '=', proposalRes.body.id as string)
+      .select('uri')
+      .executeTakeFirstOrThrow();
+    if (!proposal.uri) {
+      throw new Error('Expected proposal URI');
+    }
+
+    const now = testApp.clock.now();
+    const delegatorDid = 'did:web:project-cycle-delegator.example.com';
+    await testApp.container.db
+      .insertInto('delegation')
+      .values({
+        uri: `at://${coopDid}/network.coopsource.governance.delegation/project-cycle-proposal`,
+        did: coopDid,
+        rkey: 'project-cycle-proposal',
+        project_uri: coopDid,
+        delegator_did: delegatorDid,
+        delegatee_did: adminDid,
+        scope: 'proposal',
+        proposal_uri: proposal.uri,
+        status: 'active',
+        created_at: now,
+        indexed_at: now,
+      })
+      .execute();
+
+    const res = await testApp.agent
+      .post('/api/v1/governance/delegations')
+      .send({
+        delegateeDid: delegatorDid,
+        scope: 'project',
+      })
+      .expect(400);
+
+    expect(res.body.message).toContain('Circular delegation');
+  });
+
+  it('rejects ambiguous delegation scope and proposal URI combinations', async () => {
+    const testApp = createTestApp();
+    await setupAndLogin(testApp);
+
+    const missingProposalUri = await testApp.agent
+      .post('/api/v1/governance/delegations')
+      .send({
+        delegateeDid: 'did:web:delegate.example.com',
+        scope: 'proposal',
+      })
+      .expect(400);
+    expect(missingProposalUri.body.message).toContain('proposalUri');
+
+    const projectWithProposalUri = await testApp.agent
+      .post('/api/v1/governance/delegations')
+      .send({
+        delegateeDid: 'did:web:delegate.example.com',
+        scope: 'project',
+        proposalUri: 'at://did:web:test/proposal/123',
+      })
+      .expect(400);
+    expect(projectWithProposalUri.body.message).toContain('proposalUri');
   });
 
   // ─── Vote Weight ────────────────────────────────────────────────────
@@ -425,9 +550,7 @@ describe('Delegation Voting API', () => {
       .expect(201);
 
     expect(proposalRes.body.scope).toBe('proposal');
-    expect(proposalRes.body.proposalUri).toBe(
-      'at://did:web:test/proposal/456',
-    );
+    expect(proposalRes.body.proposalUri).toBe('at://did:web:test/proposal/456');
   });
 
   it('replaces existing active delegation in same scope (201)', async () => {

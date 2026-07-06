@@ -130,6 +130,7 @@ export function createProposalRoutes(container: Container): Router {
     asyncHandler(async (req, res) => {
       const result = await container.proposalService.getProposal(
         (req.params.id as string),
+        req.actor!.cooperativeDid,
       );
       if (!result) throw new NotFoundError('Proposal not found');
       res.json(await enrichProposal(container, result.proposal));
@@ -244,6 +245,7 @@ export function createProposalRoutes(container: Container): Router {
       const result = await container.proposalService.openProposal(
         (req.params.id as string),
         req.actor!.did,
+        req.actor!.cooperativeDid,
       );
       res.json(await enrichProposal(container, result));
     }),
@@ -258,6 +260,7 @@ export function createProposalRoutes(container: Container): Router {
       const result = await container.proposalService.closeProposal(
         (req.params.id as string),
         req.actor!.did,
+        req.actor!.cooperativeDid,
       );
       res.json(await enrichProposal(container, result));
     }),
@@ -271,6 +274,7 @@ export function createProposalRoutes(container: Container): Router {
     asyncHandler(async (req, res) => {
       const result = await container.proposalService.resolveProposal(
         (req.params.id as string),
+        req.actor!.cooperativeDid,
       );
       res.json(await enrichProposal(container, result));
     }),
@@ -281,9 +285,15 @@ export function createProposalRoutes(container: Container): Router {
     '/api/v1/proposals/:id/votes',
     requireAuth,
     asyncHandler(async (req, res) => {
+      const result = await container.proposalService.getProposal(
+        (req.params.id as string),
+        req.actor!.cooperativeDid,
+      );
+      if (!result) throw new NotFoundError('Proposal not found');
+
       const voteRows = await container.db
         .selectFrom('vote')
-        .where('proposal_id', '=', (req.params.id as string))
+        .where('proposal_id', '=', result.proposal.id)
         .where('retracted_at', 'is', null)
         .selectAll()
         .execute();
@@ -314,6 +324,7 @@ export function createProposalRoutes(container: Container): Router {
 
       const vote = await container.proposalService.castVote({
         proposalId: (req.params.id as string),
+        cooperativeDid: req.actor!.cooperativeDid,
         voterDid: req.actor!.did,
         choice,
         rationale,
@@ -331,6 +342,7 @@ export function createProposalRoutes(container: Container): Router {
       await container.proposalService.retractVote(
         (req.params.id as string),
         req.actor!.did,
+        req.actor!.cooperativeDid,
       );
       res.status(204).send();
     }),

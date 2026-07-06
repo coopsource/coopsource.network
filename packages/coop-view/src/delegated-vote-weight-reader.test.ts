@@ -169,6 +169,40 @@ describe('CoopDelegatedVoteWeightReader', () => {
     await expect(reader.getProjectedMemberVoteWeight(input)).resolves.toBe(1);
   });
 
+  it('does not count delegators when the voter is inside a cycle', async () => {
+    const reader = new CoopDelegatedVoteWeightReader({
+      baseWeightReader: baseWeights({
+        'did:plc:alice': 1,
+        'did:plc:bob': 3,
+        'did:plc:dora': 7,
+      }),
+      delegationReader: {
+        async listActiveDelegationsForVoteWeight() {
+          return [
+            {
+              delegatorDid: 'did:plc:alice',
+              delegateeDid: 'did:plc:bob',
+              scope: 'project',
+            },
+            {
+              delegatorDid: 'did:plc:bob',
+              delegateeDid: 'did:plc:alice',
+              scope: 'proposal',
+              proposalUri: input.proposalUri,
+            },
+            {
+              delegatorDid: 'did:plc:dora',
+              delegateeDid: 'did:plc:alice',
+              scope: 'project',
+            },
+          ];
+        },
+      },
+    });
+
+    await expect(reader.getProjectedMemberVoteWeight(input)).resolves.toBe(1);
+  });
+
   it('propagates delegation-reader failures', async () => {
     const reader = new CoopDelegatedVoteWeightReader({
       baseWeightReader: baseWeights({}),

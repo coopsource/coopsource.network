@@ -382,7 +382,7 @@ describe('Permissions System', () => {
     expect(updated.body.title).toBe('Member edit');
   });
 
-  it('proposal deletes remain author-or-admin through the action authorizer', async () => {
+  it('proposal deletes remain author-or-explicit-admin through the action authorizer', async () => {
     const { agent: authorAgent } = await createMemberWithRoles(testApp, {
       email: 'proposal-author@example.com',
       displayName: 'Proposal Author',
@@ -396,6 +396,25 @@ describe('Permissions System', () => {
       handle: 'proposal-nonauthor',
       password: 'password123',
       roles: ['member'],
+    });
+    await testApp.container.db
+      .insertInto('role_definition')
+      .values({
+        cooperative_did: coopDid,
+        name: 'wildcard-staff',
+        permissions: ['*'],
+        inherits: [],
+        is_builtin: false,
+        created_at: testApp.clock.now(),
+        updated_at: testApp.clock.now(),
+      })
+      .execute();
+    const { agent: wildcardAgent } = await createMemberWithRoles(testApp, {
+      email: 'proposal-wildcard@example.com',
+      displayName: 'Proposal Wildcard',
+      handle: 'proposal-wildcard',
+      password: 'password123',
+      roles: ['wildcard-staff'],
     });
 
     const proposal = await authorAgent
@@ -411,7 +430,12 @@ describe('Permissions System', () => {
     await nonauthorAgent
       .delete(`/api/v1/proposals/${proposal.body.id}`)
       .expect(403);
-    await testApp.agent.delete(`/api/v1/proposals/${proposal.body.id}`).expect(204);
+    await wildcardAgent
+      .delete(`/api/v1/proposals/${proposal.body.id}`)
+      .expect(403);
+    await testApp.agent
+      .delete(`/api/v1/proposals/${proposal.body.id}`)
+      .expect(204);
   });
 
   // ─── Member role: post creation ───────────────────────────────────

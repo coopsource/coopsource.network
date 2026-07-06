@@ -58,7 +58,9 @@ export class MembershipReadModelActionPermissionReader
     if (input.action === 'proposal.delete') {
       const isAuthor =
         input.actorDid === payloadString(input.payload, 'proposalAuthorDid');
-      const isAdmin = permissions.has('*');
+      const isAdmin = hasTrustedProposalAdminRole(
+        membershipResult.membership.roles,
+      );
       return isAuthor || isAdmin
         ? { authorized: true }
         : { authorized: false, reason: 'not-proposal-author-or-admin' };
@@ -87,4 +89,8 @@ function payloadString(
 
   const value = (payload as Readonly<Record<string, JsonValue>>)[key];
   return typeof value === 'string' ? value : undefined;
+}
+
+function hasTrustedProposalAdminRole(roles: readonly string[]): boolean {
+  return roles.includes('admin') || roles.includes('owner');
 }

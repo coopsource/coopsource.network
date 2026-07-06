@@ -109,13 +109,20 @@ function delegatorsForTerminal(
   terminalDid: string,
 ): readonly string[] {
   const delegators = new Set<string>();
+  const cyclicDelegators = findCyclicDelegators(delegationsByDelegator);
+
+  if (cyclicDelegators.has(terminalDid)) {
+    return [];
+  }
 
   for (const delegation of delegationsByDelegator.values()) {
+    if (cyclicDelegators.has(delegation.delegatorDid)) continue;
+
     let currentDid = delegation.delegateeDid;
     const visited = new Set<string>([delegation.delegatorDid]);
 
     while (currentDid !== terminalDid) {
-      if (visited.has(currentDid)) break;
+      if (visited.has(currentDid) || cyclicDelegators.has(currentDid)) break;
       visited.add(currentDid);
 
       const next = delegationsByDelegator.get(currentDid);
@@ -123,10 +130,43 @@ function delegatorsForTerminal(
       currentDid = next.delegateeDid;
     }
 
-    if (currentDid === terminalDid) {
+    if (currentDid === terminalDid && !visited.has(currentDid)) {
       delegators.add(delegation.delegatorDid);
     }
   }
 
   return [...delegators];
+}
+
+function findCyclicDelegators(
+  delegationsByDelegator: ReadonlyMap<string, CoopVoteWeightDelegation>,
+): ReadonlySet<string> {
+  const cyclic = new Set<string>();
+
+  for (const startDid of delegationsByDelegator.keys()) {
+    const path: string[] = [];
+    const pathIndexes = new Map<string, number>();
+    let currentDid = startDid;
+
+    while (true) {
+      const cycleStart = pathIndexes.get(currentDid);
+      if (cycleStart !== undefined) {
+        for (const did of path.slice(cycleStart)) {
+          cyclic.add(did);
+        }
+        break;
+      }
+
+      if (cyclic.has(currentDid)) break;
+
+      const delegation = delegationsByDelegator.get(currentDid);
+      if (!delegation) break;
+
+      pathIndexes.set(currentDid, path.length);
+      path.push(currentDid);
+      currentDid = delegation.delegateeDid;
+    }
+  }
+
+  return cyclic;
 }

@@ -124,13 +124,11 @@ export function createDelegationRoutes(container: Container): Router {
         return;
       }
       const proposalId = String(req.query.proposalId);
-      const result = await container.proposalService.getProposal(proposalId);
-      if (
-        !result ||
-        result.proposal.cooperative_did !== req.actor!.cooperativeDid
-      ) {
-        throw new NotFoundError('Proposal not found');
-      }
+      const result = await container.proposalService.getProposal(
+        proposalId,
+        req.actor!.cooperativeDid,
+      );
+      if (!result) throw new NotFoundError('Proposal not found');
       if (!result.proposal.uri) {
         throw new Error(
           `Cannot calculate vote weight for proposal ${proposalId}: missing proposal URI`,

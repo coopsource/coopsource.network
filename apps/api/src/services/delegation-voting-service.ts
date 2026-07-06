@@ -13,6 +13,13 @@ export interface ActiveVoteDelegationRow {
   readonly proposal_uri: string | null;
 }
 
+interface EffectiveDelegationRow {
+  readonly delegator_did: string;
+  readonly delegatee_did: string;
+  readonly scope: string;
+  readonly proposal_uri: string | null;
+}
+
 export class DelegationVotingService {
   constructor(
     private db: Kysely<Database>,
@@ -29,16 +36,20 @@ export class DelegationVotingService {
       throw new ValidationError('Cannot delegate to yourself');
     }
 
-    // Check for circular delegation
-    const chain = await this.getDelegationChain(
-      cooperativeDid,
-      data.delegateeDid,
-      data.scope,
-      data.proposalUri,
-    );
-    if (chain.some((d) => d.delegatee_did === delegatorDid)) {
-      throw new ValidationError('Circular delegation detected');
+    if (data.scope === 'proposal' && !data.proposalUri) {
+      throw new ValidationError('proposalUri is required for proposal scope');
     }
+
+    if (data.scope === 'project' && data.proposalUri) {
+      throw new ValidationError('proposalUri is only valid for proposal scope');
+    }
+
+    await this.assertNoEffectiveCircularDelegation(cooperativeDid, {
+      delegator_did: delegatorDid,
+      delegatee_did: data.delegateeDid,
+      scope: data.scope,
+      proposal_uri: data.proposalUri ?? null,
+    });
 
     // Revoke any existing active delegation in the same scope
     const existing = await this.getActiveDelegation(
@@ -224,4 +235,105 @@ export class DelegationVotingService {
       .orderBy('uri', 'asc')
       .execute();
   }
+
+  private async assertNoEffectiveCircularDelegation(
+    cooperativeDid: string,
+    candidate: EffectiveDelegationRow,
+  ): Promise<void> {
+    const activeDelegations =
+      await this.listActiveDelegationsForVoteWeight(cooperativeDid);
+    const delegations = [
+      ...activeDelegations.filter(
+        (delegation) => !replacesDelegation(candidate, delegation),
+      ),
+      candidate,
+    ];
+
+    for (const proposalUri of affectedProposalContexts(
+      delegations,
+      candidate,
+    )) {
+      const effective = effectiveDelegationsForProposal(
+        delegations,
+        proposalUri,
+      );
+      if (hasDelegationCycle(effective)) {
+        throw new ValidationError('Circular delegation detected');
+      }
+    }
+  }
+}
+
+function replacesDelegation(
+  candidate: EffectiveDelegationRow,
+  existing: EffectiveDelegationRow,
+): boolean {
+  return (
+    existing.delegator_did === candidate.delegator_did &&
+    existing.scope === candidate.scope &&
+    existing.proposal_uri === candidate.proposal_uri
+  );
+}
+
+function affectedProposalContexts(
+  delegations: readonly EffectiveDelegationRow[],
+  candidate: EffectiveDelegationRow,
+): readonly (string | null)[] {
+  if (candidate.scope === 'proposal') {
+    return [candidate.proposal_uri];
+  }
+
+  const contexts = new Set<string | null>([null]);
+  for (const delegation of delegations) {
+    if (delegation.scope === 'proposal' && delegation.proposal_uri) {
+      contexts.add(delegation.proposal_uri);
+    }
+  }
+  return [...contexts];
+}
+
+function effectiveDelegationsForProposal(
+  delegations: readonly EffectiveDelegationRow[],
+  proposalUri: string | null,
+): ReadonlyMap<string, EffectiveDelegationRow> {
+  const effective = new Map<string, EffectiveDelegationRow>();
+
+  for (const delegation of delegations) {
+    if (delegation.scope === 'proposal') {
+      if (delegation.proposal_uri === proposalUri) {
+        effective.set(delegation.delegator_did, delegation);
+      }
+      continue;
+    }
+
+    if (
+      delegation.scope === 'project' &&
+      !effective.has(delegation.delegator_did)
+    ) {
+      effective.set(delegation.delegator_did, delegation);
+    }
+  }
+
+  return effective;
+}
+
+function hasDelegationCycle(
+  delegationsByDelegator: ReadonlyMap<string, EffectiveDelegationRow>,
+): boolean {
+  for (const startDid of delegationsByDelegator.keys()) {
+    const visited = new Set<string>();
+    let currentDid = startDid;
+
+    while (true) {
+      if (visited.has(currentDid)) return true;
+      visited.add(currentDid);
+
+      const delegation = delegationsByDelegator.get(currentDid);
+      if (!delegation) break;
+
+      currentDid = delegation.delegatee_did;
+    }
+  }
+
+  return false;
 }

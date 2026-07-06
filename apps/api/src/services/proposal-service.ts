@@ -211,13 +211,21 @@ export class ProposalService {
     return { items: slice, cursor };
   }
 
-  async getProposal(id: string): Promise<ProposalWithVotes | null> {
-    const proposal = await this.db
+  async getProposal(
+    id: string,
+    cooperativeDid?: string,
+  ): Promise<ProposalWithVotes | null> {
+    let query = this.db
       .selectFrom('proposal')
       .where('id', '=', id)
       .where('invalidated_at', 'is', null)
-      .selectAll()
-      .executeTakeFirst();
+      .selectAll();
+
+    if (cooperativeDid) {
+      query = query.where('cooperative_did', '=', cooperativeDid);
+    }
+
+    const proposal = await query.executeTakeFirst();
 
     if (!proposal) return null;
 
@@ -236,13 +244,21 @@ export class ProposalService {
     return { proposal, votes, voteSummary };
   }
 
-  async getProposalByUri(uri: string): Promise<ProposalWithVotes | null> {
-    const proposal = await this.db
+  async getProposalByUri(
+    uri: string,
+    cooperativeDid?: string,
+  ): Promise<ProposalWithVotes | null> {
+    let query = this.db
       .selectFrom('proposal')
       .where('uri', '=', uri)
       .where('invalidated_at', 'is', null)
-      .selectAll()
-      .executeTakeFirst();
+      .selectAll();
+
+    if (cooperativeDid) {
+      query = query.where('cooperative_did', '=', cooperativeDid);
+    }
+
+    const proposal = await query.executeTakeFirst();
 
     if (!proposal) return null;
 
@@ -341,8 +357,12 @@ export class ProposalService {
     return row!;
   }
 
-  async openProposal(id: string, actorDid: string): Promise<ProposalRow> {
-    const proposal = await this._getOwnedProposal(id, actorDid);
+  async openProposal(
+    id: string,
+    actorDid: string,
+    cooperativeDid?: string,
+  ): Promise<ProposalRow> {
+    const proposal = await this._getOwnedProposal(id, actorDid, cooperativeDid);
     if (proposal.status !== 'draft') {
       throw new ValidationError('Can only open a draft proposal');
     }
@@ -360,13 +380,22 @@ export class ProposalService {
     return updated!;
   }
 
-  async closeProposal(id: string, _actorDid: string): Promise<ProposalRow> {
-    const proposal = await this.db
+  async closeProposal(
+    id: string,
+    _actorDid: string,
+    cooperativeDid?: string,
+  ): Promise<ProposalRow> {
+    let query = this.db
       .selectFrom('proposal')
       .where('id', '=', id)
       .where('invalidated_at', 'is', null)
-      .selectAll()
-      .executeTakeFirst();
+      .selectAll();
+
+    if (cooperativeDid) {
+      query = query.where('cooperative_did', '=', cooperativeDid);
+    }
+
+    const proposal = await query.executeTakeFirst();
 
     if (!proposal) throw new NotFoundError('Proposal not found');
     if (proposal.status !== 'open') {
@@ -388,16 +417,22 @@ export class ProposalService {
 
   async castVote(params: {
     proposalId: string;
+    cooperativeDid?: string;
     voterDid: string;
     choice: string;
     rationale?: string;
   }): Promise<VoteRow> {
-    const proposal = await this.db
+    let query = this.db
       .selectFrom('proposal')
       .where('id', '=', params.proposalId)
       .where('invalidated_at', 'is', null)
-      .selectAll()
-      .executeTakeFirst();
+      .selectAll();
+
+    if (params.cooperativeDid) {
+      query = query.where('cooperative_did', '=', params.cooperativeDid);
+    }
+
+    const proposal = await query.executeTakeFirst();
 
     if (!proposal) throw new NotFoundError('Proposal not found');
     if (proposal.status !== 'open') {
@@ -486,7 +521,28 @@ export class ProposalService {
     return vote!;
   }
 
-  async retractVote(proposalId: string, voterDid: string): Promise<void> {
+  async retractVote(
+    proposalId: string,
+    voterDid: string,
+    cooperativeDid?: string,
+  ): Promise<void> {
+    let proposalQuery = this.db
+      .selectFrom('proposal')
+      .where('id', '=', proposalId)
+      .where('invalidated_at', 'is', null)
+      .select('id');
+
+    if (cooperativeDid) {
+      proposalQuery = proposalQuery.where(
+        'cooperative_did',
+        '=',
+        cooperativeDid,
+      );
+    }
+
+    const proposal = await proposalQuery.executeTakeFirst();
+    if (!proposal) throw new NotFoundError('Proposal not found');
+
     const votes = await this.db
       .selectFrom('vote')
       .where('proposal_id', '=', proposalId)
@@ -500,13 +556,25 @@ export class ProposalService {
     await this.retractVoteRows(votes, voterDid, this.clock.now());
   }
 
-  async resolveProposal(id: string): Promise<ProposalRow> {
-    const proposal = await this.db
+  async resolveProposal(
+    id: string,
+    cooperativeDid?: string,
+  ): Promise<ProposalRow> {
+    let proposalQuery = this.db
       .selectFrom('proposal')
       .where('id', '=', id)
       .where('invalidated_at', 'is', null)
-      .selectAll()
-      .executeTakeFirst();
+      .selectAll();
+
+    if (cooperativeDid) {
+      proposalQuery = proposalQuery.where(
+        'cooperative_did',
+        '=',
+        cooperativeDid,
+      );
+    }
+
+    const proposal = await proposalQuery.executeTakeFirst();
 
     if (!proposal) throw new NotFoundError('Proposal not found');
     if (proposal.status !== 'closed') {
@@ -896,13 +964,19 @@ export class ProposalService {
   private async _getOwnedProposal(
     id: string,
     actorDid: string,
+    cooperativeDid?: string,
   ): Promise<ProposalRow> {
-    const proposal = await this.db
+    let query = this.db
       .selectFrom('proposal')
       .where('id', '=', id)
       .where('invalidated_at', 'is', null)
-      .selectAll()
-      .executeTakeFirst();
+      .selectAll();
+
+    if (cooperativeDid) {
+      query = query.where('cooperative_did', '=', cooperativeDid);
+    }
+
+    const proposal = await query.executeTakeFirst();
 
     if (!proposal) throw new NotFoundError('Proposal not found');
     if (proposal.author_did !== actorDid) {
