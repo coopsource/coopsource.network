@@ -18,13 +18,13 @@ export class MembershipReadModelVoteWeightReader
     >,
   ) {}
 
-  getProjectedMemberVoteWeight(
-    cooperativeDid: string,
-    memberDid: string,
-  ): Promise<number> {
+  getProjectedMemberVoteWeight(input: {
+    readonly cooperativeDid: string;
+    readonly memberDid: string;
+  }): Promise<number> {
     return this.membershipReadModel.getProjectedMemberVoteWeight(
-      cooperativeDid as DID,
-      memberDid as DID,
+      input.cooperativeDid as DID,
+      input.memberDid as DID,
     );
   }
 }

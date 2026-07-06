@@ -12,8 +12,13 @@ now gets vote weight through that plugin set; the shared XRPC/Inlay vote
 eligibility path gets active-member gating through the same plugin set; and
 `ProposalService.resolveProposal` now evaluates headcount/class quorum through
 `GovernancePluginSet.quorum`. Outgoing delegate-chain resolution is composed
-through `GovernancePluginSet.delegateChains`. Do not move additional service
-logic until the adapter layer is tested against current API suites.
+through `GovernancePluginSet.delegateChains`. Cast-vote weight snapshots now
+use a proposal-contextual CoopView vote-weight reader backed by
+`DelegationVotingService`, so stored vote weights match delegation-inclusive
+eligibility/display weights. Proposal-scoped delegations now override
+project-level delegations for the same proposal during weight expansion. Do not
+move additional service logic until the adapter layer is tested against current
+API suites.
 
 ## Purpose
 
@@ -226,9 +231,9 @@ Reviewed against the current implementation on 2026-07-06:
   weight remain in the shared handler until later slices.
 - `DelegationVotingService.calculateVoteWeight` combines direct class weight
   with delegator class weights. Generic `DelegateChainsPlugin` defaults to the
-  direct voter only. CoopView now adapts outgoing delegation chains, but
-  incoming delegated vote-weight expansion still needs either a separate plugin
-  shape or an expanded interface.
+  direct voter only. CoopView adapts outgoing delegation chains separately from
+  vote-weight expansion; the latter now flows through `VoteWeightPlugin` with
+  proposal context.
 
 ## Extraction Order
 
@@ -249,7 +254,10 @@ Reviewed against the current implementation on 2026-07-06:
    eligibility plugin for active-member gating; `ProposalService.resolveProposal`
    now uses `CoopQuorumPlugin` for headcount and class-quorum decisions.
    `CoopDelegateChainsPlugin` is composed for outgoing chain resolution, with
-   proposal-scope chains taking precedence over project-scope fallback.**
+   proposal-scope chains taking precedence over project-scope fallback. Cast
+   vote now uses a delegation-backed vote-weight reader so stored vote weights
+   include delegated weight, with proposal-scope delegation overriding
+   project-scope delegation for the same delegator/proposal.**
 4. Move generic proposal/vote tally reducers out of `ProposalService` only after
    the adapter layer is tested against current proposal/vote/delegation suites.
 5. Add `anchorSummary`, `historicalState`, patronage/distribution, and
@@ -279,9 +287,9 @@ Reviewed against the current implementation on 2026-07-06:
 
 Continue `packages/coop-view` adapters without moving production service logic:
 
-1. Decide whether delegated vote-weight expansion belongs in
-   `DelegateChainsPlugin` or a separate weighted-expansion plugin before moving
-   `DelegationVotingService.calculateVoteWeight`.
+1. Decide the next extraction boundary for `DelegationVotingService`: outgoing
+   chain reads are already adapted, while delegation creation/revocation,
+   circularity checks, and weighted expansion still live in the API service.
 
 When running package checks, avoid running a dependent package's tests while its
 dependency package is rebuilding: current package exports point at `dist`, and

@@ -229,42 +229,43 @@ export class DelegationVotingService {
       .selectAll()
       .execute();
 
-    // Build a map of who delegates to whom
-    const delegators = new Set<string>();
-
+    // Proposal-scoped delegations override project-level delegations for the
+    // same delegator on the matching proposal.
+    const activeDelegationByDelegator = new Map<
+      string,
+      (typeof allDelegations)[number]
+    >();
     for (const d of allDelegations) {
-      // Check project-level delegation or proposal-specific delegation
-      const isProjectLevel = d.scope === 'project';
       const isProposalLevel =
         d.scope === 'proposal' &&
         proposal?.uri &&
         d.proposal_uri === proposal.uri;
+      if (isProposalLevel) {
+        activeDelegationByDelegator.set(d.delegator_did, d);
+      } else if (
+        d.scope === 'project' &&
+        !activeDelegationByDelegator.has(d.delegator_did)
+      ) {
+        activeDelegationByDelegator.set(d.delegator_did, d);
+      }
+    }
 
-      if (isProjectLevel || isProposalLevel) {
-        // Trace the chain to see if it leads to voterDid
-        let current = d.delegatee_did;
-        const visited = new Set<string>([d.delegator_did]);
+    const delegators = new Set<string>();
+    for (const d of activeDelegationByDelegator.values()) {
+      let current = d.delegatee_did;
+      const visited = new Set<string>([d.delegator_did]);
 
-        while (current !== voterDid) {
-          if (visited.has(current)) break;
-          visited.add(current);
+      while (current !== voterDid) {
+        if (visited.has(current)) break;
+        visited.add(current);
 
-          const next = allDelegations.find(
-            (dd) =>
-              dd.delegator_did === current &&
-              dd.status === 'active' &&
-              (dd.scope === 'project' ||
-                (dd.scope === 'proposal' &&
-                  proposal?.uri &&
-                  dd.proposal_uri === proposal.uri)),
-          );
-          if (!next) break;
-          current = next.delegatee_did;
-        }
+        const next = activeDelegationByDelegator.get(current);
+        if (!next) break;
+        current = next.delegatee_did;
+      }
 
-        if (current === voterDid) {
-          delegators.add(d.delegator_did);
-        }
+      if (current === voterDid) {
+        delegators.add(d.delegator_did);
       }
     }
 
@@ -281,6 +282,25 @@ export class DelegationVotingService {
       );
     }
     return voterWeight + totalDelegated;
+  }
+
+  async calculateVoteWeightForProposalUri(
+    cooperativeDid: string,
+    voterDid: string,
+    proposalUri: string,
+  ): Promise<number> {
+    const proposal = await this.db
+      .selectFrom('proposal')
+      .where('cooperative_did', '=', cooperativeDid)
+      .where('uri', '=', proposalUri)
+      .select('id')
+      .executeTakeFirst();
+
+    if (!proposal) {
+      throw new NotFoundError('Proposal not found');
+    }
+
+    return this.calculateVoteWeight(cooperativeDid, voterDid, proposal.id);
   }
 
   private async getMemberClassWeight(

@@ -56,10 +56,12 @@ import { PrivateRecordService } from '../../src/services/private-record-service.
 import { PrivateRecordPermissionedWritePort } from '../../src/services/private-record-permissioned-write-port.js';
 import { OAuthPermissionedRecordWriteSessionProvider } from '../../src/services/oauth-permissioned-record-write-session-provider.js';
 import {
-  MembershipReadModelVoteWeightReader,
   MembershipReadModelVotingEligibilityReader,
 } from '../../src/services/coop-view-membership-adapters.js';
-import { DelegationVotingServiceDelegateChainReader } from '../../src/services/coop-view-delegation-adapters.js';
+import {
+  DelegationVotingServiceDelegateChainReader,
+  DelegationVotingServiceVoteWeightReader,
+} from '../../src/services/coop-view-delegation-adapters.js';
 import { VisibilityRouter } from '../../src/services/visibility-router.js';
 import {
   PdsPublicGovernanceAnchorWritePort,
@@ -211,9 +213,14 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     });
   const groupDirectory = new CsnDbGroupDirectoryPort(db);
   const membershipReadModel = new MembershipReadModel(db, groupDirectory);
+  const delegationVotingService = new DelegationVotingService(
+    db,
+    clock,
+    membershipReadModel,
+  );
   const governanceCorePlugins = createDefaultGovernancePluginSet({
     voteWeight: createCoopVoteWeightPlugin(
-      new MembershipReadModelVoteWeightReader(membershipReadModel),
+      new DelegationVotingServiceVoteWeightReader(delegationVotingService),
     ),
     eligibility: createCoopEligibilityPlugin(
       new MembershipReadModelVotingEligibilityReader(membershipReadModel),
@@ -340,11 +347,6 @@ export function createTestApp(options?: TestAppOptions): TestApp {
   const capitalAccountService = new CapitalAccountService(db, clock);
   const tax1099Service = new Tax1099Service(db, clock);
   const onboardingService = new OnboardingService(db, clock);
-  const delegationVotingService = new DelegationVotingService(
-    db,
-    clock,
-    membershipReadModel,
-  );
   const governancePlugins = {
     ...governanceCorePlugins,
     delegateChains: createCoopDelegateChainsPlugin(

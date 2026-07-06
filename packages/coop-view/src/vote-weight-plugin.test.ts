@@ -24,8 +24,10 @@ describe('CoopVoteWeightPlugin', () => {
   it('delegates vote weight to the projected membership reader', async () => {
     const events: string[] = [];
     const reader: CoopVoteWeightReader = {
-      async getProjectedMemberVoteWeight(cooperativeDid, memberDid) {
-        events.push(`reader-start:${cooperativeDid}:${memberDid}`);
+      async getProjectedMemberVoteWeight(args) {
+        events.push(
+          `reader-start:${args.cooperativeDid}:${args.memberDid}:${args.proposalUri}:${args.voteChoice}:${args.at}`,
+        );
         await Promise.resolve();
         events.push('reader-finish');
         return 2.5;
@@ -40,7 +42,7 @@ describe('CoopVoteWeightPlugin', () => {
     expect(result).toEqual({ weight: 2.5 });
     expect(events).toEqual([
       'call-start',
-      'reader-start:did:plc:coop:did:plc:alice',
+      'reader-start:did:plc:coop:did:plc:alice:at://did:plc:coop/network.coopsource.governance.proposal/abc:yes:2026-07-06T12:00:00.000Z',
       'reader-finish',
       'call-finish',
     ]);

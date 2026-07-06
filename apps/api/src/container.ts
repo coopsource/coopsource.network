@@ -83,10 +83,12 @@ import { PrivateRecordService } from './services/private-record-service.js';
 import { PrivateRecordPermissionedWritePort } from './services/private-record-permissioned-write-port.js';
 import { OAuthPermissionedRecordWriteSessionProvider } from './services/oauth-permissioned-record-write-session-provider.js';
 import {
-  MembershipReadModelVoteWeightReader,
   MembershipReadModelVotingEligibilityReader,
 } from './services/coop-view-membership-adapters.js';
-import { DelegationVotingServiceDelegateChainReader } from './services/coop-view-delegation-adapters.js';
+import {
+  DelegationVotingServiceDelegateChainReader,
+  DelegationVotingServiceVoteWeightReader,
+} from './services/coop-view-delegation-adapters.js';
 import { VisibilityRouter } from './services/visibility-router.js';
 import {
   PdsPublicGovernanceAnchorWritePort,
@@ -336,9 +338,14 @@ export function createContainer(config: AppConfig): Container {
     });
   const groupDirectory = new CsnDbGroupDirectoryPort(db);
   const membershipReadModel = new MembershipReadModel(db, groupDirectory);
+  const delegationVotingService = new DelegationVotingService(
+    db,
+    clock,
+    membershipReadModel,
+  );
   const governanceCorePlugins = createDefaultGovernancePluginSet({
     voteWeight: createCoopVoteWeightPlugin(
-      new MembershipReadModelVoteWeightReader(membershipReadModel),
+      new DelegationVotingServiceVoteWeightReader(delegationVotingService),
     ),
     eligibility: createCoopEligibilityPlugin(
       new MembershipReadModelVotingEligibilityReader(membershipReadModel),
@@ -478,11 +485,6 @@ export function createContainer(config: AppConfig): Container {
   const capitalAccountService = new CapitalAccountService(db, clock);
   const tax1099Service = new Tax1099Service(db, clock);
   const onboardingService = new OnboardingService(db, clock);
-  const delegationVotingService = new DelegationVotingService(
-    db,
-    clock,
-    membershipReadModel,
-  );
   const governancePlugins: GovernancePluginSet = {
     ...governanceCorePlugins,
     delegateChains: createCoopDelegateChainsPlugin(

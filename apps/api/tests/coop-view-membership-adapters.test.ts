@@ -19,10 +19,14 @@ describe('MembershipReadModelVoteWeightReader', () => {
     });
 
     events.push('call-start');
-    const weight = await reader.getProjectedMemberVoteWeight(
-      'did:plc:coop',
-      'did:plc:alice',
-    );
+    const weight = await reader.getProjectedMemberVoteWeight({
+      cooperativeDid: 'did:plc:coop',
+      memberDid: 'did:plc:alice',
+      proposalUri:
+        'at://did:plc:coop/network.coopsource.governance.proposal/abc',
+      voteChoice: 'yes',
+      at: '2026-07-06T12:00:00.000Z',
+    });
     events.push('call-finish');
 
     expect(weight).toBe(4);
@@ -43,7 +47,14 @@ describe('MembershipReadModelVoteWeightReader', () => {
     });
 
     await expect(
-      reader.getProjectedMemberVoteWeight('did:plc:coop', 'did:plc:alice'),
+      reader.getProjectedMemberVoteWeight({
+        cooperativeDid: 'did:plc:coop',
+        memberDid: 'did:plc:alice',
+        proposalUri:
+          'at://did:plc:coop/network.coopsource.governance.proposal/abc',
+        voteChoice: 'yes',
+        at: '2026-07-06T12:00:00.000Z',
+      }),
     ).rejects.toThrow('Membership authority returned stale data');
   });
 });

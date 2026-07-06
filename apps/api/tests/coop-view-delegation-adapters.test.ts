@@ -1,5 +1,65 @@
 import { describe, expect, it } from 'vitest';
-import { DelegationVotingServiceDelegateChainReader } from '../src/services/coop-view-delegation-adapters.js';
+import {
+  DelegationVotingServiceDelegateChainReader,
+  DelegationVotingServiceVoteWeightReader,
+} from '../src/services/coop-view-delegation-adapters.js';
+
+describe('DelegationVotingServiceVoteWeightReader', () => {
+  it('delegates proposal-contextual vote weight reads to DelegationVotingService', async () => {
+    const events: string[] = [];
+    const reader = new DelegationVotingServiceVoteWeightReader({
+      async calculateVoteWeightForProposalUri(
+        cooperativeDid,
+        voterDid,
+        proposalUri,
+      ) {
+        events.push(`reader-start:${cooperativeDid}:${voterDid}:${proposalUri}`);
+        await Promise.resolve();
+        events.push('reader-finish');
+        return 3;
+      },
+    });
+
+    events.push('call-start');
+    const weight = await reader.getProjectedMemberVoteWeight({
+      cooperativeDid: 'did:plc:coop',
+      memberDid: 'did:plc:alice',
+      proposalUri:
+        'at://did:plc:coop/network.coopsource.governance.proposal/abc',
+      voteChoice: 'yes',
+      at: '2026-07-06T12:00:00.000Z',
+    });
+    events.push('call-finish');
+
+    expect(weight).toBe(3);
+    expect(events).toEqual([
+      'call-start',
+      'reader-start:did:plc:coop:did:plc:alice:at://did:plc:coop/network.coopsource.governance.proposal/abc',
+      'reader-finish',
+      'call-finish',
+    ]);
+  });
+
+  it('propagates vote weight reader failures', async () => {
+    const reader = new DelegationVotingServiceVoteWeightReader({
+      async calculateVoteWeightForProposalUri() {
+        await Promise.resolve();
+        throw new Error('Vote weight query failed');
+      },
+    });
+
+    await expect(
+      reader.getProjectedMemberVoteWeight({
+        cooperativeDid: 'did:plc:coop',
+        memberDid: 'did:plc:alice',
+        proposalUri:
+          'at://did:plc:coop/network.coopsource.governance.proposal/abc',
+        voteChoice: 'yes',
+        at: '2026-07-06T12:00:00.000Z',
+      }),
+    ).rejects.toThrow('Vote weight query failed');
+  });
+});
 
 describe('DelegationVotingServiceDelegateChainReader', () => {
   it('uses proposal-scoped chains when they exist', async () => {

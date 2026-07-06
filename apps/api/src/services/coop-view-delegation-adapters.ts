@@ -1,5 +1,31 @@
-import type { CoopDelegateChainReader } from '@coopsource/coop-view';
+import type {
+  CoopDelegateChainReader,
+  CoopVoteWeightReader,
+} from '@coopsource/coop-view';
 import type { DelegationVotingService } from './delegation-voting-service.js';
+
+export class DelegationVotingServiceVoteWeightReader
+  implements CoopVoteWeightReader
+{
+  constructor(
+    private readonly delegationVotingService: Pick<
+      DelegationVotingService,
+      'calculateVoteWeightForProposalUri'
+    >,
+  ) {}
+
+  getProjectedMemberVoteWeight(input: {
+    readonly cooperativeDid: string;
+    readonly memberDid: string;
+    readonly proposalUri: string;
+  }): Promise<number> {
+    return this.delegationVotingService.calculateVoteWeightForProposalUri(
+      input.cooperativeDid,
+      input.memberDid,
+      input.proposalUri,
+    );
+  }
+}
 
 export class DelegationVotingServiceDelegateChainReader
   implements CoopDelegateChainReader

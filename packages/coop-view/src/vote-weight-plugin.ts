@@ -22,10 +22,13 @@ export class CoopVoteWeightPlugin implements VoteWeightPlugin {
   async weightForVote(
     input: Parameters<VoteWeightPlugin['weightForVote']>[0],
   ): ReturnType<VoteWeightPlugin['weightForVote']> {
-    const weight = await this.options.weightReader.getProjectedMemberVoteWeight(
-      input.cooperative.authorityDid,
-      input.voter.did,
-    );
+    const weight = await this.options.weightReader.getProjectedMemberVoteWeight({
+      cooperativeDid: input.cooperative.authorityDid,
+      memberDid: input.voter.did,
+      proposalUri: input.proposal.uri,
+      voteChoice: input.voteChoice,
+      at: input.at,
+    });
 
     if (!Number.isFinite(weight) || weight < 0) {
       throw new Error(

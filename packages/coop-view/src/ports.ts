@@ -1,8 +1,11 @@
 export interface CoopVoteWeightReader {
-  getProjectedMemberVoteWeight(
-    cooperativeDid: string,
-    memberDid: string,
-  ): Promise<number>;
+  getProjectedMemberVoteWeight(input: {
+    readonly cooperativeDid: string;
+    readonly memberDid: string;
+    readonly proposalUri: string;
+    readonly voteChoice: string;
+    readonly at: string;
+  }): Promise<number>;
 }
 
 export interface CoopVotingEligibility {
