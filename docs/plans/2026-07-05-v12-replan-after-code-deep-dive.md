@@ -543,10 +543,16 @@ Initial Phase 4 substrate artifact started in this branch:
   space credential before each sync batch. The first harness test runs
   `network.coopsource.governance.vote` through credential issuance, repo sync,
   strict membership cross-check, handler acceptance, and checkpoint commit.
-- Next Phase 4 implementation should revisit whether the `spaceType` namespace
-  should be renamed before external publication, then decide how production
-  governance write paths move from `visibilityRouter.routeWrite` to
-  permissioned-space placement.
+- `ProposalService.castVote()` now asks `VisibilityRouter` before writing the
+  `network.coopsource.governance.vote` record. Closed-governance cooperatives
+  route votes to Tier 2 private storage under the cooperative DID; open and
+  mixed-default cooperatives keep the existing member-owned PDS write path.
+- Keep `network.coopsource.org.spaceType.*` as the canonical CSN draft space
+  type namespace for this PoC. Rename only if upstream final syntax or tooling
+  makes the current namespace actively misleading.
+- Next Phase 4 implementation should replace the current Tier 2
+  `private_record` write target with a real permissioned-space write adapter
+  when the upstream write API is stable enough to model behind a port.
 
 ## Phase 5 Parallelization
 

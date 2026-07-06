@@ -3,13 +3,13 @@ import type { Database, ProposalTable, VoteTable } from '@coopsource/db';
 
 type ProposalRow = Selectable<ProposalTable>;
 type VoteRow = Selectable<VoteTable>;
-import type { DID } from '@coopsource/common';
+import type { AtUri, CID, DID } from '@coopsource/common';
 import {
   NotFoundError,
   UnauthorizedError,
   ValidationError,
 } from '@coopsource/common';
-import type { IPdsService, IClock } from '@coopsource/federation';
+import type { IPdsService, IClock, RecordRef } from '@coopsource/federation';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
 import { logger } from '../middleware/logger.js';
@@ -204,7 +204,7 @@ export class ProposalService {
       createdAt: now.toISOString(),
     };
 
-    let ref;
+    let ref: RecordRef;
     if (this.visibilityRouter) {
       const route = await this.visibilityRouter.routeWrite({
         cooperativeDid: data.cooperativeDid,
@@ -214,10 +214,7 @@ export class ProposalService {
       });
       if (route.tier === 2) {
         // Tier 2: stored in private_record table, not on PDS/firehose
-        ref = {
-          uri: `at://${data.cooperativeDid}/${collection}/${route.rkey}` as const,
-          cid: 'private' as const,
-        };
+        ref = privateRecordRef(data.cooperativeDid, collection, route.rkey);
       } else {
         ref = await this.pdsService.createRecord({
           did: authorDid as DID,
@@ -322,7 +319,10 @@ export class ProposalService {
 
     const now = this.clock.now();
 
-    // Write PDS record (member-owned → MemberWriteProxy)
+    // Write vote record. Closed-governance cooperatives route votes to Tier 2
+    // private storage; open/mixed-default cooperatives keep member-owned PDS
+    // writes through MemberWriteProxy.
+    const collection = 'network.coopsource.governance.vote';
     const voteRecord = {
       proposal: proposal.uri,
       proposalCid: proposal.cid,
@@ -330,17 +330,39 @@ export class ProposalService {
       rationale: params.rationale,
       createdAt: now.toISOString(),
     };
-    const ref = this.memberWriteProxy
-      ? await this.memberWriteProxy.writeRecord({
-          memberDid: params.voterDid as DID,
-          collection: 'network.coopsource.governance.vote',
-          record: voteRecord,
-        })
-      : await this.pdsService.createRecord({
-          did: params.voterDid as DID,
-          collection: 'network.coopsource.governance.vote',
-          record: voteRecord,
-        });
+    const writePublicVote = () =>
+      this.memberWriteProxy
+        ? this.memberWriteProxy.writeRecord({
+            memberDid: params.voterDid as DID,
+            collection,
+            record: voteRecord,
+          })
+        : this.pdsService.createRecord({
+            did: params.voterDid as DID,
+            collection,
+            record: voteRecord,
+          });
+
+    let ref: RecordRef;
+    if (this.visibilityRouter) {
+      const route = await this.visibilityRouter.routeWrite({
+        cooperativeDid: proposal.cooperative_did,
+        collection,
+        record: voteRecord,
+        createdBy: params.voterDid,
+      });
+      if (route.tier === 2) {
+        ref = privateRecordRef(
+          proposal.cooperative_did,
+          collection,
+          route.rkey,
+        );
+      } else {
+        ref = await writePublicVote();
+      }
+    } else {
+      ref = await writePublicVote();
+    }
 
     // Retract any previous vote
     await this.db
@@ -577,4 +599,18 @@ export class ProposalService {
 
     return proposal;
   }
+}
+
+function privateRecordRef(
+  did: string,
+  collection: string,
+  rkey: string | undefined,
+): RecordRef {
+  if (!rkey) {
+    throw new Error('VisibilityRouter returned Tier 2 without an rkey');
+  }
+  return {
+    uri: `at://${did}/${collection}/${rkey}` as AtUri,
+    cid: 'private' as CID,
+  };
 }

@@ -220,6 +220,8 @@ export function createTestApp(options?: TestAppOptions): TestApp {
   );
   const labelSubscriptionManager = new LabelSubscriptionManager(db);
   const governanceLabeler = new GovernanceLabeler(db, labelSubscriptionManager);
+  const privateRecordService = new PrivateRecordService(db, clock);
+  const visibilityRouter = new VisibilityRouter(db, privateRecordService);
   const postService = new PostService(db, clock);
   const searchService = new SearchService(db, membershipReadModel);
   const matchmakingService = new MatchmakingService(
@@ -234,6 +236,7 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     membershipReadModel,
     memberWriteProxy,
     governanceLabeler,
+    visibilityRouter,
   );
   const agreementService = new AgreementService(
     db,
@@ -291,8 +294,6 @@ export function createTestApp(options?: TestAppOptions): TestApp {
   const meetingRecordService = new MeetingRecordService(db, clock);
   const memberNoticeService = new MemberNoticeService(db, clock);
   const fiscalPeriodService = new FiscalPeriodService(db, clock);
-  const privateRecordService = new PrivateRecordService(db, clock);
-  const visibilityRouter = new VisibilityRouter(db, privateRecordService);
   const patronageService = new PatronageService(db, clock);
   const capitalAccountService = new CapitalAccountService(db, clock);
   const tax1099Service = new Tax1099Service(db, clock);

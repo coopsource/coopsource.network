@@ -29,9 +29,10 @@ draft choices and their caveats.
 | member class | `network.coopsource.org.spaceType.memberClass` | `classes/{memberClass}` | Records visible to members of a cooperative member class |
 
 These names match the existing constants in `@coopsource/arbiter-client` and
-the draft space declarations in `@coopsource/lexicons`. Phase 4 must still
-decide whether `network.coopsource.org.spaceType.*` is the final publication
-namespace or an internal draft namespace to remap before external use.
+the draft space declarations in `@coopsource/lexicons`. Keep
+`network.coopsource.org.spaceType.*` as the canonical CSN draft namespace for
+this PoC. Rename only if upstream final syntax or tooling makes the current
+namespace actively misleading.
 
 ## Placement Matrix
 
@@ -104,6 +105,10 @@ Reference links:
   tested.
 - Public governance anchors are a Phase 5 policy concern. This matrix only
   describes Tier 2/private placement.
+- Current production writes still use the legacy Tier 2 `private_record` table
+  for closed-governance proposals and votes. The local spaces-consumer harness
+  proves credential-gated sync for `network.coopsource.governance.vote`, but it
+  is not a live permissioned-space writer.
 - The current atproto draft exposes direct simplespace member lists, not CSN's
   recursive role/member-class authority model. Runtime placement still depends
   on `GroupDirectoryPort` and the CSN-DB adapter until the external substrate
@@ -111,7 +116,8 @@ Reference links:
 
 ## Next Slice
 
-1. Decide the final space type namespace before external publication.
-2. Decide how production governance write paths move from
-   `visibilityRouter.routeWrite` to permissioned-space placement, starting with
-   `network.coopsource.governance.vote`.
+1. Define the permissioned-space write adapter port that can replace the
+   `private_record` target once upstream `com.atproto.space.*` write APIs are
+   stable enough.
+2. Decide whether proposal public anchors are mandatory, optional, or forbidden
+   for closed/private governance.
