@@ -4,8 +4,10 @@
 **Status:** Interface slice reviewed against current proposal/vote/delegation
 code and started. `packages/governance-view` now exists with generic value
 types, the ten plugin interfaces, default no-op/one-member-one-vote behavior,
-and tests. Do not create `packages/coop-view` or move service logic until the
-adapter design is reviewed against the current API suites.
+and tests. `packages/coop-view` now exists with the first CSN-specific
+vote-weight adapter over a narrow membership-weight reader port; `apps/api`
+has the `MembershipReadModelVoteWeightReader` bridge. Do not move service
+logic until the adapter layer is tested against current API suites.
 
 ## Purpose
 
@@ -226,7 +228,10 @@ Reviewed against the current implementation on 2026-07-06:
    eligible-by-default behavior, and no-op optional outputs. **Started
    2026-07-06.**
 3. Add `packages/coop-view` as adapters over existing services, starting with
-   `voteWeight`, `eligibility`, `quorum`, and `delegateChains`.
+   `voteWeight`, `eligibility`, `quorum`, and `delegateChains`. **Started
+   2026-07-06 with `CoopVoteWeightPlugin`; it depends on a
+   `CoopVoteWeightReader` port instead of importing `MembershipReadModel`
+   directly.**
 4. Move generic proposal/vote tally reducers out of `ProposalService` only after
    the adapter layer is tested against current proposal/vote/delegation suites.
 5. Add `anchorSummary`, `historicalState`, patronage/distribution, and
@@ -254,6 +259,15 @@ Reviewed against the current implementation on 2026-07-06:
 
 ## Next Slice
 
-After review, implement only step 1 and step 2 from the extraction order:
-interfaces, default plugin set, and tests. Then wire no production code until
-the default behavior and current proposal/vote tests agree on semantics.
+Continue `packages/coop-view` adapters without moving production service logic:
+
+1. Wire the `CoopVoteWeightPlugin` through API composition only after current
+   proposal/member-class vote-weight tests prove behavior is unchanged.
+2. Add `EligibilityPlugin` and `QuorumPlugin` adapters in separate slices.
+3. Add `DelegateChainsPlugin` only after reviewing
+   `DelegationVotingService.calculateVoteWeight` cycle and proposal-scope
+   behavior.
+
+When running package checks, avoid running a dependent package's tests while its
+dependency package is rebuilding: current package exports point at `dist`, and
+`prebuild` removes that directory.

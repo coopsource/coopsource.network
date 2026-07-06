@@ -25,6 +25,7 @@
     "@atproto/tap": "^0.2.11",
     "@coopsource/common": "workspace:*",
     "@coopsource/arbiter-client": "workspace:*",
+    "@coopsource/coop-view": "workspace:*",
     "@coopsource/db": "workspace:*",
     "@coopsource/federation": "workspace:*",
     "@coopsource/lexicons": "workspace:*",
