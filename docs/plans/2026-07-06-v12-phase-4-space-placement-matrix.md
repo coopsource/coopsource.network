@@ -112,5 +112,6 @@ Reference links:
 ## Next Slice
 
 1. Decide the final space type namespace before external publication.
-2. Spike one collection, likely `network.coopsource.governance.vote`, through a
-   local harness before changing production write paths.
+2. Decide how production governance write paths move from
+   `visibilityRouter.routeWrite` to permissioned-space placement, starting with
+   `network.coopsource.governance.vote`.

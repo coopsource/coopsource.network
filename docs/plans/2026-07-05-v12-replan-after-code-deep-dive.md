@@ -538,9 +538,15 @@ Initial Phase 4 substrate artifact started in this branch:
   member-grant issuance before space-credential exchange, derives cache expiry
   from response metadata or JWT `exp`, and leaves unstable XRPC transport behind
   narrow client ports.
+- `@coopsource/spaces-consumer` now exports
+  `CredentialedPermissionedRepoPort`, a local harness wrapper that obtains a
+  space credential before each sync batch. The first harness test runs
+  `network.coopsource.governance.vote` through credential issuance, repo sync,
+  strict membership cross-check, handler acceptance, and checkpoint commit.
 - Next Phase 4 implementation should revisit whether the `spaceType` namespace
-  should be renamed before external publication, then spike one collection
-  through the credential manager and permissioned repo harness.
+  should be renamed before external publication, then decide how production
+  governance write paths move from `visibilityRouter.routeWrite` to
+  permissioned-space placement.
 
 ## Phase 5 Parallelization
 

@@ -8,6 +8,9 @@ Stage 1 V11 consumer for ATProto permissioned-space data. The public package bou
 - `TwoStepSpaceCredentialIssuer` models the draft upstream grant exchange
   (`getMemberGrant` -> `getSpaceCredential`) behind transport-level client
   ports.
+- `CredentialedPermissionedRepoPort` acquires a space credential before each
+  sync batch and delegates record verification/checkpointing to the wrapped
+  repo adapter.
 - `PermissionedRepoPort` watches and syncs verified permissioned records.
 - `SpacesConsumer` cross-checks each verified record author before emitting it.
 
@@ -27,6 +30,10 @@ The executable sketches now live at the stable-port level:
   credential expiry from either response metadata or JWT `exp`, and keeps
   unstable XRPC details behind `SpaceMemberGrantClientPort` and
   `SpaceCredentialExchangeClientPort`.
+- `CredentialedPermissionedRepoPort` is the local Phase 4 harness wrapper. It
+  proves the credential manager gates sync batches before the repo port returns
+  verified records; the first covered collection is
+  `network.coopsource.governance.vote`.
 - `KyselyPermissionedCheckpointStore` sketches durable space-level checkpoint storage against the current PoC table.
 - `@coopsource/arbiter-client` provides the Stage 2A CSN-backed `CsnDbGroupDirectoryPort`.
 
@@ -44,6 +51,7 @@ See `docs/plans/2026-05-17-v11-spaces-consumer-adapter-architecture.md` for the 
 | Group Directory              | `GroupDirectoryPort`, `DenyAllGroupDirectoryPort`, `StaticGroupDirectoryPort`                                    |
 | Space credentials            | `SpaceCredentialStore`, `InMemorySpaceCredentialStore`, `SpaceCredentialManager`, `TwoStepSpaceCredentialIssuer` |
 | Permissioned sync            | `PermissionedRepoPort`, `InMemoryPermissionedRepoPort`, `FailClosedPermissionedRepoPort`                         |
+| Credentialed sync            | `CredentialedPermissionedRepoPort`                                                                               |
 | Checkpoints                  | `PermissionedCheckpointStore`, `KyselyPermissionedCheckpointStore`                                               |
 | Orchestration                | `SpacesConsumer`                                                                                                 |
 

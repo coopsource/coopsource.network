@@ -71,6 +71,8 @@ export {
   InMemoryPermissionedRepoPort,
   KyselyPermissionedCheckpointStore,
 } from './permissioned-repo-port.js';
+export type { CredentialedPermissionedRepoPortOptions } from './credentialed-permissioned-repo-port.js';
+export { CredentialedPermissionedRepoPort } from './credentialed-permissioned-repo-port.js';
 export type {
   RejectedPermissionedRecord,
   SpacesConsumerOptions,
