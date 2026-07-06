@@ -32,6 +32,19 @@ export {
   SpaceCredentialError,
   SpaceCredentialManager,
 } from './credential-store.js';
+export type {
+  SpaceCredentialExchangeClientPort,
+  SpaceCredentialExchangeRequest,
+  SpaceCredentialExchangeResponse,
+  SpaceMemberGrantClientPort,
+  SpaceMemberGrantRequest,
+  SpaceMemberGrantResponse,
+  TwoStepSpaceCredentialIssuerOptions,
+} from './space-credential-issuer.js';
+export {
+  TwoStepSpaceCredentialIssuer,
+  formatSpaceCredentialSpaceUri,
+} from './space-credential-issuer.js';
 export type { DidEquivalencePort } from './did-equivalence-port.js';
 export {
   KyselyDidEquivalencePort,

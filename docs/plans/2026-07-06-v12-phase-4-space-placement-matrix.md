@@ -112,7 +112,5 @@ Reference links:
 ## Next Slice
 
 1. Decide the final space type namespace before external publication.
-2. Wire `SpaceCredentialManager` into OAuth/credential planning tests once a
-   concrete issuer seam is selected.
-3. Spike one collection, likely `network.coopsource.governance.vote`, through a
+2. Spike one collection, likely `network.coopsource.governance.vote`, through a
    local harness before changing production write paths.

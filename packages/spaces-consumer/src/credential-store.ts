@@ -55,7 +55,11 @@ export class InMemorySpaceCredentialStore implements SpaceCredentialStore {
     const entry = this.map.get(spaceRefKey(ref));
     if (!entry) return undefined;
     // Treat expiresAt as exclusive: expired at the boundary instant (per JWT §4.1.4).
-    if (entry.cred.expiresAt.getTime() <= this.opts.clock().getTime()) {
+    const expiresAtMs = entry.cred.expiresAt.getTime();
+    if (
+      !Number.isFinite(expiresAtMs) ||
+      expiresAtMs <= this.opts.clock().getTime()
+    ) {
       return undefined;
     }
     return entry.cred;
@@ -72,7 +76,9 @@ export class InMemorySpaceCredentialStore implements SpaceCredentialStore {
   async live(): Promise<Array<{ ref: SpaceRef; cred: SpaceCredential }>> {
     const now = this.opts.clock().getTime();
     return [...this.map.values()].filter(
-      (e) => e.cred.expiresAt.getTime() > now,
+      (e) =>
+        Number.isFinite(e.cred.expiresAt.getTime()) &&
+        e.cred.expiresAt.getTime() > now,
     );
   }
 }
@@ -98,7 +104,8 @@ export class SpaceCredentialManager {
       previous,
       now,
     });
-    if (credential.expiresAt.getTime() <= now.getTime()) {
+    const expiresAtMs = credential.expiresAt.getTime();
+    if (!Number.isFinite(expiresAtMs) || expiresAtMs <= now.getTime()) {
       throw new SpaceCredentialError(
         'Issued space credential is already expired',
       );

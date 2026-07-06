@@ -533,9 +533,14 @@ Initial Phase 4 substrate artifact started in this branch:
   non-live coordinator over `SpaceCredentialStore` and a future issuer port. It
   models missing credentials, refresh-per-batch, near-expiry refresh, and
   member-list-change invalidation without choosing a real upstream issuer yet.
-- Next Phase 4 implementation should connect `SpaceCredentialManager` to the
-  chosen issuer seam, then revisit whether the `spaceType` namespace should be
-  renamed before external publication.
+- `@coopsource/spaces-consumer` now exports
+  `TwoStepSpaceCredentialIssuer`, an executable draft issuer seam that sequences
+  member-grant issuance before space-credential exchange, derives cache expiry
+  from response metadata or JWT `exp`, and leaves unstable XRPC transport behind
+  narrow client ports.
+- Next Phase 4 implementation should revisit whether the `spaceType` namespace
+  should be renamed before external publication, then spike one collection
+  through the credential manager and permissioned repo harness.
 
 ## Phase 5 Parallelization
 

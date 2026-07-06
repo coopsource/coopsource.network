@@ -45,6 +45,16 @@ describe('InMemorySpaceCredentialStore', () => {
     expect(await store.get(ref)).toBeUndefined();
   });
 
+  it('treats credentials with invalid expiry as missing', async () => {
+    const cred: SpaceCredential = {
+      token: 't',
+      expiresAt: new Date(Number.NaN),
+    };
+    await store.put(ref, cred);
+    expect(await store.get(ref)).toBeUndefined();
+    expect(await store.live()).toEqual([]);
+  });
+
   it('lists all live credentials', async () => {
     await store.put(ref, {
       token: 't1',
@@ -177,6 +187,21 @@ describe('SpaceCredentialManager', () => {
     const store = new InMemorySpaceCredentialStore({ clock: () => now });
     const issuer = new QueuedIssuer([
       { token: 'expired', expiresAt: new Date('2026-05-11T12:00:00Z') },
+    ]);
+    const manager = new SpaceCredentialManager(store, issuer, {
+      clock: () => now,
+    });
+
+    await expect(manager.getForBatch(ref)).rejects.toBeInstanceOf(
+      SpaceCredentialError,
+    );
+    await expect(store.get(ref)).resolves.toBeUndefined();
+  });
+
+  it('rejects credentials with invalid expiry returned by an issuer', async () => {
+    const store = new InMemorySpaceCredentialStore({ clock: () => now });
+    const issuer = new QueuedIssuer([
+      { token: 'invalid', expiresAt: new Date(Number.NaN) },
     ]);
     const manager = new SpaceCredentialManager(store, issuer, {
       clock: () => now,
