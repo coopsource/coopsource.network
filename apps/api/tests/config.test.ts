@@ -17,6 +17,7 @@ describe('loadConfig', () => {
 
     expect(config.SPACES_CONSUMER_ENABLED).toBe(false);
     expect(config.UNSAFE_ACCEPT_UNVERIFIED_PERMISSIONED_DATA).toBe(false);
+    expect(config.PERMISSIONED_RECORD_WRITER_MODE).toBe('private-record');
   });
 
   it('parses string boolean environment values explicitly', () => {
@@ -37,6 +38,20 @@ describe('loadConfig', () => {
 
   it('rejects invalid boolean environment values', () => {
     process.env.SPACES_CONSUMER_ENABLED = 'definitely';
+
+    expect(() => loadConfig()).toThrow();
+  });
+
+  it('parses permissioned record writer mode', () => {
+    process.env.PERMISSIONED_RECORD_WRITER_MODE = 'draft-xrpc';
+
+    const config = loadConfig();
+
+    expect(config.PERMISSIONED_RECORD_WRITER_MODE).toBe('draft-xrpc');
+  });
+
+  it('rejects invalid permissioned record writer mode values', () => {
+    process.env.PERMISSIONED_RECORD_WRITER_MODE = 'some-flag';
 
     expect(() => loadConfig()).toThrow();
   });

@@ -47,6 +47,7 @@ import { MemberNoticeService } from '../../src/services/member-notice-service.js
 import { FiscalPeriodService } from '../../src/services/fiscal-period-service.js';
 import { PrivateRecordService } from '../../src/services/private-record-service.js';
 import { PrivateRecordPermissionedWritePort } from '../../src/services/private-record-permissioned-write-port.js';
+import { OAuthPermissionedRecordWriteSessionProvider } from '../../src/services/oauth-permissioned-record-write-session-provider.js';
 import { VisibilityRouter } from '../../src/services/visibility-router.js';
 import {
   PdsPublicGovernanceAnchorWritePort,
@@ -228,6 +229,8 @@ export function createTestApp(options?: TestAppOptions): TestApp {
   const labelSubscriptionManager = new LabelSubscriptionManager(db);
   const governanceLabeler = new GovernanceLabeler(db, labelSubscriptionManager);
   const privateRecordService = new PrivateRecordService(db, clock);
+  const permissionedRecordWriteSessionProvider =
+    new OAuthPermissionedRecordWriteSessionProvider(undefined);
   const permissionedRecordWriter =
     options?.permissionedRecordWriter ??
     new PrivateRecordPermissionedWritePort(privateRecordService);
@@ -398,6 +401,7 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     fiscalPeriodService,
     privateRecordService,
     permissionedRecordWriter,
+    permissionedRecordWriteSessionProvider,
     visibilityRouter,
     publicGovernanceAnchorService,
     patronageService,

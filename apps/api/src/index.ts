@@ -93,7 +93,7 @@ import {
   startSpacesConsumer,
   stopSpacesConsumer,
 } from './appview/spaces-consumer-dispatch.js';
-import { createOAuthClient } from './auth/oauth-client.js';
+import { createOAuthClient, oauthScopeForConfig } from './auth/oauth-client.js';
 import { setupLabelWebSocket } from './routes/xrpc-labels.js';
 import { createXrpcRoutes } from './xrpc/dispatcher.js';
 import { buildXrpcHandlers } from './xrpc/index.js';
@@ -190,20 +190,30 @@ async function start(): Promise<void> {
   // SSE events
   app.use(createEventRoutes());
 
-  // ATProto OAuth client (V6 — only when PDS_URL is configured)
-  const oauthClient = config.PDS_URL
-    ? createOAuthClient({ publicUrl: config.PUBLIC_API_URL, db: container.db })
+  const oauthScope = oauthScopeForConfig(config);
+
+  // ATProto OAuth client (V6 member writes; V12 draft permissioned-space writes)
+  const needsOAuthClient =
+    config.PDS_URL || config.PERMISSIONED_RECORD_WRITER_MODE === 'draft-xrpc';
+  const oauthClient = needsOAuthClient
+    ? createOAuthClient({
+        publicUrl: config.PUBLIC_API_URL,
+        db: container.db,
+        scope: oauthScope,
+      })
     : undefined;
 
-  // Wire OAuth client into MemberWriteProxy so it can proxy writes to member PDS
+  // Wire OAuth client into member and permissioned-space writers.
   if (oauthClient) {
     container.memberWriteProxy.setOAuthClient(oauthClient);
+    container.permissionedRecordWriteSessionProvider.setOAuthClient(oauthClient);
   }
 
   // Auth routes
   app.use(
     createAuthRoutes(container, {
       oauthClient,
+      oauthScope,
       frontendUrl: config.FRONTEND_URL,
     }),
   );

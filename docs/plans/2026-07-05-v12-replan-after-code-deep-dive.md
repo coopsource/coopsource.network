@@ -575,9 +575,12 @@ Initial Phase 4 substrate artifact started in this branch:
   over the existing `NodeOAuthClient.restore()` path. It returns the session's
   own authenticated fetch handler to the XRPC writer so DPoP proof generation,
   token refresh, and Authorization scheme selection remain inside the atproto
-  OAuth library. This is deliberately not runtime-selected yet because
-  `OAUTH_SCOPE` still requests only `rpc:` scopes and no space-enabled PDS path
-  is exercised by the app.
+  OAuth library. `PERMISSIONED_RECORD_WRITER_MODE=draft-xrpc` now selects the
+  XRPC writer in API composition, enables the OAuth client even when `PDS_URL`
+  is otherwise unset, and expands requested OAuth scope with draft
+  `space:` member-write grants (`create`/`delete`, not `update`). The default
+  remains `private-record` until a space-enabled PDS or HappyView-compatible
+  target is exercised end-to-end.
 - `ProposalService.castVote()` now asks `VisibilityRouter` before writing the
   `network.coopsource.governance.vote` record. Closed-governance cooperatives
   route votes to Tier 2 private storage under the cooperative DID; open and
@@ -602,10 +605,12 @@ Initial Phase 4 substrate artifact started in this branch:
 - Keep `network.coopsource.org.spaceType.*` as the canonical CSN draft space
   type namespace for this PoC. Rename only if upstream final syntax or tooling
   makes the current namespace actively misleading.
-- Remaining Phase 4 substrate work should wire the experimental XRPC writer to
-  draft `space:` OAuth grants and then decide the runtime selection policy. Do
-  not make it the default until a space-enabled PDS can be exercised; do not
-  leave it untested behind a dormant feature flag.
+- Remaining Phase 4 substrate work should exercise
+  `PERMISSIONED_RECORD_WRITER_MODE=draft-xrpc` against a space-enabled PDS or
+  HappyView-compatible prototype, including real OAuth consent, space creation
+  with CSN's encoded `skey` convention, member authorization, create/delete
+  writes, and failure mapping. Do not make it the default until that
+  integration evidence exists.
 
 ## Phase 5 Parallelization
 

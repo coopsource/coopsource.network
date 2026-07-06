@@ -19,13 +19,14 @@ import {
 export interface AuthRoutesOptions {
   oauthClient?: NodeOAuthClient;
   frontendUrl: string;
+  oauthScope?: string;
 }
 
 export function createAuthRoutes(
   container: Container,
   options: AuthRoutesOptions,
 ): Router {
-  const { oauthClient, frontendUrl } = options;
+  const { oauthClient, frontendUrl, oauthScope = OAUTH_SCOPE } = options;
   const router = Router();
 
   // POST /api/v1/auth/register
@@ -282,7 +283,7 @@ export function createAuthRoutes(
         }
 
         const url = await oauthClient.authorize(handle, {
-          scope: OAUTH_SCOPE,
+          scope: oauthScope,
         });
 
         res.json({ redirectUrl: url.toString() });

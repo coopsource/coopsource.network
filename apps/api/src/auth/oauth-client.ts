@@ -4,6 +4,8 @@
 import { NodeOAuthClient } from '@atproto/oauth-client-node';
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
+import { formatCsnMemberWriteScopePlan } from '@coopsource/lexicons';
+import type { AppConfig } from '../config.js';
 import { PostgresStateStore, PostgresSessionStore } from './oauth-stores.js';
 
 /**
@@ -28,7 +30,7 @@ import { PostgresStateStore, PostgresSessionStore } from './oauth-stores.js';
  * 0.6.x / PDS 0.4), but declaring them documents intent and will
  * take effect when the ecosystem ships enforcement.
  */
-export const OAUTH_SCOPE = [
+export const BASE_OAUTH_SCOPES = [
   'atproto',
   'rpc:network.coopsource.alignment',
   'rpc:network.coopsource.agreement',
@@ -36,17 +38,38 @@ export const OAUTH_SCOPE = [
   'rpc:network.coopsource.governance',
   'rpc:network.coopsource.org',
   'rpc:network.coopsource.connection',
-].join(' ');
+] as const;
+
+export const DRAFT_PERMISSIONED_SPACE_WRITE_SCOPES =
+  formatCsnMemberWriteScopePlan({
+    authority: '*',
+    actions: ['create', 'delete'],
+  });
+
+export const OAUTH_SCOPE = BASE_OAUTH_SCOPES.join(' ');
+
+export function oauthScopeForConfig(
+  config: Pick<AppConfig, 'PERMISSIONED_RECORD_WRITER_MODE'>,
+): string {
+  return [
+    ...BASE_OAUTH_SCOPES,
+    ...(config.PERMISSIONED_RECORD_WRITER_MODE === 'draft-xrpc'
+      ? DRAFT_PERMISSIONED_SPACE_WRITE_SCOPES
+      : []),
+  ].join(' ');
+}
 
 export interface OAuthClientOptions {
   /** Public URL of this API server, e.g. http://localhost:3001 */
   publicUrl: string;
   /** Kysely database instance */
   db: Kysely<Database>;
+  /** Scope requested and advertised by this OAuth client. */
+  scope?: string;
 }
 
 export function createOAuthClient(options: OAuthClientOptions): NodeOAuthClient {
-  const { publicUrl, db } = options;
+  const { publicUrl, db, scope = OAUTH_SCOPE } = options;
 
   const clientId = `${publicUrl}/api/v1/auth/oauth/client-metadata.json`;
   const redirectUri = `${publicUrl}/api/v1/auth/oauth/callback`;
@@ -59,7 +82,7 @@ export function createOAuthClient(options: OAuthClientOptions): NodeOAuthClient 
       redirect_uris: [redirectUri],
       grant_types: ['authorization_code', 'refresh_token'],
       response_types: ['code'],
-      scope: OAUTH_SCOPE,
+      scope,
       token_endpoint_auth_method: 'none',
       application_type: 'web',
       dpop_bound_access_tokens: true,

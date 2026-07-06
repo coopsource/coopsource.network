@@ -4,9 +4,10 @@ import {
   CsnDbGroupMutationPort,
 } from '@coopsource/arbiter-client';
 import type { GroupMutationPort } from '@coopsource/arbiter-client';
-import type {
-  GroupDirectoryPort,
-  PermissionedRecordWritePort,
+import {
+  XrpcPermissionedRecordWritePort,
+  type GroupDirectoryPort,
+  type PermissionedRecordWritePort,
 } from '@coopsource/spaces-consumer';
 import type { Kysely, Transaction } from 'kysely';
 import type { Database } from '@coopsource/db';
@@ -70,6 +71,7 @@ import { MemberNoticeService } from './services/member-notice-service.js';
 import { FiscalPeriodService } from './services/fiscal-period-service.js';
 import { PrivateRecordService } from './services/private-record-service.js';
 import { PrivateRecordPermissionedWritePort } from './services/private-record-permissioned-write-port.js';
+import { OAuthPermissionedRecordWriteSessionProvider } from './services/oauth-permissioned-record-write-session-provider.js';
 import { VisibilityRouter } from './services/visibility-router.js';
 import {
   PdsPublicGovernanceAnchorWritePort,
@@ -158,6 +160,8 @@ export interface Container {
   fiscalPeriodService: FiscalPeriodService;
   privateRecordService: PrivateRecordService;
   permissionedRecordWriter: PermissionedRecordWritePort;
+  permissionedRecordWriteSessionProvider:
+    OAuthPermissionedRecordWriteSessionProvider;
   visibilityRouter: VisibilityRouter;
   publicGovernanceAnchorService: PublicGovernanceAnchorService;
   patronageService: PatronageService;
@@ -344,9 +348,15 @@ export function createContainer(config: AppConfig): Container {
     membershipReadModel,
   );
   const privateRecordService = new PrivateRecordService(db, clock);
-  const permissionedRecordWriter = new PrivateRecordPermissionedWritePort(
-    privateRecordService,
-  );
+  const permissionedRecordWriteSessionProvider =
+    new OAuthPermissionedRecordWriteSessionProvider(undefined);
+  const permissionedRecordWriter =
+    config.PERMISSIONED_RECORD_WRITER_MODE === 'draft-xrpc'
+      ? new XrpcPermissionedRecordWritePort({
+          sessionProvider:
+            permissionedRecordWriteSessionProvider.sessionProvider,
+        })
+      : new PrivateRecordPermissionedWritePort(privateRecordService);
   const visibilityRouter = new VisibilityRouter(db);
   const publicGovernanceAnchorService = new PublicGovernanceAnchorService(
     new PdsPublicGovernanceAnchorWritePort(pdsService),
@@ -575,6 +585,7 @@ export function createContainer(config: AppConfig): Container {
     fiscalPeriodService,
     privateRecordService,
     permissionedRecordWriter,
+    permissionedRecordWriteSessionProvider,
     visibilityRouter,
     publicGovernanceAnchorService,
     patronageService,
