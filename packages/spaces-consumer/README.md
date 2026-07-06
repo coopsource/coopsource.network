@@ -14,7 +14,11 @@ Stage 1 V11 consumer for ATProto permissioned-space data. The public package bou
 - `PermissionedRepoPort` watches and syncs verified permissioned records.
 - `PermissionedRecordWritePort` creates records in a permissioned space behind
   a replaceable adapter. The current API uses a legacy `private_record` adapter
-  behind this port until upstream write APIs stabilize.
+  behind this port for runtime writes. `XrpcPermissionedRecordWritePort` targets
+  the draft Proposal 0016 `com.atproto.space.createRecord/deleteRecord` XRPC
+  write surface and is tested as real HTTP client code, but it is not the
+  default until CSN has a real author OAuth session provider for `space:`
+  scopes.
 - `SpacesConsumer` cross-checks each verified record author before emitting it.
 
 The old mechanism sketches (`NotificationSubscriber`, `RepoPuller`, `EcmhVerifier`, `ArbiterMemberList`) remain source-level scaffolding for tests and future adapters, but they are not exported from the package root.
@@ -40,6 +44,11 @@ The executable sketches now live at the stable-port level:
 - `InMemoryPermissionedRecordWritePort` sketches the write contract with
   structured record locations, duplicate-location rejection, and an awaited
   async write boundary for adapter-fidelity tests.
+- `XrpcPermissionedRecordWritePort` is the draft upstream write adapter. It
+  posts to the authoring user's PDS, requires an OAuth authorization header,
+  validates returned permissioned record URIs against the requested
+  space/repo/collection, and maps draft XRPC errors such as `SpaceNotFound` and
+  `NotAMember` to typed write failures.
 - `KyselyPermissionedCheckpointStore` sketches durable space-level checkpoint storage against the current PoC table.
 - `@coopsource/arbiter-client` provides the Stage 2A CSN-backed `CsnDbGroupDirectoryPort`.
 
@@ -58,7 +67,7 @@ See `docs/plans/2026-05-17-v11-spaces-consumer-adapter-architecture.md` for the 
 | Space credentials            | `SpaceCredentialStore`, `InMemorySpaceCredentialStore`, `SpaceCredentialManager`, `TwoStepSpaceCredentialIssuer` |
 | Permissioned sync            | `PermissionedRepoPort`, `InMemoryPermissionedRepoPort`, `FailClosedPermissionedRepoPort`                         |
 | Credentialed sync            | `CredentialedPermissionedRepoPort`                                                                               |
-| Permissioned writes          | `PermissionedRecordWritePort`, `InMemoryPermissionedRecordWritePort`                                             |
+| Permissioned writes          | `PermissionedRecordWritePort`, `InMemoryPermissionedRecordWritePort`, `XrpcPermissionedRecordWritePort`          |
 | Checkpoints                  | `PermissionedCheckpointStore`, `KyselyPermissionedCheckpointStore`                                               |
 | Orchestration                | `SpacesConsumer`                                                                                                 |
 

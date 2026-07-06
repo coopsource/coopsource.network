@@ -1,9 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
+  formatSpaceUri,
   formatSpaceRecordUri,
+  parseSpaceUri,
   parseSpaceRecordUri,
   isSpaceRecordUri,
   type SpaceRecordUri,
+  type SpaceUri,
 } from '../space-uri.js';
 
 const sample: SpaceRecordUri = {
@@ -16,6 +19,22 @@ const sample: SpaceRecordUri = {
 };
 
 describe('space-uri', () => {
+  it('round-trips a space URI without accepting record URIs as spaces', () => {
+    const space: SpaceUri = {
+      spaceDid: sample.spaceDid,
+      spaceType: 'network.coopsource.org.spaceType.role',
+      skey: 'roles/board',
+    };
+    const uri = formatSpaceUri(space);
+
+    expect(uri).toBe(
+      'at://did:plc:abc/space/network.coopsource.org.spaceType.role/roles%2Fboard',
+    );
+    expect(parseSpaceUri(uri)).toEqual(space);
+    expect(parseSpaceUri(formatSpaceRecordUri(sample))).toBeNull();
+    expect(parseSpaceUri('at://did:plc:abc/app.bsky.feed.post/xyz')).toBeNull();
+  });
+
   it('round-trips a proposal-0016-shaped URI', () => {
     const uri = formatSpaceRecordUri(sample);
     expect(uri).toBe(

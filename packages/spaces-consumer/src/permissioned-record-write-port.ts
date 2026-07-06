@@ -36,10 +36,13 @@ export interface PermissionedRecordWritePort {
 }
 
 export type PermissionedRecordWriteErrorKind =
+  | 'auth'
   | 'conflict'
   | 'invalid-space'
   | 'not-found'
-  | 'protocol';
+  | 'not-member'
+  | 'protocol'
+  | 'unavailable';
 
 export class PermissionedRecordWriteError extends Error {
   constructor(

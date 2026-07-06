@@ -9,6 +9,7 @@ describe('public API', () => {
     expect(publicApi).toHaveProperty('TwoStepSpaceCredentialIssuer');
     expect(publicApi).toHaveProperty('CredentialedPermissionedRepoPort');
     expect(publicApi).toHaveProperty('InMemoryPermissionedRecordWritePort');
+    expect(publicApi).toHaveProperty('XrpcPermissionedRecordWritePort');
     expect(publicApi).toHaveProperty('PermissionedRecordWriteError');
     expect(publicApi).toHaveProperty('KyselyDidEquivalencePort');
     expect(publicApi).toHaveProperty('RawDidEquivalencePort');

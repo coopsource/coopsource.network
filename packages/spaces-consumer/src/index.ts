@@ -85,6 +85,23 @@ export {
   InMemoryPermissionedRecordWritePort,
   PermissionedRecordWriteError,
 } from './permissioned-record-write-port.js';
+export type {
+  XrpcPermissionedRecordWriteArgs,
+  XrpcPermissionedRecordWriteFetch,
+  XrpcPermissionedRecordWriteFetchInit,
+  XrpcPermissionedRecordWriteFetchResponse,
+  XrpcPermissionedRecordWriteHeaderProvider,
+  XrpcPermissionedRecordWriteHeaderRequest,
+  XrpcPermissionedRecordWriteOperation,
+  XrpcPermissionedRecordWritePortOptions,
+  XrpcPermissionedRecordWriteSession,
+  XrpcPermissionedRecordWriteSessionRequest,
+  XrpcPermissionedRecordWriteSessionProvider,
+} from './xrpc-permissioned-record-write-port.js';
+export {
+  formatPermissionedSpaceLocationUri,
+  XrpcPermissionedRecordWritePort,
+} from './xrpc-permissioned-record-write-port.js';
 export type { CredentialedPermissionedRepoPortOptions } from './credentialed-permissioned-repo-port.js';
 export { CredentialedPermissionedRepoPort } from './credentialed-permissioned-repo-port.js';
 export type {
@@ -92,9 +109,11 @@ export type {
   SpacesConsumerOptions,
 } from './consumer.js';
 export { SpacesConsumer } from './consumer.js';
-export type { SpaceRecordUri } from './space-uri.js';
+export type { SpaceRecordUri, SpaceUri } from './space-uri.js';
 export {
   formatSpaceRecordUri,
+  formatSpaceUri,
   isSpaceRecordUri,
   parseSpaceRecordUri,
+  parseSpaceUri,
 } from './space-uri.js';

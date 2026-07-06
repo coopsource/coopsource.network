@@ -209,10 +209,17 @@ These should remain Phase 6 unless Phase 4/5 work touches them directly.
 5. Use mocks that preserve the real boundary behavior: async delivery, strict
    fail-closed partial/stale results, pagination/truncation, and realistic
    ordering/race behavior for invitation and HTTP tests.
-6. Defer external XRPC Arbiter integration until there is a shipped server or
-   a stable enough branch to target. Draft adapters are fine behind flags, but
-   CSN-DB remains default.
-7. Do not start Phase 6 retirement until Phase 3 read seam, Phase 4 space
+6. Draft adapters may be non-default while upstream implementations settle, but
+   they must not be accepted as flag-only progress. Each non-default adapter
+   still needs tests that run by default and exercise the real boundary shape
+   (HTTP/fetch request construction, headers/auth, async latency, malformed
+   responses, and protocol errors). Prefer local HTTP boundary tests over pure
+   function mocks when an adapter's job is to speak HTTP.
+7. Defer default external XRPC Arbiter integration until there is a shipped
+   server or a stable enough branch to target. Draft adapters are fine as
+   exported experimental implementations, but CSN-DB remains default until the
+   live auth/credential posture is settled.
+8. Do not start Phase 6 retirement until Phase 3 read seam, Phase 4 space
    placement, and Phase 5 view extraction have stable landing points.
 
 ## Updated Execution Order
@@ -548,6 +555,17 @@ Initial Phase 4 substrate artifact started in this branch:
   formatting. The API uses this as the write-side seam for closed governance
   records instead of letting `VisibilityRouter` directly create
   `private_record` rows.
+- `@coopsource/spaces-consumer` now also exports
+  `XrpcPermissionedRecordWritePort`, an experimental real HTTP/fetch adapter
+  for the draft Proposal 0016 write methods
+  `com.atproto.space.createRecord` and `com.atproto.space.deleteRecord`. It
+  resolves one author session per write, requires an OAuth authorization header,
+  posts to the authoring user's PDS, validates the returned space-record URI
+  against the requested location, and maps `SpaceNotFound`, `NotAMember`,
+  conflicts, auth failures, and upstream outages into typed write errors.
+  Coverage uses a local HTTP server and runs in the default
+  `@coopsource/spaces-consumer` test suite, so this is not mock-only or
+  flag-only progress.
 - `ProposalService.castVote()` now asks `VisibilityRouter` before writing the
   `network.coopsource.governance.vote` record. Closed-governance cooperatives
   route votes to Tier 2 private storage under the cooperative DID; open and
@@ -572,9 +590,10 @@ Initial Phase 4 substrate artifact started in this branch:
 - Keep `network.coopsource.org.spaceType.*` as the canonical CSN draft space
   type namespace for this PoC. Rename only if upstream final syntax or tooling
   makes the current namespace actively misleading.
-- Remaining Phase 4 substrate work should replace the legacy
-  `private_record`-backed writer adapter with a real permissioned-space writer
-  when the upstream write API is stable enough to target.
+- Remaining Phase 4 substrate work should wire the experimental XRPC writer to
+  a real CSN author-session provider for `space:` OAuth grants, then decide the
+  runtime selection policy. Do not make it the default until a space-enabled PDS
+  can be exercised; do not leave it untested behind a dormant feature flag.
 
 ## Phase 5 Parallelization
 

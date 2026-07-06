@@ -24,15 +24,28 @@ export interface SpaceRecordUri {
   readonly rkey: string;
 }
 
+export interface SpaceUri {
+  readonly spaceDid: string; // space authority DID (our SpaceRef.arbiterDid)
+  readonly spaceType: string; // NSID
+  readonly skey: string;
+}
+
 const SPACE_SEGMENT = 'space';
 
-/** Format a permissioned-record URI. Does not validate DID/NSID syntax. */
-export function formatSpaceRecordUri(u: SpaceRecordUri): string {
+/** Format a permissioned-space URI. Does not validate DID/NSID syntax. */
+export function formatSpaceUri(u: SpaceUri): string {
   return [
     `at://${u.spaceDid}`,
     SPACE_SEGMENT,
     encodePathSegment(u.spaceType),
     encodePathSegment(u.skey),
+  ].join('/');
+}
+
+/** Format a permissioned-record URI. Does not validate DID/NSID syntax. */
+export function formatSpaceRecordUri(u: SpaceRecordUri): string {
+  return [
+    formatSpaceUri(u),
     encodePathSegment(u.authorDid),
     encodePathSegment(u.collection),
     encodePathSegment(u.rkey),
@@ -66,6 +79,33 @@ export function parseSpaceRecordUri(uri: string): SpaceRecordUri | null {
   const [spaceType, skey, authorDid, collection, rkey] = decodedParts;
 
   return { spaceDid, spaceType, skey, authorDid, collection, rkey };
+}
+
+/**
+ * Parse a permissioned-space URI. Returns `null` for record URIs, public
+ * `at://` records, wrong scheme, query/fragment suffixes, empty components, or
+ * the wrong number of path segments. Never throws.
+ */
+export function parseSpaceUri(uri: string): SpaceUri | null {
+  if (typeof uri !== 'string') return null;
+  if (!uri.startsWith('at://')) return null;
+  if (uri.includes('?') || uri.includes('#')) return null;
+
+  const rest = uri.slice('at://'.length);
+  const parts = rest.split('/');
+  // spaceDid / "space" / spaceType / skey
+  if (parts.length !== 4) return null;
+  const [spaceDid, marker, ...encodedParts] = parts;
+  if (marker !== SPACE_SEGMENT) return null;
+  if (!spaceDid || encodedParts.some((part) => !part)) {
+    return null;
+  }
+
+  const decodedParts = decodePathSegments(encodedParts);
+  if (!decodedParts || decodedParts.some((part) => !part)) return null;
+  const [spaceType, skey] = decodedParts;
+
+  return { spaceDid, spaceType, skey };
 }
 
 /** True if `uri` is a permissioned-space record URI (vs a plain public at:// URI). */
