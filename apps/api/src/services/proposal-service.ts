@@ -5,7 +5,10 @@ import type {
   PermissionedRecordWriteResult,
   SpaceRef,
 } from '@coopsource/spaces-consumer';
-import { formatPermissionedRecordLocationUri } from '@coopsource/spaces-consumer';
+import {
+  formatPermissionedRecordLocationUri,
+  isSpaceRecordUri,
+} from '@coopsource/spaces-consumer';
 
 type ProposalRow = Selectable<ProposalTable>;
 type VoteRow = Selectable<VoteTable>;
@@ -549,7 +552,11 @@ export class ProposalService {
       .execute();
 
     // Emit governance label (best-effort)
-    if (this.labeler && updated?.uri) {
+    if (
+      this.labeler &&
+      updated?.uri &&
+      shouldEmitPublicGovernanceLabel(updated.uri)
+    ) {
       const labelValue =
         outcome === 'passed'
           ? 'proposal-approved'
@@ -644,4 +651,8 @@ function permissionedRecordRef(
     uri: formatPermissionedRecordLocationUri(write.location) as AtUri,
     cid: write.cid as CID,
   };
+}
+
+function shouldEmitPublicGovernanceLabel(uri: string): boolean {
+  return !isSpaceRecordUri(uri);
 }

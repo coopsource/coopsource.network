@@ -253,6 +253,58 @@ describe('Governance Visibility', () => {
       .execute();
     expect(proposals).toHaveLength(0);
   });
+
+  it('does not emit public governance labels for permissioned-space proposals', async () => {
+    const testApp = createTestApp();
+    const { coopDid } = await setupAndLogin(testApp);
+
+    await testApp.agent
+      .put('/api/v1/cooperative')
+      .send({ governanceVisibility: 'closed' })
+      .expect(200);
+
+    const proposalRes = await testApp.agent
+      .post('/api/v1/proposals')
+      .send({
+        title: 'Private resolution',
+        body: 'Resolution should stay private',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+      })
+      .expect(201);
+
+    await testApp.agent
+      .post(`/api/v1/proposals/${proposalRes.body.id}/open`)
+      .expect(200);
+    await testApp.agent
+      .post(`/api/v1/proposals/${proposalRes.body.id}/vote`)
+      .send({ choice: 'yes' })
+      .expect(201);
+    await testApp.agent
+      .post(`/api/v1/proposals/${proposalRes.body.id}/close`)
+      .expect(200);
+    await testApp.agent
+      .post(`/api/v1/proposals/${proposalRes.body.id}/resolve`)
+      .expect(200);
+
+    const proposal = await testApp.container.db
+      .selectFrom('proposal')
+      .where('id', '=', proposalRes.body.id)
+      .select(['uri', 'cid'])
+      .executeTakeFirstOrThrow();
+    expect(proposal.cid).toBe('private');
+    expect(parseSpaceRecordUri(proposal.uri)).toMatchObject({
+      spaceDid: coopDid,
+      collection: 'network.coopsource.governance.proposal',
+    });
+
+    const labels = await testApp.container.db
+      .selectFrom('governance_label')
+      .where('subject_uri', '=', proposal.uri)
+      .selectAll()
+      .execute();
+    expect(labels).toHaveLength(0);
+  });
 });
 
 class FailingPermissionedRecordWriter implements PermissionedRecordWritePort {

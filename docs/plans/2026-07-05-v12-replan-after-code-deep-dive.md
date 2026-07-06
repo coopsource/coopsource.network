@@ -560,13 +560,16 @@ Initial Phase 4 substrate artifact started in this branch:
   locations.
 - `VisibilityRouter` is now a placement decision helper. It returns Tier 1 or a
   concrete `SpaceRef` for Tier 2; it no longer has storage side effects.
+- Closed/private permissioned-space proposals do not emit public governance
+  labels during resolution. Public anchors for private governance are forbidden
+  by default until an explicit optional anchor record is designed.
 - Keep `network.coopsource.org.spaceType.*` as the canonical CSN draft space
   type namespace for this PoC. Rename only if upstream final syntax or tooling
   makes the current namespace actively misleading.
-- Next Phase 4 implementation should decide the proposal public-anchor policy
-  for closed/private governance, then replace the legacy writer adapter with a
-  real permissioned-space writer when the upstream write API is stable enough to
-  target.
+- Next Phase 4 implementation should design the optional proposal public-anchor
+  record for closed/private governance, then replace the legacy writer adapter
+  with a real permissioned-space writer when the upstream write API is stable
+  enough to target.
 
 ## Phase 5 Parallelization
 
