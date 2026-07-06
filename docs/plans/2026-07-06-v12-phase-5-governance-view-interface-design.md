@@ -11,8 +11,9 @@ eligibility adapters over narrow membership reader ports; `apps/api` composes a
 now gets vote weight through that plugin set; the shared XRPC/Inlay vote
 eligibility path gets active-member gating through the same plugin set; and
 `ProposalService.resolveProposal` now evaluates headcount/class quorum through
-`GovernancePluginSet.quorum`. Do not move additional service logic until the
-adapter layer is tested against current API suites.
+`GovernancePluginSet.quorum`. Outgoing delegate-chain resolution is composed
+through `GovernancePluginSet.delegateChains`. Do not move additional service
+logic until the adapter layer is tested against current API suites.
 
 ## Purpose
 
@@ -225,7 +226,9 @@ Reviewed against the current implementation on 2026-07-06:
   weight remain in the shared handler until later slices.
 - `DelegationVotingService.calculateVoteWeight` combines direct class weight
   with delegator class weights. Generic `DelegateChainsPlugin` defaults to the
-  direct voter only; cycle/chain expansion stays in the CSN adapter slice.
+  direct voter only. CoopView now adapts outgoing delegation chains, but
+  incoming delegated vote-weight expansion still needs either a separate plugin
+  shape or an expanded interface.
 
 ## Extraction Order
 
@@ -244,7 +247,9 @@ Reviewed against the current implementation on 2026-07-06:
    wired through the composed plugin set without changing stored vote-weight
    behavior; shared XRPC/Inlay vote eligibility now uses the composed
    eligibility plugin for active-member gating; `ProposalService.resolveProposal`
-   now uses `CoopQuorumPlugin` for headcount and class-quorum decisions.**
+   now uses `CoopQuorumPlugin` for headcount and class-quorum decisions.
+   `CoopDelegateChainsPlugin` is composed for outgoing chain resolution, with
+   proposal-scope chains taking precedence over project-scope fallback.**
 4. Move generic proposal/vote tally reducers out of `ProposalService` only after
    the adapter layer is tested against current proposal/vote/delegation suites.
 5. Add `anchorSummary`, `historicalState`, patronage/distribution, and
@@ -274,9 +279,9 @@ Reviewed against the current implementation on 2026-07-06:
 
 Continue `packages/coop-view` adapters without moving production service logic:
 
-1. Add `DelegateChainsPlugin` only after reviewing
-   `DelegationVotingService.calculateVoteWeight` cycle and proposal-scope
-   behavior.
+1. Decide whether delegated vote-weight expansion belongs in
+   `DelegateChainsPlugin` or a separate weighted-expansion plugin before moving
+   `DelegationVotingService.calculateVoteWeight`.
 
 When running package checks, avoid running a dependent package's tests while its
 dependency package is rebuilding: current package exports point at `dist`, and

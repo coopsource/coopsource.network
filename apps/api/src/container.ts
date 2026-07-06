@@ -16,6 +16,7 @@ import {
   type GovernancePluginSet,
 } from '@coopsource/governance-view';
 import {
+  createCoopDelegateChainsPlugin,
   createCoopEligibilityPlugin,
   createCoopQuorumPlugin,
   createCoopVoteWeightPlugin,
@@ -85,6 +86,7 @@ import {
   MembershipReadModelVoteWeightReader,
   MembershipReadModelVotingEligibilityReader,
 } from './services/coop-view-membership-adapters.js';
+import { DelegationVotingServiceDelegateChainReader } from './services/coop-view-delegation-adapters.js';
 import { VisibilityRouter } from './services/visibility-router.js';
 import {
   PdsPublicGovernanceAnchorWritePort,
@@ -334,7 +336,7 @@ export function createContainer(config: AppConfig): Container {
     });
   const groupDirectory = new CsnDbGroupDirectoryPort(db);
   const membershipReadModel = new MembershipReadModel(db, groupDirectory);
-  const governancePlugins = createDefaultGovernancePluginSet({
+  const governanceCorePlugins = createDefaultGovernancePluginSet({
     voteWeight: createCoopVoteWeightPlugin(
       new MembershipReadModelVoteWeightReader(membershipReadModel),
     ),
@@ -406,8 +408,8 @@ export function createContainer(config: AppConfig): Container {
     pdsService,
     clock,
     membershipReadModel,
-    governancePlugins.voteWeight,
-    governancePlugins.quorum,
+    governanceCorePlugins.voteWeight,
+    governanceCorePlugins.quorum,
     memberWriteProxy,
     governanceLabeler,
     visibilityRouter,
@@ -481,6 +483,12 @@ export function createContainer(config: AppConfig): Container {
     clock,
     membershipReadModel,
   );
+  const governancePlugins: GovernancePluginSet = {
+    ...governanceCorePlugins,
+    delegateChains: createCoopDelegateChainsPlugin(
+      new DelegationVotingServiceDelegateChainReader(delegationVotingService),
+    ),
+  };
   const governanceFeedService = new GovernanceFeedService(db, clock);
   const memberClassService = new MemberClassService(
     db,

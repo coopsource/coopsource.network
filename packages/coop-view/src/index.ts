@@ -1,8 +1,15 @@
 export type {
+  CoopDelegateChainReader,
+  CoopDelegationLink,
   CoopVoteWeightReader,
   CoopVotingEligibility,
   CoopVotingEligibilityReader,
 } from './ports.js';
+export type { CoopDelegateChainsPluginOptions } from './delegate-chains-plugin.js';
+export {
+  CoopDelegateChainsPlugin,
+  createCoopDelegateChainsPlugin,
+} from './delegate-chains-plugin.js';
 export type {
   CoopEligibilityEvidence,
   CoopEligibilityPluginOptions,

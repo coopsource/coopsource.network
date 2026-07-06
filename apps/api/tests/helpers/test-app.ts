@@ -6,6 +6,7 @@ import type { Database } from '@coopsource/db';
 import type { PermissionedRecordWritePort } from '@coopsource/spaces-consumer';
 import { createDefaultGovernancePluginSet } from '@coopsource/governance-view';
 import {
+  createCoopDelegateChainsPlugin,
   createCoopEligibilityPlugin,
   createCoopQuorumPlugin,
   createCoopVoteWeightPlugin,
@@ -58,6 +59,7 @@ import {
   MembershipReadModelVoteWeightReader,
   MembershipReadModelVotingEligibilityReader,
 } from '../../src/services/coop-view-membership-adapters.js';
+import { DelegationVotingServiceDelegateChainReader } from '../../src/services/coop-view-delegation-adapters.js';
 import { VisibilityRouter } from '../../src/services/visibility-router.js';
 import {
   PdsPublicGovernanceAnchorWritePort,
@@ -209,7 +211,7 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     });
   const groupDirectory = new CsnDbGroupDirectoryPort(db);
   const membershipReadModel = new MembershipReadModel(db, groupDirectory);
-  const governancePlugins = createDefaultGovernancePluginSet({
+  const governanceCorePlugins = createDefaultGovernancePluginSet({
     voteWeight: createCoopVoteWeightPlugin(
       new MembershipReadModelVoteWeightReader(membershipReadModel),
     ),
@@ -270,8 +272,8 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     pdsService,
     clock,
     membershipReadModel,
-    governancePlugins.voteWeight,
-    governancePlugins.quorum,
+    governanceCorePlugins.voteWeight,
+    governanceCorePlugins.quorum,
     memberWriteProxy,
     governanceLabeler,
     visibilityRouter,
@@ -343,6 +345,12 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     clock,
     membershipReadModel,
   );
+  const governancePlugins = {
+    ...governanceCorePlugins,
+    delegateChains: createCoopDelegateChainsPlugin(
+      new DelegationVotingServiceDelegateChainReader(delegationVotingService),
+    ),
+  };
   const governanceFeedService = new GovernanceFeedService(db, clock);
   const memberClassService = new MemberClassService(
     db,

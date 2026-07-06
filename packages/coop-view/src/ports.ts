@@ -16,3 +16,16 @@ export interface CoopVotingEligibilityReader {
     memberDid: string,
   ): Promise<CoopVotingEligibility>;
 }
+
+export interface CoopDelegationLink {
+  readonly delegatorDid: string;
+  readonly delegateeDid: string;
+}
+
+export interface CoopDelegateChainReader {
+  resolveDelegateChain(input: {
+    readonly cooperativeDid: string;
+    readonly voterDid: string;
+    readonly proposalUri: string;
+  }): Promise<readonly CoopDelegationLink[]>;
+}

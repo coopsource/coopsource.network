@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { membersSpace } from '@coopsource/arbiter-client';
 import { truncateAllTables } from './helpers/test-db.js';
 import { createTestApp, setupAndLogin } from './helpers/test-app.js';
 import { resetSetupCache } from '../src/auth/middleware.js';
@@ -134,6 +135,63 @@ describe('Delegation Voting API', () => {
     expect(res.body.chain[0].delegatee_did).toBe(
       'did:web:delegate1.example.com',
     );
+  });
+
+  it('resolves outgoing chains through the composed governance plugin', async () => {
+    const testApp = createTestApp();
+    const { adminDid, coopDid } = await setupAndLogin(testApp);
+
+    const proposalRes = await testApp.agent
+      .post('/api/v1/proposals')
+      .send({
+        title: 'Delegation plugin proposal',
+        body: 'Test body',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+      })
+      .expect(201);
+
+    await testApp.agent
+      .post('/api/v1/governance/delegations')
+      .send({
+        delegateeDid: 'did:web:delegate1.example.com',
+        scope: 'project',
+      })
+      .expect(201);
+
+    const proposal = await testApp.container.db
+      .selectFrom('proposal')
+      .where('id', '=', proposalRes.body.id as string)
+      .select(['uri', 'cid'])
+      .executeTakeFirstOrThrow();
+    if (!proposal.uri) {
+      throw new Error('Expected proposal URI');
+    }
+    const memberSpace = membersSpace(coopDid);
+
+    const result =
+      await testApp.container.governancePlugins.delegateChains.resolve({
+        voter: { did: adminDid },
+        cooperative: {
+          authorityDid: coopDid,
+          spaceKey: memberSpace.spaceKey,
+          spaceType: memberSpace.expectedSpaceType,
+        },
+        proposal: {
+          uri: proposal.uri,
+          ...(proposal.cid ? { cid: proposal.cid } : {}),
+          collection: 'network.coopsource.governance.proposal',
+        },
+        at: testApp.clock.now().toISOString(),
+      });
+
+    expect(result).toEqual({
+      chain: [
+        { did: adminDid },
+        { did: 'did:web:delegate1.example.com' },
+      ],
+      terminal: { did: 'did:web:delegate1.example.com' },
+    });
   });
 
   // ─── Circular Prevention ────────────────────────────────────────────
