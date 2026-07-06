@@ -22,6 +22,7 @@ import {
   createCoopEligibilityPlugin,
   createCoopPatronageAllocatorPlugin,
   createCoopQuorumPlugin,
+  createCoopSurplusDistributorPlugin,
   createCoopVoteWeightPlugin,
 } from '@coopsource/coop-view';
 import { SystemClock } from '@coopsource/federation';
@@ -369,6 +370,7 @@ export function createContainer(config: AppConfig): Container {
     quorum: createCoopQuorumPlugin(),
     actionAuthorizer,
     patronageAllocator: createCoopPatronageAllocatorPlugin(),
+    surplusDistributor: createCoopSurplusDistributorPlugin(),
   });
   const groupMutations = groupMutationsForDb(db);
   const operatorWriteProxy = new OperatorWriteProxy(
@@ -506,7 +508,11 @@ export function createContainer(config: AppConfig): Container {
     clock,
     governanceCorePlugins.patronageAllocator,
   );
-  const capitalAccountService = new CapitalAccountService(db, clock);
+  const capitalAccountService = new CapitalAccountService(
+    db,
+    clock,
+    governanceCorePlugins.surplusDistributor,
+  );
   const tax1099Service = new Tax1099Service(db, clock);
   const onboardingService = new OnboardingService(db, clock);
   const governancePlugins: GovernancePluginSet = {

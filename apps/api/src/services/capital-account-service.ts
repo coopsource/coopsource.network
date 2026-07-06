@@ -1,6 +1,17 @@
 import type { Kysely, Selectable } from 'kysely';
 import type { Database, CapitalAccountTable, CapitalAccountTransactionTable } from '@coopsource/db';
 import { NotFoundError, ValidationError } from '@coopsource/common';
+import type {
+  JsonValue,
+  SurplusDistributorPlugin,
+} from '@coopsource/governance-view';
+import {
+  CoopSurplusDistributionError,
+  parseCoopSurplusDistributions,
+  planCoopSurplusDistributions,
+  type CoopSurplusAllocation,
+  type CoopSurplusDistribution,
+} from '@coopsource/coop-view';
 import type { IClock } from '@coopsource/federation';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
@@ -12,6 +23,7 @@ export class CapitalAccountService {
   constructor(
     private db: Kysely<Database>,
     private clock: IClock,
+    private surplusDistributor?: SurplusDistributorPlugin,
   ) {}
 
   async getOrCreateAccount(
@@ -105,13 +117,22 @@ export class CapitalAccountService {
       .execute();
 
     if (records.length === 0) return 0;
+    const distributions = await this.distributeSurplus({
+      cooperativeDid,
+      fiscalPeriodId,
+      allocations: records.map((record) => ({
+        patronageRecordId: record.id,
+        memberDid: record.member_did,
+        retainedAmount: Number(record.retained_amount),
+      })),
+    });
 
     let count = 0;
-    for (const record of records) {
-      const retainedAmount = Number(record.retained_amount);
-      if (retainedAmount <= 0) continue;
-
-      const account = await this.getOrCreateAccount(cooperativeDid, record.member_did);
+    for (const distribution of distributions) {
+      const account = await this.getOrCreateAccount(
+        cooperativeDid,
+        distribution.memberDid,
+      );
       const currentBalance = Number(account.balance);
       const currentPatronage = Number(account.total_patronage_allocated);
 
@@ -121,12 +142,12 @@ export class CapitalAccountService {
         .values({
           capital_account_id: account.id,
           cooperative_did: cooperativeDid,
-          member_did: record.member_did,
-          transaction_type: 'patronage_allocation',
-          amount: retainedAmount,
+          member_did: distribution.memberDid,
+          transaction_type: distribution.transactionType,
+          amount: distribution.amount,
           fiscal_period_id: fiscalPeriodId,
-          patronage_record_id: record.id,
-          description: `Patronage allocation for fiscal period ${fiscalPeriodId}`,
+          patronage_record_id: distribution.patronageRecordId,
+          description: distribution.description,
           created_at: now,
           created_by: operatorDid,
         })
@@ -136,8 +157,8 @@ export class CapitalAccountService {
       await this.db
         .updateTable('capital_account')
         .set({
-          total_patronage_allocated: currentPatronage + retainedAmount,
-          balance: currentBalance + retainedAmount,
+          total_patronage_allocated: currentPatronage + distribution.amount,
+          balance: currentBalance + distribution.amount,
           updated_at: now,
         })
         .where('id', '=', account.id)
@@ -151,13 +172,40 @@ export class CapitalAccountService {
           distributed_at: now,
           indexed_at: now,
         })
-        .where('id', '=', record.id)
+        .where('id', '=', distribution.patronageRecordId)
         .execute();
 
       count++;
     }
 
     return count;
+  }
+
+  private async distributeSurplus(input: {
+    readonly cooperativeDid: string;
+    readonly fiscalPeriodId: string;
+    readonly allocations: readonly CoopSurplusAllocation[];
+  }): Promise<readonly CoopSurplusDistribution[]> {
+    try {
+      if (!this.surplusDistributor) {
+        return planCoopSurplusDistributions(input);
+      }
+
+      const result = await this.surplusDistributor.distribute({
+        cooperative: {
+          authorityDid: input.cooperativeDid,
+          spaceKey: 'members',
+        },
+        period: { id: input.fiscalPeriodId },
+        allocations: input.allocations.map(surplusAllocationToJson),
+      });
+      return parseCoopSurplusDistributions(result.distributions);
+    } catch (err) {
+      if (err instanceof CoopSurplusDistributionError) {
+        throw new ValidationError(err.message);
+      }
+      throw err;
+    }
   }
 
   async redeemAllocation(
@@ -335,4 +383,12 @@ export class CapitalAccountService {
       totalInitialContributions: Math.round(totalInitialContributions * 100) / 100,
     };
   }
+}
+
+function surplusAllocationToJson(allocation: CoopSurplusAllocation): JsonValue {
+  return {
+    patronageRecordId: allocation.patronageRecordId,
+    memberDid: allocation.memberDid,
+    retainedAmount: allocation.retainedAmount,
+  };
 }

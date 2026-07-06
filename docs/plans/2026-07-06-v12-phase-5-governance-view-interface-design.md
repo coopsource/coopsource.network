@@ -294,7 +294,11 @@ Reviewed against the current implementation on 2026-07-06:
    field and there is no durable membership snapshot table yet. Patronage
    allocation is now extracted into CoopView and wired through
    `GovernancePluginSet.patronageAllocator`; `PatronageService` still owns
-   fiscal-period validation and record persistence.**
+   fiscal-period validation and record persistence. Surplus distribution is
+   now extracted into CoopView and wired through
+   `GovernancePluginSet.surplusDistributor`; `CapitalAccountService` still
+   owns account mutation, transaction writes, and patronage-record status
+   updates.**
 
 ## Non-Goals For The First Package Slice
 

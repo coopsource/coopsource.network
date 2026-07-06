@@ -66,6 +66,18 @@ export {
   parseCoopPatronageMetrics,
 } from './patronage-allocator-plugin.js';
 export type {
+  CoopSurplusAllocation,
+  CoopSurplusDistribution,
+} from './surplus-distributor-plugin.js';
+export {
+  CoopSurplusDistributionError,
+  CoopSurplusDistributorPlugin,
+  createCoopSurplusDistributorPlugin,
+  parseCoopSurplusAllocations,
+  parseCoopSurplusDistributions,
+  planCoopSurplusDistributions,
+} from './surplus-distributor-plugin.js';
+export type {
   CoopVoteWeightEvidence,
   CoopVoteWeightPluginOptions,
 } from './vote-weight-plugin.js';

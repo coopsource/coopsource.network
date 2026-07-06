@@ -12,6 +12,7 @@ import {
   createCoopEligibilityPlugin,
   createCoopPatronageAllocatorPlugin,
   createCoopQuorumPlugin,
+  createCoopSurplusDistributorPlugin,
   createCoopVoteWeightPlugin,
 } from '@coopsource/coop-view';
 import {
@@ -247,6 +248,7 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     quorum: createCoopQuorumPlugin(),
     actionAuthorizer,
     patronageAllocator: createCoopPatronageAllocatorPlugin(),
+    surplusDistributor: createCoopSurplusDistributorPlugin(),
   });
   const groupMutations = groupMutationsForDb(db);
   const operatorWriteProxy = new OperatorWriteProxy(
@@ -371,7 +373,11 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     clock,
     governanceCorePlugins.patronageAllocator,
   );
-  const capitalAccountService = new CapitalAccountService(db, clock);
+  const capitalAccountService = new CapitalAccountService(
+    db,
+    clock,
+    governanceCorePlugins.surplusDistributor,
+  );
   const tax1099Service = new Tax1099Service(db, clock);
   const onboardingService = new OnboardingService(db, clock);
   const governancePlugins = {
