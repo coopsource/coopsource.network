@@ -7,6 +7,7 @@ import type { PermissionedRecordWritePort } from '@coopsource/spaces-consumer';
 import { createDefaultGovernancePluginSet } from '@coopsource/governance-view';
 import {
   CoopDelegatedVoteWeightReader,
+  createCoopActionAuthorizerPlugin,
   createCoopDelegateChainsPlugin,
   createCoopEligibilityPlugin,
   createCoopQuorumPlugin,
@@ -56,6 +57,7 @@ import { FiscalPeriodService } from '../../src/services/fiscal-period-service.js
 import { PrivateRecordService } from '../../src/services/private-record-service.js';
 import { PrivateRecordPermissionedWritePort } from '../../src/services/private-record-permissioned-write-port.js';
 import { OAuthPermissionedRecordWriteSessionProvider } from '../../src/services/oauth-permissioned-record-write-session-provider.js';
+import { MembershipReadModelActionPermissionReader } from '../../src/services/coop-view-action-authorizer-adapters.js';
 import {
   MembershipReadModelVoteWeightReader,
   MembershipReadModelVotingEligibilityReader,
@@ -94,7 +96,10 @@ import {
   setMembershipReadModel,
   resetSetupCache,
 } from '../../src/auth/middleware.js';
-import { setPermissionsDb } from '../../src/middleware/permissions.js';
+import {
+  setPermissionAuthorizer,
+  setPermissionsDb,
+} from '../../src/middleware/permissions.js';
 import { createHealthRoutes } from '../../src/routes/health.js';
 import { createWellKnownRoutes } from '../../src/routes/well-known.js';
 import { createSetupRoutes } from '../../src/routes/setup.js';
@@ -232,6 +237,9 @@ export function createTestApp(options?: TestAppOptions): TestApp {
       new MembershipReadModelVotingEligibilityReader(membershipReadModel),
     ),
     quorum: createCoopQuorumPlugin(),
+    actionAuthorizer: createCoopActionAuthorizerPlugin(
+      new MembershipReadModelActionPermissionReader(db, membershipReadModel),
+    ),
   });
   const groupMutations = groupMutationsForDb(db);
   const operatorWriteProxy = new OperatorWriteProxy(
@@ -464,6 +472,7 @@ export function createTestApp(options?: TestAppOptions): TestApp {
   setDb(db);
   setMembershipReadModel(membershipReadModel);
   setPermissionsDb(db);
+  setPermissionAuthorizer(governancePlugins.actionAuthorizer);
   resetSetupCache();
 
   const app = express();

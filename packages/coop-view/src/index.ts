@@ -1,4 +1,6 @@
 export type {
+  CoopActionAuthorization,
+  CoopActionPermissionReader,
   CoopBaseVoteWeightReader,
   CoopDelegateChainReader,
   CoopDelegationScope,
@@ -9,6 +11,11 @@ export type {
   CoopVotingEligibility,
   CoopVotingEligibilityReader,
 } from './ports.js';
+export type { CoopActionAuthorizerPluginOptions } from './action-authorizer-plugin.js';
+export {
+  CoopActionAuthorizerPlugin,
+  createCoopActionAuthorizerPlugin,
+} from './action-authorizer-plugin.js';
 export type { CoopDelegatedVoteWeightReaderOptions } from './delegated-vote-weight-reader.js';
 export {
   CoopDelegatedVoteWeightReader,

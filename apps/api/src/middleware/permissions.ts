@@ -1,14 +1,23 @@
 import type { RequestHandler } from 'express';
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
-import type { Permission } from '@coopsource/common';
+import { AppError, type DID, type Permission } from '@coopsource/common';
+import { membersSpace } from '@coopsource/arbiter-client';
+import type { ActionAuthorizerPlugin } from '@coopsource/governance-view';
 import { resolveRolePermissions } from '../services/role-permissions.js';
 
 // Database reference — set by container init (shared with auth middleware)
 let _db: Kysely<Database>;
+let _permissionAuthorizer: ActionAuthorizerPlugin | undefined;
 
 export function setPermissionsDb(db: Kysely<Database>): void {
   _db = db;
+}
+
+export function setPermissionAuthorizer(
+  authorizer: ActionAuthorizerPlugin,
+): void {
+  _permissionAuthorizer = authorizer;
 }
 
 /**
@@ -40,14 +49,29 @@ export function requirePermission(permission: Permission): RequestHandler {
     }
 
     try {
-      const permissions = await resolvePermissions(
-        _db,
-        req.actor.cooperativeDid,
-        req.actor.roles,
-      );
+      if (!_permissionAuthorizer) {
+        res.status(500).json({
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: 'Permission authorizer is not configured',
+          },
+        });
+        return;
+      }
 
-      // Wildcard grants everything
-      if (permissions.has('*') || permissions.has(permission)) {
+      const memberSpace = membersSpace(req.actor.cooperativeDid as DID);
+      const decision = await _permissionAuthorizer.authorize({
+        actor: { did: req.actor.did },
+        cooperative: {
+          authorityDid: req.actor.cooperativeDid,
+          spaceKey: memberSpace.spaceKey,
+          spaceType: memberSpace.expectedSpaceType,
+        },
+        action: permission,
+        at: new Date().toISOString(),
+      });
+
+      if (decision.authorized) {
         next();
         return;
       }
@@ -57,9 +81,26 @@ export function requirePermission(permission: Permission): RequestHandler {
           code: 'FORBIDDEN',
           message: 'Insufficient permissions',
           required: permission,
+          reason: decision.reason,
         },
       });
-    } catch {
+    } catch (err) {
+      if (err instanceof AppError) {
+        const extra = err as AppError & {
+          readonly axis?: string;
+          readonly reason?: string;
+        };
+        res.status(err.statusCode).json({
+          error: {
+            code: err.code,
+            message: err.message,
+            ...(extra.axis ? { axis: extra.axis } : {}),
+            ...(extra.reason ? { reason: extra.reason } : {}),
+          },
+        });
+        return;
+      }
+
       res.status(500).json({
         error: { code: 'INTERNAL_ERROR', message: 'Permission check failed' },
       });

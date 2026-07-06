@@ -17,6 +17,7 @@ import {
 } from '@coopsource/governance-view';
 import {
   CoopDelegatedVoteWeightReader,
+  createCoopActionAuthorizerPlugin,
   createCoopDelegateChainsPlugin,
   createCoopEligibilityPlugin,
   createCoopQuorumPlugin,
@@ -83,6 +84,7 @@ import { FiscalPeriodService } from './services/fiscal-period-service.js';
 import { PrivateRecordService } from './services/private-record-service.js';
 import { PrivateRecordPermissionedWritePort } from './services/private-record-permissioned-write-port.js';
 import { OAuthPermissionedRecordWriteSessionProvider } from './services/oauth-permissioned-record-write-session-provider.js';
+import { MembershipReadModelActionPermissionReader } from './services/coop-view-action-authorizer-adapters.js';
 import {
   MembershipReadModelVoteWeightReader,
   MembershipReadModelVotingEligibilityReader,
@@ -357,6 +359,9 @@ export function createContainer(config: AppConfig): Container {
       new MembershipReadModelVotingEligibilityReader(membershipReadModel),
     ),
     quorum: createCoopQuorumPlugin(),
+    actionAuthorizer: createCoopActionAuthorizerPlugin(
+      new MembershipReadModelActionPermissionReader(db, membershipReadModel),
+    ),
   });
   const groupMutations = groupMutationsForDb(db);
   const operatorWriteProxy = new OperatorWriteProxy(

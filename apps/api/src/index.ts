@@ -18,7 +18,10 @@ import { httpLogger, logger } from './middleware/logger.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { createContainer } from './container.js';
 import { setDb, setMembershipReadModel } from './auth/middleware.js';
-import { setPermissionsDb } from './middleware/permissions.js';
+import {
+  setPermissionAuthorizer,
+  setPermissionsDb,
+} from './middleware/permissions.js';
 import { createSessionMiddleware } from './auth/session.js';
 import { createHealthRoutes } from './routes/health.js';
 import { createSetupRoutes } from './routes/setup.js';
@@ -150,6 +153,7 @@ async function start(): Promise<void> {
   setDb(container.db);
   setMembershipReadModel(container.membershipReadModel);
   setPermissionsDb(container.db);
+  setPermissionAuthorizer(container.governancePlugins.actionAuthorizer);
   logger.info('Container created');
 
   // Health routes (always available, no auth required)

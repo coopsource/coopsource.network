@@ -17,9 +17,11 @@ use a CoopView delegated vote-weight reader backed by base membership weights
 and active delegation rows, so stored vote weights match
 delegation-inclusive eligibility/display weights without keeping the expansion
 rule in `DelegationVotingService`. Proposal-scoped delegations now override
-project-level delegations for the same proposal during weight expansion. Do not
-move additional service logic until the adapter layer is tested against current
-API suites.
+project-level delegations for the same proposal during weight expansion.
+`requirePermission` now authorizes through
+`GovernancePluginSet.actionAuthorizer`, backed by active membership roles and
+the existing role-permission resolver. Do not move additional service logic
+until the adapter layer is tested against current API suites.
 
 ## Purpose
 
@@ -236,6 +238,10 @@ Reviewed against the current implementation on 2026-07-06:
   outgoing delegation chains separately from vote-weight expansion; the latter
   now flows through `CoopDelegatedVoteWeightReader` and `VoteWeightPlugin` with
   proposal context.
+- `requirePermission` now uses `GovernancePluginSet.actionAuthorizer`.
+  CoopView adapts the generic action string to a CSN permission read; the API
+  bridge resolves active membership through `MembershipReadModel` and expands
+  role inheritance through `resolveRolePermissions`.
 
 ## Extraction Order
 
@@ -262,9 +268,15 @@ Reviewed against the current implementation on 2026-07-06:
    `packages/coop-view`; `DelegationVotingService` no longer owns weighted
    expansion. Proposal-scope delegation still overrides project-scope
    delegation for the same delegator/proposal.**
-4. Move generic proposal/vote tally reducers out of `ProposalService` only after
+4. Add `actionAuthorizer` as the permission boundary for existing route guards.
+   **Started 2026-07-06. `CoopActionAuthorizerPlugin` delegates action strings
+   to a narrow `CoopActionPermissionReader`; the API bridge uses
+   `MembershipReadModel` plus `resolveRolePermissions`, and
+   `requirePermission` now calls the composed plugin instead of resolving roles
+   directly.**
+5. Move generic proposal/vote tally reducers out of `ProposalService` only after
    the adapter layer is tested against current proposal/vote/delegation suites.
-5. Add `anchorSummary`, `historicalState`, patronage/distribution, and
+6. Add `anchorSummary`, `historicalState`, patronage/distribution, and
    meeting-minutes adapters in separate slices.
 
 ## Non-Goals For The First Package Slice
@@ -295,9 +307,11 @@ Continue `packages/coop-view` adapters without moving production service logic:
    chain reads and weighted expansion are adapted, while delegation
    creation/revocation and circularity checks still live in the API service.
    Treat creation/revocation as a separate command boundary before moving it.
-2. Start the `actionAuthorizer` adapter slice for proposal/member actions, or
-   keep delegation command extraction first if circularity rules need to become
-   CoopView-owned policy.
+2. Continue `actionAuthorizer` into service-internal checks that are not
+   currently represented by `requirePermission`, starting with proposal
+   author/draft update/delete rules.
+3. Keep delegation command extraction separate if circularity rules need to
+   become CoopView-owned policy.
 
 When running package checks, avoid running a dependent package's tests while its
 dependency package is rebuilding: current package exports point at `dist`, and

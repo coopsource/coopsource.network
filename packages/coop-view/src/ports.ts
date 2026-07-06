@@ -28,6 +28,20 @@ export interface CoopVotingEligibilityReader {
   ): Promise<CoopVotingEligibility>;
 }
 
+export interface CoopActionAuthorization {
+  readonly authorized: boolean;
+  readonly reason?: string;
+}
+
+export interface CoopActionPermissionReader {
+  canActorPerformAction(input: {
+    readonly cooperativeDid: string;
+    readonly actorDid: string;
+    readonly action: string;
+    readonly at: string;
+  }): Promise<CoopActionAuthorization>;
+}
+
 export interface CoopDelegationLink {
   readonly delegatorDid: string;
   readonly delegateeDid: string;
