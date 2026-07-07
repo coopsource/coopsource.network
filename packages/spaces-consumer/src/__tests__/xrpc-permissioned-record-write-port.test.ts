@@ -171,6 +171,69 @@ describe('XrpcPermissionedRecordWritePort', () => {
     });
   });
 
+  it('updates a permissioned record through com.atproto.space.putRecord', async () => {
+    const server = await startServer([
+      async () => ({
+        body: {
+          uri: formatSpaceRecordUri({
+            spaceDid: membersSpace.arbiterDid,
+            spaceType: membersSpace.expectedSpaceType!,
+            skey: membersSpace.spaceKey,
+            authorDid: aliceDid,
+            collection: voteCollection,
+            rkey: 'vote1',
+          }),
+          cid: fakeCid('bafyvote2'),
+        },
+      }),
+    ]);
+    const port = new XrpcPermissionedRecordWritePort({
+      validate: false,
+      sessionProvider: (request) => {
+        expect(request.operation).toBe('putRecord');
+        return {
+          serviceUrl: server.url,
+          accessToken: 'oauth-token',
+        };
+      },
+    });
+
+    const result = await port.updateRecord({
+      space: membersSpace,
+      authorDid: aliceDid,
+      collection: voteCollection,
+      rkey: 'vote1',
+      record: { choice: 'no' },
+    });
+
+    expect(result).toEqual({
+      location: {
+        space: membersSpace,
+        authorDid: aliceDid,
+        collection: voteCollection,
+        rkey: 'vote1',
+      },
+      cid: fakeCid('bafyvote2'),
+    });
+    expect(server.requests).toHaveLength(1);
+    expect(server.requests[0]).toMatchObject({
+      method: 'POST',
+      path: '/xrpc/com.atproto.space.putRecord',
+      body: {
+        space:
+          'at://did:plc:coop/space/network.coopsource.org.spaceType.members/members',
+        repo: aliceDid,
+        collection: voteCollection,
+        rkey: 'vote1',
+        validate: false,
+        record: { $type: voteCollection, choice: 'no' },
+      },
+    });
+    expect(server.requests[0]?.headers.authorization).toBe(
+      'Bearer oauth-token',
+    );
+  });
+
   it('requires an author session with an authorization header', async () => {
     const fetch: XrpcPermissionedRecordWriteFetch = async () => {
       throw new Error('fetch should not be called without auth');
@@ -388,9 +451,7 @@ describe('XrpcPermissionedRecordWritePort', () => {
 
 type XrpcRequestHandler = (
   request: RecordedXrpcRequest,
-) =>
-  | XrpcTestResponse
-  | Promise<XrpcTestResponse>;
+) => XrpcTestResponse | Promise<XrpcTestResponse>;
 
 interface XrpcTestResponse {
   readonly status?: number;
@@ -463,9 +524,7 @@ class XrpcTestServer {
   }
 }
 
-async function readRequest(
-  req: IncomingMessage,
-): Promise<RecordedXrpcRequest> {
+async function readRequest(req: IncomingMessage): Promise<RecordedXrpcRequest> {
   const chunks: Buffer[] = [];
   for await (const chunk of req) {
     chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);

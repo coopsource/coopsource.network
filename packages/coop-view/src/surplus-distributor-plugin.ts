@@ -25,9 +25,7 @@ export class CoopSurplusDistributionError extends Error {
   }
 }
 
-export class CoopSurplusDistributorPlugin
-  implements SurplusDistributorPlugin
-{
+export class CoopSurplusDistributorPlugin implements SurplusDistributorPlugin {
   async distribute(
     input: Parameters<SurplusDistributorPlugin['distribute']>[0],
   ): ReturnType<SurplusDistributorPlugin['distribute']> {
@@ -89,6 +87,11 @@ export function parseCoopSurplusAllocations(
         `Surplus allocation retainedAmount must be finite for ${memberDid}`,
       );
     }
+    if (retainedAmount < 0) {
+      throw new CoopSurplusDistributionError(
+        `Surplus allocation retainedAmount must be non-negative for ${memberDid}`,
+      );
+    }
 
     return { patronageRecordId, memberDid, retainedAmount };
   });
@@ -126,6 +129,11 @@ export function parseCoopSurplusDistributions(
     if (typeof amount !== 'number' || !Number.isFinite(amount)) {
       throw new CoopSurplusDistributionError(
         `Surplus distribution amount must be finite for ${memberDid}`,
+      );
+    }
+    if (amount <= 0) {
+      throw new CoopSurplusDistributionError(
+        `Surplus distribution amount must be positive for ${memberDid}`,
       );
     }
     if (typeof description !== 'string' || description.length === 0) {

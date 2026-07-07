@@ -255,6 +255,9 @@ export interface ProposalTable {
   resolved_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
   class_quorum_rules: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
   tags: string[];
+  meeting_event: string | null;
+  full_document: string | null;
+  discussion_thread: string | null;
   created_at: ColumnType<Date, Date | string | undefined, Date | string>;
   created_by: string;
   invalidated_at: ColumnType<Date | null, Date | string | null, Date | string | null>;

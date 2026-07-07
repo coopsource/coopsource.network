@@ -546,7 +546,7 @@ Initial Phase 4 substrate artifact started in this branch:
   member-list-change invalidation without choosing a real upstream issuer yet.
 - `@coopsource/spaces-consumer` now exports
   `TwoStepSpaceCredentialIssuer`, an executable draft issuer seam that sequences
-  member-grant issuance before space-credential exchange, derives cache expiry
+  delegation-token issuance before space-credential exchange, derives cache expiry
   from response metadata or JWT `exp`, and leaves unstable XRPC transport behind
   narrow client ports.
 - `@coopsource/spaces-consumer` now exports
@@ -562,7 +562,8 @@ Initial Phase 4 substrate artifact started in this branch:
 - `@coopsource/spaces-consumer` now also exports
   `XrpcPermissionedRecordWritePort`, an experimental real HTTP/fetch adapter
   for the draft Proposal 0016 write methods
-  `com.atproto.space.createRecord` and `com.atproto.space.deleteRecord`. It
+  `com.atproto.space.createRecord`, `com.atproto.space.putRecord`, and
+  `com.atproto.space.deleteRecord`. It
   resolves one author session per write, requires an OAuth authorization header,
   posts to the authoring user's PDS, validates the returned space-record URI
   against the requested location, and maps `SpaceNotFound`, `NotAMember`,

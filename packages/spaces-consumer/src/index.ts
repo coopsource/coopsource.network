@@ -36,9 +36,9 @@ export type {
   SpaceCredentialExchangeClientPort,
   SpaceCredentialExchangeRequest,
   SpaceCredentialExchangeResponse,
-  SpaceMemberGrantClientPort,
-  SpaceMemberGrantRequest,
-  SpaceMemberGrantResponse,
+  SpaceDelegationTokenClientPort,
+  SpaceDelegationTokenRequest,
+  SpaceDelegationTokenResponse,
   TwoStepSpaceCredentialIssuerOptions,
 } from './space-credential-issuer.js';
 export {
@@ -75,6 +75,7 @@ export type {
   InMemoryPermissionedRecordWritePortOptions,
   PermissionedRecordCreateRequest,
   PermissionedRecordDeleteRequest,
+  PermissionedRecordUpdateRequest,
   PermissionedRecordWritePort,
   PermissionedRecordWriteResult,
   PermissionedRecordWriteErrorKind,

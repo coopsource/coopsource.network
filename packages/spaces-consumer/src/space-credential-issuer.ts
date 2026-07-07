@@ -5,9 +5,10 @@ import {
   type SpaceCredentialIssuerPort,
   type SpaceCredentialRefreshReason,
 } from './credential-store.js';
+import { formatSpaceUri } from './space-uri.js';
 import type { SpaceRef } from './types.js';
 
-export interface SpaceMemberGrantRequest {
+export interface SpaceDelegationTokenRequest {
   readonly ref: SpaceRef;
   readonly space: string;
   readonly clientId: string;
@@ -16,15 +17,16 @@ export interface SpaceMemberGrantRequest {
   readonly now: Date;
 }
 
-export interface SpaceMemberGrantResponse {
-  readonly grant: string;
+export interface SpaceDelegationTokenResponse {
+  readonly token: string;
 }
 
 export interface SpaceCredentialExchangeRequest {
   readonly ref: SpaceRef;
   readonly space: string;
   readonly clientId: string;
-  readonly grant: string;
+  readonly delegationToken: string;
+  readonly clientAttestation?: string;
   readonly reason: SpaceCredentialRefreshReason;
   readonly previous?: SpaceCredential;
   readonly now: Date;
@@ -35,10 +37,10 @@ export interface SpaceCredentialExchangeResponse {
   readonly expiresAt?: Date;
 }
 
-export interface SpaceMemberGrantClientPort {
-  getMemberGrant(
-    request: SpaceMemberGrantRequest,
-  ): Promise<SpaceMemberGrantResponse>;
+export interface SpaceDelegationTokenClientPort {
+  getDelegationToken(
+    request: SpaceDelegationTokenRequest,
+  ): Promise<SpaceDelegationTokenResponse>;
 }
 
 export interface SpaceCredentialExchangeClientPort {
@@ -50,11 +52,12 @@ export interface SpaceCredentialExchangeClientPort {
 export interface TwoStepSpaceCredentialIssuerOptions {
   readonly clientId: string;
   readonly spaceUriForRef?: (ref: SpaceRef) => string;
+  readonly clientAttestation?: string;
 }
 
 /**
  * Draft issuer adapter for the upstream permissioned-data credential flow:
- * member PDS getMemberGrant -> space-owner PDS getSpaceCredential.
+ * member PDS getDelegationToken -> space-owner PDS getSpaceCredential.
  *
  * The XRPC transport stays behind the two client ports because the upstream
  * `com.atproto.space.*` surface is still changing. This class owns sequencing,
@@ -62,7 +65,7 @@ export interface TwoStepSpaceCredentialIssuerOptions {
  */
 export class TwoStepSpaceCredentialIssuer implements SpaceCredentialIssuerPort {
   constructor(
-    private readonly grants: SpaceMemberGrantClientPort,
+    private readonly delegations: SpaceDelegationTokenClientPort,
     private readonly credentials: SpaceCredentialExchangeClientPort,
     private readonly opts: TwoStepSpaceCredentialIssuerOptions,
   ) {}
@@ -71,7 +74,7 @@ export class TwoStepSpaceCredentialIssuer implements SpaceCredentialIssuerPort {
     const space = (this.opts.spaceUriForRef ?? formatSpaceCredentialSpaceUri)(
       request.ref,
     );
-    const grantResponse = await this.grants.getMemberGrant({
+    const delegationResponse = await this.delegations.getDelegationToken({
       ref: request.ref,
       space,
       clientId: this.opts.clientId,
@@ -79,9 +82,9 @@ export class TwoStepSpaceCredentialIssuer implements SpaceCredentialIssuerPort {
       previous: request.previous,
       now: request.now,
     });
-    if (!grantResponse.grant) {
+    if (!delegationResponse.token) {
       throw new SpaceCredentialError(
-        'Member grant response did not include a grant token',
+        'Delegation token response did not include a token',
       );
     }
 
@@ -89,7 +92,10 @@ export class TwoStepSpaceCredentialIssuer implements SpaceCredentialIssuerPort {
       ref: request.ref,
       space,
       clientId: this.opts.clientId,
-      grant: grantResponse.grant,
+      delegationToken: delegationResponse.token,
+      ...(this.opts.clientAttestation
+        ? { clientAttestation: this.opts.clientAttestation }
+        : {}),
       reason: request.reason,
       previous: request.previous,
       now: request.now,
@@ -127,7 +133,11 @@ export function formatSpaceCredentialSpaceUri(ref: SpaceRef): string {
       'Cannot format a space credential URI without expectedSpaceType',
     );
   }
-  return `ats://${ref.arbiterDid}/${ref.expectedSpaceType}/${encodeURIComponent(ref.spaceKey)}`;
+  return formatSpaceUri({
+    spaceDid: ref.arbiterDid,
+    spaceType: ref.expectedSpaceType,
+    skey: ref.spaceKey,
+  });
 }
 
 function expiresAtFromJwt(token: string): Date | undefined {

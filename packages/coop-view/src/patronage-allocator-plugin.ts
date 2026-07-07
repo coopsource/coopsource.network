@@ -27,9 +27,7 @@ export class CoopPatronageAllocationError extends Error {
   }
 }
 
-export class CoopPatronageAllocatorPlugin
-  implements PatronageAllocatorPlugin
-{
+export class CoopPatronageAllocatorPlugin implements PatronageAllocatorPlugin {
   async allocate(
     input: Parameters<PatronageAllocatorPlugin['allocate']>[0],
   ): ReturnType<PatronageAllocatorPlugin['allocate']> {
@@ -52,6 +50,27 @@ export function calculateCoopPatronageAllocations(input: {
   readonly metrics: readonly CoopPatronageMetric[];
   readonly cashPayoutPct?: number;
 }): readonly CoopPatronageAllocation[] {
+  if (!Number.isFinite(input.surplus) || input.surplus < 0) {
+    throw new CoopPatronageAllocationError('Surplus must be non-negative');
+  }
+  const cashPayoutPct = input.cashPayoutPct ?? 20;
+  if (
+    !Number.isFinite(cashPayoutPct) ||
+    cashPayoutPct < 0 ||
+    cashPayoutPct > 100
+  ) {
+    throw new CoopPatronageAllocationError(
+      'Cash payout percentage must be between 0 and 100',
+    );
+  }
+  for (const metric of input.metrics) {
+    if (!Number.isFinite(metric.metricValue) || metric.metricValue < 0) {
+      throw new CoopPatronageAllocationError(
+        `Patronage metric value must be non-negative for ${metric.memberDid}`,
+      );
+    }
+  }
+
   const totalMetrics = input.metrics.reduce(
     (sum, metric) => sum + metric.metricValue,
     0,
@@ -62,13 +81,10 @@ export function calculateCoopPatronageAllocations(input: {
     );
   }
 
-  const cashPayoutPct = input.cashPayoutPct ?? 20;
   return input.metrics.map((metric) => {
     const ratio = metric.metricValue / totalMetrics;
     const totalAllocation = roundCurrency(input.surplus * ratio);
-    const cashAmount = roundCurrency(
-      totalAllocation * (cashPayoutPct / 100),
-    );
+    const cashAmount = roundCurrency(totalAllocation * (cashPayoutPct / 100));
     const retainedAmount = roundCurrency(totalAllocation - cashAmount);
 
     return {
@@ -100,6 +116,11 @@ export function parseCoopPatronageMetrics(
     if (typeof metricValue !== 'number' || !Number.isFinite(metricValue)) {
       throw new CoopPatronageAllocationError(
         `Patronage metric value must be finite for ${memberDid}`,
+      );
+    }
+    if (metricValue < 0) {
+      throw new CoopPatronageAllocationError(
+        `Patronage metric value must be non-negative for ${memberDid}`,
       );
     }
     if (
@@ -151,19 +172,19 @@ export function parseCoopPatronageAllocations(
     return {
       memberDid,
       stakeholderClass: stakeholderClass ?? null,
-      metricValue: requireFiniteNumber(metricValue, 'metricValue', memberDid),
-      patronageRatio: requireFiniteNumber(
-        patronageRatio,
-        'patronageRatio',
+      metricValue: requireNonNegativeNumber(
+        metricValue,
+        'metricValue',
         memberDid,
       ),
-      totalAllocation: requireFiniteNumber(
+      patronageRatio: requireRatio(patronageRatio, 'patronageRatio', memberDid),
+      totalAllocation: requireNonNegativeNumber(
         totalAllocation,
         'totalAllocation',
         memberDid,
       ),
-      cashAmount: requireFiniteNumber(cashAmount, 'cashAmount', memberDid),
-      retainedAmount: requireFiniteNumber(
+      cashAmount: requireNonNegativeNumber(cashAmount, 'cashAmount', memberDid),
+      retainedAmount: requireNonNegativeNumber(
         retainedAmount,
         'retainedAmount',
         memberDid,
@@ -198,6 +219,11 @@ function parseCashPayoutPct(policy: JsonValue | undefined): number | undefined {
       'Patronage policy cashPayoutPct must be finite',
     );
   }
+  if (cashPayoutPct < 0 || cashPayoutPct > 100) {
+    throw new CoopPatronageAllocationError(
+      'Patronage policy cashPayoutPct must be between 0 and 100',
+    );
+  }
   return cashPayoutPct;
 }
 
@@ -219,6 +245,34 @@ function requireFiniteNumber(
     );
   }
   return value;
+}
+
+function requireNonNegativeNumber(
+  value: JsonValue | undefined,
+  field: string,
+  memberDid: string,
+): number {
+  const number = requireFiniteNumber(value, field, memberDid);
+  if (number < 0) {
+    throw new CoopPatronageAllocationError(
+      `Patronage allocation ${field} must be non-negative for ${memberDid}`,
+    );
+  }
+  return number;
+}
+
+function requireRatio(
+  value: JsonValue | undefined,
+  field: string,
+  memberDid: string,
+): number {
+  const number = requireNonNegativeNumber(value, field, memberDid);
+  if (number > 1) {
+    throw new CoopPatronageAllocationError(
+      `Patronage allocation ${field} must be at most 1 for ${memberDid}`,
+    );
+  }
+  return number;
 }
 
 function roundCurrency(value: number): number {

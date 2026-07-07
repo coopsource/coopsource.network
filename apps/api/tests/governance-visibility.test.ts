@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { PermissionedRecordWritePort } from '@coopsource/spaces-consumer';
-import { parseSpaceRecordUri } from '@coopsource/spaces-consumer';
+import {
+  InMemoryPermissionedRecordWritePort,
+  parseSpaceRecordUri,
+} from '@coopsource/spaces-consumer';
 import { LEXICON_IDS } from '@coopsource/lexicons';
 import { truncateAllTables } from './helpers/test-db.js';
 import { createTestApp, setupAndLogin } from './helpers/test-app.js';
@@ -273,6 +276,90 @@ describe('Governance Visibility', () => {
     warnSpy.mockRestore();
   });
 
+  it('updates closed-governance draft proposal source records in private storage', async () => {
+    const testApp = createTestApp();
+    const { coopDid, adminDid } = await setupAndLogin(testApp);
+
+    await testApp.agent
+      .put('/api/v1/cooperative')
+      .send({ governanceVisibility: 'closed' })
+      .expect(200);
+
+    const proposalRes = await testApp.agent
+      .post('/api/v1/proposals')
+      .send({
+        title: 'Closed draft',
+        body: 'Original private body',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+      })
+      .expect(201);
+
+    const proposalRow = await testApp.container.db
+      .selectFrom('proposal')
+      .where('id', '=', proposalRes.body.id)
+      .select(['uri'])
+      .executeTakeFirstOrThrow();
+    const location = parseSpaceRecordUri(proposalRow.uri!);
+    expect(location).not.toBeNull();
+
+    await testApp.agent
+      .put(`/api/v1/proposals/${proposalRes.body.id}`)
+      .send({ title: 'Updated closed draft', tags: ['private'] })
+      .expect(200);
+
+    const privateRows = await testApp.container.db
+      .selectFrom('private_record')
+      .where('did', '=', coopDid)
+      .where('collection', '=', 'network.coopsource.governance.proposal')
+      .selectAll()
+      .execute();
+    expect(privateRows).toHaveLength(1);
+    expect(privateRows[0]!.rkey).toBe(
+      `${encodeURIComponent(adminDid)}/${encodeURIComponent(location!.rkey)}`,
+    );
+    const privateRecord =
+      typeof privateRows[0]!.record === 'string'
+        ? JSON.parse(privateRows[0]!.record)
+        : privateRows[0]!.record;
+    expect(privateRecord).toMatchObject({
+      title: 'Updated closed draft',
+      tags: ['private'],
+    });
+  });
+
+  it('deletes closed-governance proposal source records from private storage', async () => {
+    const testApp = createTestApp();
+    const { coopDid } = await setupAndLogin(testApp);
+
+    await testApp.agent
+      .put('/api/v1/cooperative')
+      .send({ governanceVisibility: 'closed' })
+      .expect(200);
+
+    const proposalRes = await testApp.agent
+      .post('/api/v1/proposals')
+      .send({
+        title: 'Closed delete',
+        body: 'Private proposal body',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+      })
+      .expect(201);
+
+    await testApp.agent
+      .delete(`/api/v1/proposals/${proposalRes.body.id}`)
+      .expect(204);
+
+    const privateRows = await testApp.container.db
+      .selectFrom('private_record')
+      .where('did', '=', coopDid)
+      .where('collection', '=', 'network.coopsource.governance.proposal')
+      .select('rkey')
+      .execute();
+    expect(privateRows).toHaveLength(0);
+  });
+
   it('deletes the superseded private vote record when a closed-governance member revotes', async () => {
     const testApp = createTestApp();
     await setupAndLogin(testApp);
@@ -334,6 +421,74 @@ describe('Governance Visibility', () => {
       .execute();
     expect(votes).toHaveLength(2);
     expect(votes.filter((vote) => vote.retracted_at === null)).toHaveLength(1);
+  });
+
+  it('cleans up the newly-created permissioned vote when closed revote retraction fails', async () => {
+    let blockedDeleteRkey: string | null = null;
+    const writer = new InMemoryPermissionedRecordWritePort({
+      beforeDelete: ({ collection, rkey }) => {
+        if (
+          collection === 'network.coopsource.governance.vote' &&
+          rkey === blockedDeleteRkey
+        ) {
+          throw new Error('old vote delete failed');
+        }
+      },
+    });
+    const testApp = createTestApp({ permissionedRecordWriter: writer });
+    await setupAndLogin(testApp);
+
+    await testApp.agent
+      .put('/api/v1/cooperative')
+      .send({ governanceVisibility: 'closed' })
+      .expect(200);
+
+    const proposalRes = await testApp.agent
+      .post('/api/v1/proposals')
+      .send({
+        title: 'Failed revote cleanup',
+        body: 'Failed retraction should not orphan the replacement',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+      })
+      .expect(201);
+
+    await testApp.agent
+      .post(`/api/v1/proposals/${proposalRes.body.id}/open`)
+      .expect(200);
+    const firstVoteRes = await testApp.agent
+      .post(`/api/v1/proposals/${proposalRes.body.id}/vote`)
+      .send({ choice: 'yes' })
+      .expect(201);
+    const firstVote = await testApp.container.db
+      .selectFrom('vote')
+      .where('id', '=', firstVoteRes.body.id)
+      .select('uri')
+      .executeTakeFirstOrThrow();
+    blockedDeleteRkey = parseSpaceRecordUri(firstVote.uri!)!.rkey;
+
+    await testApp.agent
+      .post(`/api/v1/proposals/${proposalRes.body.id}/vote`)
+      .send({ choice: 'no' })
+      .expect(500);
+
+    const storedVotes = writer
+      .writtenRecords()
+      .filter(
+        (record) =>
+          record.location.collection === 'network.coopsource.governance.vote',
+      );
+    expect(storedVotes).toHaveLength(1);
+    expect(storedVotes[0]!.record).toMatchObject({ choice: 'yes' });
+
+    const votes = await testApp.container.db
+      .selectFrom('vote')
+      .where('proposal_id', '=', proposalRes.body.id)
+      .select(['choice', 'retracted_at'])
+      .execute();
+    expect(votes).toEqual([
+      expect.objectContaining({ choice: 'yes', retracted_at: null }),
+    ]);
   });
 
   it('deletes the private vote record when a closed-governance member retracts a vote', async () => {
@@ -639,6 +794,11 @@ class FailingPermissionedRecordWriter implements PermissionedRecordWritePort {
   async createRecord(): Promise<never> {
     await Promise.resolve();
     throw new Error('permissioned write unavailable');
+  }
+
+  async updateRecord(): Promise<never> {
+    await Promise.resolve();
+    throw new Error('permissioned update unavailable');
   }
 
   async deleteRecord(): Promise<never> {

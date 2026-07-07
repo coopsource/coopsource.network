@@ -34,8 +34,8 @@ export class CredentialedPermissionedRepoPort implements PermissionedRepoPort {
     readonly space: SpaceRef;
     readonly hint?: PermissionedChangeHint;
   }): Promise<VerifiedPermissionedChanges> {
-    await this.opts.credentials.getForBatch(args.space);
-    return this.opts.inner.sync(args);
+    const credential = await this.opts.credentials.getForBatch(args.space);
+    return this.opts.inner.sync({ ...args, credential });
   }
 
   commitCheckpoint(args: {

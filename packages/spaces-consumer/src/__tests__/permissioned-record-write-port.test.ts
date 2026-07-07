@@ -145,6 +145,37 @@ describe('PermissionedRecordWritePort', () => {
     });
   });
 
+  it('updates an existing permissioned location in place', async () => {
+    const port = new InMemoryPermissionedRecordWritePort({
+      cidFactory: ({ record }) =>
+        record.choice === 'no' ? fakeCid('bafyno') : fakeCid('bafyyes'),
+    });
+
+    await port.createRecord({
+      space: membersSpace,
+      authorDid: fakeDid('did:plc:alice'),
+      collection: 'network.coopsource.governance.vote',
+      record: { choice: 'yes' },
+      rkey: 'vote1',
+    });
+    const updated = await port.updateRecord({
+      space: membersSpace,
+      authorDid: fakeDid('did:plc:alice'),
+      collection: 'network.coopsource.governance.vote',
+      record: { choice: 'no' },
+      rkey: 'vote1',
+    });
+
+    expect(updated.location.rkey).toBe('vote1');
+    expect(updated.cid).toBe(fakeCid('bafyno'));
+    expect(port.writtenRecords()).toEqual([
+      expect.objectContaining({
+        cid: fakeCid('bafyno'),
+        record: { choice: 'no' },
+      }),
+    ]);
+  });
+
   it('generates monotonic rkeys after deleting a write', async () => {
     const port = new InMemoryPermissionedRecordWritePort();
 
@@ -188,6 +219,23 @@ describe('PermissionedRecordWritePort', () => {
         space: membersSpace,
         authorDid: fakeDid('did:plc:alice'),
         collection: 'network.coopsource.governance.vote',
+        rkey: 'missing',
+      }),
+    ).rejects.toMatchObject({
+      name: 'PermissionedRecordWriteError',
+      kind: 'not-found',
+    });
+  });
+
+  it('rejects updating an absent permissioned location', async () => {
+    const port = new InMemoryPermissionedRecordWritePort();
+
+    await expect(
+      port.updateRecord({
+        space: membersSpace,
+        authorDid: fakeDid('did:plc:alice'),
+        collection: 'network.coopsource.governance.vote',
+        record: { choice: 'no' },
         rkey: 'missing',
       }),
     ).rejects.toMatchObject({

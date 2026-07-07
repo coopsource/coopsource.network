@@ -6,9 +6,9 @@ import {
   type SpaceCredentialExchangeRequest,
   type SpaceCredentialExchangeResponse,
   type SpaceCredentialIssueRequest,
-  type SpaceMemberGrantClientPort,
-  type SpaceMemberGrantRequest,
-  type SpaceMemberGrantResponse,
+  type SpaceDelegationTokenClientPort,
+  type SpaceDelegationTokenRequest,
+  type SpaceDelegationTokenResponse,
   TwoStepSpaceCredentialIssuer,
   formatSpaceCredentialSpaceUri,
 } from '../index.js';
@@ -28,12 +28,12 @@ const request: SpaceCredentialIssueRequest = {
 };
 
 describe('TwoStepSpaceCredentialIssuer', () => {
-  it('requests a member grant before exchanging it for a space credential', async () => {
+  it('requests a delegation token before exchanging it for a space credential', async () => {
     const events: string[] = [];
-    const grantClient = new RecordingGrantClient(
-      { grant: 'grant-token' },
+    const delegationClient = new RecordingDelegationTokenClient(
+      { token: 'delegation-token' },
       events,
-      'grant-resolved',
+      'delegation-resolved',
     );
     const exchangeClient = new RecordingExchangeClient(
       {
@@ -44,7 +44,7 @@ describe('TwoStepSpaceCredentialIssuer', () => {
       'exchange-resolved',
     );
     const issuer = new TwoStepSpaceCredentialIssuer(
-      grantClient,
+      delegationClient,
       exchangeClient,
       { clientId: 'https://app.example/oauth/client.json' },
     );
@@ -55,16 +55,16 @@ describe('TwoStepSpaceCredentialIssuer', () => {
     });
 
     expect(events).toEqual([
-      'grant-start',
-      'grant-resolved',
+      'delegation-start',
+      'delegation-resolved',
       'exchange-start',
       'exchange-resolved',
     ]);
-    expect(grantClient.requests).toEqual([
+    expect(delegationClient.requests).toEqual([
       {
         ref,
         space:
-          'ats://did:plc:coop/network.coopsource.org.spaceType.role/roles%2Fboard',
+          'at://did:plc:coop/space/network.coopsource.org.spaceType.role/roles%2Fboard',
         clientId: 'https://app.example/oauth/client.json',
         reason: 'missing',
         previous: undefined,
@@ -75,9 +75,9 @@ describe('TwoStepSpaceCredentialIssuer', () => {
       {
         ref,
         space:
-          'ats://did:plc:coop/network.coopsource.org.spaceType.role/roles%2Fboard',
+          'at://did:plc:coop/space/network.coopsource.org.spaceType.role/roles%2Fboard',
         clientId: 'https://app.example/oauth/client.json',
-        grant: 'grant-token',
+        delegationToken: 'delegation-token',
         reason: 'missing',
         previous: undefined,
         now,
@@ -87,7 +87,7 @@ describe('TwoStepSpaceCredentialIssuer', () => {
 
   it('derives credential expiry from JWT exp when the exchange response omits expiresAt', async () => {
     const issuer = new TwoStepSpaceCredentialIssuer(
-      new RecordingGrantClient({ grant: 'grant-token' }),
+      new RecordingDelegationTokenClient({ token: 'delegation-token' }),
       new RecordingExchangeClient({
         credential: jwtWithExp(1783342800),
       }),
@@ -110,33 +110,58 @@ describe('TwoStepSpaceCredentialIssuer', () => {
       reason: 'near-expiry',
       previous,
     };
-    const grantClient = new RecordingGrantClient({ grant: 'grant-token' });
+    const delegationClient = new RecordingDelegationTokenClient({
+      token: 'delegation-token',
+    });
     const exchangeClient = new RecordingExchangeClient({
       credential: 'space-token',
       expiresAt: new Date('2026-07-06T13:00:00Z'),
     });
     const issuer = new TwoStepSpaceCredentialIssuer(
-      grantClient,
+      delegationClient,
       exchangeClient,
       { clientId: 'https://app.example/oauth/client.json' },
     );
 
     await issuer.issue(nearExpiryRequest);
 
-    expect(grantClient.requests[0]!.reason).toBe('near-expiry');
-    expect(grantClient.requests[0]!.previous).toBe(previous);
+    expect(delegationClient.requests[0]!.reason).toBe('near-expiry');
+    expect(delegationClient.requests[0]!.previous).toBe(previous);
     expect(exchangeClient.requests[0]!.reason).toBe('near-expiry');
     expect(exchangeClient.requests[0]!.previous).toBe(previous);
   });
 
-  it('allows callers to override the provisional space URI formatter', async () => {
-    const grantClient = new RecordingGrantClient({ grant: 'grant-token' });
+  it('passes configured client attestation to the credential exchange', async () => {
     const exchangeClient = new RecordingExchangeClient({
       credential: 'space-token',
       expiresAt: new Date('2026-07-06T13:00:00Z'),
     });
     const issuer = new TwoStepSpaceCredentialIssuer(
-      grantClient,
+      new RecordingDelegationTokenClient({ token: 'delegation-token' }),
+      exchangeClient,
+      {
+        clientId: 'https://app.example/oauth/client.json',
+        clientAttestation: 'attestation-jwt',
+      },
+    );
+
+    await issuer.issue(request);
+
+    expect(exchangeClient.requests[0]!.clientAttestation).toBe(
+      'attestation-jwt',
+    );
+  });
+
+  it('allows callers to override the provisional space URI formatter', async () => {
+    const delegationClient = new RecordingDelegationTokenClient({
+      token: 'delegation-token',
+    });
+    const exchangeClient = new RecordingExchangeClient({
+      credential: 'space-token',
+      expiresAt: new Date('2026-07-06T13:00:00Z'),
+    });
+    const issuer = new TwoStepSpaceCredentialIssuer(
+      delegationClient,
       exchangeClient,
       {
         clientId: 'https://app.example/oauth/client.json',
@@ -146,25 +171,25 @@ describe('TwoStepSpaceCredentialIssuer', () => {
 
     await issuer.issue(request);
 
-    expect(grantClient.requests[0]!.space).toBe('custom-space-uri');
+    expect(delegationClient.requests[0]!.space).toBe('custom-space-uri');
     expect(exchangeClient.requests[0]!.space).toBe('custom-space-uri');
   });
 
-  it('rejects missing grant tokens, missing credential tokens, and credentials without expiry', async () => {
+  it('rejects missing tokens, missing credential tokens, and credentials without expiry', async () => {
     await expect(
       new TwoStepSpaceCredentialIssuer(
-        new RecordingGrantClient({ grant: '' }),
+        new RecordingDelegationTokenClient({ token: '' }),
         new RecordingExchangeClient({
           credential: 'unused',
           expiresAt: new Date('2026-07-06T13:00:00Z'),
         }),
         { clientId: 'https://app.example/oauth/client.json' },
       ).issue(request),
-    ).rejects.toThrow('Member grant response did not include a grant token');
+    ).rejects.toThrow('Delegation token response did not include a token');
 
     await expect(
       new TwoStepSpaceCredentialIssuer(
-        new RecordingGrantClient({ grant: 'grant-token' }),
+        new RecordingDelegationTokenClient({ token: 'delegation-token' }),
         new RecordingExchangeClient({
           credential: '',
           expiresAt: new Date('2026-07-06T13:00:00Z'),
@@ -177,7 +202,7 @@ describe('TwoStepSpaceCredentialIssuer', () => {
 
     await expect(
       new TwoStepSpaceCredentialIssuer(
-        new RecordingGrantClient({ grant: 'grant-token' }),
+        new RecordingDelegationTokenClient({ token: 'delegation-token' }),
         new RecordingExchangeClient({ credential: 'not-a-jwt' }),
         { clientId: 'https://app.example/oauth/client.json' },
       ).issue(request),
@@ -187,7 +212,7 @@ describe('TwoStepSpaceCredentialIssuer', () => {
 
     await expect(
       new TwoStepSpaceCredentialIssuer(
-        new RecordingGrantClient({ grant: 'grant-token' }),
+        new RecordingDelegationTokenClient({ token: 'delegation-token' }),
         new RecordingExchangeClient({
           credential: 'space-token',
           expiresAt: new Date(Number.NaN),
@@ -207,19 +232,19 @@ describe('TwoStepSpaceCredentialIssuer', () => {
   });
 });
 
-class RecordingGrantClient implements SpaceMemberGrantClientPort {
-  readonly requests: SpaceMemberGrantRequest[] = [];
+class RecordingDelegationTokenClient implements SpaceDelegationTokenClientPort {
+  readonly requests: SpaceDelegationTokenRequest[] = [];
 
   constructor(
-    private readonly response: SpaceMemberGrantResponse,
+    private readonly response: SpaceDelegationTokenResponse,
     private readonly events: string[] = [],
-    private readonly resolutionEvent = 'grant-resolved',
+    private readonly resolutionEvent = 'delegation-resolved',
   ) {}
 
-  async getMemberGrant(
-    request: SpaceMemberGrantRequest,
-  ): Promise<SpaceMemberGrantResponse> {
-    this.events.push('grant-start');
+  async getDelegationToken(
+    request: SpaceDelegationTokenRequest,
+  ): Promise<SpaceDelegationTokenResponse> {
+    this.events.push('delegation-start');
     this.requests.push(request);
     await Promise.resolve();
     this.events.push(this.resolutionEvent);

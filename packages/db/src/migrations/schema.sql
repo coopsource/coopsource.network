@@ -1499,6 +1499,9 @@ CREATE TABLE public.proposal (
     closes_at timestamp with time zone,
     resolved_at timestamp with time zone,
     tags text[] DEFAULT '{}'::text[] NOT NULL,
+    meeting_event text,
+    full_document text,
+    discussion_thread text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     created_by text NOT NULL,
     invalidated_at timestamp with time zone,
@@ -4451,4 +4454,3 @@ ALTER TABLE ONLY public.vote
 --
 -- PostgreSQL database dump complete
 --
-

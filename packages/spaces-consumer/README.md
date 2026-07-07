@@ -6,7 +6,7 @@ Stage 1 V11 consumer for ATProto permissioned-space data. The public package bou
 - `SpaceCredentialStore` and `SpaceCredentialManager` shape short-lived
   per-space credential refresh without committing to a live upstream issuer.
 - `TwoStepSpaceCredentialIssuer` models the draft upstream grant exchange
-  (`getMemberGrant` -> `getSpaceCredential`) behind transport-level client
+  (`getDelegationToken` -> `getSpaceCredential`) behind transport-level client
   ports.
 - `CredentialedPermissionedRepoPort` acquires a space credential before each
   sync batch and delegates record verification/checkpointing to the wrapped
@@ -15,8 +15,8 @@ Stage 1 V11 consumer for ATProto permissioned-space data. The public package bou
 - `PermissionedRecordWritePort` creates records in a permissioned space behind
   a replaceable adapter. The current API uses a legacy `private_record` adapter
   behind this port for runtime writes. `XrpcPermissionedRecordWritePort` targets
-  the draft Proposal 0016 `com.atproto.space.createRecord/deleteRecord` XRPC
-  write surface and is tested as real HTTP client code, but it is not the
+  the draft Proposal 0016 `com.atproto.space.createRecord/putRecord/deleteRecord`
+  XRPC write surface and is tested as real HTTP client code, but it is not the
   default until CSN has a real author OAuth session provider for `space:`
   scopes.
 - `SpacesConsumer` cross-checks each verified record author before emitting it.
@@ -33,9 +33,9 @@ The executable sketches now live at the stable-port level:
   expiration, refresh-per-batch, near-expiry refresh, and invalidation after
   member-list changes for future permissioned-data adapters.
 - `TwoStepSpaceCredentialIssuer` is the executable draft credential flow. It
-  sequences member-grant issuance before space-credential exchange, derives
+  sequences delegation-token issuance before space-credential exchange, derives
   credential expiry from either response metadata or JWT `exp`, and keeps
-  unstable XRPC details behind `SpaceMemberGrantClientPort` and
+  unstable XRPC details behind `SpaceDelegationTokenClientPort` and
   `SpaceCredentialExchangeClientPort`.
 - `CredentialedPermissionedRepoPort` is the local Phase 4 harness wrapper. It
   proves the credential manager gates sync batches before the repo port returns
@@ -45,10 +45,10 @@ The executable sketches now live at the stable-port level:
   structured record locations, duplicate-location rejection, and an awaited
   async write boundary for adapter-fidelity tests.
 - `XrpcPermissionedRecordWritePort` is the draft upstream write adapter. It
-  posts to the authoring user's PDS, requires an OAuth authorization header,
-  validates returned permissioned record URIs against the requested
-  space/repo/collection, and maps draft XRPC errors such as `SpaceNotFound` and
-  `NotAMember` to typed write failures.
+  posts `createRecord`, `putRecord`, and `deleteRecord` to the authoring user's
+  PDS, requires an OAuth authorization header, validates returned permissioned
+  record URIs against the requested space/repo/collection, and maps draft XRPC
+  errors such as `SpaceNotFound` and `NotAMember` to typed write failures.
 - `KyselyPermissionedCheckpointStore` sketches durable space-level checkpoint storage against the current PoC table.
 - `@coopsource/arbiter-client` provides the Stage 2A CSN-backed `CsnDbGroupDirectoryPort`.
 

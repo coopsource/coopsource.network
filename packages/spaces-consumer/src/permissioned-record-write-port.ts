@@ -15,6 +15,14 @@ export interface PermissionedRecordCreateRequest {
   readonly rkey?: string;
 }
 
+export interface PermissionedRecordUpdateRequest {
+  readonly space: SpaceRef;
+  readonly authorDid: DID;
+  readonly collection: string;
+  readonly rkey: string;
+  readonly record: UnknownLexiconObject;
+}
+
 export interface PermissionedRecordDeleteRequest {
   readonly space: SpaceRef;
   readonly authorDid: DID;
@@ -31,6 +39,9 @@ export interface PermissionedRecordWriteResult {
 export interface PermissionedRecordWritePort {
   createRecord(
     args: PermissionedRecordCreateRequest,
+  ): Promise<PermissionedRecordWriteResult>;
+  updateRecord(
+    args: PermissionedRecordUpdateRequest,
   ): Promise<PermissionedRecordWriteResult>;
   deleteRecord(args: PermissionedRecordDeleteRequest): Promise<void>;
 }
@@ -120,6 +131,52 @@ export class InMemoryPermissionedRecordWritePort implements PermissionedRecordWr
       ...(sourceRevision && { sourceRevision }),
     };
     this.writes.push(stored);
+    return {
+      location,
+      cid,
+      ...(sourceRevision && { sourceRevision }),
+    };
+  }
+
+  async updateRecord(
+    args: PermissionedRecordUpdateRequest,
+  ): Promise<PermissionedRecordWriteResult> {
+    const index = this.writes.findIndex(
+      (write) =>
+        spaceRefKey(write.location.space) === spaceRefKey(args.space) &&
+        write.location.authorDid === args.authorDid &&
+        write.location.collection === args.collection &&
+        write.location.rkey === args.rkey,
+    );
+    if (index === -1) {
+      throw new PermissionedRecordWriteError(
+        'not-found',
+        `Permissioned record does not exist at ${formatPermissionedRecordLocationKey(
+          {
+            space: args.space,
+            authorDid: args.authorDid,
+            collection: args.collection,
+            rkey: args.rkey,
+          },
+        )}`,
+      );
+    }
+
+    const cid =
+      this.opts.cidFactory?.(args) ?? (`cid-${this.nextCidNumber()}` as CID);
+    const sourceRevision = this.opts.sourceRevisionFactory?.(args);
+    const location: PermissionedRecordLocation = {
+      space: args.space,
+      authorDid: args.authorDid,
+      collection: args.collection,
+      rkey: args.rkey,
+    };
+    this.writes[index] = {
+      location,
+      cid,
+      record: args.record,
+      ...(sourceRevision && { sourceRevision }),
+    };
     return {
       location,
       cid,

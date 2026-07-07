@@ -207,7 +207,13 @@ describe('Proposals & Voting', () => {
     const testApp = createTestApp();
     await setupAndLogin(testApp);
 
-    const created = await createDraftProposal(testApp.agent);
+    const created = await createDraftProposal(testApp.agent, {
+      meetingEvent:
+        'at://did:plc:eventhost/network.smokesignal.calendar.event/evt1',
+      fullDocument: 'at://did:plc:docs/com.whtwnd.blog.entry/doc1',
+      discussionThread:
+        'at://did:plc:frontpage/fyi.unravel.frontpage.post/thread1',
+    });
 
     const res = await testApp.agent
       .put(`/api/v1/proposals/${created.id}`)
@@ -218,6 +224,31 @@ describe('Proposals & Voting', () => {
     // Body unchanged
     expect(res.body.body).toBe(created.body);
     expect(res.body.status).toBe('draft');
+
+    const row = await testApp.container.db
+      .selectFrom('proposal')
+      .where('id', '=', created.id)
+      .select(['uri'])
+      .executeTakeFirstOrThrow();
+    const source = await testApp.container.db
+      .selectFrom('pds_record')
+      .where('uri', '=', row.uri!)
+      .select(['content', 'deleted_at'])
+      .executeTakeFirstOrThrow();
+    const content =
+      typeof source.content === 'string'
+        ? JSON.parse(source.content)
+        : source.content;
+    expect(content).toMatchObject({
+      title: 'Updated title',
+      body: created.body,
+      meetingEvent:
+        'at://did:plc:eventhost/network.smokesignal.calendar.event/evt1',
+      fullDocument: 'at://did:plc:docs/com.whtwnd.blog.entry/doc1',
+      discussionThread:
+        'at://did:plc:frontpage/fyi.unravel.frontpage.post/thread1',
+    });
+    expect(source.deleted_at).toBeNull();
   });
 
   // ---------------------------------------------------------------
@@ -429,6 +460,18 @@ describe('Proposals & Voting', () => {
     const created = await createDraftProposal(testApp.agent);
 
     await testApp.agent.delete(`/api/v1/proposals/${created.id}`).expect(204);
+
+    const row = await testApp.container.db
+      .selectFrom('proposal')
+      .where('id', '=', created.id)
+      .select(['uri'])
+      .executeTakeFirstOrThrow();
+    const source = await testApp.container.db
+      .selectFrom('pds_record')
+      .where('uri', '=', row.uri!)
+      .select(['deleted_at'])
+      .executeTakeFirstOrThrow();
+    expect(source.deleted_at).not.toBeNull();
 
     // Should no longer appear in list
     const listRes = await testApp.agent.get('/api/v1/proposals').expect(200);

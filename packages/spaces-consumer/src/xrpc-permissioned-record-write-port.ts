@@ -2,6 +2,7 @@ import type { CID, DID } from '@coopsource/common';
 import type {
   PermissionedRecordCreateRequest,
   PermissionedRecordDeleteRequest,
+  PermissionedRecordUpdateRequest,
   PermissionedRecordWritePort,
   PermissionedRecordWriteResult,
 } from './permissioned-record-write-port.js';
@@ -14,6 +15,7 @@ import {
 import type { PermissionedRecordLocation, SpaceRef } from './types.js';
 
 const CREATE_RECORD_NSID = 'com.atproto.space.createRecord';
+const PUT_RECORD_NSID = 'com.atproto.space.putRecord';
 const DELETE_RECORD_NSID = 'com.atproto.space.deleteRecord';
 
 type JsonObject = { readonly [key: string]: unknown };
@@ -41,10 +43,12 @@ export type XrpcPermissionedRecordWriteFetch = (
 
 export type XrpcPermissionedRecordWriteOperation =
   | 'createRecord'
+  | 'putRecord'
   | 'deleteRecord';
 
 export type XrpcPermissionedRecordWriteArgs =
   | PermissionedRecordCreateRequest
+  | PermissionedRecordUpdateRequest
   | PermissionedRecordDeleteRequest;
 
 export interface XrpcPermissionedRecordWriteHeaderRequest {
@@ -109,12 +113,12 @@ export interface XrpcPermissionedRecordWritePortOptions {
  * must provide an author session that can reach the author's PDS with a
  * covering `space:` OAuth grant.
  */
-export class XrpcPermissionedRecordWritePort
-  implements PermissionedRecordWritePort
-{
+export class XrpcPermissionedRecordWritePort implements PermissionedRecordWritePort {
   private readonly fetcher: XrpcPermissionedRecordWriteFetch;
 
-  constructor(private readonly options: XrpcPermissionedRecordWritePortOptions) {
+  constructor(
+    private readonly options: XrpcPermissionedRecordWritePortOptions,
+  ) {
     this.fetcher = options.fetch ?? defaultFetch();
   }
 
@@ -149,7 +153,48 @@ export class XrpcPermissionedRecordWritePort
       );
     }
 
-    const location = locationFromResponseUri(uri, args);
+    const location = locationFromResponseUri(uri, args, CREATE_RECORD_NSID);
+    return {
+      location,
+      cid: cid as CID,
+      ...(response.sourceRevision && {
+        sourceRevision: response.sourceRevision,
+      }),
+    };
+  }
+
+  async updateRecord(
+    args: PermissionedRecordUpdateRequest,
+  ): Promise<PermissionedRecordWriteResult> {
+    const space = formatSpaceRefUri(args.space);
+    const record = recordForCollection(args.collection, args.record);
+    const body = withoutUndefined({
+      space,
+      repo: args.authorDid,
+      collection: args.collection,
+      rkey: args.rkey,
+      validate: this.options.validate,
+      record,
+    });
+
+    const response = await this.postJson({
+      operation: 'putRecord',
+      nsid: PUT_RECORD_NSID,
+      body,
+      args,
+    });
+
+    const output = asObject(response.body);
+    const uri = typeof output?.uri === 'string' ? output.uri : null;
+    const cid = typeof output?.cid === 'string' ? output.cid : null;
+    if (!uri || !cid) {
+      throw new PermissionedRecordWriteError(
+        'protocol',
+        `${PUT_RECORD_NSID} response must include uri and cid`,
+      );
+    }
+
+    const location = locationFromResponseUri(uri, args, PUT_RECORD_NSID);
     return {
       location,
       cid: cid as CID,
@@ -259,7 +304,10 @@ export class XrpcPermissionedRecordWritePort
       ...provided,
     };
 
-    if (!params.session.authenticatedFetch && !hasAuthorizationHeader(headers)) {
+    if (
+      !params.session.authenticatedFetch &&
+      !hasAuthorizationHeader(headers)
+    ) {
       throw new PermissionedRecordWriteError(
         'auth',
         `Permissioned write to ${params.nsid} requires an OAuth authorization header`,
@@ -296,7 +344,8 @@ function formatSpaceRefUri(space: SpaceRef): string {
 
 function locationFromResponseUri(
   uri: string,
-  args: PermissionedRecordCreateRequest,
+  args: PermissionedRecordCreateRequest | PermissionedRecordUpdateRequest,
+  nsid: string,
 ): PermissionedRecordLocation {
   const parsed = parseSpaceRecordUri(uri);
   const expectedUri =
@@ -313,7 +362,7 @@ function locationFromResponseUri(
   if (!parsed) {
     throw new PermissionedRecordWriteError(
       'protocol',
-      `${CREATE_RECORD_NSID} returned a non-space record URI`,
+      `${nsid} returned a non-space record URI`,
     );
   }
 
@@ -327,7 +376,7 @@ function locationFromResponseUri(
   ) {
     throw new PermissionedRecordWriteError(
       'protocol',
-      `${CREATE_RECORD_NSID} returned ${uri}, expected ${expectedUri || 'the requested space/repo/collection'}`,
+      `${nsid} returned ${uri}, expected ${expectedUri || 'the requested space/repo/collection'}`,
     );
   }
 

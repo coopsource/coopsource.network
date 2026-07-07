@@ -90,6 +90,30 @@ describe('CoopPatronageAllocatorPlugin', () => {
     ).toThrow(CoopPatronageAllocationError);
   });
 
+  it('rejects negative surplus, metric values, and invalid cash payout policy', () => {
+    expect(() =>
+      calculateCoopPatronageAllocations({
+        surplus: -1,
+        metrics: [{ memberDid: 'did:plc:alice', metricValue: 1 }],
+      }),
+    ).toThrow(CoopPatronageAllocationError);
+
+    expect(() =>
+      calculateCoopPatronageAllocations({
+        surplus: 100,
+        metrics: [{ memberDid: 'did:plc:alice', metricValue: -1 }],
+      }),
+    ).toThrow(CoopPatronageAllocationError);
+
+    expect(() =>
+      calculateCoopPatronageAllocations({
+        surplus: 100,
+        metrics: [{ memberDid: 'did:plc:alice', metricValue: 1 }],
+        cashPayoutPct: 120,
+      }),
+    ).toThrow(CoopPatronageAllocationError);
+  });
+
   it('parses allocator output back to typed allocations', async () => {
     const plugin = createCoopPatronageAllocatorPlugin();
     const result = await plugin.allocate({
@@ -113,5 +137,35 @@ describe('CoopPatronageAllocatorPlugin', () => {
         retainedAmount: 8,
       },
     ]);
+  });
+
+  it('rejects negative allocator output amounts and impossible ratios', () => {
+    expect(() =>
+      parseCoopPatronageAllocations([
+        {
+          memberDid: 'did:plc:alice',
+          stakeholderClass: null,
+          metricValue: 1,
+          patronageRatio: 1.1,
+          totalAllocation: 10,
+          cashAmount: 2,
+          retainedAmount: 8,
+        },
+      ]),
+    ).toThrow(CoopPatronageAllocationError);
+
+    expect(() =>
+      parseCoopPatronageAllocations([
+        {
+          memberDid: 'did:plc:alice',
+          stakeholderClass: null,
+          metricValue: 1,
+          patronageRatio: 1,
+          totalAllocation: 10,
+          cashAmount: -2,
+          retainedAmount: 12,
+        },
+      ]),
+    ).toThrow(CoopPatronageAllocationError);
   });
 });

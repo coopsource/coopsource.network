@@ -70,6 +70,13 @@ export interface CreateProposalInput {
   discussionThread?: string; // AT-URI: Frontpage link submission
 }
 
+export interface UpdateDraftProposalInput {
+  title?: string;
+  body?: string;
+  closesAt?: string;
+  tags?: string[];
+}
+
 import type { IMemberRecordWriter } from './member-write-proxy.js';
 import type { GovernanceLabeler } from './governance-labeler.js';
 import type { VisibilityRouter } from './visibility-router.js';
@@ -291,19 +298,7 @@ export class ProposalService {
 
     // Check visibility routing for closed cooperatives (Tier 2 private data)
     const collection = PROPOSAL_COLLECTION;
-    const record = {
-      title: data.title,
-      body: data.body,
-      votingType: data.votingType,
-      options: data.options,
-      quorumType: data.quorumType,
-      quorumBasis: data.quorumBasis,
-      cooperative: data.cooperativeDid,
-      ...(data.meetingEvent && { meetingEvent: data.meetingEvent }),
-      ...(data.fullDocument && { fullDocument: data.fullDocument }),
-      ...(data.discussionThread && { discussionThread: data.discussionThread }),
-      createdAt: now.toISOString(),
-    };
+    const record = proposalRecordFromCreateInput(data, now);
 
     let ref: RecordRef;
     if (this.visibilityRouter) {
@@ -353,6 +348,9 @@ export class ProposalService {
         status: 'draft',
         closes_at: data.closesAt ? new Date(data.closesAt) : null,
         tags: data.tags ?? [],
+        meeting_event: data.meetingEvent ?? null,
+        full_document: data.fullDocument ?? null,
+        discussion_thread: data.discussionThread ?? null,
         created_at: now,
         created_by: authorDid,
         indexed_at: now,
@@ -361,6 +359,87 @@ export class ProposalService {
       .execute();
 
     return row!;
+  }
+
+  async updateDraftProposal(params: {
+    readonly id: string;
+    readonly cooperativeDid: string;
+    readonly data: UpdateDraftProposalInput;
+  }): Promise<ProposalRow> {
+    const proposal = await this.db
+      .selectFrom('proposal')
+      .where('id', '=', params.id)
+      .where('cooperative_did', '=', params.cooperativeDid)
+      .where('invalidated_at', 'is', null)
+      .selectAll()
+      .executeTakeFirst();
+    if (!proposal) throw new NotFoundError('Proposal not found');
+    if (proposal.status !== 'draft') {
+      throw new ValidationError('Can only edit draft proposals');
+    }
+
+    const closesAt =
+      params.data.closesAt !== undefined
+        ? new Date(params.data.closesAt)
+        : proposal.closes_at;
+    const nextProposal: ProposalRow = {
+      ...proposal,
+      ...(params.data.title !== undefined ? { title: params.data.title } : {}),
+      ...(params.data.body !== undefined ? { body: params.data.body } : {}),
+      ...(params.data.tags !== undefined ? { tags: params.data.tags } : {}),
+      closes_at: closesAt,
+    };
+
+    const sourceRef = await this.updateProposalSourceRecord(nextProposal);
+    const now = this.clock.now();
+    const [updated] = await this.db
+      .updateTable('proposal')
+      .set({
+        ...(params.data.title !== undefined
+          ? { title: params.data.title }
+          : {}),
+        ...(params.data.body !== undefined ? { body: params.data.body } : {}),
+        ...(params.data.closesAt !== undefined ? { closes_at: closesAt } : {}),
+        ...(params.data.tags !== undefined ? { tags: params.data.tags } : {}),
+        uri: sourceRef.uri,
+        cid: sourceRef.cid,
+        indexed_at: now,
+      })
+      .where('id', '=', params.id)
+      .returningAll()
+      .execute();
+
+    return updated!;
+  }
+
+  async deleteProposal(params: {
+    readonly id: string;
+    readonly cooperativeDid: string;
+    readonly actorDid: string;
+  }): Promise<void> {
+    const proposal = await this.db
+      .selectFrom('proposal')
+      .where('id', '=', params.id)
+      .where('cooperative_did', '=', params.cooperativeDid)
+      .where('invalidated_at', 'is', null)
+      .selectAll()
+      .executeTakeFirst();
+    if (!proposal) throw new NotFoundError('Proposal not found');
+
+    await this.deleteProposalSourceRecord(proposal);
+    await this.withdrawPublicGovernanceAnchorIfPresent(proposal);
+
+    const now = this.clock.now();
+    await this.db
+      .updateTable('proposal')
+      .set({
+        status: 'withdrawn',
+        invalidated_at: now,
+        invalidated_by: params.actorDid,
+        indexed_at: now,
+      })
+      .where('id', '=', params.id)
+      .execute();
   }
 
   async openProposal(
@@ -446,6 +525,12 @@ export class ProposalService {
     }
 
     const now = this.clock.now();
+    const weight = await this.weightForVote({
+      proposal,
+      voterDid: params.voterDid,
+      choice: params.choice,
+      at: now,
+    });
 
     // Write vote record. Closed-governance cooperatives route votes to Tier 2
     // private storage; open/mixed-default cooperatives keep member-owned PDS
@@ -471,60 +556,67 @@ export class ProposalService {
             record: voteRecord,
           });
 
-    let ref: RecordRef;
-    if (this.visibilityRouter) {
-      const route = await this.visibilityRouter.routeWrite({
-        cooperativeDid: proposal.cooperative_did,
-        collection,
-        record: voteRecord,
-        createdBy: params.voterDid,
-      });
-      if (route.tier === 2) {
-        ref = await this.writePermissionedRecordRef({
-          routeSpace: route.space,
-          authorDid: params.voterDid,
+    let ref: RecordRef | undefined;
+    try {
+      if (this.visibilityRouter) {
+        const route = await this.visibilityRouter.routeWrite({
+          cooperativeDid: proposal.cooperative_did,
           collection,
           record: voteRecord,
+          createdBy: params.voterDid,
         });
+        if (route.tier === 2) {
+          ref = await this.writePermissionedRecordRef({
+            routeSpace: route.space,
+            authorDid: params.voterDid,
+            collection,
+            record: voteRecord,
+          });
+        } else {
+          ref = await writePublicVote();
+        }
       } else {
         ref = await writePublicVote();
       }
-    } else {
-      ref = await writePublicVote();
+
+      await this.retractActiveVotes({
+        proposalId: params.proposalId,
+        voterDid: params.voterDid,
+        retractedAt: now,
+      });
+
+      const [vote] = await this.db
+        .insertInto('vote')
+        .values({
+          uri: ref.uri,
+          cid: ref.cid,
+          proposal_id: params.proposalId,
+          proposal_uri: proposal.uri ?? '',
+          proposal_cid: proposal.cid ?? '',
+          voter_did: params.voterDid,
+          choice: params.choice,
+          vote_weight: weight,
+          rationale: params.rationale ?? null,
+          created_at: now,
+          indexed_at: now,
+        })
+        .returningAll()
+        .execute();
+
+      return vote!;
+    } catch (err) {
+      if (ref?.uri) {
+        await this.deletePermissionedRecordIfNeeded(ref.uri).catch(
+          (cleanupErr) => {
+            logger.warn(
+              { err: cleanupErr, uri: ref?.uri },
+              'Failed to clean up permissioned vote record after cast failure',
+            );
+          },
+        );
+      }
+      throw err;
     }
-
-    await this.retractActiveVotes({
-      proposalId: params.proposalId,
-      voterDid: params.voterDid,
-      retractedAt: now,
-    });
-
-    const weight = await this.weightForVote({
-      proposal,
-      voterDid: params.voterDid,
-      choice: params.choice,
-      at: now,
-    });
-
-    const [vote] = await this.db
-      .insertInto('vote')
-      .values({
-        uri: ref.uri,
-        cid: ref.cid,
-        proposal_id: params.proposalId,
-        proposal_uri: proposal.uri ?? '',
-        proposal_cid: proposal.cid ?? '',
-        voter_did: params.voterDid,
-        choice: params.choice,
-        vote_weight: weight,
-        rationale: params.rationale ?? null,
-        created_at: now,
-        indexed_at: now,
-      })
-      .returningAll()
-      .execute();
-
-    return vote!;
   }
 
   async retractVote(params: {
@@ -725,6 +817,7 @@ export class ProposalService {
     authorDid: string;
     collection: string;
     record: Record<string, unknown>;
+    rkey?: string;
   }): Promise<RecordRef> {
     if (!args.routeSpace) {
       throw new Error('VisibilityRouter returned Tier 2 without a space');
@@ -740,8 +833,93 @@ export class ProposalService {
       authorDid: args.authorDid as DID,
       collection: args.collection,
       record: args.record,
+      rkey: args.rkey,
     });
     return permissionedRecordRef(write);
+  }
+
+  private async updateProposalSourceRecord(
+    proposal: ProposalRow,
+  ): Promise<RecordRef> {
+    if (!proposal.uri) {
+      throw new Error('Cannot update a proposal without a source URI');
+    }
+
+    const record = proposalRecordFromRow(proposal);
+    const permissioned = parseSpaceRecordUri(proposal.uri);
+    if (permissioned) {
+      if (!this.permissionedRecordWriter) {
+        throw new Error(
+          'Permissioned proposal update requires a PermissionedRecordWritePort',
+        );
+      }
+      const write = await this.permissionedRecordWriter.updateRecord({
+        space: {
+          arbiterDid: permissioned.spaceDid as DID,
+          spaceKey: permissioned.skey,
+          expectedSpaceType: permissioned.spaceType,
+        },
+        authorDid: permissioned.authorDid as DID,
+        collection: permissioned.collection,
+        rkey: permissioned.rkey,
+        record,
+      });
+      return permissionedRecordRef(write);
+    }
+
+    const publicRecord = parsePublicRecordUri(proposal.uri);
+    if (!publicRecord || publicRecord.collection !== PROPOSAL_COLLECTION) {
+      throw new Error(`Unsupported proposal source URI: ${proposal.uri}`);
+    }
+    return this.pdsService.putRecord({
+      did: publicRecord.did as DID,
+      collection: publicRecord.collection,
+      rkey: publicRecord.rkey,
+      record,
+    });
+  }
+
+  private async deleteProposalSourceRecord(
+    proposal: ProposalRow,
+  ): Promise<void> {
+    if (!proposal.uri) return;
+
+    const permissioned = parseSpaceRecordUri(proposal.uri);
+    if (permissioned) {
+      await this.deletePermissionedRecordIfNeeded(proposal.uri);
+      return;
+    }
+
+    const publicRecord = parsePublicRecordUri(proposal.uri);
+    if (!publicRecord || publicRecord.collection !== PROPOSAL_COLLECTION) {
+      throw new Error(`Unsupported proposal source URI: ${proposal.uri}`);
+    }
+    try {
+      await this.pdsService.deleteRecord({
+        did: publicRecord.did as DID,
+        collection: publicRecord.collection,
+        rkey: publicRecord.rkey,
+      });
+    } catch (err) {
+      if (err instanceof NotFoundError) return;
+      throw err;
+    }
+  }
+
+  private async withdrawPublicGovernanceAnchorIfPresent(
+    proposal: ProposalRow,
+  ): Promise<void> {
+    const existing = await this.db
+      .selectFrom('public_governance_anchor')
+      .where('proposal_id', '=', proposal.id)
+      .select('id')
+      .executeTakeFirst();
+    if (!existing) return;
+
+    await this.upsertPublicGovernanceAnchor({
+      ...proposal,
+      status: 'withdrawn',
+    });
   }
 
   private async retractActiveVotes(args: {
@@ -1036,6 +1214,72 @@ function permissionedRecordRef(
   };
 }
 
+function proposalRecordFromCreateInput(
+  data: CreateProposalInput,
+  createdAt: Date,
+): Record<string, unknown> {
+  return withoutUndefinedRecord({
+    title: data.title,
+    body: data.body,
+    bodyFormat: data.bodyFormat ?? 'text',
+    votingType: data.votingType,
+    options: data.options,
+    quorumType: data.quorumType,
+    quorumBasis: data.quorumBasis,
+    quorumThreshold: data.quorumThreshold,
+    cooperative: data.cooperativeDid,
+    closesAt: data.closesAt,
+    tags: data.tags,
+    meetingEvent: data.meetingEvent,
+    fullDocument: data.fullDocument,
+    discussionThread: data.discussionThread,
+    createdAt: createdAt.toISOString(),
+  });
+}
+
+function proposalRecordFromRow(proposal: ProposalRow): Record<string, unknown> {
+  return withoutUndefinedRecord({
+    title: proposal.title,
+    body: proposal.body,
+    bodyFormat: proposal.body_format,
+    votingType: proposal.voting_type,
+    options: proposal.options ?? undefined,
+    quorumType: proposal.quorum_type,
+    quorumBasis: proposal.quorum_basis,
+    quorumThreshold: proposal.quorum_threshold ?? undefined,
+    cooperative: proposal.cooperative_did,
+    closesAt: proposal.closes_at ? toIsoString(proposal.closes_at) : undefined,
+    tags: proposal.tags.length > 0 ? proposal.tags : undefined,
+    meetingEvent: proposal.meeting_event ?? undefined,
+    fullDocument: proposal.full_document ?? undefined,
+    discussionThread: proposal.discussion_thread ?? undefined,
+    createdAt: toIsoString(proposal.created_at),
+  });
+}
+
+function withoutUndefinedRecord(
+  record: Record<string, unknown>,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(record).filter(([, value]) => value !== undefined),
+  );
+}
+
+function parsePublicRecordUri(uri: string): {
+  readonly did: string;
+  readonly collection: string;
+  readonly rkey: string;
+} | null {
+  const match = /^at:\/\/([^/]+)\/([^/]+)\/([^/?#]+)$/.exec(uri);
+  const [, did, collection, rkey] = match ?? [];
+  if (!did || !collection || !rkey) return null;
+  return { did, collection, rkey };
+}
+
+function toIsoString(value: Date | string): string {
+  return value instanceof Date ? value.toISOString() : value;
+}
+
 function quorumConfigFromProposal(
   proposal: ProposalRow,
 ): GovernanceQuorumConfig | undefined {
@@ -1067,11 +1311,7 @@ function classQuorumRulesFromRecord(
 
   const entries: Array<[string, GovernanceClassQuorumRule]> = [];
   for (const [className, rawRule] of Object.entries(record)) {
-    if (
-      !rawRule ||
-      typeof rawRule !== 'object' ||
-      Array.isArray(rawRule)
-    ) {
+    if (!rawRule || typeof rawRule !== 'object' || Array.isArray(rawRule)) {
       continue;
     }
 

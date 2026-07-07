@@ -56,11 +56,6 @@ describe('CoopSurplusDistributorPlugin', () => {
             memberDid: 'did:plc:bob',
             retainedAmount: 0,
           },
-          {
-            patronageRecordId: 'negative',
-            memberDid: 'did:plc:carol',
-            retainedAmount: -1,
-          },
         ],
       }),
     ).toEqual([
@@ -72,6 +67,20 @@ describe('CoopSurplusDistributorPlugin', () => {
         description: 'Patronage allocation for fiscal period fy-2026',
       },
     ]);
+  });
+
+  it('rejects non-positive distributor output amounts', () => {
+    expect(() =>
+      parseCoopSurplusDistributions([
+        {
+          patronageRecordId: 'negative',
+          memberDid: 'did:plc:carol',
+          transactionType: 'patronage_allocation',
+          amount: -1,
+          description: 'bad distribution',
+        },
+      ]),
+    ).toThrow(CoopSurplusDistributionError);
   });
 
   it('parses distributor output back to typed distributions', async () => {
@@ -113,6 +122,23 @@ describe('CoopSurplusDistributorPlugin', () => {
         },
         period: { id: 'fy-2026' },
         allocations: [{ memberDid: 'did:plc:alice', retainedAmount: 2 }],
+      }),
+    ).rejects.toThrow(CoopSurplusDistributionError);
+
+    await expect(
+      plugin.distribute({
+        cooperative: {
+          authorityDid: 'did:plc:coop',
+          spaceKey: 'members',
+        },
+        period: { id: 'fy-2026' },
+        allocations: [
+          {
+            patronageRecordId: 'record-1',
+            memberDid: 'did:plc:alice',
+            retainedAmount: -2,
+          },
+        ],
       }),
     ).rejects.toThrow(CoopSurplusDistributionError);
   });

@@ -8,12 +8,14 @@ import {
   SpacesConsumer,
   StaticGroupDirectoryPort,
   TwoStepSpaceCredentialIssuer,
+  type PermissionedRepoPort,
+  type SpaceCredential,
   type SpaceCredentialExchangeClientPort,
   type SpaceCredentialExchangeRequest,
   type SpaceCredentialExchangeResponse,
-  type SpaceMemberGrantClientPort,
-  type SpaceMemberGrantRequest,
-  type SpaceMemberGrantResponse,
+  type SpaceDelegationTokenClientPort,
+  type SpaceDelegationTokenRequest,
+  type SpaceDelegationTokenResponse,
 } from '../index.js';
 import type { SpaceRef } from '../types.js';
 import { buildVerifiedRecord, fakeDid } from './helpers/factories.js';
@@ -40,8 +42,8 @@ const governanceVote = buildVerifiedRecord({
 describe('Phase 4 governance vote credential harness', () => {
   it('syncs a governance vote only after obtaining a two-step space credential', async () => {
     const events: string[] = [];
-    const grantClient = new RecordingGrantClient(
-      { grant: 'member-grant' },
+    const delegationClient = new RecordingDelegationTokenClient(
+      { token: 'delegation-token' },
       events,
     );
     const exchangeClient = new RecordingExchangeClient(
@@ -53,12 +55,12 @@ describe('Phase 4 governance vote credential harness', () => {
     );
     const credentials = new SpaceCredentialManager(
       new InMemorySpaceCredentialStore({ clock: () => now }),
-      new TwoStepSpaceCredentialIssuer(grantClient, exchangeClient, {
+      new TwoStepSpaceCredentialIssuer(delegationClient, exchangeClient, {
         clientId: 'https://app.example/oauth/client.json',
       }),
       { clock: () => now },
     );
-    const repo = new InMemoryPermissionedRepoPort({
+    const repo = new RecordingPermissionedRepoPort({
       records: [governanceVote],
       verification: 'verified',
       clock: () => now,
@@ -83,23 +85,26 @@ describe('Phase 4 governance vote credential harness', () => {
     await repo.emit(coopMembersSpace);
 
     expect(events).toEqual([
-      'grant-start',
-      'grant-resolved',
+      'delegation-start',
+      'delegation-resolved',
       'exchange-start',
       'exchange-resolved',
     ]);
-    expect(grantClient.requests[0]).toMatchObject({
+    expect(delegationClient.requests[0]).toMatchObject({
       space:
-        'ats://did:plc:coop/network.coopsource.org.spaceType.members/members',
+        'at://did:plc:coop/space/network.coopsource.org.spaceType.members/members',
       clientId: 'https://app.example/oauth/client.json',
       reason: 'missing',
       now,
     });
     expect(exchangeClient.requests[0]).toMatchObject({
-      grant: 'member-grant',
+      delegationToken: 'delegation-token',
       space:
-        'ats://did:plc:coop/network.coopsource.org.spaceType.members/members',
+        'at://did:plc:coop/space/network.coopsource.org.spaceType.members/members',
     });
+    expect(repo.credentialsSeen.map((credential) => credential.token)).toEqual([
+      'space-credential',
+    ]);
     expect(onAccepted).toHaveBeenCalledWith(governanceVote);
     expect(onError).not.toHaveBeenCalled();
     expect(await repo.committedCheckpoint(coopMembersSpace)).toBe('7');
@@ -112,14 +117,14 @@ describe('Phase 4 governance vote credential harness', () => {
   });
 
   it('does not sync or checkpoint when credential issuance fails', async () => {
-    const grantClient = new ThrowingGrantClient();
+    const delegationClient = new ThrowingDelegationTokenClient();
     const exchangeClient = new RecordingExchangeClient({
       credential: 'unused',
       expiresAt: new Date('2026-07-06T13:00:00Z'),
     });
     const credentials = new SpaceCredentialManager(
       new InMemorySpaceCredentialStore({ clock: () => now }),
-      new TwoStepSpaceCredentialIssuer(grantClient, exchangeClient, {
+      new TwoStepSpaceCredentialIssuer(delegationClient, exchangeClient, {
         clientId: 'https://app.example/oauth/client.json',
       }),
       { clock: () => now },
@@ -154,29 +159,40 @@ describe('Phase 4 governance vote credential harness', () => {
   });
 });
 
-class RecordingGrantClient implements SpaceMemberGrantClientPort {
-  readonly requests: SpaceMemberGrantRequest[] = [];
+class RecordingDelegationTokenClient implements SpaceDelegationTokenClientPort {
+  readonly requests: SpaceDelegationTokenRequest[] = [];
 
   constructor(
-    private readonly response: SpaceMemberGrantResponse,
+    private readonly response: SpaceDelegationTokenResponse,
     private readonly events: string[] = [],
   ) {}
 
-  async getMemberGrant(
-    request: SpaceMemberGrantRequest,
-  ): Promise<SpaceMemberGrantResponse> {
-    this.events.push('grant-start');
+  async getDelegationToken(
+    request: SpaceDelegationTokenRequest,
+  ): Promise<SpaceDelegationTokenResponse> {
+    this.events.push('delegation-start');
     this.requests.push(request);
     await Promise.resolve();
-    this.events.push('grant-resolved');
+    this.events.push('delegation-resolved');
     return this.response;
   }
 }
 
-class ThrowingGrantClient implements SpaceMemberGrantClientPort {
-  async getMemberGrant(): Promise<SpaceMemberGrantResponse> {
+class ThrowingDelegationTokenClient implements SpaceDelegationTokenClientPort {
+  async getDelegationToken(): Promise<SpaceDelegationTokenResponse> {
     await Promise.resolve();
-    throw new SpaceCredentialError('grant denied');
+    throw new SpaceCredentialError('delegation denied');
+  }
+}
+
+class RecordingPermissionedRepoPort extends InMemoryPermissionedRepoPort {
+  readonly credentialsSeen: SpaceCredential[] = [];
+
+  override async sync(
+    args: Parameters<PermissionedRepoPort['sync']>[0],
+  ): ReturnType<PermissionedRepoPort['sync']> {
+    if (args.credential) this.credentialsSeen.push(args.credential);
+    return super.sync(args);
   }
 }
 
