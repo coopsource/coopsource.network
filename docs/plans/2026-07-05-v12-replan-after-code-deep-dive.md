@@ -161,28 +161,26 @@ Partially implemented or mismatched:
   port, and log-only accepted-record handling.
 - GovernanceView and CoopView packages do not exist.
 
-Direct membership read inventory:
+Direct membership read inventory, closeout 2026-07-07:
 
-`rg` found direct `membership` / `membership_role` reads in 20
-`apps/api/src` files. Hot spots by file:
-
-|  Count | File                                                                                                                                                                               |
-| -----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-|      5 | `apps/api/src/services/membership-service.ts`                                                                                                                                      |
-|      4 | `apps/api/src/services/proposal-service.ts`                                                                                                                                        |
-|      4 | `apps/api/src/services/network-service.ts`                                                                                                                                         |
-|      4 | `apps/api/src/services/member-class-service.ts`                                                                                                                                    |
-|      3 | `apps/api/src/scripting/script-service.ts`                                                                                                                                         |
-|      3 | `apps/api/src/ai/tools/index.ts`                                                                                                                                                   |
-|      2 | `apps/api/src/services/dashboard-service.ts`                                                                                                                                       |
-|      2 | `apps/api/src/services/auth-service.ts`                                                                                                                                            |
-|      2 | `apps/api/src/auth/middleware.ts`                                                                                                                                                  |
-| 1 each | reporting, profile, operator-write-proxy, delegation-voting, federation route, explore route, auth route, permissions middleware, MCP server, proposal indexer, AI action executor |
-
-Allowed direct membership access after Phase 3 should be limited to the
-CSN-DB adapter/mutation packages and low-level tests/helpers. Application
-services, middleware, XRPC handlers, MCP/tools/scripts, and routes should use
-the read seam.
+- The remaining app-level reader was
+  `SearchService.searchAlignment`'s raw SQL `membership` subquery for excluding
+  cooperatives the viewer already belongs to. It now calls
+  `MembershipReadModel.listProjectedActiveCooperativeDids(memberDid)` and passes
+  that projected DID set into the alignment SQL so filtering still happens
+  before pagination.
+- Current exit check:
+  `rg "selectFrom\\('membership'\\)|selectFrom\\('membership_role'\\)|selectFrom\\(\"membership\"\\)|selectFrom\\(\"membership_role\"\\)|FROM membership|JOIN membership" apps/api/src`
+  reports only `apps/api/src/services/membership-read-model.ts`.
+- Allowed direct membership access after Phase 3 is limited to
+  `MembershipReadModel` read-seam internals, explicit mutation/projection
+  writers, admin reset table-name references, and low-level tests/helpers.
+  Application services, middleware, XRPC handlers, MCP/tools/scripts, and routes
+  should keep using the read seam.
+- Explicit deferrals: OAuth BYO-DID invitation acceptance, the live
+  draft-XRPC/space-member source, the PLC DID-rotation writer, and V9
+  `private_record`/`VisibilityRouter` retirement remain Phase 4/6 dependencies.
+  Do not start the draft-XRPC integration spike as part of Phase 3 closeout.
 
 Still-live V9 retirement targets:
 
@@ -376,6 +374,12 @@ Exit checks:
 
 **Branch:** `feature/v12-phase-3-membership-read-seam-utilities`
 
+**Implementation status, 2026-07-07:** R5 is closed. The only remaining
+app-level direct read found during closeout was the alignment-search
+active-member exclusion; it moved behind
+`MembershipReadModel.listProjectedActiveCooperativeDids()`. The remaining grep
+hits are the read model itself plus explicit write/reset/test references.
+
 Scope:
 
 - AI tools and trigger action executor (done)
@@ -383,9 +387,8 @@ Scope:
 - scripting service (done)
 - proposal indexer (done in R4)
 - reporting/dashboard/profile/operator-write-proxy leftovers (done)
-- route-level direct reads not already covered (no live direct reads remain;
-  remaining grep hits are admin reset SQL table names and object-property
-  formatting of service-returned membership rows)
+- route-level direct reads not already covered (done; no live app-level direct
+  reads remain)
 
 Exit checks:
 
@@ -504,9 +507,12 @@ needs a short substrate alignment slice first:
    - Proposal 0016 lets an app serving several users obtain a space credential
      using any one user's session, but when all OAuth sessions are gone the app
      cannot renew.
-   - CSN needs a concrete answer for always-on AppView projection: active
-     member session pool, managing-app policy, service identity, or a
-     CSN-controlled authority credential flow.
+   - Decision 2026-07-07:
+     `docs/plans/2026-07-07-v12-phase-4-background-sync-credential-posture.md`
+     chooses a cooperative-designated managing session pool. No arbitrary
+     active-member pooling, no `read_self` fallback for AppView sync, and no
+     renewal after cached credentials expire without an eligible managing
+     session.
 4. Spike against either HappyView 2.10 or the `atproto#5187` branch.
    - Goal: prove notification -> listRepos/listRepoOps/getRepo -> LtHash
      verification -> member cross-check -> Postgres projection.
@@ -544,6 +550,11 @@ Initial Phase 4 substrate artifact started in this branch:
   non-live coordinator over `SpaceCredentialStore` and a future issuer port. It
   models missing credentials, refresh-per-batch, near-expiry refresh, and
   member-list-change invalidation without choosing a real upstream issuer yet.
+- `@coopsource/spaces-consumer` now also exports
+  `KyselySpaceCredentialStore`, backed by the `space_credential` table. It
+  persists short-lived per-`SpaceRef` bearer tokens across API process restarts,
+  keeps `expiresAt` exclusive like JWT `exp`, filters stale rows from `live()`,
+  and remains issuer-agnostic while the upstream credential exchange settles.
 - `@coopsource/spaces-consumer` now exports
   `TwoStepSpaceCredentialIssuer`, an executable draft issuer seam that sequences
   delegation-token issuance before space-credential exchange, derives cache expiry
@@ -582,6 +593,15 @@ Initial Phase 4 substrate artifact started in this branch:
   `space:` member-write grants (`create`/`delete`, not `update`). The default
   remains `private-record` until a space-enabled PDS or HappyView-compatible
   target is exercised end-to-end.
+- `apps/api` now also has
+  `OAuthManagingSpaceCredentialSessionSelector`, the background-sync session
+  selection seam for the cooperative-designated managing session pool. It takes
+  designated candidates from an injected provider, verifies each candidate with
+  `MembershipReadModel.hasPermissionResult()`, restores the OAuth session only
+  after eligibility passes, and returns a session-bound fetch constrained to the
+  restored PDS audience. Unusable token/audience metadata is a per-candidate
+  miss so later eligible designated candidates can be tried; restored DID
+  mismatch still fails closed.
 - `ProposalService.castVote()` now asks `VisibilityRouter` before writing the
   `network.coopsource.governance.vote` record. Closed-governance cooperatives
   route votes to Tier 2 private storage under the cooperative DID; open and
@@ -606,12 +626,13 @@ Initial Phase 4 substrate artifact started in this branch:
 - Keep `network.coopsource.org.spaceType.*` as the canonical CSN draft space
   type namespace for this PoC. Rename only if upstream final syntax or tooling
   makes the current namespace actively misleading.
-- Remaining Phase 4 substrate work should exercise
-  `PERMISSIONED_RECORD_WRITER_MODE=draft-xrpc` against a space-enabled PDS or
-  HappyView-compatible prototype, including real OAuth consent, space creation
-  with CSN's encoded `skey` convention, member authorization, create/delete
-  writes, and failure mapping. Do not make it the default until that
-  integration evidence exists.
+- With the background-sync credential posture decided, remaining Phase 4
+  substrate work should exercise `PERMISSIONED_RECORD_WRITER_MODE=draft-xrpc`
+  against a space-enabled PDS or HappyView-compatible prototype, including real
+  OAuth consent, the managing-session selector wired to a draft delegation-token
+  client, space creation with CSN's encoded `skey` convention, member
+  authorization, create/delete writes, and failure mapping. Do not make it the
+  default until that integration evidence exists.
 
 ## Phase 5 Parallelization
 

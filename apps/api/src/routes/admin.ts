@@ -145,7 +145,8 @@ export function createAdminRoutes(container: Container): Router {
             notification_preference, mention,
             hook_dead_letter,
             match_suggestion,
-            script_execution_log, cooperative_script
+            script_execution_log, cooperative_script,
+            did_rotation_history, spaces_consumer_cursor, space_credential
           CASCADE
         `.execute(container.db);
         resetSetupCache();

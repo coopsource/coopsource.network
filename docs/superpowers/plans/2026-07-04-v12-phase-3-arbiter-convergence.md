@@ -1,6 +1,6 @@
 # V12 Phase 3 — Arbiter Convergence + Membership Reads Through the Port
 
-> **Progress (2026-07-05):** Merged to main — Task 3.1 (roster truncation), 3.1b (visibility opt-in endpoint), 3.2 bug slice (active-member filter divergence), 3.3 (lifecycle events), 3.4 (consent-indexer hardening), 3.5 (suspension), 3.7 partial (single-use local invitation redemption), and 3.9 Issue B (Supertest listener flake). **Remaining:** 3.2 architectural read seam (design first, then migrate direct membership reads), 3.6 DID-rotation-aware equality before enabling the spaces consumer, 3.7 completion for public/OAuth invite acceptance, and 3.8 XRPC arbiter adapter once a real or stable-enough target exists.
+> **Progress (2026-07-07):** Merged to main before this branch — Task 3.1 (roster truncation), 3.1b (visibility opt-in endpoint), 3.2 bug slice (active-member filter divergence), 3.3 (lifecycle events), 3.4 (consent-indexer hardening), 3.5 (suspension), 3.6 DID-rotation-aware equality gate, 3.7 local single-use invitation redemption, 3.8 non-default XRPC group-directory adapter, and 3.9 Issue B (Supertest listener flake). Current branch closes the Task 3.2 architectural read seam: app-level reads now route through `MembershipReadModel`, with direct `membership`/`membership_role` readers limited to that seam and documented low-level exceptions. **Deferred:** OAuth/BYO-DID invitation acceptance moves with Phase 4 `space:`/OAuth credential work; live XRPC group-directory wiring waits for a shipped/stable server and settled auth posture.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: use superpowers:subagent-driven-development or superpowers:executing-plans. Steps use `- [ ]` checkboxes. Each task ends with an independently testable deliverable. TDD throughout: failing test → run-red → implement → run-green → commit.
 
@@ -8,7 +8,7 @@
 
 **Branch:** `feature/v12-phase-3-arbiter-convergence` (already created). Merge `--no-ff` + tag `v12-phase-3` when green.
 
-**Architecture:** ARCHITECTURE-V12 §4–§5, §10, plus `docs/plans/2026-07-05-v12-replan-after-code-deep-dive.md` and `docs/plans/2026-07-05-v12-membership-read-seam-design.md`. This phase closes the "half-drawn seam": today writes flow through the port but application reads still hit `membership`/`membership_role` directly. The active-status filter bug is fixed; the remaining work is architectural.
+**Architecture:** ARCHITECTURE-V12 §4–§5, §10, plus `docs/plans/2026-07-05-v12-replan-after-code-deep-dive.md` and `docs/plans/2026-07-05-v12-membership-read-seam-design.md`. This phase closes the "half-drawn seam": writes flow through the mutation port, and application reads now route through the API-layer membership read seam. Direct table access is localized in `MembershipReadModel`, mutation/projection writers, admin reset SQL, and tests/helpers.
 
 **Tech stack:** unchanged (TS strict, Kysely, Vitest 4).
 
@@ -42,18 +42,20 @@ This is the standard **addressed, single-use invitation** pattern, and the schem
 
 ## Task 3.2: Membership reads through the read seam
 
-**Files:** Design doc now exists at `docs/plans/2026-07-05-v12-membership-read-seam-design.md`. Next add the minimum API-layer read facade/port and adapter code required to migrate direct readers. Expected implementation touches `apps/api/src/services/membership-service.ts`, `network-service.ts`, governance/profile/reporting/AI/MCP/script readers surfaced by `rg`, and tests alongside each.
+**Files:** Design doc now exists at `docs/plans/2026-07-05-v12-membership-read-seam-design.md`. Implementation is `apps/api/src/services/membership-read-model.ts`, with callers migrated across auth, federation, membership rosters, network/profile/explore/search/dashboard/reporting/matchmaking, governance/class math, AI/MCP/scripts, and XRPC/Inlay handlers.
 
 **Problem (review altitude):** Direct reads are spread across the API layer. The original filter-divergence bug is already fixed, but the axis boundary is still wrong: application services continue to decide membership by querying projection tables directly instead of going through a single authority seam.
 
 **2026-07-05 correction:** do **not** push display names, profiles, quorum, vote weights, member classes, or cooperative-specific eligibility into the package-level `GroupDirectoryPort`. Keep Layer 2 generic (`resolveSpaceMembers`, direct DIDs/access, partial/stale metadata). Add an API-layer membership read facade that composes the directory answer with local projection/profile/governance tables where needed.
 
-- [ ] Enumerate read sites with `rg "selectFrom\\('membership'\\)|selectFrom\\('membership_role'\\)" apps/api/src` and record the inventory in the PR/design doc.
-- [ ] Design the read seam before code migration: security-critical permission checks, roster/count/profile reads, governance eligibility/quorum/vote-weight reads, and utility/reporting/AI reads each need explicit return types.
-- [ ] Encode the canonical active-member filter (`status='active' AND invalidated_at IS NULL`) once in the seam/adapter; keep fail-closed behavior for partial/stale directory resolution.
-- [ ] Migrate in risk order: auth/middleware/permissions first; roster/count/profile reads second; governance reads third; utility/reporting/AI/MCP/script reads last.
-- [ ] Keep the CSN-DB adapter serving from the projection until a real Arbiter server exists. Direct membership access after this task should be limited to low-level adapters/tests/helpers.
-- [ ] Green per moved slice; commit incrementally with messages like `refactor(api): route security membership reads through authority seam`.
+- [x] Enumerate read sites with `rg "selectFrom\\('membership'\\)|selectFrom\\('membership_role'\\)" apps/api/src` and record the inventory in the PR/design doc.
+- [x] Design the read seam before code migration: security-critical permission checks, roster/count/profile reads, governance eligibility/quorum/vote-weight reads, and utility/reporting/AI reads each need explicit return types.
+- [x] Encode the canonical active-member filter (`status='active' AND invalidated_at IS NULL`) once in the seam/adapter; keep fail-closed behavior for partial/stale directory resolution.
+- [x] Migrate in risk order: auth/middleware/permissions first; roster/count/profile reads second; governance reads third; utility/reporting/AI/MCP/script reads last.
+- [x] Keep the CSN-DB adapter serving from the projection until a real Arbiter server exists. Direct membership access after this task should be limited to low-level adapters/tests/helpers.
+- [x] Green per moved slice; commit incrementally with messages like `refactor(api): route security membership reads through authority seam`.
+
+**Closeout (2026-07-07):** complete on this branch. The final remaining app-level direct read was `SearchService.searchAlignment`'s active-member exclusion; it now calls `MembershipReadModel.listProjectedActiveCooperativeDids()`. The closeout grep reports only `MembershipReadModel` for direct `membership`/`membership_role` reads, with the non-production admin reset table list as the only broader text hit.
 
 ## Task 3.1b: Directory-visibility opt-in path (review finding #5)
 
@@ -63,7 +65,7 @@ This is the standard **addressed, single-use invitation** pattern, and the schem
 
 - [ ] Failing test: member sets visibility true → appears in `listMembers`; false → hidden.
 
-**Also note (done in the Fable-5 review pass, `v12-review-fixes`):** the federation approve-authority is now centralized on the permission model via `didHasPermission(db, coopDid, did, 'member.approve')` in `apps/api/src/middleware/permissions.ts`. Use this SAME pattern when routing membership reads/writes through the port in Task 3.2 — do not reintroduce hardcoded role lists. `owner` is now a real built-in role (`*`).
+**Also note (updated by the read-seam migration):** federation approve-authority now uses `container.membershipReadModel.hasPermissionResult(coopDid, did, 'member.approve')`. Keep this permission-model path for membership authority decisions; do not reintroduce hardcoded role lists. `owner` is now a real built-in role (`*`).
 
 ## Task 3.3: Membership lifecycle events (review finding V5)
 

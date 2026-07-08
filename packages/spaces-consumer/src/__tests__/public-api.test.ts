@@ -6,6 +6,7 @@ describe('public API', () => {
     expect(publicApi).toHaveProperty('SpacesConsumer');
     expect(publicApi).toHaveProperty('DenyAllGroupDirectoryPort');
     expect(publicApi).toHaveProperty('SpaceCredentialManager');
+    expect(publicApi).toHaveProperty('KyselySpaceCredentialStore');
     expect(publicApi).toHaveProperty('TwoStepSpaceCredentialIssuer');
     expect(publicApi).toHaveProperty('CredentialedPermissionedRepoPort');
     expect(publicApi).toHaveProperty('InMemoryPermissionedRecordWritePort');

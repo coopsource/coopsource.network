@@ -5,6 +5,8 @@ Stage 1 V11 consumer for ATProto permissioned-space data. The public package bou
 - `GroupDirectoryPort` answers direct and resolved membership questions.
 - `SpaceCredentialStore` and `SpaceCredentialManager` shape short-lived
   per-space credential refresh without committing to a live upstream issuer.
+  `KyselySpaceCredentialStore` persists the short-lived cache across API
+  process restarts.
 - `TwoStepSpaceCredentialIssuer` models the draft upstream grant exchange
   (`getDelegationToken` -> `getSpaceCredential`) behind transport-level client
   ports.
@@ -29,9 +31,10 @@ The executable sketches now live at the stable-port level:
 
 - `DenyAllGroupDirectoryPort` and `StaticGroupDirectoryPort` sketch the Group Directory contract.
 - `InMemoryPermissionedRepoPort` and `FailClosedPermissionedRepoPort` sketch permissioned watch/sync/verification/checkpoint behavior.
-- `InMemorySpaceCredentialStore` and `SpaceCredentialManager` model
-  expiration, refresh-per-batch, near-expiry refresh, and invalidation after
-  member-list changes for future permissioned-data adapters.
+- `InMemorySpaceCredentialStore`, `KyselySpaceCredentialStore`, and
+  `SpaceCredentialManager` model expiration, refresh-per-batch, near-expiry
+  refresh, persistent short-lived caching, and invalidation after member-list
+  changes for future permissioned-data adapters.
 - `TwoStepSpaceCredentialIssuer` is the executable draft credential flow. It
   sequences delegation-token issuance before space-credential exchange, derives
   credential expiry from either response metadata or JWT `exp`, and keeps
@@ -64,7 +67,7 @@ See `docs/plans/2026-05-17-v11-spaces-consumer-adapter-architecture.md` for the 
 | Permissioned record identity | `PermissionedRecordLocation`                                                                                     |
 | Verified records             | `VerifiedPermissionedRecord`, `VerifiedPermissionedChanges`                                                      |
 | Group Directory              | `GroupDirectoryPort`, `DenyAllGroupDirectoryPort`, `StaticGroupDirectoryPort`                                    |
-| Space credentials            | `SpaceCredentialStore`, `InMemorySpaceCredentialStore`, `SpaceCredentialManager`, `TwoStepSpaceCredentialIssuer` |
+| Space credentials            | `SpaceCredentialStore`, `InMemorySpaceCredentialStore`, `KyselySpaceCredentialStore`, `SpaceCredentialManager`, `TwoStepSpaceCredentialIssuer` |
 | Permissioned sync            | `PermissionedRepoPort`, `InMemoryPermissionedRepoPort`, `FailClosedPermissionedRepoPort`                         |
 | Credentialed sync            | `CredentialedPermissionedRepoPort`                                                                               |
 | Permissioned writes          | `PermissionedRecordWritePort`, `InMemoryPermissionedRecordWritePort`, `XrpcPermissionedRecordWritePort`          |

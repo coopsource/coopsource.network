@@ -114,7 +114,8 @@ Reference links:
   adapter. The semantic record location is now a structured permissioned-space
   URI, but the physical storage is still the local table.
 - The local spaces-consumer harness proves credential-gated sync for
-  `network.coopsource.governance.vote`, but it is not a live
+  `network.coopsource.governance.vote`; `KyselySpaceCredentialStore` now
+  persists short-lived per-space credentials. This is still not a live
   permissioned-space writer.
 - The current atproto draft exposes direct simplespace member lists, not CSN's
   recursive role/member-class authority model. Runtime placement still depends
@@ -123,11 +124,12 @@ Reference links:
 
 ## Next Slice
 
-1. Implement the explicitly optional public-anchor record for closed/private
-   governance from
-   `docs/plans/2026-07-06-v12-phase-4-private-governance-anchor-design.md`.
-   Until that lands, closed/private proposal labels and anchors are forbidden by
-   default.
-2. Replace the legacy `private_record` adapter with a real
-   `com.atproto.space.*`/permissioned-space writer once upstream write APIs are
-   stable enough to target.
+1. Connect `OAuthManagingSpaceCredentialSessionSelector` to a draft
+   delegation-token client for the cooperative-designated managing session
+   pool.
+2. Exercise `PERMISSIONED_RECORD_WRITER_MODE=draft-xrpc` against a
+   space-enabled PDS or HappyView-compatible prototype with real OAuth consent,
+   space creation, member authorization, create/delete writes, and typed failure
+   mapping.
+3. Keep the optional public-anchor implementation disabled by default until
+   Phase 5 governance-view policy decides what public evidence is appropriate.

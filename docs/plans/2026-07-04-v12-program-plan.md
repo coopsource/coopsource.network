@@ -207,7 +207,7 @@ Single canonical spec. Required section list (content sources in parentheses):
 3. Spaces substrate (proposal-0016-accurate: space triple, URI shape via helpers, LtHash digest surfaced through the `PermissionedRepoPort` sync/verification boundary, oplog sync `listRepoOps` + CAR fallback, simplespace baseline, reader-side write enforcement as _the_ mechanism).
 4. Arbiter integration incl. **the port↔lexicon mapping table** (`GroupDirectoryPort.resolveSpaceMembers` ↔ `town.muni.arbiter.resolveSpaceMembers`, `listSpaces`, `getSpaceConfig`, `getSpaceMembers`; `GroupMutationPort.addMember/removeMember/…` ↔ `createSpace`/`removeSpaceMember`/`setSpaceMemberAccess`; DID provisioning ↔ `createDid`/`updateDidDoc`) and the identity-vs-authorization (Rego) split mapped to Axis 2 vs Axis 3.
 5. OAuth-spaces seam (three tokens: delegation token / client attestation / space credential; client allow-deny lists; the three failure modes with axis names).
-6. GovernanceView + the ten-plugin `GovernancePluginSet` (verbatim from V11 §9 — unchanged; note it's unbuilt and is Phase 5).
+6. GovernanceView + the ten-plugin `GovernancePluginSet` (verbatim from V11 §9 — unchanged; note initial packages exist and service extraction remains Phase 5).
 7. CoopView (from V11, trimmed).
 8. Data tiers (Tier 3 still optional — Germ still iOS-only).
 9. Security requirements (carry; digest algorithm now "LtHash per proposal 0016, behind port").
@@ -310,14 +310,14 @@ From `docs/plans/2026-07-04-v11-merge-review-findings.md` (verified low-severity
 
 **Deliverables (superseded where narrower than the July 5 re-plan):**
 
-1. `XrpcGroupDirectoryPort` in `packages/arbiter-client` implementing the existing `GroupDirectoryPort` against `town.muni.arbiter.resolveSpaceMembers`/`listSpaces`/`getSpaceConfig` — flag-gated, fails closed, selected by env (`GROUP_DIRECTORY_ADAPTER=csn-db|xrpc`).
-2. **Membership reads routed through a designed authority seam** — today only writes go through the boundary. Do not overload package-level `GroupDirectoryPort` with profiles, quorum, vote weights, or cooperative-specific app semantics; keep Layer 2 generic and add an API-layer read facade that composes directory resolution with local projections.
+1. `XrpcGroupDirectoryPort` in `packages/arbiter-client` — done as a non-default, mock-server-tested adapter against the current draft substrate shape (`com.atproto.space.*` / `com.atproto.simplespace.*`). Runtime env selection is deferred until a shipped/stable server and auth/credential posture exist.
+2. **Membership reads routed through a designed authority seam — done on the Phase 3 closeout branch.** Do not overload package-level `GroupDirectoryPort` with profiles, quorum, vote weights, or cooperative-specific app semantics; keep Layer 2 generic. The API-layer `MembershipReadModel` composes directory resolution with local projections, and app-level direct `membership`/`membership_role` readers have been removed outside that seam and documented low-level exceptions.
 3. Role-space reads (`roles/board`, `classes/<slug>`) via the `roleSpace()`/`parseCsnSpace()` helpers in `arbiter-client/src/space-ref.ts`, replacing remaining direct `membership_role` queries in services where role membership is the authority question.
 4. Controlled-DID provisioning aligned to `createDid`/`updateDidDoc` semantics in `did-provisioning-port.ts`.
 5. Spaces consumer subscribed to a real space list (replace the `spaces: []` Stage-1 placeholder with per-cooperative `members` + role spaces from the directory).
 6. Replay protection per V12 security §: child-still-member check at write acceptance.
 
-**Exit:** no service reads `membership`/`membership_role` tables except through the ports; `SPACES_CONSUMER_ENABLED=true` in dev exercises a full notification→pull→cross-check→project loop against fixtures.
+**Exit:** membership-read-seam exit is satisfied: no service reads `membership`/`membership_role` tables except through `MembershipReadModel`/low-level exceptions. The remaining consumer-activation exit is separate: `SPACES_CONSUMER_ENABLED=true` in dev still needs to exercise a full notification→pull→cross-check→project loop against fixtures before treating Phase 4 integration as live.
 
 **Pre-merge review carry-ins (from `docs/plans/2026-07-04-v11-merge-review-findings.md`) — resolve in this phase:**
 
@@ -326,16 +326,25 @@ From `docs/plans/2026-07-04-v11-merge-review-findings.md` (verified low-severity
 - **V10 + A2-1/A2-2/A2-4:** harden the firehose `indexMemberConsent` — verify consent evidence (don't let an unverified self-published record overwrite the join-verified pointer), fix the delete-branch `cid=''` filter, drop the dead `prevCid` branch, and stop counting expected non-member drops as `memberCrossCheckFailures`.
 - **V4:** `CsnDbGroupDirectoryPort.resolveSpaceMembers` must compute `partial` from truncation and honor `consistency:'strict'` — today it hardcodes `partial:false`, defeating the consumer's fail-closed guard for >5000-member coops.
 - **V9:** consult `did_rotation_history` in the consumer's DID-equality accept path before flipping `SPACES_CONSUMER_ENABLED` on.
-- **Read-seam:** introduce the API-layer membership read seam and keep the canonical active/invalidated filter centralized. The original filter-divergence bug is already fixed; the remaining work is architectural.
-- **V2:** invitation immediate-active was confirmed by the user on 2026-07-04. Remaining work is addressee/reference binding for every accept path, plus OAuth BYO-DID acceptance if it stays in Phase 3.
+- **Read-seam:** done on the Phase 3 closeout branch. The API-layer membership read seam centralizes active/invalidated projection reads and fail-closed strict authority checks where authorization depends on membership.
+- **V2:** invitation immediate-active was confirmed by the user on 2026-07-04. Local bootstrap addressee binding and atomic single-use redemption are done; OAuth BYO-DID acceptance is deferred to Phase 4 with the `space:`/OAuth credential seam.
 
-- [ ] First task: expand this phase via superpowers:writing-plans into `docs/superpowers/plans/2026-MM-DD-v12-phase-3-arbiter-convergence.md`.
+- [x] First task: expand this phase via superpowers:writing-plans into `docs/superpowers/plans/2026-MM-DD-v12-phase-3-arbiter-convergence.md`.
 
 ## Phase 4 — Governance onto spaces + the credential seam (Stage 4/5)
 
 **Entry gate:** Phase 3 exit + upstream credential flow usable in _some_ form — either `@atproto/space` from PR #5187 becomes consumable, HappyView 2.10 is sufficient as a harness, or we sketch the three-token flow (delegation token → client attestation → space credential) behind `SpaceCredentialStore` per proposal 0016. Surface to user if the gate is still ambiguous at start. Phase 4 must also resolve the `space:` OAuth scope split (`read` vs `read_self`) and the background-sync credential posture.
 
 **Deliverables:** real `SpaceCredentialStore` implementation (short-lived credentials, refresh-per-batch, rotation on member-list change); proposals/votes/deliberations written via per-space placement (write path stops calling `visibilityRouter.routeWrite` — `proposal-service.ts:209`); `private_record` demoted to projection-only; personal spaces (per-(coop,member)) for Stage 5; axis-named errors across the seam (the three failure modes: scope not granted / not in space / app not authorized for space).
+
+**Progress 2026-07-07:** `KyselySpaceCredentialStore` now backs
+`SpaceCredentialStore` with the `space_credential` table and integration tests;
+`SpaceCredentialManager` already covers refresh-per-batch, near-expiry refresh,
+and member-list-change invalidation. Background sync posture is now documented
+as a cooperative-designated managing session pool in
+`docs/plans/2026-07-07-v12-phase-4-background-sync-credential-posture.md`.
+Remaining credential-seam work is the live issuer/session-selection
+implementation and PDS/HappyView exercise.
 
 - [ ] First task: expand into its own task-level plan.
 

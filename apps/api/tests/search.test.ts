@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { DID } from '@coopsource/common';
 import { truncateAllTables, getTestDb } from './helpers/test-db.js';
 import { createTestApp } from './helpers/test-app.js';
 import { resetSetupCache } from '../src/auth/middleware.js';
@@ -207,6 +208,10 @@ async function seedCoopInterests(
 describe('Search', () => {
   beforeEach(async () => {
     await truncateAllTables();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   // ─── Cooperative search (anon-safe) ────────────────────────────────
@@ -1138,6 +1143,55 @@ describe('Search', () => {
       expect(
         res.body.cooperatives.find((c: { did: string }) => c.did === coopDid),
       ).toBeUndefined();
+    });
+
+    it('uses the membership read model for active-member exclusion', async () => {
+      const testApp = createTestApp();
+      const { adminDid } = await setupWithHandle(testApp, 'align-seam');
+      const targetCoop = 'did:web:align-seam-target.example';
+      const db = getTestDb();
+
+      await db
+        .insertInto('entity')
+        .values({
+          did: targetCoop,
+          type: 'cooperative',
+          display_name: 'Read Seam Target Coop',
+          status: 'active',
+          created_at: new Date(),
+        })
+        .execute();
+      await db
+        .insertInto('cooperative_profile')
+        .values({
+          entity_did: targetCoop,
+          cooperative_type: 'worker',
+          membership_policy: 'open',
+          is_network: false,
+          anon_discoverable: true,
+        })
+        .execute();
+      await seedDesiredOutcome(targetCoop, {
+        title: 'Hazelnut climate adaptation',
+      });
+
+      const activeMemberships = vi
+        .spyOn(
+          testApp.container.membershipReadModel,
+          'listProjectedActiveCooperativeDids',
+        )
+        .mockImplementationOnce(async (memberDid: DID) => {
+          await Promise.resolve();
+          expect(memberDid).toBe(adminDid);
+          return [targetCoop as DID];
+        });
+
+      const res = await testApp.agent
+        .get('/api/v1/search/alignment?q=hazelnut')
+        .expect(200);
+
+      expect(activeMemberships).toHaveBeenCalledTimes(1);
+      expect(res.body.cooperatives).toEqual([]);
     });
 
     it('interests parameter is case-insensitive', async () => {

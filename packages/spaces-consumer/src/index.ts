@@ -29,6 +29,7 @@ export type {
 } from './credential-store.js';
 export {
   InMemorySpaceCredentialStore,
+  KyselySpaceCredentialStore,
   SpaceCredentialError,
   SpaceCredentialManager,
 } from './credential-store.js';

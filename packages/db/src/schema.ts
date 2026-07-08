@@ -1080,9 +1080,10 @@ export interface Database {
   cooperative_script: CooperativeScriptTable;
   script_execution_log: ScriptExecutionLogTable;
 
-  // V11 Stage 1 — Spaces consumer (no migration files; schema-only addition)
+  // V11/V12 spaces substrate (no migration files; schema-only addition)
   did_rotation_history: DidRotationHistoryTable;
   spaces_consumer_cursor: SpacesConsumerCursorTable;
+  space_credential: SpaceCredentialTable;
 }
 
 // ──────────────────────────────────────────────
@@ -1766,5 +1767,20 @@ export interface SpacesConsumerCursorTable {
   expected_space_type: string | null;
   member_did: string;
   cursor: string;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+/**
+ * Short-lived permissioned-space credentials cached by the spaces consumer.
+ * `space_ref_key` is the canonical SpaceRef key; decomposed columns keep the
+ * table inspectable without making nullable expected_space_type part of the PK.
+ */
+export interface SpaceCredentialTable {
+  space_ref_key: string;
+  arbiter_did: string;
+  space_key: string;
+  expected_space_type: string | null;
+  token: string;
+  expires_at: ColumnType<Date, Date | string, Date | string>;
   updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }

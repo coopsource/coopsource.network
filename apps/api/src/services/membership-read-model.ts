@@ -568,6 +568,21 @@ export class MembershipReadModel {
     }));
   }
 
+  async listProjectedActiveCooperativeDids(
+    memberDid: DID,
+  ): Promise<readonly DID[]> {
+    const rows = await this.db
+      .selectFrom('membership')
+      .where('member_did', '=', memberDid)
+      .where('status', '=', 'active')
+      .where('invalidated_at', 'is', null)
+      .select('cooperative_did')
+      .distinct()
+      .execute();
+
+    return rows.map((row) => row.cooperative_did as DID);
+  }
+
   async listProjectedActivePersonMemberDids(): Promise<readonly DID[]> {
     const rows = await this.db
       .selectFrom('membership')

@@ -2,7 +2,7 @@
 
 **Status:** Active canonical specification. Supersedes ARCHITECTURE-V11.md + CLAUDE-CODE-PROMPT-V11.md (both archived in `docs/archive/`). When CLAUDE.md and this document disagree, **this document wins**.
 
-**Updated:** 2026-07-05. Grounded in `docs/plans/2026-07-04-atproto-shared-spaces-research.md` plus the July 5 code/proposal reconciliation in `docs/plans/2026-07-05-v12-replan-after-code-deep-dive.md`. Current code audit target: `main` at tag `v12-phase-3-task-3.9b`.
+**Updated:** 2026-07-07. Grounded in `docs/plans/2026-07-04-atproto-shared-spaces-research.md` plus the July 5 code/proposal reconciliation in `docs/plans/2026-07-05-v12-replan-after-code-deep-dive.md`. Current code audit target: `feature/v12-phase-3-doc-reality-reconcile` after the Phase 3 membership read-seam closeout.
 
 V12 is a **documentation-and-alignment revision, not a design pivot.** The four-layer architecture, the ten-plugin contract, the authority axes, and the recursive cooperative model are all carried from V11 unchanged. What changed is the upstream reality V11 was betting on — and the bet aged well.
 
@@ -40,8 +40,8 @@ Layer 1: Spaces          at://…/space/… (proposal 0016)  protocol primitives
 
 - **Layer 1 — Spaces** (Holmgren / Bluesky). A space is `(authority: DID, type: NSID, skey: string)`, where the type is a lexicon-resolved `"type": "space"` declaration and the protocol does **not** carry an application member roster. Space credentials are issued by policy above the protocol; CSN resolves membership through Layer 2. **Writes are enforced by readers** at the application layer. Sync is pull-based (oplog `listRepoOps` + CAR fallback), digest is LtHash. _"space authority" ≙ our `arbiterDid`._
 - **Layer 2 — Arbiter** (Meri + Zicklag / Muni Town). Generic group/role/space management: community DID minting, member-list resolution, role-spaces, space-as-member-of-space recursion. Separates **identity/membership** ("who is in what group") from **authorization** ("who can do what", via uploadable Rego policy). CSN consumes it behind ports.
-- **Layer 3 — GovernanceView** (`community.lexicon.governance.*`). Generic proposals, votes, deliberations, anchor records, transparency logs, role-state derivation. Co-designed for ecosystem reuse. Accepts a `GovernancePluginSet` (§6). **Unbuilt** — Phase 5.
-- **Layer 4 — CoopView** (`network.coopsource.*`). Subchapter T, patronage, capital accounts, multi-stakeholder weighted voting, ICA principles, 1099-PATR, agreements, alignment, agents. Provides the plugin implementations. **Unbuilt as a package** — Phase 5 (the application logic exists in `apps/api` services today).
+- **Layer 3 — GovernanceView** (`community.lexicon.governance.*`). Generic proposals, votes, deliberations, anchor records, transparency logs, role-state derivation. Co-designed for ecosystem reuse. Accepts a `GovernancePluginSet` (§6). Initial package/default interfaces exist; service extraction remains Phase 5.
+- **Layer 4 — CoopView** (`network.coopsource.*`). Subchapter T, patronage, capital accounts, multi-stakeholder weighted voting, ICA principles, 1099-PATR, agreements, alignment, agents. Provides the plugin implementations. Initial package adapters exist; broad application-service rewrite remains Phase 5.
 
 ---
 
@@ -63,7 +63,12 @@ _Reference implementation of the gate:_ see `apps/api/src/routes/federation.ts` 
 
 ## 4. Arbiter integration — port ↔ lexicon mapping
 
-CSN operates the Arbiter behind two ports so the wire contract can evolve. Today both are backed by CSN's own Postgres (`Csn*` adapters); Phase 3 adds XRPC adapters against `town.muni.arbiter.*`. The method correspondence is already close:
+CSN operates the Arbiter behind two ports so the wire contract can evolve. Today
+both are backed by CSN's own Postgres (`Csn*` adapters). Phase 3 added a
+non-default XRPC group-directory adapter against the current draft substrate
+shape (`com.atproto.space.*` / `com.atproto.simplespace.*`) while keeping CSN-DB
+as the runtime default. The longer-term `town.muni.arbiter.*` method
+correspondence is already close:
 
 | CSN port method                                       | Draft `town.muni.arbiter.*`          | Notes                          |
 | ----------------------------------------------------- | ------------------------------------ | ------------------------------ |
@@ -137,16 +142,16 @@ Digest algorithm is LtHash per proposal 0016; current public code exposes the ve
 
 ## 10. Implementation playbook
 
-### Current code state (audit of `main` @ `5c0f8b0`)
+### Current code state (audit of `feature/v12-phase-3-doc-reality-reconcile`, 2026-07-07)
 
 | Layer            | Package                    | State                                                                                                                                                                                                                                                                    |
 | ---------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1 Spaces         | `packages/spaces-consumer` | Real skeleton, **flag-gated off**. `SpaceRef`, `SpacesConsumer`, `GroupDirectoryPort`, `SpaceCredentialStore`, Kysely checkpoint store, tests. `PermissionedRepoPort` is the public watch/sync/verification boundary; in-memory and fail-closed repo ports are sketches. |
-| 2 Arbiter        | `packages/arbiter-client`  | Real code, **CSN-Postgres-backed stand-in** for a real arbiter. `CsnDbGroupDirectoryPort`, `CsnDbGroupMutationPort`, `DidProvisioningPort`, `space-ref`. No XRPC client yet.                                                                                             |
-| 3 GovernanceView | `packages/governance-view` | **Does not exist** — Phase 5.                                                                                                                                                                                                                                            |
-| 4 CoopView       | `packages/coop-view`       | **Does not exist** — Phase 5 (logic lives in `apps/api` services).                                                                                                                                                                                                       |
+| 1 Spaces         | `packages/spaces-consumer` | Real skeleton, **flag-gated off**. `SpaceRef`, `SpacesConsumer`, `GroupDirectoryPort`, `SpaceCredentialStore` with Kysely-backed `space_credential` persistence, Kysely checkpoint store, tests. `PermissionedRepoPort` is the public watch/sync/verification boundary; in-memory and fail-closed repo ports are sketches. |
+| 2 Arbiter        | `packages/arbiter-client`  | Real code, **CSN-Postgres-backed stand-in** for a real arbiter. `CsnDbGroupDirectoryPort`, `CsnDbGroupMutationPort`, `DidProvisioningPort`, `space-ref`, and non-default/mock-server-tested `XrpcGroupDirectoryPort`. Runtime default remains CSN-DB.                    |
+| 3 GovernanceView | `packages/governance-view` | Initial package exists with generic plugin/default surfaces. Phase 5 still owns service extraction and complete wiring.                                                                                                                                                  |
+| 4 CoopView       | `packages/coop-view`       | Initial package exists with CSN plugin adapter work started. Phase 5 still owns broad service rewrites and full container integration.                                                                                                                                   |
 
-Membership: bilateral lexicons retired; `memberConsent` is non-authoritative evidence; **writes** route through `GroupMutationPort`; **reads** still hit `membership`/`membership_role` directly (seam half-drawn — Phase 3). Container exposes `groupMutations` + `consentEvidenceVerifier`; the consumer starts via `startSpacesConsumer` behind the flag. There are **no** `spacesConsumer`/`arbiterClient`/`governanceView`/`coopView` container registrations yet.
+Membership: bilateral lexicons retired; `memberConsent` is non-authoritative evidence; **writes** route through `GroupMutationPort`; **reads** route through the API-layer `MembershipReadModel`, which composes strict `GroupDirectoryPort` authority checks with local projection data. Direct `membership`/`membership_role` access is limited to the read seam, mutation/projection writers, admin reset SQL, and low-level tests/helpers. Container exposes `groupMutations`, `groupDirectory`, `membershipReadModel`, consent evidence verification, and Phase 5 governance/coop-view adapters where already extracted; the consumer starts via `startSpacesConsumer` behind the flag.
 
 DB: `packages/db/src/migrations/0001_v11_baseline.ts` + `schema.sql` is the **permanent bootstrap** (a `pg_dump` of the 63-migration archive chain + V11 tables). Schema changes edit `schema.ts` **and** regenerate `schema.sql`; no new migration files. Archived incrementals live in `.archive/` (not executed).
 
@@ -190,7 +195,7 @@ Per-(coop, member) personal spaces; both V9 membership lexicons retire; binary `
 
 **Open (§17/§18 carried, updated):**
 
-1. Full credential-seam mechanics — known shape (three tokens plus `space:` scopes), unshipped; firm up in Phase 4 against the proposal branch, HappyView 2.10, and `@atproto/space` if/when published.
+1. Full credential-seam mechanics — known shape (three tokens plus `space:` scopes), unshipped; firm up in Phase 4 against the proposal branch, HappyView 2.10, and `@atproto/space` if/when published. Local background-sync posture is decided: cooperative-designated managing session pool, no arbitrary member-session pooling, no `read_self` fallback for AppView sync.
 2. Lexicon Community response to `community.lexicon.governance.*` — no governance namespace exists yet; the process is TSC-sponsored (gated, slow). Start sponsorship outreach early; Phase 5 does not wait on ratification.
 3. Subchapter T legal-counsel consultation.
 4. Arbiter hosting (user PDS vs per-app vs independent) — unresolved upstream (Holmgren June 2).

@@ -1,15 +1,16 @@
 # V12 Membership Read-Seam Design
 
 **Date:** 2026-07-05
-**Status:** Active design for Slice R1. This document refines Task 3.2 in
+**Status:** Implemented design and closeout record for Slice R1/R5. This
+document refines Task 3.2 in
 `docs/superpowers/plans/2026-07-04-v12-phase-3-arbiter-convergence.md` and
 the execution order in
 `docs/plans/2026-07-05-v12-replan-after-code-deep-dive.md`.
 
-**Implementation update, 2026-07-05:** R2 security reads are implemented in
+**Implementation update, 2026-07-07:** R2 security reads are implemented in
 `MembershipReadModel` for auth/session actor resolution, permission checks,
 federation caller authority, and `OperatorWriteProxy` operational role gates.
-The R3 roster/count and public display slices are also implemented:
+The R3 roster/count and public display slices are implemented:
 `/api/v1/me/memberships`, `/api/v1/members`,
 `network.coopsource.org.listMembers`, `network.coopsource.org.getMembership`,
 the shared XRPC closed-governance gate, XRPC vote eligibility callers, Inlay
@@ -18,8 +19,11 @@ profile/explore/search display counts, dashboard engagement counts, and annual
 report member counts, and matchmaking display/user-context reads now use
 read-model helpers. Security-sensitive paths preserve
 `partial`/`stale`/`unavailable` spaces failures; public/dashboard/matchmaking
-display counts use explicit projection helpers. Remaining migrations are deeper
-governance math and utility/tooling reads.
+display counts use explicit projection helpers. R4 governance/class math and
+R5 utility/tooling reads are also implemented. The 2026-07-07 closeout moved
+the final app-level direct read, `SearchService.searchAlignment`'s active-member
+exclusion, behind
+`MembershipReadModel.listProjectedActiveCooperativeDids(memberDid)`.
 
 ## Goal
 
@@ -88,7 +92,7 @@ export interface ActiveMembershipProjection {
   readonly membershipId: string;
   readonly cooperativeDid: string;
   readonly memberDid: string;
-  readonly status: 'active';
+  readonly status: "active";
   readonly roles: readonly string[];
   readonly joinedAt: Date | null;
 }
@@ -195,7 +199,11 @@ resolution fails. That would recreate the bypass the seam is meant to remove.
 
 ## Direct Read Inventory
 
-`rg` found direct membership reads in these API files:
+Historical inventory from the design pass. These call classes have now been
+migrated behind `MembershipReadModel` or explicitly classified as low-level
+exceptions.
+
+`rg` originally found direct membership reads in these API files:
 
 | Category                                       | Files                                                                                                                                                                                                                                                                                                                                                          | Migration target                                                                                                                            |
 | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -211,6 +219,15 @@ Allowed direct membership access after Phase 3:
 - `apps/api/src/services/membership-read-model.ts` and focused tests/helpers.
 - AppView indexers only when mutating projections from incoming records, not
   when answering application authority questions.
+
+Closeout check, 2026-07-07:
+
+- `rg "selectFrom\\('membership'\\)|selectFrom\\('membership_role'\\)|selectFrom\\(\"membership\"\\)|selectFrom\\(\"membership_role\"\\)|FROM membership|JOIN membership" apps/api/src`
+  reports only `apps/api/src/services/membership-read-model.ts`.
+- A broader text audit also finds the non-production admin reset truncate table
+  list. That is not an application membership reader.
+- OAuth BYO-DID invitation acceptance, live XRPC group-directory wiring, and the
+  PLC DID-rotation writer remain explicit Phase 4/6 dependencies.
 
 ## Implementation Slices
 

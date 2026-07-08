@@ -1750,6 +1750,21 @@ CREATE TABLE public.signature_request (
 
 
 --
+-- Name: space_credential; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.space_credential (
+    space_ref_key text NOT NULL,
+    arbiter_did text NOT NULL,
+    space_key text NOT NULL,
+    expected_space_type text,
+    token text NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: spaces_consumer_cursor; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2832,6 +2847,14 @@ ALTER TABLE ONLY public.signature_request
 
 
 --
+-- Name: space_credential space_credential_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.space_credential
+    ADD CONSTRAINT space_credential_pkey PRIMARY KEY (space_ref_key);
+
+
+--
 -- Name: spaces_consumer_cursor spaces_consumer_cursor_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3126,6 +3149,13 @@ CREATE INDEX did_rotation_history_current_did_idx ON public.did_rotation_history
 --
 
 CREATE INDEX did_rotation_history_prior_did_idx ON public.did_rotation_history USING btree (prior_did);
+
+
+--
+-- Name: space_credential_expires_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX space_credential_expires_at_idx ON public.space_credential USING btree (expires_at);
 
 
 --

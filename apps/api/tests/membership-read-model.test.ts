@@ -267,6 +267,76 @@ describe('MembershipReadModel', () => {
       ),
     ).resolves.toBe(false);
   });
+
+  it('lists projected active cooperative DIDs and excludes suspended or invalidated rows', async () => {
+    const testApp = createTestApp();
+    const { coopDid, adminDid } = await setupAndLogin(testApp);
+    const activeCoopDid = 'did:web:projected-active.example';
+    const suspendedCoopDid = 'did:web:projected-suspended.example';
+    const invalidatedCoopDid = 'did:web:projected-invalidated.example';
+    const now = new Date();
+
+    await testApp.container.db
+      .insertInto('entity')
+      .values([
+        {
+          did: activeCoopDid,
+          type: 'cooperative',
+          display_name: 'Projected Active Coop',
+          status: 'active',
+          created_at: now,
+        },
+        {
+          did: suspendedCoopDid,
+          type: 'cooperative',
+          display_name: 'Projected Suspended Coop',
+          status: 'active',
+          created_at: now,
+        },
+        {
+          did: invalidatedCoopDid,
+          type: 'cooperative',
+          display_name: 'Projected Invalidated Coop',
+          status: 'active',
+          created_at: now,
+        },
+      ])
+      .execute();
+    await testApp.container.db
+      .insertInto('membership')
+      .values([
+        {
+          member_did: adminDid,
+          cooperative_did: activeCoopDid,
+          status: 'active',
+          joined_at: now,
+          created_at: now,
+        },
+        {
+          member_did: adminDid,
+          cooperative_did: suspendedCoopDid,
+          status: 'suspended',
+          joined_at: now,
+          created_at: now,
+        },
+        {
+          member_did: adminDid,
+          cooperative_did: invalidatedCoopDid,
+          status: 'active',
+          joined_at: now,
+          created_at: now,
+          invalidated_at: now,
+        },
+      ])
+      .execute();
+
+    const cooperativeDids =
+      await testApp.container.membershipReadModel.listProjectedActiveCooperativeDids(
+        adminDid as DID,
+      );
+
+    expect(new Set(cooperativeDids)).toEqual(new Set([coopDid, activeCoopDid]));
+  });
 });
 
 class PartialDirectoryPort extends DenyAllGroupDirectoryPort {

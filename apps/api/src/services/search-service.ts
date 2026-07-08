@@ -460,6 +460,14 @@ export class SearchService {
     // compared. The explicit `::text[]` cast at the call site is retained
     // as belt-and-braces.
     const interestsArr: string[] = hasInterests ? interests! : [''];
+    const activeMemberCooperativeDids =
+      await this.membershipReadModel.listProjectedActiveCooperativeDids(
+        viewerDid as DID,
+      );
+    const excludedCooperativeDids =
+      activeMemberCooperativeDids.length > 0
+        ? [...activeMemberCooperativeDids]
+        : [''];
 
     const result = await sql<{
       did: string;
@@ -519,6 +527,10 @@ export class SearchService {
         AND cp.anon_discoverable = true
         AND (COALESCE(om.matched_outcomes, 0) > 0 OR COALESCE(im.matched_interests, 0) > 0)
         AND (
+          ${activeMemberCooperativeDids.length === 0}::boolean
+          OR e.did <> ALL(${sql.val(excludedCooperativeDids)}::text[])
+        )
+        AND (
           ${cursorScore === null}::boolean
           OR LEAST(
             1.0,
@@ -533,12 +545,6 @@ export class SearchService {
             ) = ${cursorScore ?? 0}::float8
             AND e.did < ${cursorDid ?? ''}
           )
-        )
-        AND e.did NOT IN (
-          SELECT m.cooperative_did FROM membership m
-          WHERE m.member_did = ${sql.val(viewerDid)}
-            AND m.status = 'active'
-            AND m.invalidated_at IS NULL
         )
       ORDER BY alignment_score DESC, e.did DESC
       LIMIT ${limit + 1}
