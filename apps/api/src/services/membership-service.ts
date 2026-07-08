@@ -4,23 +4,28 @@ import type { Database, InvitationTable } from '@coopsource/db';
 
 type InvitationRow = Selectable<InvitationTable>;
 import type { DID } from '@coopsource/common';
-import { NotFoundError, ValidationError, ConflictError } from '@coopsource/common';
-import type { GroupMutationPort, GroupMutationResult } from '@coopsource/arbiter-client';
+import {
+  NotFoundError,
+  UnauthorizedError,
+  ValidationError,
+  ConflictError,
+} from '@coopsource/common';
+import type {
+  GroupMutationPort,
+  GroupMutationResult,
+} from '@coopsource/arbiter-client';
+import { membersSpace } from '@coopsource/arbiter-client';
+import type {
+  ActionAuthorizerPlugin,
+  JsonObject,
+} from '@coopsource/governance-view';
 import type { IEmailService, IClock } from '@coopsource/federation';
 import { logger } from '../middleware/logger.js';
-import type { Page, PageParams } from '../lib/pagination.js';
-import { encodeCursor, decodeCursor } from '../lib/pagination.js';
-import { emitMemberJoined, emitMemberDeparted } from '../appview/membership-events.js';
-
-export interface MemberWithRoles {
-  did: string;
-  displayName: string;
-  status: string;
-  roles: string[];
-  membershipId: string;
-  joinedAt: Date | null;
-  directoryVisible: boolean;
-}
+import {
+  emitMemberJoined,
+  emitMemberDeparted,
+} from '../appview/membership-events.js';
+import type { MembershipReadModel } from './membership-read-model.js';
 
 export class MembershipService {
   constructor(
@@ -28,119 +33,9 @@ export class MembershipService {
     private emailService: IEmailService,
     private clock: IClock,
     private groupMutations: GroupMutationPort,
+    private membershipReadModel: MembershipReadModel,
+    private actionAuthorizer?: ActionAuthorizerPlugin,
   ) {}
-
-  async listMembers(
-    cooperativeDid: string,
-    params: PageParams,
-    // Defaults to the active roster so the list agrees with member counts
-    // (which filter status='active'). Pass a status to view another set, e.g.
-    // 'suspended' for an admin reinstatement view.
-    opts: { status?: string } = {},
-  ): Promise<Page<MemberWithRoles>> {
-    const status = opts.status ?? 'active';
-    const limit = params.limit ?? 50;
-    let query = this.db
-      .selectFrom('membership')
-      .innerJoin('entity', 'entity.did', 'membership.member_did')
-      .where('membership.cooperative_did', '=', cooperativeDid)
-      .where('membership.status', '=', status)
-      .where('membership.invalidated_at', 'is', null)
-      .select([
-        'membership.id',
-        'membership.member_did',
-        'membership.status',
-        'membership.joined_at',
-        'membership.created_at',
-        'membership.directory_visible',
-        'entity.display_name',
-      ])
-      .orderBy('membership.created_at', 'desc')
-      .orderBy('membership.id', 'desc')
-      .limit(limit + 1);
-
-    if (params.cursor) {
-      const { t, i } = decodeCursor(params.cursor);
-      query = query.where((eb) =>
-        eb.or([
-          eb('membership.created_at', '<', new Date(t)),
-          eb.and([
-            eb('membership.created_at', '=', new Date(t)),
-            eb('membership.id', '<', i),
-          ]),
-        ]),
-      );
-    }
-
-    const rows = await query.execute();
-
-    const items: MemberWithRoles[] = [];
-    const slice = rows.slice(0, limit);
-
-    for (const row of slice) {
-      const roleRows = await this.db
-        .selectFrom('membership_role')
-        .where('membership_id', '=', row.id)
-        .select('role')
-        .execute();
-
-      items.push({
-        did: row.member_did,
-        displayName: row.display_name,
-        status: row.status,
-        roles: roleRows.map((r) => r.role),
-        membershipId: row.id,
-        joinedAt: row.joined_at,
-        directoryVisible: row.directory_visible,
-      });
-    }
-
-    const cursor =
-      rows.length > limit
-        ? encodeCursor(slice[slice.length - 1]!.created_at, slice[slice.length - 1]!.id)
-        : undefined;
-
-    return { items, cursor };
-  }
-
-  async getMember(
-    cooperativeDid: string,
-    memberDid: string,
-  ): Promise<MemberWithRoles | null> {
-    const row = await this.db
-      .selectFrom('membership')
-      .innerJoin('entity', 'entity.did', 'membership.member_did')
-      .where('membership.cooperative_did', '=', cooperativeDid)
-      .where('membership.member_did', '=', memberDid)
-      .where('membership.invalidated_at', 'is', null)
-      .select([
-        'membership.id',
-        'membership.member_did',
-        'membership.status',
-        'membership.joined_at',
-        'membership.directory_visible',
-        'entity.display_name',
-      ])
-      .executeTakeFirst();
-
-    if (!row) return null;
-
-    const roleRows = await this.db
-      .selectFrom('membership_role')
-      .where('membership_id', '=', row.id)
-      .select('role')
-      .execute();
-
-    return {
-      did: row.member_did,
-      displayName: row.display_name,
-      status: row.status,
-      roles: roleRows.map((r) => r.role),
-      membershipId: row.id,
-      joinedAt: row.joined_at,
-      directoryVisible: row.directory_visible,
-    };
-  }
 
   async createInvitation(params: {
     cooperativeDid: string;
@@ -150,6 +45,16 @@ export class MembershipService {
     message?: string;
     instanceUrl: string;
   }): Promise<InvitationRow> {
+    await this.authorizeMemberCommand({
+      cooperativeDid: params.cooperativeDid,
+      actorDid: params.invitedByDid,
+      action: 'member.invite',
+      payload: {
+        inviteeEmail: params.email,
+        intendedRoles: params.intendedRoles ?? ['member'],
+      },
+    });
+
     // Check for existing pending invitation to same email
     const existing = await this.db
       .selectFrom('invitation')
@@ -209,7 +114,10 @@ export class MembershipService {
         expiresAt,
       });
     } catch (err) {
-      logger.warn({ err, email: params.email }, 'Failed to send invitation email');
+      logger.warn(
+        { err, email: params.email },
+        'Failed to send invitation email',
+      );
     }
 
     return row!;
@@ -250,27 +158,35 @@ export class MembershipService {
     roles: string[],
     actorDid: string = cooperativeDid,
   ): Promise<void> {
-    const membership = await this.db
-      .selectFrom('membership')
-      .where('member_did', '=', memberDid)
-      .where('cooperative_did', '=', cooperativeDid)
-      .where('invalidated_at', 'is', null)
-      .select(['id', 'status'])
-      .executeTakeFirst();
+    await this.authorizeMemberCommand({
+      cooperativeDid,
+      actorDid,
+      action: 'member.approve',
+      payload: { memberDid, roles },
+    });
+
+    const membership =
+      await this.membershipReadModel.getProjectedMembershipStatus(
+        cooperativeDid as DID,
+        memberDid as DID,
+      );
 
     if (!membership) {
       throw new NotFoundError('Membership not found');
     }
 
     const now = this.clock.now();
-    this.assertCommandOk(await this.groupMutations.addMember({
-      cooperativeDid: cooperativeDid as DID,
-      memberDid: memberDid as DID,
-      actorDid: actorDid as DID,
-      roles,
-      joinedAt: now,
-      reason: membership.status === 'pending' ? 'approve invitation' : undefined,
-    }));
+    this.assertCommandOk(
+      await this.groupMutations.addMember({
+        cooperativeDid: cooperativeDid as DID,
+        memberDid: memberDid as DID,
+        actorDid: actorDid as DID,
+        roles,
+        joinedAt: now,
+        reason:
+          membership.status === 'pending' ? 'approve invitation' : undefined,
+      }),
+    );
     emitMemberJoined(cooperativeDid, memberDid);
   }
 
@@ -280,12 +196,21 @@ export class MembershipService {
     roles: string[],
     actorDid: string = cooperativeDid,
   ): Promise<void> {
-    this.assertCommandOk(await this.groupMutations.setMemberRoles({
-      cooperativeDid: cooperativeDid as DID,
-      memberDid: memberDid as DID,
-      roles,
-      actorDid: actorDid as DID,
-    }));
+    await this.authorizeMemberCommand({
+      cooperativeDid,
+      actorDid,
+      action: 'member.roles.assign',
+      payload: { memberDid, roles },
+    });
+
+    this.assertCommandOk(
+      await this.groupMutations.setMemberRoles({
+        cooperativeDid: cooperativeDid as DID,
+        memberDid: memberDid as DID,
+        roles,
+        actorDid: actorDid as DID,
+      }),
+    );
   }
 
   /**
@@ -317,12 +242,21 @@ export class MembershipService {
     reason?: string,
     actorDid: string = cooperativeDid,
   ): Promise<void> {
-    this.assertCommandOk(await this.groupMutations.removeMember({
-      cooperativeDid: cooperativeDid as DID,
-      memberDid: memberDid as DID,
-      actorDid: actorDid as DID,
-      reason,
-    }));
+    await this.authorizeMemberCommand({
+      cooperativeDid,
+      actorDid,
+      action: 'member.remove',
+      payload: { memberDid, reason: reason ?? null },
+    });
+
+    this.assertCommandOk(
+      await this.groupMutations.removeMember({
+        cooperativeDid: cooperativeDid as DID,
+        memberDid: memberDid as DID,
+        actorDid: actorDid as DID,
+        reason,
+      }),
+    );
     emitMemberDeparted(cooperativeDid, memberDid);
   }
 
@@ -332,12 +266,21 @@ export class MembershipService {
     reason?: string,
     actorDid: string = cooperativeDid,
   ): Promise<void> {
-    this.assertCommandOk(await this.groupMutations.suspendMember({
-      cooperativeDid: cooperativeDid as DID,
-      memberDid: memberDid as DID,
-      actorDid: actorDid as DID,
-      reason,
-    }));
+    await this.authorizeMemberCommand({
+      cooperativeDid,
+      actorDid,
+      action: 'member.remove',
+      payload: { memberDid, reason: reason ?? null },
+    });
+
+    this.assertCommandOk(
+      await this.groupMutations.suspendMember({
+        cooperativeDid: cooperativeDid as DID,
+        memberDid: memberDid as DID,
+        actorDid: actorDid as DID,
+        reason,
+      }),
+    );
   }
 
   async reinstateMember(
@@ -346,12 +289,21 @@ export class MembershipService {
     reason?: string,
     actorDid: string = cooperativeDid,
   ): Promise<void> {
-    this.assertCommandOk(await this.groupMutations.reinstateMember({
-      cooperativeDid: cooperativeDid as DID,
-      memberDid: memberDid as DID,
-      actorDid: actorDid as DID,
-      reason,
-    }));
+    await this.authorizeMemberCommand({
+      cooperativeDid,
+      actorDid,
+      action: 'member.remove',
+      payload: { memberDid, reason: reason ?? null },
+    });
+
+    this.assertCommandOk(
+      await this.groupMutations.reinstateMember({
+        cooperativeDid: cooperativeDid as DID,
+        memberDid: memberDid as DID,
+        actorDid: actorDid as DID,
+        reason,
+      }),
+    );
   }
 
   private assertCommandOk(result: GroupMutationResult): void {
@@ -362,5 +314,33 @@ export class MembershipService {
       throw new ValidationError('Role must be a non-empty string');
     }
     throw new NotFoundError('Membership not found');
+  }
+
+  private async authorizeMemberCommand(args: {
+    readonly cooperativeDid: string;
+    readonly actorDid: string;
+    readonly action: string;
+    readonly payload?: JsonObject;
+  }): Promise<void> {
+    if (!this.actionAuthorizer || args.actorDid === args.cooperativeDid) {
+      return;
+    }
+
+    const memberSpace = membersSpace(args.cooperativeDid as DID);
+    const decision = await this.actionAuthorizer.authorize({
+      actor: { did: args.actorDid },
+      cooperative: {
+        authorityDid: args.cooperativeDid,
+        spaceKey: memberSpace.spaceKey,
+        spaceType: memberSpace.expectedSpaceType,
+      },
+      action: args.action,
+      at: this.clock.now().toISOString(),
+      payload: args.payload ?? null,
+    });
+
+    if (!decision.authorized) {
+      throw new UnauthorizedError('Insufficient permissions');
+    }
   }
 }

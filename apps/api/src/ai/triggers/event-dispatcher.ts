@@ -5,6 +5,7 @@ import type { ChatEngine } from '../chat-engine.js';
 import type { TriggerCondition, TriggerAction } from './types.js';
 import { evaluateConditions } from './condition-evaluator.js';
 import { executeAction, type ActionResult } from './action-executor.js';
+import type { MembershipReadModel } from '../../services/membership-read-model.js';
 
 /**
  * Listens for platform events and dispatches them to matching agent triggers.
@@ -22,6 +23,7 @@ export class EventDispatcher {
   constructor(
     private db: Kysely<Database>,
     private chatEngine: ChatEngine,
+    private membershipReadModel: MembershipReadModel,
   ) {
     this.handler = (event: AppEvent) => {
       this.handleEvent(event).catch((err) => {
@@ -41,7 +43,11 @@ export class EventDispatcher {
   private async handleEvent(event: AppEvent): Promise<void> {
     const triggers = await this.db
       .selectFrom('agent_trigger')
-      .innerJoin('agent_config', 'agent_config.id', 'agent_trigger.agent_config_id')
+      .innerJoin(
+        'agent_config',
+        'agent_config.id',
+        'agent_trigger.agent_config_id',
+      )
       .where('agent_trigger.cooperative_did', '=', event.cooperativeDid)
       .where('agent_trigger.event_type', '=', event.type)
       .where('agent_trigger.enabled', '=', true)
@@ -65,7 +71,9 @@ export class EventDispatcher {
 
       // Check cooldown
       if (trigger.cooldown_seconds > 0 && trigger.last_triggered_at) {
-        const lastTriggered = new Date(trigger.last_triggered_at as unknown as string);
+        const lastTriggered = new Date(
+          trigger.last_triggered_at as unknown as string,
+        );
         const elapsed = (now.getTime() - lastTriggered.getTime()) / 1000;
         if (elapsed < trigger.cooldown_seconds) {
           await this.logExecution({
@@ -113,6 +121,7 @@ export class EventDispatcher {
       const results: ActionResult[] = [];
       const context = {
         db: this.db,
+        membershipReadModel: this.membershipReadModel,
         chatEngine: this.chatEngine,
         event,
         trigger: {
@@ -166,7 +175,12 @@ export class EventDispatcher {
    */
   private parseConditions(raw: unknown): TriggerCondition[] {
     if (Array.isArray(raw)) return raw as TriggerCondition[];
-    if (raw && typeof raw === 'object' && Object.keys(raw as object).length === 0) return [];
+    if (
+      raw &&
+      typeof raw === 'object' &&
+      Object.keys(raw as object).length === 0
+    )
+      return [];
     if (!raw) return [];
     return [];
   }

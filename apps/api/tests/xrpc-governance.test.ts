@@ -199,6 +199,79 @@ describe('XRPC governance handlers', () => {
     });
   });
 
+  describe('network.coopsource.governance.listProposalAnchors', () => {
+    it('returns an empty public list when no anchors exist', async () => {
+      await testApp.container.db
+        .updateTable('cooperative_profile')
+        .set({ governance_visibility: 'closed' })
+        .where('entity_did', '=', coopDid)
+        .execute();
+
+      const bare = supertest(testApp.app);
+      const res = await bare
+        .get('/xrpc/network.coopsource.governance.listProposalAnchors')
+        .query({ cooperative: coopDid })
+        .expect(200);
+
+      expect(res.body.anchors).toEqual([]);
+      expect(res.body.cursor).toBeUndefined();
+    });
+
+    it('returns public anchors without private proposal fields', async () => {
+      await testApp.agent
+        .put('/api/v1/cooperative')
+        .send({
+          governanceVisibility: 'closed',
+          publicGovernanceAnchors: true,
+          publicGovernanceAnchorOutcomes: true,
+        })
+        .expect(200);
+
+      const proposal = await createProposal({
+        title: 'Private title',
+        body: 'Private body',
+      });
+      await testApp.agent
+        .post(`/api/v1/proposals/${proposal.id}/open`)
+        .expect(200);
+      await testApp.agent
+        .post(`/api/v1/proposals/${proposal.id}/vote`)
+        .send({ choice: 'yes', rationale: 'Private rationale' })
+        .expect(201);
+      await testApp.agent
+        .post(`/api/v1/proposals/${proposal.id}/close`)
+        .expect(200);
+      await testApp.agent
+        .post(`/api/v1/proposals/${proposal.id}/resolve`)
+        .expect(200);
+
+      const bare = supertest(testApp.app);
+      const res = await bare
+        .get('/xrpc/network.coopsource.governance.listProposalAnchors')
+        .query({ cooperative: coopDid, status: 'resolved' })
+        .expect(200);
+
+      expect(res.body.anchors).toHaveLength(1);
+      expect(res.body.anchors[0]).toMatchObject({
+        cooperativeDid: coopDid,
+        proposalId: proposal.id,
+        status: 'resolved',
+        outcome: 'passed',
+        anchorVersion: 1,
+      });
+      expect(res.body.anchors[0].uri).toContain(
+        'network.coopsource.governance.proposalAnchor',
+      );
+      expect(res.body.anchors[0].updatedAt).toBeDefined();
+      expect(res.body.anchors[0]).not.toHaveProperty('title');
+      expect(res.body.anchors[0]).not.toHaveProperty('body');
+      expect(res.body.anchors[0]).not.toHaveProperty('options');
+      expect(res.body.anchors[0]).not.toHaveProperty('authorDid');
+      expect(res.body.anchors[0]).not.toHaveProperty('voterDids');
+      expect(res.body.anchors[0]).not.toHaveProperty('tally');
+    });
+  });
+
   describe('network.coopsource.governance.getProposal', () => {
     it('returns proposal with tally', async () => {
       const proposal = await createProposal({ title: 'Tally test' });

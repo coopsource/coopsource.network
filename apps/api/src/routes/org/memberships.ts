@@ -2,18 +2,19 @@ import { Router } from 'express';
 import type { DID } from '@coopsource/common';
 import type { Container } from '../../container.js';
 import { asyncHandler } from '../../lib/async-handler.js';
-import { BCRYPT_ROUNDS } from '../../lib/crypto-config.js';
 import { requireAuth } from '../../auth/middleware.js';
 import { requirePermission } from '../../middleware/permissions.js';
 import { parsePagination } from '../../lib/pagination.js';
 import { formatInvitation } from '../../lib/formatters.js';
-import { emitMemberJoined } from '../../appview/membership-events.js';
+import {
+  membershipAuthorityErrorCode,
+  membershipAuthorityHttpStatus,
+} from '../../services/membership-read-model.js';
 import {
   CreateInvitationSchema,
   AcceptInvitationSchema,
   UpdateRolesSchema,
   ValidationError,
-  ConflictError,
 } from '@coopsource/common';
 import { validateDid } from '../../lib/validate-params.js';
 
@@ -27,36 +28,49 @@ export function createMembershipRoutes(container: Container): Router {
     asyncHandler(async (req, res) => {
       const params = parsePagination(req.query as Record<string, unknown>);
       const statusFilter = req.query.status;
-      const result = await container.membershipService.listMembers(
-        req.actor!.cooperativeDid,
+      const result = await container.membershipReadModel.listMembersResult(
+        req.actor!.cooperativeDid as DID,
         params,
         typeof statusFilter === 'string' ? { status: statusFilter } : {},
       );
+      if (!result.ok) {
+        res.status(membershipAuthorityHttpStatus(result, 403)).json({
+          error: {
+            code: membershipAuthorityErrorCode(result, 'FORBIDDEN'),
+            message: result.message,
+            axis: result.axis,
+            reason: result.reason,
+          },
+        });
+        return;
+      }
 
       // Batch-load handles and emails to avoid N+1 queries
-      const dids = result.items.map((m) => m.did);
+      const dids = result.page.items.map((m) => m.did);
 
-      const entities = dids.length > 0
-        ? await container.db
-            .selectFrom('entity')
-            .where('did', 'in', dids)
-            .select(['did', 'handle'])
-            .execute()
-        : [];
+      const entities =
+        dids.length > 0
+          ? await container.db
+              .selectFrom('entity')
+              .where('did', 'in', dids)
+              .select(['did', 'handle'])
+              .execute()
+          : [];
       const entityMap = new Map(entities.map((e) => [e.did, e]));
 
-      const creds = dids.length > 0
-        ? await container.db
-            .selectFrom('auth_credential')
-            .where('entity_did', 'in', dids)
-            .where('credential_type', '=', 'password')
-            .where('invalidated_at', 'is', null)
-            .select(['entity_did', 'identifier'])
-            .execute()
-        : [];
+      const creds =
+        dids.length > 0
+          ? await container.db
+              .selectFrom('auth_credential')
+              .where('entity_did', 'in', dids)
+              .where('credential_type', '=', 'password')
+              .where('invalidated_at', 'is', null)
+              .select(['entity_did', 'identifier'])
+              .execute()
+          : [];
       const credMap = new Map(creds.map((c) => [c.entity_did, c]));
 
-      const members = result.items.map((member) => ({
+      const members = result.page.items.map((member) => ({
         did: member.did,
         handle: entityMap.get(member.did)?.handle ?? null,
         displayName: member.displayName,
@@ -66,7 +80,7 @@ export function createMembershipRoutes(container: Container): Router {
         joinedAt: member.joinedAt ? member.joinedAt.toISOString() : null,
       }));
 
-      res.json({ members, cursor: result.cursor ?? null });
+      res.json({ members, cursor: result.page.cursor ?? null });
     }),
   );
 
@@ -75,13 +89,27 @@ export function createMembershipRoutes(container: Container): Router {
     '/api/v1/members/:did',
     requireAuth,
     asyncHandler(async (req, res) => {
-      const member = await container.membershipService.getMember(
-        req.actor!.cooperativeDid,
-        validateDid(req.params.did),
+      const memberResult = await container.membershipReadModel.getMemberResult(
+        req.actor!.cooperativeDid as DID,
+        validateDid(req.params.did) as DID,
       );
+      if (!memberResult.ok) {
+        res.status(membershipAuthorityHttpStatus(memberResult, 404)).json({
+          error: {
+            code: membershipAuthorityErrorCode(memberResult, 'NOT_FOUND'),
+            message: memberResult.message,
+            axis: memberResult.axis,
+            reason: memberResult.reason,
+          },
+        });
+        return;
+      }
+
+      const member = memberResult.member;
       if (!member) {
         res.status(404).json({
-          error: 'NOT_FOUND', message: 'Member not found',
+          error: 'NOT_FOUND',
+          message: 'Member not found',
         });
         return;
       }
@@ -217,13 +245,14 @@ export function createMembershipRoutes(container: Container): Router {
 
       // Batch-load inviter display names to avoid N+1 queries
       const inviterDids = [...new Set(rows.map((r) => r.invited_by_did))];
-      const inviters = inviterDids.length > 0
-        ? await container.db
-            .selectFrom('entity')
-            .where('did', 'in', inviterDids)
-            .select(['did', 'display_name'])
-            .execute()
-        : [];
+      const inviters =
+        inviterDids.length > 0
+          ? await container.db
+              .selectFrom('entity')
+              .where('did', 'in', inviterDids)
+              .select(['did', 'display_name'])
+              .execute()
+          : [];
       const inviterMap = new Map(inviters.map((i) => [i.did, i.display_name]));
 
       const invitations = rows.map((row) =>
@@ -240,17 +269,17 @@ export function createMembershipRoutes(container: Container): Router {
     requireAuth,
     requirePermission('member.invite'),
     asyncHandler(async (req, res) => {
-      const { email, roles, intendedRoles, message } = CreateInvitationSchema.parse(req.body);
+      const { email, roles, intendedRoles, message } =
+        CreateInvitationSchema.parse(req.body);
 
-      const invitation =
-        await container.membershipService.createInvitation({
-          cooperativeDid: req.actor!.cooperativeDid,
-          invitedByDid: req.actor!.did,
-          email,
-          intendedRoles: roles ?? intendedRoles,
-          message,
-          instanceUrl: process.env.INSTANCE_URL ?? 'http://localhost:5173',
-        });
+      const invitation = await container.membershipService.createInvitation({
+        cooperativeDid: req.actor!.cooperativeDid,
+        invitedByDid: req.actor!.did,
+        email,
+        intendedRoles: roles ?? intendedRoles,
+        message,
+        instanceUrl: process.env.INSTANCE_URL ?? 'http://localhost:5173',
+      });
 
       // Get inviter name for response
       const inviter = await container.db
@@ -271,13 +300,16 @@ export function createMembershipRoutes(container: Container): Router {
     asyncHandler(async (req, res) => {
       const inv = await container.db
         .selectFrom('invitation')
-        .where('token', '=', (req.params.token as string))
+        .where('token', '=', req.params.token as string)
+        .where('status', '=', 'pending')
         .where('invalidated_at', 'is', null)
         .selectAll()
         .executeTakeFirst();
 
-      if (!inv) {
-        res.status(404).json({ error: 'NotFound', message: 'Invitation not found' });
+      if (!inv || new Date(inv.expires_at) < container.clock.now()) {
+        res
+          .status(404)
+          .json({ error: 'NotFound', message: 'Invitation not found' });
         return;
       }
 
@@ -290,7 +322,8 @@ export function createMembershipRoutes(container: Container): Router {
       res.json({
         id: inv.id,
         status: inv.status,
-        email: inv.invitee_email ?? null,
+        email: null,
+        emailHint: maskEmail(inv.invitee_email),
         roles: inv.intended_roles ?? [],
         message: inv.message ?? null,
         expiresAt: inv.expires_at.toISOString(),
@@ -303,136 +336,56 @@ export function createMembershipRoutes(container: Container): Router {
   router.post(
     '/api/v1/invitations/:token/accept',
     asyncHandler(async (req, res) => {
-      const { displayName, handle, password } = AcceptInvitationSchema.parse(req.body);
+      const { email, displayName, handle, password } =
+        AcceptInvitationSchema.parse(req.body);
 
-      // Validate invitation
-      const inv = await container.db
+      const pendingInvitation = await container.db
         .selectFrom('invitation')
-        .where('token', '=', (req.params.token as string))
+        .where('token', '=', req.params.token as string)
         .where('status', '=', 'pending')
         .where('invalidated_at', 'is', null)
-        .selectAll()
+        .select('expires_at')
         .executeTakeFirst();
 
-      if (!inv) {
-        res.status(404).json({ error: 'NotFound', message: 'Invitation not found or already used' });
-        return;
-      }
-
-      if (new Date(inv.expires_at) < container.clock.now()) {
-        res.status(400).json({ error: 'ValidationError', message: 'Invitation has expired' });
-        return;
-      }
-
-      const now = container.clock.now();
-      const { hash } = await import('bcrypt');
-      const secretHash = await hash(password, BCRYPT_ROUNDS);
-      const roles = inv.intended_roles ?? ['member'];
-
-      // Create DID and PDS records outside the transaction (non-DB operations)
-      const memberDidDoc = await container.pdsService.createDid({
-        entityType: 'person',
-        pdsUrl: process.env.INSTANCE_URL ?? 'http://localhost:3001',
-      });
-      const memberDid = memberDidDoc.id;
-
-      const consentRef = await container.pdsService.createRecord({
-        did: memberDid as DID,
-        collection: 'network.coopsource.org.memberConsent',
-        record: {
-          cooperative: inv.cooperative_did,
-          consentType: 'invitationAcceptance',
-          createdAt: now.toISOString(),
-        },
-      });
-
-      // All DB writes wrapped in a transaction
-      await container.db.transaction().execute(async (trx) => {
-        // Atomic single-use consume FIRST: only the first accept flips the
-        // invitation pending → accepted (the WHERE status='pending' locks the
-        // row), so a token cannot be replayed or double-redeemed. A concurrent
-        // second accept sees 0 rows and rolls back this whole transaction.
-        // invitee_did is backfilled below, once the entity FK target exists.
-        const consumed = await trx
-          .updateTable('invitation')
-          .set({ status: 'accepted' })
-          .where('id', '=', inv.id)
-          .where('status', '=', 'pending')
-          .where('invalidated_at', 'is', null)
-          .executeTakeFirst();
-        if (Number(consumed.numUpdatedRows) === 0) {
-          throw new ConflictError('Invitation has already been used');
-        }
-
-        // Create entity
-        await trx
-          .insertInto('entity')
-          .values({
-            did: memberDid,
-            type: 'person',
-            display_name: displayName,
-            handle: handle ?? null,
-            status: 'active',
-            created_at: now,
-            indexed_at: now,
-          })
-          .execute();
-
-        // Create auth credential
-        await trx
-          .insertInto('auth_credential')
-          .values({
-            entity_did: memberDid,
-            credential_type: 'password',
-            identifier: inv.invitee_email ?? `${handle ?? memberDid}@${inv.cooperative_did}`,
-            secret_hash: secretHash,
-            created_at: now,
-          })
-          .execute();
-
-        const authority = container.groupMutationsForDb(trx);
-        const authorityResult = await authority.addMember({
-          cooperativeDid: inv.cooperative_did as DID,
-          memberDid: memberDid as DID,
-          actorDid: inv.invited_by_did as DID,
-          roles,
-          consentRecordUri: consentRef.uri,
-          consentRecordCid: consentRef.cid,
-          invitationId: inv.id,
-          joinedAt: now,
-          reason: 'accept invitation',
+      if (!pendingInvitation) {
+        res.status(404).json({
+          error: 'NotFound',
+          message: 'Invitation not found or already used',
         });
-        if (!authorityResult.ok) {
-          throw new ValidationError('Invalid membership mutation');
-        }
+        return;
+      }
 
-        // Record which DID redeemed the (already-consumed) invitation, now that
-        // the entity FK target exists.
-        await trx
-          .updateTable('invitation')
-          .set({ invitee_did: memberDid })
-          .where('id', '=', inv.id)
-          .execute();
+      if (new Date(pendingInvitation.expires_at) < container.clock.now()) {
+        res.status(400).json({
+          error: 'ValidationError',
+          message: 'Invitation has expired',
+        });
+        return;
+      }
+
+      const result = await container.authService.register({
+        email,
+        password,
+        displayName,
+        handle,
+        invitationToken: req.params.token as string,
       });
-
-      // Emit after the transaction commits, never inside it.
-      emitMemberJoined(inv.cooperative_did, memberDid);
 
       // Set session and wait for persistence
-      req.session.did = memberDid;
+      req.session.did = result.did;
       await new Promise<void>((resolve, reject) => {
         req.session.save((err) => (err ? reject(err) : resolve()));
       });
 
       res.status(201).json({
         member: {
-          did: memberDid,
-          handle: handle ?? null,
-          displayName,
-          email: inv.invitee_email ?? null,
-          roles,
+          did: result.did,
+          handle: result.handle,
+          displayName: result.displayName,
+          email,
+          roles: result.roles,
           status: 'active',
-          joinedAt: now.toISOString(),
+          joinedAt: result.joinedAt,
         },
       });
     }),
@@ -451,7 +404,7 @@ export function createMembershipRoutes(container: Container): Router {
           invalidated_at: new Date(),
           invalidated_by: req.actor!.did,
         })
-        .where('id', '=', (req.params.id as string))
+        .where('id', '=', req.params.id as string)
         .where('cooperative_did', '=', req.actor!.cooperativeDid)
         .execute();
 
@@ -460,4 +413,19 @@ export function createMembershipRoutes(container: Container): Router {
   );
 
   return router;
+}
+
+function maskEmail(email: string | null | undefined): string | null {
+  if (!email) return null;
+  const [local, domain] = email.split('@');
+  if (!local || !domain) return null;
+
+  const [domainName, ...domainSuffix] = domain.split('.');
+  const maskedLocal =
+    local.length === 1
+      ? `${local[0]}***`
+      : `${local[0]}***${local[local.length - 1]}`;
+  const maskedDomain = domainName ? `${domainName[0]}***` : '***';
+  const suffix = domainSuffix.length > 0 ? `.${domainSuffix.join('.')}` : '';
+  return `${maskedLocal}@${maskedDomain}${suffix}`;
 }

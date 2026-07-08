@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import type { DID } from '@coopsource/common';
 import type { Database } from '@coopsource/db';
 import type { Kysely } from 'kysely';
-import { CsnDbGroupDirectoryPort, membersSpace, roleSpace } from '../index.js';
+import {
+  CsnDbGroupDirectoryPort,
+  MEMBERS_SPACE_TYPE,
+  membersSpace,
+  roleSpace,
+} from '../index.js';
 
 interface MembershipFixture {
   readonly id: string;
@@ -23,6 +28,7 @@ interface MembershipRoleFixture {
 interface FixtureRow {
   readonly id: string;
   readonly member_did: string;
+  readonly member_class?: string | null;
   readonly indexed_at: Date;
   readonly role_indexed_at?: Date;
   readonly membership: MembershipFixture;
@@ -43,12 +49,17 @@ describe('CsnDbGroupDirectoryPort', () => {
         memberships: [
           membership('m1', aliceDid, 'active'),
           membership('m2', bobDid, 'pending'),
-          membership('m3', chandraDid, 'active', { invalidatedAt: new Date('2026-01-02T00:00:00Z') }),
+          membership('m3', chandraDid, 'active', {
+            invalidatedAt: new Date('2026-01-02T00:00:00Z'),
+          }),
         ],
       }),
     );
 
-    const resolved = await directory.resolveSpaceMembers({ ...membersSpace(cooperativeDid), consistency: 'strict' });
+    const resolved = await directory.resolveSpaceMembers({
+      ...membersSpace(cooperativeDid),
+      consistency: 'strict',
+    });
     expect(resolved.ok).toBe(true);
     expect(resolved.members.map((member) => member.did)).toEqual([aliceDid]);
   });
@@ -56,16 +67,52 @@ describe('CsnDbGroupDirectoryPort', () => {
   it('requires the matching role for role spaces', async () => {
     const directory = new CsnDbGroupDirectoryPort(
       fakeDb({
-        memberships: [membership('m1', aliceDid, 'active'), membership('m2', bobDid, 'active')],
+        memberships: [
+          membership('m1', aliceDid, 'active'),
+          membership('m2', bobDid, 'active'),
+        ],
         roles: [
-          { membership_id: 'm1', role: 'admin', indexed_at: new Date('2026-01-03T00:00:00Z') },
-          { membership_id: 'm2', role: 'member', indexed_at: new Date('2026-01-03T00:00:00Z') },
+          {
+            membership_id: 'm1',
+            role: 'admin',
+            indexed_at: new Date('2026-01-03T00:00:00Z'),
+          },
+          {
+            membership_id: 'm2',
+            role: 'member',
+            indexed_at: new Date('2026-01-03T00:00:00Z'),
+          },
         ],
       }),
     );
 
-    const resolved = await directory.resolveSpaceMembers({ ...roleSpace(cooperativeDid, 'admin'), consistency: 'projection-ok' });
+    const resolved = await directory.resolveSpaceMembers({
+      ...roleSpace(cooperativeDid, 'admin'),
+      consistency: 'projection-ok',
+    });
     expect(resolved.members.map((member) => member.did)).toEqual([aliceDid]);
+  });
+
+  it('lists active member-class spaces alongside the members space', async () => {
+    const directory = new CsnDbGroupDirectoryPort(
+      fakeDb({
+        memberships: [
+          membership('m1', aliceDid, 'active', { memberClass: 'worker' }),
+          membership('m2', bobDid, 'pending', { memberClass: 'consumer' }),
+          membership('m3', chandraDid, 'active'),
+        ],
+      }),
+    );
+
+    const page = await directory.listSpaces({
+      arbiterDid: cooperativeDid,
+      consistency: 'strict',
+    });
+
+    expect(page.spaces).toEqual([
+      membersSpace(cooperativeDid),
+      roleSpace(cooperativeDid, 'classes/worker'),
+    ]);
   });
 
   it('orders resolved membership by indexed_at and membership id', async () => {
@@ -75,17 +122,26 @@ describe('CsnDbGroupDirectoryPort', () => {
         memberships: [
           membership('m2', bobDid, 'active', { indexedAt: sameTime }),
           membership('m1', aliceDid, 'active', { indexedAt: sameTime }),
-          membership('m3', chandraDid, 'active', { indexedAt: new Date('2026-01-02T00:00:00Z') }),
+          membership('m3', chandraDid, 'active', {
+            indexedAt: new Date('2026-01-02T00:00:00Z'),
+          }),
         ],
       }),
     );
 
-    const resolved = await directory.resolveSpaceMembers({ ...membersSpace(cooperativeDid), consistency: 'strict' });
-    expect(resolved.members.map((member) => member.did)).toEqual([aliceDid, bobDid, chandraDid]);
+    const resolved = await directory.resolveSpaceMembers({
+      ...membersSpace(cooperativeDid),
+      consistency: 'strict',
+    });
+    expect(resolved.members.map((member) => member.did)).toEqual([
+      aliceDid,
+      bobDid,
+      chandraDid,
+    ]);
     expect(resolved.sourceRevision).toBe('2026-01-02T00:00:00.000Z');
   });
 
-  it('reports partial resolution when the roster is truncated at the page cap', async () => {
+  it('reports partial projection-ok resolution when the roster is truncated at the page cap', async () => {
     // pageSize 2, three active members → the roster is truncated, so the
     // consumer must not treat the (incomplete) list as authoritative. Member
     // #3 would otherwise be cross-checked against a partial list and wrongly
@@ -103,10 +159,35 @@ describe('CsnDbGroupDirectoryPort', () => {
 
     const resolved = await directory.resolveSpaceMembers({
       ...membersSpace(cooperativeDid),
-      consistency: 'strict',
+      consistency: 'projection-ok',
     });
     expect(resolved.ok).toBe(true);
     expect(resolved.partial).toBe(true);
+  });
+
+  it('loads the complete roster for strict resolution even beyond the projection page cap', async () => {
+    const directory = new CsnDbGroupDirectoryPort(
+      fakeDb({
+        memberships: [
+          membership('m1', aliceDid, 'active'),
+          membership('m2', bobDid, 'active'),
+          membership('m3', chandraDid, 'active'),
+        ],
+      }),
+      { pageSize: 2 },
+    );
+
+    const resolved = await directory.resolveSpaceMembers({
+      ...membersSpace(cooperativeDid),
+      consistency: 'strict',
+    });
+    expect(resolved.ok).toBe(true);
+    expect(resolved.partial).toBe(false);
+    expect(resolved.members.map((member) => member.did)).toEqual([
+      aliceDid,
+      bobDid,
+      chandraDid,
+    ]);
   });
 
   it('reports partial:false when the roster fits within the page cap', async () => {
@@ -128,12 +209,14 @@ describe('CsnDbGroupDirectoryPort', () => {
   });
 
   it('resolves class spaces and fails closed for unknown spaces', async () => {
-    const directory = new CsnDbGroupDirectoryPort(fakeDb({
-      memberships: [
-        membership('m1', aliceDid, 'active', { memberClass: 'worker' }),
-        membership('m2', bobDid, 'active', { memberClass: 'consumer' }),
-      ],
-    }));
+    const directory = new CsnDbGroupDirectoryPort(
+      fakeDb({
+        memberships: [
+          membership('m1', aliceDid, 'active', { memberClass: 'worker' }),
+          membership('m2', bobDid, 'active', { memberClass: 'consumer' }),
+        ],
+      }),
+    );
     const unknownSpace = {
       arbiterDid: cooperativeDid,
       spaceKey: 'unknown/members',
@@ -144,14 +227,62 @@ describe('CsnDbGroupDirectoryPort', () => {
       ...roleSpace(cooperativeDid, 'classes/worker'),
       consistency: 'strict',
     });
-    expect(classResolved.members.map((member) => member.did)).toEqual([aliceDid]);
+    expect(classResolved.members.map((member) => member.did)).toEqual([
+      aliceDid,
+    ]);
 
     await expect(
       directory.resolveSpaceMembers({
         ...unknownSpace,
         consistency: 'strict',
       }),
-    ).resolves.toMatchObject({ ok: false, members: [], stale: true, partial: true });
+    ).resolves.toMatchObject({
+      ok: false,
+      members: [],
+      stale: true,
+      partial: true,
+    });
+  });
+
+  it('fails closed when the expected space type does not match the space key', async () => {
+    const directory = new CsnDbGroupDirectoryPort(
+      fakeDb({
+        memberships: [membership('m1', aliceDid, 'active')],
+        roles: [
+          {
+            membership_id: 'm1',
+            role: 'admin',
+            indexed_at: new Date('2026-01-03T00:00:00Z'),
+          },
+        ],
+      }),
+    );
+    const mismatchedRoleSpace = {
+      ...roleSpace(cooperativeDid, 'admin'),
+      expectedSpaceType: MEMBERS_SPACE_TYPE,
+    };
+
+    await expect(
+      directory.getSpaceConfig({
+        ...mismatchedRoleSpace,
+        consistency: 'strict',
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      reason: 'invalid-space',
+      stale: true,
+    });
+    await expect(
+      directory.resolveSpaceMembers({
+        ...mismatchedRoleSpace,
+        consistency: 'strict',
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      members: [],
+      partial: true,
+      stale: true,
+    });
   });
 });
 
@@ -190,7 +321,10 @@ function fakeDb(fixtures: {
 
 class FakeSelectQuery {
   private readonly predicates: Predicate[] = [];
-  private readonly orderings: Array<{ readonly column: string; readonly direction: 'asc' | 'desc' }> = [];
+  private readonly orderings: Array<{
+    readonly column: string;
+    readonly direction: 'asc' | 'desc';
+  }> = [];
   private joinedRoles = false;
   private maxRows: number | null = null;
 
@@ -214,7 +348,11 @@ class FakeSelectQuery {
     return this;
   }
 
-  where(columnOrFactory: string | ((eb: ExpressionBuilder) => Predicate), op?: string, value?: unknown): this {
+  where(
+    columnOrFactory: string | ((eb: ExpressionBuilder) => Predicate),
+    op?: string,
+    value?: unknown,
+  ): this {
     if (typeof columnOrFactory === 'function') {
       this.predicates.push(columnOrFactory(createExpressionBuilder()));
       return this;
@@ -239,10 +377,15 @@ class FakeSelectQuery {
   }
 
   async execute(): Promise<ReadonlyArray<FixtureRow>> {
-    let rows = this.makeRows().filter((row) => this.predicates.every((predicate) => predicate(row)));
+    let rows = this.makeRows().filter((row) =>
+      this.predicates.every((predicate) => predicate(row)),
+    );
     for (const ordering of this.orderings) {
       rows = [...rows].sort((left, right) => {
-        const result = compareValues(valueForColumn(left, ordering.column), valueForColumn(right, ordering.column));
+        const result = compareValues(
+          valueForColumn(left, ordering.column),
+          valueForColumn(right, ordering.column),
+        );
         return ordering.direction === 'asc' ? result : -result;
       });
     }
@@ -254,6 +397,7 @@ class FakeSelectQuery {
       return this.fixtures.memberships.map((row) => ({
         id: row.id,
         member_did: row.member_did,
+        member_class: row.member_class,
         indexed_at: row.indexed_at,
         membership: row,
       }));
@@ -281,7 +425,8 @@ interface ExpressionBuilder {
 }
 
 function createExpressionBuilder(): ExpressionBuilder {
-  const eb = ((column: string, op: string, value: unknown) => comparePredicate(column, op, value)) as ExpressionBuilder;
+  const eb = ((column: string, op: string, value: unknown) =>
+    comparePredicate(column, op, value)) as ExpressionBuilder;
   eb.and = (predicates: ReadonlyArray<Predicate>) => (row: FixtureRow) =>
     predicates.every((predicate) => predicate(row));
   eb.or = (predicates: ReadonlyArray<Predicate>) => (row: FixtureRow) =>
@@ -289,12 +434,17 @@ function createExpressionBuilder(): ExpressionBuilder {
   return eb;
 }
 
-function comparePredicate(column: string, op: string, value: unknown): Predicate {
+function comparePredicate(
+  column: string,
+  op: string,
+  value: unknown,
+): Predicate {
   return (row) => {
     const actual = valueForColumn(row, column);
     if (op === '=') return compareValues(actual, value) === 0;
     if (op === '>') return compareValues(actual, value) > 0;
     if (op === 'is') return actual === value;
+    if (op === 'is not') return actual !== value;
     throw new Error(`Unsupported fake Kysely operator: ${op}`);
   };
 }
@@ -326,7 +476,10 @@ function compareValues(left: unknown, right: unknown): number {
   const normalizedLeft = left instanceof Date ? left.valueOf() : left;
   const normalizedRight = right instanceof Date ? right.valueOf() : right;
   if (normalizedLeft === normalizedRight) return 0;
-  if (typeof normalizedLeft === 'number' && typeof normalizedRight === 'number') {
+  if (
+    typeof normalizedLeft === 'number' &&
+    typeof normalizedRight === 'number'
+  ) {
     return normalizedLeft > normalizedRight ? 1 : -1;
   }
   return String(normalizedLeft) > String(normalizedRight) ? 1 : -1;

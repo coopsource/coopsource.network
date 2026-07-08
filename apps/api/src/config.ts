@@ -57,6 +57,11 @@ const envSchema = z
     // V11 Stage 1: Spaces consumer (pull-based permissioned-data consumer)
     SPACES_CONSUMER_ENABLED: envBoolean,
     UNSAFE_ACCEPT_UNVERIFIED_PERMISSIONED_DATA: envBoolean,
+    PERMISSIONED_RECORD_WRITER_MODE: z
+      .enum(['private-record', 'draft-xrpc'])
+      .default('private-record'),
+    // V12 Phase 4: comma-separated DIDs eligible to renew space credentials.
+    SPACE_MANAGING_SESSION_DIDS: z.string().optional(),
     // V9.2.5: Service-auth JWT verification for external ATProto apps
     SERVICE_AUTH_AUDIENCE_DID: z.string().optional(),         // DID external apps use as `aud` (defaults to INSTANCE_DID)
     SERVICE_AUTH_TRUSTED_ISSUERS: z.string().optional(),      // Comma-separated DIDs of trusted service-auth issuers

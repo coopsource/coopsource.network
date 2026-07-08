@@ -1,15 +1,29 @@
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
 import type { IClock } from '@coopsource/federation';
-import { NotFoundError, ValidationError } from '@coopsource/common';
+import { membersSpace } from '@coopsource/arbiter-client';
+import { NotFoundError, ValidationError, type DID } from '@coopsource/common';
+import type { ActionAuthorizerPlugin } from '@coopsource/governance-view';
+import {
+  validateCoopDelegationCommand,
+  type CoopVoteWeightDelegation,
+} from '@coopsource/coop-view';
 import type { CreateDelegationInput } from '@coopsource/common';
 import type { PageParams, Page } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
+
+export interface ActiveVoteDelegationRow {
+  readonly delegator_did: string;
+  readonly delegatee_did: string;
+  readonly scope: string;
+  readonly proposal_uri: string | null;
+}
 
 export class DelegationVotingService {
   constructor(
     private db: Kysely<Database>,
     private clock: IClock,
+    private actionAuthorizer?: ActionAuthorizerPlugin,
   ) {}
 
   async createDelegation(
@@ -17,21 +31,12 @@ export class DelegationVotingService {
     delegatorDid: string,
     data: CreateDelegationInput,
   ) {
-    // Prevent self-delegation
-    if (delegatorDid === data.delegateeDid) {
-      throw new ValidationError('Cannot delegate to yourself');
-    }
-
-    // Check for circular delegation
-    const chain = await this.getDelegationChain(
-      cooperativeDid,
-      data.delegateeDid,
-      data.scope,
-      data.proposalUri,
-    );
-    if (chain.some((d) => d.delegatee_did === delegatorDid)) {
-      throw new ValidationError('Circular delegation detected');
-    }
+    await this.assertDelegationCommandAllowed(cooperativeDid, {
+      delegatorDid,
+      delegateeDid: data.delegateeDid,
+      scope: data.scope,
+      proposalUri: data.proposalUri ?? null,
+    });
 
     // Revoke any existing active delegation in the same scope
     const existing = await this.getActiveDelegation(
@@ -85,9 +90,11 @@ export class DelegationVotingService {
       .executeTakeFirst();
 
     if (!delegation) throw new NotFoundError('Delegation not found');
-    if (delegation.delegator_did !== delegatorDid) {
-      throw new ValidationError('Only the delegator can revoke a delegation');
-    }
+    await this.authorizeDelegationRevocation({
+      cooperativeDid,
+      actorDid: delegatorDid,
+      delegationDelegatorDid: delegation.delegator_did,
+    });
     if (delegation.status !== 'active') {
       throw new ValidationError('Delegation is not active');
     }
@@ -146,10 +153,7 @@ export class DelegationVotingService {
       query = query.where((eb) =>
         eb.or([
           eb('created_at', '<', new Date(t)),
-          eb.and([
-            eb('created_at', '=', new Date(t)),
-            eb('uri', '<', i),
-          ]),
+          eb.and([eb('created_at', '=', new Date(t)), eb('uri', '<', i)]),
         ]),
       );
     }
@@ -208,91 +212,81 @@ export class DelegationVotingService {
     return chain;
   }
 
-  async calculateVoteWeight(
+  async listActiveDelegationsForVoteWeight(
     cooperativeDid: string,
-    voterDid: string,
-    proposalId: string,
-  ): Promise<number> {
-    // Find the proposal to get its URI for proposal-scoped delegations
-    const proposal = await this.db
-      .selectFrom('proposal')
-      .where('id', '=', proposalId)
-      .where('cooperative_did', '=', cooperativeDid)
-      .select(['uri'])
-      .executeTakeFirst();
-
-    // Count all active delegations where the voter is the final delegatee
-    // This includes both project-level and proposal-level delegations
-    const allDelegations = await this.db
+  ): Promise<ActiveVoteDelegationRow[]> {
+    return this.db
       .selectFrom('delegation')
       .where('did', '=', cooperativeDid)
       .where('status', '=', 'active')
-      .selectAll()
+      .select(['delegator_did', 'delegatee_did', 'scope', 'proposal_uri'])
+      .orderBy('created_at', 'asc')
+      .orderBy('uri', 'asc')
       .execute();
-
-    // Build a map of who delegates to whom
-    const delegators = new Set<string>();
-
-    for (const d of allDelegations) {
-      // Check project-level delegation or proposal-specific delegation
-      const isProjectLevel = d.scope === 'project';
-      const isProposalLevel =
-        d.scope === 'proposal' && proposal?.uri && d.proposal_uri === proposal.uri;
-
-      if (isProjectLevel || isProposalLevel) {
-        // Trace the chain to see if it leads to voterDid
-        let current = d.delegatee_did;
-        const visited = new Set<string>([d.delegator_did]);
-
-        while (current !== voterDid) {
-          if (visited.has(current)) break;
-          visited.add(current);
-
-          const next = allDelegations.find(
-            (dd) =>
-              dd.delegator_did === current &&
-              dd.status === 'active' &&
-              (dd.scope === 'project' ||
-                (dd.scope === 'proposal' &&
-                  proposal?.uri &&
-                  dd.proposal_uri === proposal.uri)),
-          );
-          if (!next) break;
-          current = next.delegatee_did;
-        }
-
-        if (current === voterDid) {
-          delegators.add(d.delegator_did);
-        }
-      }
-    }
-
-    // Class-aware weight: voter's class weight + sum of delegators' class weights
-    const voterWeight = await this.getMemberClassWeight(cooperativeDid, voterDid);
-    let totalDelegated = 0;
-    for (const delegatorDid of delegators) {
-      totalDelegated += await this.getMemberClassWeight(cooperativeDid, delegatorDid);
-    }
-    return voterWeight + totalDelegated;
   }
 
-  private async getMemberClassWeight(
+  private async assertDelegationCommandAllowed(
     cooperativeDid: string,
-    memberDid: string,
-  ): Promise<number> {
-    const result = await this.db
-      .selectFrom('membership')
-      .leftJoin('member_class', (j) =>
-        j
-          .onRef('member_class.name', '=', 'membership.member_class')
-          .onRef('member_class.cooperative_did', '=', 'membership.cooperative_did'),
-      )
-      .where('membership.cooperative_did', '=', cooperativeDid)
-      .where('membership.member_did', '=', memberDid)
-      .where('membership.status', '=', 'active')
-      .select('member_class.vote_weight')
-      .executeTakeFirst();
+    candidate: CoopVoteWeightDelegation,
+  ): Promise<void> {
+    const activeDelegations =
+      await this.listActiveDelegationsForVoteWeight(cooperativeDid);
+    const decision = validateCoopDelegationCommand({
+      activeDelegations: activeDelegations.flatMap(toCoopDelegation),
+      candidate,
+    });
 
-    return result?.vote_weight ?? 1;
+    if (!decision.allowed) {
+      throw new ValidationError(decision.message);
+    }
   }
+
+  private async authorizeDelegationRevocation(args: {
+    readonly cooperativeDid: string;
+    readonly actorDid: string;
+    readonly delegationDelegatorDid: string;
+  }): Promise<void> {
+    if (!this.actionAuthorizer) {
+      if (args.actorDid !== args.delegationDelegatorDid) {
+        throw new ValidationError('Only the delegator can revoke a delegation');
+      }
+      return;
+    }
+
+    const memberSpace = membersSpace(args.cooperativeDid as DID);
+    const decision = await this.actionAuthorizer.authorize({
+      actor: { did: args.actorDid },
+      cooperative: {
+        authorityDid: args.cooperativeDid,
+        spaceKey: memberSpace.spaceKey,
+        spaceType: memberSpace.expectedSpaceType,
+      },
+      action: 'delegation.revoke.own',
+      at: this.clock.now().toISOString(),
+      payload: {
+        delegationDelegatorDid: args.delegationDelegatorDid,
+      },
+    });
+
+    if (!decision.authorized) {
+      throw new ValidationError('Only the delegator can revoke a delegation');
+    }
+  }
+}
+
+function toCoopDelegation(
+  row: ActiveVoteDelegationRow,
+): readonly CoopVoteWeightDelegation[] {
+  if (row.scope !== 'project' && row.scope !== 'proposal') {
+    return [];
+  }
+
+  return [
+    {
+      delegatorDid: row.delegator_did,
+      delegateeDid: row.delegatee_did,
+      scope: row.scope,
+      proposalUri: row.proposal_uri,
+    },
+  ];
 }

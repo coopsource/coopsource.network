@@ -1,5 +1,6 @@
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
+import type { SpaceCredential } from './credential-store.js';
 import {
   spaceRefKey,
   type ClockedOptions,
@@ -24,6 +25,7 @@ export interface PermissionedRepoPort {
   sync(args: {
     readonly space: SpaceRef;
     readonly hint?: PermissionedChangeHint;
+    readonly credential?: SpaceCredential;
   }): Promise<VerifiedPermissionedChanges>;
 
   commitCheckpoint(args: {
@@ -44,7 +46,10 @@ export class InMemoryPermissionedCheckpointStore implements PermissionedCheckpoi
     return this.checkpoints.get(spaceRefKey(space));
   }
 
-  async set(space: SpaceRef, checkpoint: PermissionedCheckpoint): Promise<void> {
+  async set(
+    space: SpaceRef,
+    checkpoint: PermissionedCheckpoint,
+  ): Promise<void> {
     this.checkpoints.set(spaceRefKey(space), checkpoint);
   }
 }
@@ -66,12 +71,19 @@ export class KyselyPermissionedCheckpointStore implements PermissionedCheckpoint
       .select('cursor')
       .where('arbiter_did', '=', space.arbiterDid)
       .where('space_key', '=', space.spaceKey)
-      .where('member_did', '=', KyselyPermissionedCheckpointStore.spaceCheckpointMemberDid)
+      .where(
+        'member_did',
+        '=',
+        KyselyPermissionedCheckpointStore.spaceCheckpointMemberDid,
+      )
       .executeTakeFirst();
     return row?.cursor ? this.checkpoint(row.cursor) : undefined;
   }
 
-  async set(space: SpaceRef, checkpoint: PermissionedCheckpoint): Promise<void> {
+  async set(
+    space: SpaceRef,
+    checkpoint: PermissionedCheckpoint,
+  ): Promise<void> {
     await this.db
       .insertInto('spaces_consumer_cursor')
       .values({
@@ -106,12 +118,16 @@ export class InMemoryPermissionedRepoPort implements PermissionedRepoPort {
   private readonly verification: PermissionedVerificationStatus;
   private readonly checkpoints: PermissionedCheckpointStore;
   private readonly clock: () => Date;
-  private readonly watchers = new Map<string, (hint: PermissionedChangeHint) => Promise<void> | void>();
+  private readonly watchers = new Map<
+    string,
+    (hint: PermissionedChangeHint) => Promise<void> | void
+  >();
 
   constructor(options: InMemoryPermissionedRepoPortOptions) {
     this.records = options.records ?? [];
     this.verification = options.verification ?? 'verified';
-    this.checkpoints = options.checkpoints ?? new InMemoryPermissionedCheckpointStore();
+    this.checkpoints =
+      options.checkpoints ?? new InMemoryPermissionedCheckpointStore();
     this.clock = options.clock;
   }
 
@@ -140,6 +156,7 @@ export class InMemoryPermissionedRepoPort implements PermissionedRepoPort {
   async sync(args: {
     readonly space: SpaceRef;
     readonly hint?: PermissionedChangeHint;
+    readonly credential?: SpaceCredential;
   }): Promise<VerifiedPermissionedChanges> {
     if (this.verification === 'failed-closed') {
       return {
@@ -177,20 +194,30 @@ export class InMemoryPermissionedRepoPort implements PermissionedRepoPort {
     await this.checkpoints.set(args.space, args.checkpoint);
   }
 
-  async committedCheckpoint(space: SpaceRef): Promise<PermissionedCheckpoint | undefined> {
+  async committedCheckpoint(
+    space: SpaceRef,
+  ): Promise<PermissionedCheckpoint | undefined> {
     return this.checkpoints.get(space);
   }
 
-  private recordsForSpace(space: SpaceRef): ReadonlyArray<VerifiedPermissionedRecord> {
-    return this.records.filter((record) => spaceRefKey(record.location.space) === spaceRefKey(space));
+  private recordsForSpace(
+    space: SpaceRef,
+  ): ReadonlyArray<VerifiedPermissionedRecord> {
+    return this.records.filter(
+      (record) => spaceRefKey(record.location.space) === spaceRefKey(space),
+    );
   }
 
-  private checkpointFor(records: ReadonlyArray<VerifiedPermissionedRecord>): PermissionedCheckpoint | undefined {
+  private checkpointFor(
+    records: ReadonlyArray<VerifiedPermissionedRecord>,
+  ): PermissionedCheckpoint | undefined {
     const sourceRevision = this.maxSourceRevision(records);
     return sourceRevision ? this.checkpoint(sourceRevision) : undefined;
   }
 
-  private maxSourceRevision(records: ReadonlyArray<VerifiedPermissionedRecord>): string | undefined {
+  private maxSourceRevision(
+    records: ReadonlyArray<VerifiedPermissionedRecord>,
+  ): string | undefined {
     return records.reduce<string | undefined>((max, record) => {
       if (!record.sourceRevision) return max;
       if (!max || record.sourceRevision > max) return record.sourceRevision;
@@ -204,7 +231,9 @@ export class InMemoryPermissionedRepoPort implements PermissionedRepoPort {
 }
 
 export class FailClosedPermissionedRepoPort extends InMemoryPermissionedRepoPort {
-  constructor(options: Pick<InMemoryPermissionedRepoPortOptions, 'clock' | 'checkpoints'>) {
+  constructor(
+    options: Pick<InMemoryPermissionedRepoPortOptions, 'clock' | 'checkpoints'>,
+  ) {
     super({ ...options, verification: 'failed-closed', records: [] });
   }
 }

@@ -1,42 +1,36 @@
 import { Router } from 'express';
-import { sql } from 'kysely';
+import type { DID } from '@coopsource/common';
 import type { Container } from '../container.js';
 import { asyncHandler } from '../lib/async-handler.js';
-import { parsePagination, encodeCursor, decodeCursor } from '../lib/pagination.js';
+import {
+  parsePagination,
+  encodeCursor,
+  decodeCursor,
+} from '../lib/pagination.js';
 
 export function createExploreRoutes(container: Container): Router {
   const router = Router();
-  const { db } = container;
+  const { db, membershipReadModel } = container;
 
   // GET /api/v1/explore/cooperatives — list active cooperatives (public)
   router.get(
     '/api/v1/explore/cooperatives',
     asyncHandler(async (req, res) => {
-      const { limit, cursor } = parsePagination(req.query as Record<string, unknown>);
+      const { limit, cursor } = parsePagination(
+        req.query as Record<string, unknown>,
+      );
 
       let query = db
         .selectFrom('entity')
-        .innerJoin('cooperative_profile', 'cooperative_profile.entity_did', 'entity.did')
-        .leftJoin('membership', (join) =>
-          join
-            .onRef('membership.cooperative_did', '=', 'entity.did')
-            .on('membership.status', '=', 'active'),
+        .innerJoin(
+          'cooperative_profile',
+          'cooperative_profile.entity_did',
+          'entity.did',
         )
         .where('entity.type', '=', 'cooperative')
         .where('entity.status', '=', 'active')
         .where('cooperative_profile.is_network', '=', false)
         .where('cooperative_profile.anon_discoverable', '=', true) // V8.1: opt-in public discoverability
-        .groupBy([
-          'entity.did',
-          'entity.handle',
-          'entity.display_name',
-          'entity.description',
-          'entity.created_at',
-          'cooperative_profile.cooperative_type',
-          'cooperative_profile.website',
-          'cooperative_profile.public_description',
-          'cooperative_profile.public_members',
-        ])
         .select([
           'entity.did',
           'entity.handle',
@@ -47,7 +41,6 @@ export function createExploreRoutes(container: Container): Router {
           'cooperative_profile.website',
           'cooperative_profile.public_description as publicDescription',
           'cooperative_profile.public_members as publicMembers',
-          sql<number>`count(membership.id)::int`.as('memberCount'),
         ])
         .orderBy('entity.created_at', 'desc')
         .orderBy('entity.did', 'desc');
@@ -69,10 +62,17 @@ export function createExploreRoutes(container: Container): Router {
 
       const hasMore = rows.length > (limit ?? 50);
       const items = hasMore ? rows.slice(0, limit ?? 50) : rows;
+      const memberCounts =
+        await membershipReadModel.countProjectedActiveMembersByCooperative(
+          items.map((row) => row.did as DID),
+        );
 
       const nextCursor =
         hasMore && items.length > 0
-          ? encodeCursor(items[items.length - 1].createdAt, items[items.length - 1].did)
+          ? encodeCursor(
+              items[items.length - 1].createdAt,
+              items[items.length - 1].did,
+            )
           : null;
 
       res.json({
@@ -82,7 +82,9 @@ export function createExploreRoutes(container: Container): Router {
           displayName: row.displayName,
           description: row.publicDescription ? row.description : null,
           cooperativeType: row.cooperativeType,
-          memberCount: row.publicMembers ? row.memberCount : null,
+          memberCount: row.publicMembers
+            ? (memberCounts.get(row.did) ?? 0)
+            : null,
           website: row.website,
         })),
         cursor: nextCursor,
@@ -98,30 +100,16 @@ export function createExploreRoutes(container: Container): Router {
 
       const row = await db
         .selectFrom('entity')
-        .innerJoin('cooperative_profile', 'cooperative_profile.entity_did', 'entity.did')
-        .leftJoin('membership', (join) =>
-          join
-            .onRef('membership.cooperative_did', '=', 'entity.did')
-            .on('membership.status', '=', 'active'),
+        .innerJoin(
+          'cooperative_profile',
+          'cooperative_profile.entity_did',
+          'entity.did',
         )
         .where('entity.type', '=', 'cooperative')
         .where('entity.status', '=', 'active')
         .where('cooperative_profile.is_network', '=', false)
         .where('cooperative_profile.anon_discoverable', '=', true) // V8.1: opt-in public discoverability
         .where('entity.handle', '=', handle)
-        .groupBy([
-          'entity.did',
-          'entity.handle',
-          'entity.display_name',
-          'entity.description',
-          'cooperative_profile.cooperative_type',
-          'cooperative_profile.website',
-          'cooperative_profile.public_description',
-          'cooperative_profile.public_members',
-          'cooperative_profile.public_activity',
-          'cooperative_profile.public_agreements',
-          'cooperative_profile.public_campaigns',
-        ])
         .select([
           'entity.did',
           'entity.handle',
@@ -134,13 +122,13 @@ export function createExploreRoutes(container: Container): Router {
           'cooperative_profile.public_activity as publicActivity',
           'cooperative_profile.public_agreements as publicAgreements',
           'cooperative_profile.public_campaigns as publicCampaigns',
-          sql<number>`count(membership.id)::int`.as('memberCount'),
         ])
         .executeTakeFirst();
 
       if (!row) {
         res.status(404).json({
-          error: 'NOT_FOUND', message: 'Cooperative not found',
+          error: 'NOT_FOUND',
+          message: 'Cooperative not found',
         });
         return;
       }
@@ -148,19 +136,21 @@ export function createExploreRoutes(container: Container): Router {
       // Fetch networks this cooperative belongs to (gated by public_activity)
       let networks: Array<{ did: string; displayName: string }> = [];
       if (row.publicActivity) {
-        const networkRows = await db
-          .selectFrom('membership')
-          .innerJoin('entity', 'entity.did', 'membership.cooperative_did')
-          .innerJoin('cooperative_profile', 'cooperative_profile.entity_did', 'entity.did')
-          .where('membership.member_did', '=', row.did)
-          .where('membership.status', '=', 'active')
-          .where('cooperative_profile.is_network', '=', true)
-          .where('entity.status', '=', 'active')
-          .select(['entity.did', 'entity.display_name as displayName'])
-          .execute();
+        const networkRows =
+          await membershipReadModel.listProjectedMemberCooperatives(
+            row.did as DID,
+            { isNetwork: true },
+          );
 
-        networks = networkRows.map((n) => ({ did: n.did, displayName: n.displayName }));
+        networks = networkRows.map((n) => ({
+          did: n.did,
+          displayName: n.displayName,
+        }));
       }
+      const memberCounts =
+        await membershipReadModel.countProjectedActiveMembersByCooperative([
+          row.did as DID,
+        ]);
 
       // V8.5 — fetch public-safe proposals/agreements/campaigns in parallel,
       // gated on each section's visibility flag.
@@ -210,7 +200,9 @@ export function createExploreRoutes(container: Container): Router {
         displayName: row.displayName,
         description: row.publicDescription ? row.description : null,
         cooperativeType: row.cooperativeType,
-        memberCount: row.publicMembers ? row.memberCount : null,
+        memberCount: row.publicMembers
+          ? (memberCounts.get(row.did) ?? 0)
+          : null,
         website: row.website,
         networks,
         proposals,
@@ -224,32 +216,21 @@ export function createExploreRoutes(container: Container): Router {
   router.get(
     '/api/v1/explore/networks',
     asyncHandler(async (req, res) => {
-      const { limit, cursor } = parsePagination(req.query as Record<string, unknown>);
+      const { limit, cursor } = parsePagination(
+        req.query as Record<string, unknown>,
+      );
 
       let query = db
         .selectFrom('entity')
-        .innerJoin('cooperative_profile', 'cooperative_profile.entity_did', 'entity.did')
-        .leftJoin('membership', (join) =>
-          join
-            .onRef('membership.cooperative_did', '=', 'entity.did')
-            .on('membership.status', '=', 'active'),
+        .innerJoin(
+          'cooperative_profile',
+          'cooperative_profile.entity_did',
+          'entity.did',
         )
         .where('entity.type', '=', 'cooperative')
         .where('entity.status', '=', 'active')
         .where('cooperative_profile.is_network', '=', true)
         .where('cooperative_profile.anon_discoverable', '=', true) // V8.1: opt-in public discoverability
-        .groupBy([
-          'entity.did',
-          'entity.handle',
-          'entity.display_name',
-          'entity.description',
-          'entity.created_at',
-          'cooperative_profile.cooperative_type',
-          'cooperative_profile.membership_policy',
-          'cooperative_profile.website',
-          'cooperative_profile.public_description',
-          'cooperative_profile.public_members',
-        ])
         .select([
           'entity.did',
           'entity.handle',
@@ -261,7 +242,6 @@ export function createExploreRoutes(container: Container): Router {
           'cooperative_profile.website',
           'cooperative_profile.public_description as publicDescription',
           'cooperative_profile.public_members as publicMembers',
-          sql<number>`count(membership.id)::int`.as('memberCount'),
         ])
         .orderBy('entity.created_at', 'desc')
         .orderBy('entity.did', 'desc');
@@ -283,10 +263,17 @@ export function createExploreRoutes(container: Container): Router {
 
       const hasMore = rows.length > (limit ?? 50);
       const items = hasMore ? rows.slice(0, limit ?? 50) : rows;
+      const memberCounts =
+        await membershipReadModel.countProjectedActiveMembersByCooperative(
+          items.map((row) => row.did as DID),
+        );
 
       const nextCursor =
         hasMore && items.length > 0
-          ? encodeCursor(items[items.length - 1].createdAt, items[items.length - 1].did)
+          ? encodeCursor(
+              items[items.length - 1].createdAt,
+              items[items.length - 1].did,
+            )
           : null;
 
       res.json({
@@ -297,7 +284,9 @@ export function createExploreRoutes(container: Container): Router {
           description: row.publicDescription ? row.description : null,
           cooperativeType: row.cooperativeType,
           membershipPolicy: row.membershipPolicy,
-          memberCount: row.publicMembers ? row.memberCount : null,
+          memberCount: row.publicMembers
+            ? (memberCounts.get(row.did) ?? 0)
+            : null,
           website: row.website,
           createdAt: row.createdAt.toISOString(),
         })),

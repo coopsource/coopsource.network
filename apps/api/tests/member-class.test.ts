@@ -290,6 +290,89 @@ describe('Member Class API', () => {
     expect(resolveRes.body.outcome).toBe('passed');
   });
 
+  it('returns class_quorum_not_met when a class rule fails after headcount quorum passes', async () => {
+    const testApp = createTestApp();
+    const { adminDid } = await setupAndLogin(testApp);
+
+    await testApp.agent
+      .post('/api/v1/member-classes')
+      .send({ name: 'worker', voteWeight: 1 })
+      .expect(201);
+    await testApp.agent
+      .post('/api/v1/member-classes/assign')
+      .send({ memberDid: adminDid, className: 'worker' })
+      .expect(200);
+
+    const proposalRes = await testApp.agent
+      .post('/api/v1/proposals')
+      .send({
+        title: 'Class quorum fail',
+        body: 'Testing class quorum',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+        quorumThreshold: 0.5,
+      })
+      .expect(201);
+
+    await testApp.container.db
+      .updateTable('proposal')
+      .set({ class_quorum_rules: { worker: { minVotes: 2 } } })
+      .where('id', '=', proposalRes.body.id as string)
+      .execute();
+
+    await testApp.agent
+      .post(`/api/v1/proposals/${proposalRes.body.id}/open`)
+      .expect(200);
+    await testApp.agent
+      .post(`/api/v1/proposals/${proposalRes.body.id}/vote`)
+      .send({ choice: 'yes' })
+      .expect(201);
+    await testApp.agent
+      .post(`/api/v1/proposals/${proposalRes.body.id}/close`)
+      .expect(200);
+
+    const resolveRes = await testApp.agent
+      .post(`/api/v1/proposals/${proposalRes.body.id}/resolve`)
+      .expect(200);
+
+    expect(resolveRes.body.outcome).toBe('class_quorum_not_met');
+  });
+
+  it('returns no_quorum when headcount quorum fails before class rules are evaluated', async () => {
+    const testApp = createTestApp();
+    await setupAndLogin(testApp);
+
+    const proposalRes = await testApp.agent
+      .post('/api/v1/proposals')
+      .send({
+        title: 'Headcount quorum fail',
+        body: 'Testing quorum precedence',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+        quorumThreshold: 0.5,
+      })
+      .expect(201);
+
+    await testApp.container.db
+      .updateTable('proposal')
+      .set({ class_quorum_rules: { worker: { minVotes: 1 } } })
+      .where('id', '=', proposalRes.body.id as string)
+      .execute();
+
+    await testApp.agent
+      .post(`/api/v1/proposals/${proposalRes.body.id}/open`)
+      .expect(200);
+    await testApp.agent
+      .post(`/api/v1/proposals/${proposalRes.body.id}/close`)
+      .expect(200);
+
+    const resolveRes = await testApp.agent
+      .post(`/api/v1/proposals/${proposalRes.body.id}/resolve`)
+      .expect(200);
+
+    expect(resolveRes.body.outcome).toBe('no_quorum');
+  });
+
   // ─── Backwards compat ──────────────────────────────────────────────
 
   it('defaults to weight 1 when no class configured', async () => {

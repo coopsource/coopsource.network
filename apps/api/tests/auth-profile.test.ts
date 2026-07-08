@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { truncateAllTables } from './helpers/test-db.js';
 import { createTestApp, setupAndLogin } from './helpers/test-app.js';
 import { resetSetupCache } from '../src/auth/middleware.js';
 import type { TestApp } from './helpers/test-app.js';
+import { membershipAuthorityFailure } from '../src/services/membership-read-model.js';
 
 describe('V8.3 — profile inlining in /auth/me', () => {
   let testApp: TestApp;
@@ -27,6 +28,33 @@ describe('V8.3 — profile inlining in /auth/me', () => {
     expect(typeof res.body.profile.id).toBe('string');
   });
 
+  it('GET /me/memberships surfaces degraded spaces authority', async () => {
+    await setupAndLogin(testApp);
+    const spy = vi
+      .spyOn(
+        testApp.container.membershipReadModel,
+        'listMemberCooperativesResult',
+      )
+      .mockResolvedValue(
+        membershipAuthorityFailure(
+          'partial',
+          'Membership authority returned a partial result',
+        ),
+      );
+
+    try {
+      const res = await testApp.agent.get('/api/v1/me/memberships').expect(503);
+
+      expect(res.body.error).toMatchObject({
+        code: 'SPACES_AUTHORITY_UNAVAILABLE',
+        axis: 'spaces',
+        reason: 'partial',
+      });
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it('POST /auth/login response includes the profile inline', async () => {
     // Use setup to create the admin, then issue an explicit login on a fresh agent.
     await setupAndLogin(testApp);
@@ -48,7 +76,8 @@ describe('V8.3 — profile inlining in /auth/me', () => {
 
     // The setup flow creates the admin entity inside its own transaction
     // and calls profileService.createDefaultProfile with the trx override.
-    const profile = await testApp.container.profileService.getDefaultProfile(adminDid);
+    const profile =
+      await testApp.container.profileService.getDefaultProfile(adminDid);
 
     expect(profile).not.toBeNull();
     expect(profile!.entityDid).toBe(adminDid);
@@ -71,7 +100,8 @@ describe('V8.3 — profile inlining in /auth/me', () => {
       cooperativeDid: coopDid,
     });
 
-    const profile = await testApp.container.profileService.getDefaultProfile(newDid);
+    const profile =
+      await testApp.container.profileService.getDefaultProfile(newDid);
     expect(profile).not.toBeNull();
     expect(profile!.entityDid).toBe(newDid);
     expect(profile!.displayName).toBe('New Persona');

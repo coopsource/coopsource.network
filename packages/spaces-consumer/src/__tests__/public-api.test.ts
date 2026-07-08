@@ -5,6 +5,15 @@ describe('public API', () => {
   it('exports stable ports instead of mechanism sketches', () => {
     expect(publicApi).toHaveProperty('SpacesConsumer');
     expect(publicApi).toHaveProperty('DenyAllGroupDirectoryPort');
+    expect(publicApi).toHaveProperty('SpaceCredentialManager');
+    expect(publicApi).toHaveProperty('KyselySpaceCredentialStore');
+    expect(publicApi).toHaveProperty('TwoStepSpaceCredentialIssuer');
+    expect(publicApi).toHaveProperty('CredentialedPermissionedRepoPort');
+    expect(publicApi).toHaveProperty('InMemoryPermissionedRecordWritePort');
+    expect(publicApi).toHaveProperty('XrpcPermissionedRecordWritePort');
+    expect(publicApi).toHaveProperty('PermissionedRecordWriteError');
+    expect(publicApi).toHaveProperty('KyselyDidEquivalencePort');
+    expect(publicApi).toHaveProperty('RawDidEquivalencePort');
     expect(publicApi).toHaveProperty('InMemoryPermissionedRepoPort');
     expect(publicApi).toHaveProperty('KyselyPermissionedCheckpointStore');
 

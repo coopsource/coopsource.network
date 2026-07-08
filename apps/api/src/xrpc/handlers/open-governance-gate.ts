@@ -1,7 +1,12 @@
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
-import { NotFoundError } from '@coopsource/common';
-import type { MembershipService, MemberWithRoles } from '../../services/membership-service.js';
+import { AppError, NotFoundError, type DID } from '@coopsource/common';
+import {
+  membershipAuthorityErrorCode,
+  membershipAuthorityHttpStatus,
+  type MemberDirectoryEntry,
+  type MembershipReadModel,
+} from '../../services/membership-read-model.js';
 
 export interface CooperativeRow {
   did: string;
@@ -29,7 +34,7 @@ export interface CooperativeRow {
 
 export interface GovernanceAccessResult {
   coop: CooperativeRow;
-  viewerMembership?: MemberWithRoles;
+  viewerMembership?: MemberDirectoryEntry;
 }
 
 /**
@@ -45,7 +50,7 @@ export async function assertGovernanceAccess(
   db: Kysely<Database>,
   cooperativeDid: string,
   viewer?: { did: string; displayName: string },
-  membershipService?: MembershipService,
+  membershipReadModel?: MembershipReadModel,
 ): Promise<GovernanceAccessResult> {
   const row = await db
     .selectFrom('entity')
@@ -89,16 +94,34 @@ export async function assertGovernanceAccess(
   const coop = row as CooperativeRow;
 
   // Open and mixed governance: public access, no membership check needed
-  if (coop.governance_visibility === 'open' || coop.governance_visibility === 'mixed') {
+  if (
+    coop.governance_visibility === 'open' ||
+    coop.governance_visibility === 'mixed'
+  ) {
     return { coop };
   }
 
   // Closed governance: require authenticated viewer with active membership
-  if (!viewer || !membershipService) {
+  if (!viewer || !membershipReadModel) {
     throw new NotFoundError('Cooperative not found');
   }
 
-  const member = await membershipService.getMember(cooperativeDid, viewer.did);
+  const memberResult = await membershipReadModel.getMemberResult(
+    cooperativeDid as DID,
+    viewer.did as DID,
+  );
+  if (!memberResult.ok) {
+    if (memberResult.reason === 'not-member') {
+      throw new NotFoundError('Cooperative not found');
+    }
+    throw new AppError(
+      memberResult.message,
+      membershipAuthorityHttpStatus(memberResult, 404),
+      membershipAuthorityErrorCode(memberResult, 'NotFound'),
+    );
+  }
+
+  const member = memberResult.member;
   if (!member || member.status !== 'active') {
     throw new NotFoundError('Cooperative not found');
   }

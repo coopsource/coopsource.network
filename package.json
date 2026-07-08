@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Co-op Source Network — federated collaboration platform on ATProtocol",
-  "packageManager": "pnpm@10.30.3",
+  "packageManager": "pnpm@11.7.0",
   "engines": {
     "node": ">=24"
   },
@@ -22,25 +22,6 @@
     "db:migrate": "./scripts/dev-services.sh db:migrate",
     "db:reset": "./scripts/dev-services.sh db:reset",
     "test:e2e": "pnpm --filter @coopsource/web exec playwright test"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "bcrypt",
-      "esbuild"
-    ],
-    "overrides": {
-      "kysely": "^0.28.14",
-      "hono": ">=4.12.14",
-      "express-rate-limit": ">=8.2.2",
-      "@hono/node-server": ">=1.19.13",
-      "path-to-regexp": ">=8.4.0",
-      "undici": ">=6.24.0",
-      "cookie": ">=0.7.0",
-      "devalue": ">=5.6.4",
-      "picomatch": ">=4.0.4",
-      "brace-expansion": ">=2.0.3",
-      "rollup": ">=4.59.0"
-    }
   },
   "devDependencies": {
     "eslint": "^10.4.0",

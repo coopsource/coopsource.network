@@ -92,6 +92,114 @@ describe('Proposals & Voting', () => {
     expect(res.body.authorDisplayName).toBe('Test Admin');
   });
 
+  it('does not operate on proposal IDs outside the actor cooperative', async () => {
+    const testApp = createTestApp();
+    const { adminDid } = await setupAndLogin(testApp);
+    const now = testApp.clock.now();
+    const foreignCoopDid = 'did:web:foreign-coop.example.com';
+    await testApp.container.db
+      .insertInto('entity')
+      .values({
+        did: foreignCoopDid,
+        type: 'cooperative',
+        display_name: 'Foreign Cooperative',
+        handle: 'foreign-coop',
+        description: null,
+        status: 'active',
+        created_at: now,
+        indexed_at: now,
+      })
+      .execute();
+    await testApp.container.db
+      .insertInto('cooperative_profile')
+      .values({
+        entity_did: foreignCoopDid,
+        cooperative_type: 'worker',
+        is_network: false,
+        membership_policy: 'invite_only',
+        created_at: now,
+        indexed_at: now,
+      })
+      .execute();
+
+    async function insertForeignProposal(status: string) {
+      const [proposal] = await testApp.container.db
+        .insertInto('proposal')
+        .values({
+          uri: `at://${foreignCoopDid}/network.coopsource.governance.proposal/${status}`,
+          cid: `cid-${status}`,
+          cooperative_did: foreignCoopDid,
+          author_did: adminDid,
+          title: `Foreign ${status}`,
+          body: 'Foreign body',
+          body_format: 'text',
+          voting_type: 'binary',
+          options: null,
+          quorum_type: 'simpleMajority',
+          quorum_basis: 'votesCast',
+          quorum_threshold: null,
+          status,
+          outcome: null,
+          opens_at: status === 'draft' ? null : now,
+          closes_at: status === 'closed' ? now : null,
+          resolved_at: null,
+          class_quorum_rules: null,
+          tags: [],
+          created_at: now,
+          created_by: adminDid,
+          invalidated_at: null,
+          invalidated_by: null,
+          indexed_at: now,
+        })
+        .returning(['id'])
+        .execute();
+      return proposal!;
+    }
+
+    const draft = await insertForeignProposal('draft');
+    const open = await insertForeignProposal('open');
+    const closed = await insertForeignProposal('closed');
+
+    await testApp.container.db
+      .insertInto('vote')
+      .values({
+        uri: null,
+        cid: null,
+        proposal_id: open.id,
+        proposal_uri: `at://${foreignCoopDid}/network.coopsource.governance.proposal/open`,
+        proposal_cid: 'cid-open',
+        voter_did: adminDid,
+        choice: 'yes',
+        vote_weight: 1,
+        rationale: null,
+        created_at: now,
+        retracted_at: null,
+        retracted_by: null,
+        indexed_at: now,
+      })
+      .execute();
+
+    await testApp.agent.get(`/api/v1/proposals/${open.id}`).expect(404);
+    await testApp.agent.post(`/api/v1/proposals/${draft.id}/open`).expect(404);
+    await testApp.agent.post(`/api/v1/proposals/${open.id}/close`).expect(404);
+    await testApp.agent
+      .post(`/api/v1/proposals/${closed.id}/resolve`)
+      .expect(404);
+    await testApp.agent.get(`/api/v1/proposals/${open.id}/votes`).expect(404);
+    await testApp.agent
+      .get(
+        `/api/v1/governance/vote-weight/${encodeURIComponent(
+          adminDid,
+        )}?proposalId=${open.id}`,
+      )
+      .expect(404);
+    await testApp.agent
+      .post(`/api/v1/proposals/${open.id}/vote`)
+      .send({ choice: 'yes' })
+      .expect(404);
+    await testApp.agent.delete(`/api/v1/proposals/${open.id}/vote`).expect(404);
+  });
+
   // ---------------------------------------------------------------
   // 4. Update draft proposal
   // ---------------------------------------------------------------
@@ -99,7 +207,13 @@ describe('Proposals & Voting', () => {
     const testApp = createTestApp();
     await setupAndLogin(testApp);
 
-    const created = await createDraftProposal(testApp.agent);
+    const created = await createDraftProposal(testApp.agent, {
+      meetingEvent:
+        'at://did:plc:eventhost/network.smokesignal.calendar.event/evt1',
+      fullDocument: 'at://did:plc:docs/com.whtwnd.blog.entry/doc1',
+      discussionThread:
+        'at://did:plc:frontpage/fyi.unravel.frontpage.post/thread1',
+    });
 
     const res = await testApp.agent
       .put(`/api/v1/proposals/${created.id}`)
@@ -110,6 +224,31 @@ describe('Proposals & Voting', () => {
     // Body unchanged
     expect(res.body.body).toBe(created.body);
     expect(res.body.status).toBe('draft');
+
+    const row = await testApp.container.db
+      .selectFrom('proposal')
+      .where('id', '=', created.id)
+      .select(['uri'])
+      .executeTakeFirstOrThrow();
+    const source = await testApp.container.db
+      .selectFrom('pds_record')
+      .where('uri', '=', row.uri!)
+      .select(['content', 'deleted_at'])
+      .executeTakeFirstOrThrow();
+    const content =
+      typeof source.content === 'string'
+        ? JSON.parse(source.content)
+        : source.content;
+    expect(content).toMatchObject({
+      title: 'Updated title',
+      body: created.body,
+      meetingEvent:
+        'at://did:plc:eventhost/network.smokesignal.calendar.event/evt1',
+      fullDocument: 'at://did:plc:docs/com.whtwnd.blog.entry/doc1',
+      discussionThread:
+        'at://did:plc:frontpage/fyi.unravel.frontpage.post/thread1',
+    });
+    expect(source.deleted_at).toBeNull();
   });
 
   // ---------------------------------------------------------------
@@ -320,18 +459,26 @@ describe('Proposals & Voting', () => {
 
     const created = await createDraftProposal(testApp.agent);
 
-    await testApp.agent
-      .delete(`/api/v1/proposals/${created.id}`)
-      .expect(204);
+    await testApp.agent.delete(`/api/v1/proposals/${created.id}`).expect(204);
+
+    const row = await testApp.container.db
+      .selectFrom('proposal')
+      .where('id', '=', created.id)
+      .select(['uri'])
+      .executeTakeFirstOrThrow();
+    const source = await testApp.container.db
+      .selectFrom('pds_record')
+      .where('uri', '=', row.uri!)
+      .select(['deleted_at'])
+      .executeTakeFirstOrThrow();
+    expect(source.deleted_at).not.toBeNull();
 
     // Should no longer appear in list
     const listRes = await testApp.agent.get('/api/v1/proposals').expect(200);
     expect(listRes.body.proposals).toHaveLength(0);
 
     // Should 404 on direct get
-    await testApp.agent
-      .get(`/api/v1/proposals/${created.id}`)
-      .expect(404);
+    await testApp.agent.get(`/api/v1/proposals/${created.id}`).expect(404);
   });
 
   // ---------------------------------------------------------------
@@ -356,7 +503,11 @@ describe('Proposals & Voting', () => {
 
     await testApp.agent
       .post('/api/v1/proposals')
-      .send({ body: 'No title', votingType: 'binary', quorumType: 'simpleMajority' })
+      .send({
+        body: 'No title',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+      })
       .expect(400);
   });
 });

@@ -1,7 +1,15 @@
 import type { Kysely, Selectable } from 'kysely';
 import type { Database, ProposalTable } from '@coopsource/db';
-import type { MembershipService, MemberWithRoles } from '../../services/membership-service.js';
-import type { DelegationVotingService } from '../../services/delegation-voting-service.js';
+import { membersSpace } from '@coopsource/arbiter-client';
+import type { DID } from '@coopsource/common';
+import type {
+  EligibilityPlugin,
+  VoteWeightPlugin,
+} from '@coopsource/governance-view';
+import type { MemberDirectoryEntry } from '../../services/membership-read-model.js';
+
+const PROPOSAL_COLLECTION = 'network.coopsource.governance.proposal';
+const VOTE_WEIGHT_PREVIEW_CHOICE = 'preview';
 
 export interface VoteEligibilityResult {
   eligible: boolean;
@@ -19,11 +27,12 @@ export interface VoteEligibilityResult {
  */
 export async function checkVoteEligibility(
   db: Kysely<Database>,
-  membershipService: MembershipService,
-  delegationVotingService: DelegationVotingService,
+  eligibilityPlugin: EligibilityPlugin,
+  voteWeightPlugin: VoteWeightPlugin,
   proposal: Selectable<ProposalTable>,
   viewerDid: string,
-  viewerMembership?: MemberWithRoles,
+  checkedAt: Date,
+  viewerMembership?: MemberDirectoryEntry,
 ): Promise<VoteEligibilityResult> {
   // Check proposal is in voting phase
   if (proposal.status !== 'open') {
@@ -36,11 +45,12 @@ export async function checkVoteEligibility(
   }
 
   // Check active membership
-  const member = viewerMembership ?? await membershipService.getMember(
-    proposal.cooperative_did,
-    viewerDid,
-  );
-  if (!member || member.status !== 'active') {
+  const membershipEligible = viewerMembership
+    ? viewerMembership.status === 'active'
+    : (await eligibilityPlugin.canVote(
+        eligibilityInput(proposal, viewerDid, checkedAt),
+      )).eligible;
+  if (!membershipEligible) {
     return {
       eligible: false,
       weight: 0,
@@ -50,11 +60,12 @@ export async function checkVoteEligibility(
   }
 
   // Calculate vote weight (includes delegations)
-  const weight = await delegationVotingService.calculateVoteWeight(
-    proposal.cooperative_did,
-    viewerDid,
-    proposal.id,
-  );
+  const weight = (
+    await voteWeightPlugin.weightForVote({
+      ...eligibilityInput(proposal, viewerDid, checkedAt),
+      voteChoice: VOTE_WEIGHT_PREVIEW_CHOICE,
+    })
+  ).weight;
 
   // Check if viewer has already voted (active vote = retracted_at IS NULL)
   const existingVote = await db
@@ -80,5 +91,33 @@ export async function checkVoteEligibility(
     eligible: true,
     weight,
     hasVoted: false,
+  };
+}
+
+function eligibilityInput(
+  proposal: Selectable<ProposalTable>,
+  viewerDid: string,
+  checkedAt: Date,
+): Parameters<EligibilityPlugin['canVote']>[0] {
+  if (!proposal.uri) {
+    throw new Error(
+      `Cannot check vote eligibility for proposal ${proposal.id}: missing proposal URI`,
+    );
+  }
+
+  const memberSpace = membersSpace(proposal.cooperative_did as DID);
+  return {
+    voter: { did: viewerDid },
+    proposal: {
+      uri: proposal.uri,
+      ...(proposal.cid ? { cid: proposal.cid } : {}),
+      collection: PROPOSAL_COLLECTION,
+    },
+    cooperative: {
+      authorityDid: proposal.cooperative_did,
+      spaceKey: memberSpace.spaceKey,
+      spaceType: memberSpace.expectedSpaceType,
+    },
+    at: checkedAt.toISOString(),
   };
 }

@@ -1,0 +1,30 @@
+{
+  "name": "@coopsource/coop-view",
+  "version": "0.0.0",
+  "private": true,
+  "description": "CSN cooperative-specific GovernanceView adapters",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "prebuild": "rm -rf dist",
+    "build": "tsc",
+    "test": "vitest run",
+    "clean": "rm -rf dist",
+    "lint": "eslint src --ext .ts"
+  },
+  "dependencies": {
+    "@coopsource/governance-view": "workspace:*"
+  },
+  "devDependencies": {
+    "@coopsource/config": "workspace:*",
+    "typescript": "^5.9",
+    "vitest": "^4.0"
+  }
+}

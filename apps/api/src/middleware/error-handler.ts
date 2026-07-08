@@ -21,10 +21,20 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
     if (err.statusCode >= 500) {
       logger.error({ err, method: req.method, path: req.path }, 'App error');
     }
-    res.status(err.statusCode).json({
+    const body: {
+      error: string;
+      message: string;
+      axis?: string;
+      reason?: string;
+    } = {
       error: err.code,
       message: err.message,
-    });
+    };
+    const axis = (err as { axis?: unknown }).axis;
+    const reason = (err as { reason?: unknown }).reason;
+    if (typeof axis === 'string') body.axis = axis;
+    if (typeof reason === 'string') body.reason = reason;
+    res.status(err.statusCode).json(body);
     return;
   }
 

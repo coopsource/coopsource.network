@@ -58,6 +58,7 @@ export type {
   // Governance types
   GovernanceDelegation,
   GovernanceProposal,
+  GovernanceProposalAnchor,
   GovernanceVote,
 
   // Org types
@@ -74,6 +75,51 @@ export type {
 
 // Lexicon ID constants
 export { LEXICON_IDS } from './generated/types.js';
+
+// Proposal 0016 draft space type declarations. These are intentionally
+// exported outside the generated record-schema pipeline until atproto lex tooling
+// accepts Lexicon definitions with `"type": "space"`.
+export {
+  CSN_MEMBER_CLASS_SPACE_TYPE,
+  CSN_MEMBERS_SPACE_TYPE,
+  CSN_ROLE_SPACE_TYPE,
+  CSN_SPACE_TYPE_DECLARATIONS,
+} from './space-types.js';
+export type { SpaceTypeDeclaration } from './space-types.js';
+export {
+  formatSpaceReadScope,
+  formatSpaceReadSelfScope,
+  formatSpaceScope,
+} from './space-scopes.js';
+export type {
+  SpaceScopeAction,
+  SpaceScopeManageAction,
+  SpaceScopeOptions,
+} from './space-scopes.js';
+export {
+  CSN_SPACE_PLACEMENT_MATRIX,
+  findCsnSpacePlacement,
+  formatPlacementAppViewReadScope,
+  formatPlacementMemberSelfReadScope,
+} from './space-placement.js';
+export type {
+  CsnSpacePlacement,
+  CsnSpacePlacementKind,
+  CsnSpaceSkeyPattern,
+  CsnSpaceTypeId,
+  PlacementScopeOptions,
+} from './space-placement.js';
+export {
+  formatCsnAppViewReadScopePlan,
+  formatCsnMemberSelfReadScopePlan,
+  formatCsnMemberWriteScopePlan,
+} from './space-oauth-plan.js';
+export type {
+  CsnScopePlanSkeyMode,
+  CsnSpaceScopePlanOptions,
+  CsnSpaceWriteAction,
+  CsnSpaceWriteScopePlanOptions,
+} from './space-oauth-plan.js';
 
 // Runtime validation
 export {

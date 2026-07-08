@@ -16,11 +16,9 @@ import {
   type StopCondition,
 } from 'ai';
 import { ModelProviderRegistry } from './model-provider-registry.js';
-import {
-  buildAiSdkTools,
-  type AgentToolContext,
-} from './tools/index.js';
+import { buildAiSdkTools, type AgentToolContext } from './tools/index.js';
 import type { McpClient } from './mcp-client.js';
+import type { MembershipReadModel } from '../services/membership-read-model.js';
 
 const MAX_TOOL_LOOPS = 10;
 const DOOM_LOOP_THRESHOLD = 3;
@@ -99,6 +97,7 @@ export class ChatEngine {
     private db: Kysely<Database>,
     private clock: IClock,
     private modelProviderRegistry: ModelProviderRegistry,
+    private membershipReadModel: MembershipReadModel,
     private mcpClient?: McpClient,
   ) {}
 
@@ -139,11 +138,12 @@ export class ChatEngine {
     // Build AI SDK tools
     const toolContext: AgentToolContext = {
       db: this.db,
+      membershipReadModel: this.membershipReadModel,
       cooperativeDid: options.cooperativeDid,
       actorDid: options.userDid,
     };
     const builtInTools = buildAiSdkTools(agent.allowedTools, toolContext);
-    const mcpTools = await this.mcpClient?.getAllTools() ?? {};
+    const mcpTools = (await this.mcpClient?.getAllTools()) ?? {};
     const tools = { ...builtInTools, ...mcpTools };
     const hasTools = Object.keys(tools).length > 0;
 
@@ -251,11 +251,12 @@ export class ChatEngine {
     // Build AI SDK tools — streaming now supports tools natively
     const toolContext: AgentToolContext = {
       db: this.db,
+      membershipReadModel: this.membershipReadModel,
       cooperativeDid: options.cooperativeDid,
       actorDid: options.userDid,
     };
     const builtInTools = buildAiSdkTools(agent.allowedTools, toolContext);
-    const mcpTools = await this.mcpClient?.getAllTools() ?? {};
+    const mcpTools = (await this.mcpClient?.getAllTools()) ?? {};
     const tools = { ...builtInTools, ...mcpTools };
     const hasTools = Object.keys(tools).length > 0;
 
@@ -312,12 +313,34 @@ export class ChatEngine {
       }
       // Save partial content before re-throwing
       if (fullContent || totalInputTokens > 0) {
-        const costMicrodollars = this.calculateCost(totalInputTokens, totalOutputTokens, modelId);
-        await this.saveMessage(sessionId, 'assistant', fullContent, null,
-          totalInputTokens, totalOutputTokens, costMicrodollars, modelId);
-        await this.updateSessionUsage(sessionId, totalInputTokens, totalOutputTokens, costMicrodollars);
-        await this.updateMonthlyUsage(options.cooperativeDid, agent.id,
-          totalInputTokens, totalOutputTokens, costMicrodollars);
+        const costMicrodollars = this.calculateCost(
+          totalInputTokens,
+          totalOutputTokens,
+          modelId,
+        );
+        await this.saveMessage(
+          sessionId,
+          'assistant',
+          fullContent,
+          null,
+          totalInputTokens,
+          totalOutputTokens,
+          costMicrodollars,
+          modelId,
+        );
+        await this.updateSessionUsage(
+          sessionId,
+          totalInputTokens,
+          totalOutputTokens,
+          costMicrodollars,
+        );
+        await this.updateMonthlyUsage(
+          options.cooperativeDid,
+          agent.id,
+          totalInputTokens,
+          totalOutputTokens,
+          costMicrodollars,
+        );
       }
       throw streamError;
     }
@@ -478,10 +501,7 @@ export class ChatEngine {
     const session = await this.db
       .selectFrom('agent_session')
       .where('id', '=', sessionId)
-      .select([
-        'total_input_tokens',
-        'total_output_tokens',
-      ])
+      .select(['total_input_tokens', 'total_output_tokens'])
       .executeTakeFirst();
 
     if (!session) return;

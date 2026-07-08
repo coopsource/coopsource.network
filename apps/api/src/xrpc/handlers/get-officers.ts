@@ -7,10 +7,11 @@ export async function handleGetOfficers(ctx: XrpcContext): Promise<unknown> {
     ctx.container.db,
     cooperativeDid,
     ctx.viewer,
-    ctx.container.membershipService,
+    ctx.container.membershipReadModel,
   );
 
-  const officers = await ctx.container.officerRecordService.getCurrent(cooperativeDid);
+  const officers =
+    await ctx.container.officerRecordService.getCurrent(cooperativeDid);
 
   // Batch look up display names from entity table
   const officerDids = officers.map((o) => o.officer_did);

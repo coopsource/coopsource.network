@@ -1,6 +1,10 @@
 import { $, serializeTree } from '@inlay/core';
-import { AppError, NotFoundError } from '@coopsource/common';
+import { AppError, NotFoundError, type DID } from '@coopsource/common';
 import type { XrpcContext } from '../dispatcher.js';
+import {
+  membershipAuthorityErrorCode,
+  membershipAuthorityHttpStatus,
+} from '../../services/membership-read-model.js';
 
 /**
  * Inlay external component: MembershipStatus (personalized).
@@ -26,11 +30,19 @@ export async function handleInlayMembershipStatus(
   // Verify the cooperative exists and check governance visibility
   const coop = await ctx.container.db
     .selectFrom('entity')
-    .innerJoin('cooperative_profile', 'cooperative_profile.entity_did', 'entity.did')
+    .innerJoin(
+      'cooperative_profile',
+      'cooperative_profile.entity_did',
+      'entity.did',
+    )
     .where('entity.did', '=', cooperativeDid)
     .where('entity.type', '=', 'cooperative')
     .where('entity.status', '=', 'active')
-    .select(['entity.did', 'entity.display_name', 'cooperative_profile.governance_visibility'])
+    .select([
+      'entity.did',
+      'entity.display_name',
+      'cooperative_profile.governance_visibility',
+    ])
     .executeTakeFirst();
 
   if (!coop) {
@@ -44,7 +56,22 @@ export async function handleInlayMembershipStatus(
     if (!viewerDid) {
       throw new NotFoundError('Cooperative not found');
     }
-    const member = await ctx.container.membershipService.getMember(cooperativeDid, viewerDid);
+    const memberResult =
+      await ctx.container.membershipReadModel.getMemberResult(
+        cooperativeDid as DID,
+        viewerDid as DID,
+      );
+    if (!memberResult.ok) {
+      if (memberResult.reason === 'not-member') {
+        throw new NotFoundError('Cooperative not found');
+      }
+      throw new AppError(
+        memberResult.message,
+        membershipAuthorityHttpStatus(memberResult, 404),
+        membershipAuthorityErrorCode(memberResult, 'NotFound'),
+      );
+    }
+    const member = memberResult.member;
     if (!member || member.status !== 'active') {
       throw new NotFoundError('Cooperative not found');
     }
@@ -53,7 +80,9 @@ export async function handleInlayMembershipStatus(
   // Non-personalized fallback: show cooperative name only
   if (!viewerDid) {
     const tree = serializeTree(
-      $('org.atsui.Stack', { gap: 'small' },
+      $(
+        'org.atsui.Stack',
+        { gap: 'small' },
         $('org.atsui.Caption', {}, coop.display_name),
         $('org.atsui.Caption', {}, 'Sign in to see your membership status'),
       ),
@@ -62,14 +91,26 @@ export async function handleInlayMembershipStatus(
   }
 
   // Look up the viewer's membership
-  const member = await ctx.container.membershipService.getMember(
-    cooperativeDid,
-    viewerDid,
+  const memberResult = await ctx.container.membershipReadModel.getMemberResult(
+    cooperativeDid as DID,
+    viewerDid as DID,
   );
+  if (!memberResult.ok) {
+    if (memberResult.reason !== 'not-member') {
+      throw new AppError(
+        memberResult.message,
+        membershipAuthorityHttpStatus(memberResult, 404),
+        membershipAuthorityErrorCode(memberResult, 'NotFound'),
+      );
+    }
+  }
 
+  const member = memberResult.ok ? memberResult.member : null;
   if (!member || member.status !== 'active') {
     const tree = serializeTree(
-      $('org.atsui.Stack', { gap: 'small' },
+      $(
+        'org.atsui.Stack',
+        { gap: 'small' },
         $('org.atsui.Caption', {}, coop.display_name),
         $('org.atsui.Caption', {}, 'Not a member'),
       ),
@@ -78,14 +119,16 @@ export async function handleInlayMembershipStatus(
   }
 
   // Active member — show roles
-  const roleText = member.roles.length > 0
-    ? member.roles.join(', ')
-    : 'member';
+  const roleText = member.roles.length > 0 ? member.roles.join(', ') : 'member';
 
   const tree = serializeTree(
-    $('org.atsui.Stack', { gap: 'small' },
+    $(
+      'org.atsui.Stack',
+      { gap: 'small' },
       $('org.atsui.Title', {}, coop.display_name),
-      $('org.atsui.Row', { gap: 'small' },
+      $(
+        'org.atsui.Row',
+        { gap: 'small' },
         $('org.atsui.Caption', {}, '✓ Active member'),
       ),
       $('org.atsui.Caption', {}, `Roles: ${roleText}`),

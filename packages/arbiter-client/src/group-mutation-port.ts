@@ -182,11 +182,11 @@ export interface CsnDbGroupMutationPortOptions {
 }
 
 /**
- * Write side of the Arbiter boundary, temporarily backed by CSN's own
- * `membership`/`membership_role` tables. Phase 3 swaps this for an XRPC
- * adapter against the draft `town.muni.arbiter.*` mutation lexicons
- * (createSpace / removeSpaceMember / setSpaceMemberAccess; createDid /
- * updateDidDoc for controlled-DID provisioning). See ARCHITECTURE-V12 §4.
+ * Write side of the group-authority boundary, temporarily backed by CSN's own
+ * `membership`/`membership_role` tables. A future XRPC adapter should target
+ * whichever space-management/Arbiter surface stabilizes; current Proposal 0016
+ * draft work exposes direct simplespace management but not CSN's full role and
+ * recursive-membership semantics. See ARCHITECTURE-V12 §4.
  */
 export class CsnDbGroupMutationPort implements GroupMutationPort {
   constructor(

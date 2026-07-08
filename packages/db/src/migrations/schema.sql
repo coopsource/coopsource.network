@@ -552,6 +552,8 @@ CREATE TABLE public.cooperative_profile (
     public_activity boolean DEFAULT false NOT NULL,
     public_agreements boolean DEFAULT false NOT NULL,
     public_campaigns boolean DEFAULT false NOT NULL,
+    public_governance_anchors boolean DEFAULT false NOT NULL,
+    public_governance_anchor_outcomes boolean DEFAULT false NOT NULL,
     governance_visibility text DEFAULT 'open'::text NOT NULL,
     anon_discoverable boolean DEFAULT false NOT NULL,
     cross_coop_visible boolean DEFAULT true NOT NULL
@@ -1497,6 +1499,9 @@ CREATE TABLE public.proposal (
     closes_at timestamp with time zone,
     resolved_at timestamp with time zone,
     tags text[] DEFAULT '{}'::text[] NOT NULL,
+    meeting_event text,
+    full_document text,
+    discussion_thread text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     created_by text NOT NULL,
     invalidated_at timestamp with time zone,
@@ -1508,6 +1513,30 @@ CREATE TABLE public.proposal (
     CONSTRAINT proposal_quorum_type_check CHECK ((quorum_type = ANY (ARRAY['simpleMajority'::text, 'superMajority'::text, 'unanimous'::text, 'custom'::text]))),
     CONSTRAINT proposal_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'open'::text, 'closed'::text, 'resolved'::text, 'withdrawn'::text]))),
     CONSTRAINT proposal_voting_type_check CHECK ((voting_type = ANY (ARRAY['binary'::text, 'approval'::text, 'ranked'::text])))
+);
+
+
+--
+-- Name: public_governance_anchor; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.public_governance_anchor (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    cooperative_did text NOT NULL,
+    proposal_id uuid NOT NULL,
+    anchor_uri text NOT NULL,
+    anchor_cid text NOT NULL,
+    status text NOT NULL,
+    outcome text,
+    opened_at timestamp with time zone,
+    closed_at timestamp with time zone,
+    resolved_at timestamp with time zone,
+    anchor_version integer DEFAULT 1 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT public_governance_anchor_outcome_check CHECK (((outcome IS NULL) OR (outcome = ANY (ARRAY['passed'::text, 'failed'::text, 'no_quorum'::text, 'class_quorum_not_met'::text, 'archived'::text])))),
+    CONSTRAINT public_governance_anchor_status_check CHECK ((status = ANY (ARRAY['open'::text, 'closed'::text, 'resolved'::text, 'withdrawn'::text, 'archived'::text]))),
+    CONSTRAINT public_governance_anchor_version_check CHECK ((anchor_version = 1))
 );
 
 
@@ -1717,6 +1746,21 @@ CREATE TABLE public.signature_request (
     signature_cid text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT signature_request_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'signed'::text, 'rejected'::text, 'cancelled'::text, 'expired'::text, 'retracted'::text])))
+);
+
+
+--
+-- Name: space_credential; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.space_credential (
+    space_ref_key text NOT NULL,
+    arbiter_did text NOT NULL,
+    space_key text NOT NULL,
+    expected_space_type text,
+    token text NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -2691,6 +2735,30 @@ ALTER TABLE ONLY public.proposal
 
 
 --
+-- Name: public_governance_anchor public_governance_anchor_anchor_uri_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.public_governance_anchor
+    ADD CONSTRAINT public_governance_anchor_anchor_uri_key UNIQUE (anchor_uri);
+
+
+--
+-- Name: public_governance_anchor public_governance_anchor_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.public_governance_anchor
+    ADD CONSTRAINT public_governance_anchor_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: public_governance_anchor public_governance_anchor_proposal_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.public_governance_anchor
+    ADD CONSTRAINT public_governance_anchor_proposal_id_key UNIQUE (proposal_id);
+
+
+--
 -- Name: registered_lexicon registered_lexicon_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2776,6 +2844,14 @@ ALTER TABLE ONLY public.shared_resource
 
 ALTER TABLE ONLY public.signature_request
     ADD CONSTRAINT signature_request_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: space_credential space_credential_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.space_credential
+    ADD CONSTRAINT space_credential_pkey PRIMARY KEY (space_ref_key);
 
 
 --
@@ -3073,6 +3149,13 @@ CREATE INDEX did_rotation_history_current_did_idx ON public.did_rotation_history
 --
 
 CREATE INDEX did_rotation_history_prior_did_idx ON public.did_rotation_history USING btree (prior_did);
+
+
+--
+-- Name: space_credential_expires_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX space_credential_expires_at_idx ON public.space_credential USING btree (expires_at);
 
 
 --
@@ -3762,6 +3845,13 @@ CREATE INDEX idx_proposal_uri ON public.proposal USING btree (uri) WHERE ((uri I
 
 
 --
+-- Name: idx_public_governance_anchor_coop_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_public_governance_anchor_coop_status ON public.public_governance_anchor USING btree (cooperative_did, status, updated_at);
+
+
+--
 -- Name: idx_report_snapshot_coop_type_generated; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -4296,6 +4386,22 @@ ALTER TABLE ONLY public.proposal
 
 
 --
+-- Name: public_governance_anchor public_governance_anchor_cooperative_did_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.public_governance_anchor
+    ADD CONSTRAINT public_governance_anchor_cooperative_did_fkey FOREIGN KEY (cooperative_did) REFERENCES public.entity(did);
+
+
+--
+-- Name: public_governance_anchor public_governance_anchor_proposal_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.public_governance_anchor
+    ADD CONSTRAINT public_governance_anchor_proposal_id_fkey FOREIGN KEY (proposal_id) REFERENCES public.proposal(id) ON DELETE CASCADE;
+
+
+--
 -- Name: script_execution_log script_execution_log_script_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4378,5 +4484,3 @@ ALTER TABLE ONLY public.vote
 --
 -- PostgreSQL database dump complete
 --
-
-

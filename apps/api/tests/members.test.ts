@@ -5,6 +5,9 @@ import { createTestApp, setupAndLogin } from './helpers/test-app.js';
 import { resetSetupCache } from '../src/auth/middleware.js';
 import { sseEmitter, type AppEvent } from '../src/appview/sse.js';
 import type { TestApp } from './helpers/test-app.js';
+import { AuthService } from '../src/services/auth-service.js';
+import type { GroupMutationPort } from '@coopsource/arbiter-client';
+import type { IPdsService } from '@coopsource/federation';
 
 describe('Members & Invitations', () => {
   let testApp: TestApp;
@@ -77,12 +80,17 @@ describe('Members & Invitations', () => {
     const other = supertest.agent(testApp.app);
     const reg = await other
       .post('/api/v1/auth/register')
-      .send({ email: 'rostertest@test.com', password: 'password123', displayName: 'Roster' })
+      .send({
+        email: 'rostertest@test.com',
+        password: 'password123',
+        displayName: 'Roster',
+      })
       .expect(201);
     const otherDid = reg.body.did as string;
 
     // Both active → both on the default roster.
-    let list = (await testApp.agent.get('/api/v1/members').expect(200)).body.members;
+    let list = (await testApp.agent.get('/api/v1/members').expect(200)).body
+      .members;
     expect(list.map((m: { did: string }) => m.did)).toEqual(
       expect.arrayContaining([adminDid, otherDid]),
     );
@@ -93,7 +101,8 @@ describe('Members & Invitations', () => {
       .expect(204);
 
     // Default roster now excludes the suspended member (agrees with member count).
-    list = (await testApp.agent.get('/api/v1/members').expect(200)).body.members;
+    list = (await testApp.agent.get('/api/v1/members').expect(200)).body
+      .members;
     expect(list.map((m: { did: string }) => m.did)).toEqual([adminDid]);
 
     // ...but an admin can still list them explicitly.
@@ -113,7 +122,11 @@ describe('Members & Invitations', () => {
       const joiner = supertest.agent(testApp.app);
       const reg = await joiner
         .post('/api/v1/auth/register')
-        .send({ email: 'joiner@test.com', password: 'password123', displayName: 'Joiner' })
+        .send({
+          email: 'joiner@test.com',
+          password: 'password123',
+          displayName: 'Joiner',
+        })
         .expect(201);
       const joinerDid = reg.body.did as string;
 
@@ -141,7 +154,11 @@ describe('Members & Invitations', () => {
     const other = supertest.agent(testApp.app);
     const reg = await other
       .post('/api/v1/auth/register')
-      .send({ email: 'target@test.com', password: 'password123', displayName: 'Target' })
+      .send({
+        email: 'target@test.com',
+        password: 'password123',
+        displayName: 'Target',
+      })
       .expect(201);
     const targetDid = reg.body.did as string;
 
@@ -194,6 +211,61 @@ describe('Members & Invitations', () => {
     expect(res.body.invitedBy).toBe('Test Admin');
   });
 
+  it('GET /api/v1/invitations/:token does not expose the full invitee email', async () => {
+    const invRes = await testApp.agent
+      .post('/api/v1/invitations')
+      .send({ email: 'secret@example.com', roles: ['member'] })
+      .expect(201);
+
+    const res = await supertest
+      .agent(testApp.app)
+      .get(`/api/v1/invitations/${invRes.body.token}`)
+      .expect(200);
+
+    expect(res.body.email).toBeNull();
+    expect(res.body.emailHint).toMatch(/^s\*\*\*t@e\*\*\*\.com$/);
+  });
+
+  it('GET /api/v1/invitations/:token returns 404 after the invite is accepted', async () => {
+    const invRes = await testApp.agent
+      .post('/api/v1/invitations')
+      .send({ email: 'accepted-preview@example.com', roles: ['member'] })
+      .expect(201);
+
+    await supertest
+      .agent(testApp.app)
+      .post(`/api/v1/invitations/${invRes.body.token}/accept`)
+      .send({
+        email: 'accepted-preview@example.com',
+        displayName: 'Accepted Preview',
+        password: 'securepass123',
+      })
+      .expect(201);
+
+    await supertest
+      .agent(testApp.app)
+      .get(`/api/v1/invitations/${invRes.body.token}`)
+      .expect(404);
+  });
+
+  it('GET /api/v1/invitations/:token returns 404 after the invite expires', async () => {
+    const invRes = await testApp.agent
+      .post('/api/v1/invitations')
+      .send({ email: 'expired-preview@example.com', roles: ['member'] })
+      .expect(201);
+
+    await testApp.container.db
+      .updateTable('invitation')
+      .set({ expires_at: new Date(testApp.clock.nowMs() - 1000) })
+      .where('token', '=', invRes.body.token as string)
+      .execute();
+
+    await supertest
+      .agent(testApp.app)
+      .get(`/api/v1/invitations/${invRes.body.token}`)
+      .expect(404);
+  });
+
   // ─── 3. POST /api/v1/invitations/:token/accept creates entity + membership ─
 
   it('POST /api/v1/invitations/:token/accept creates entity + membership', async () => {
@@ -210,6 +282,7 @@ describe('Members & Invitations', () => {
     const acceptRes = await publicAgent
       .post(`/api/v1/invitations/${token}/accept`)
       .send({
+        email: 'bob@example.com',
         displayName: 'Bob Builder',
         handle: 'bob',
         password: 'securepass123',
@@ -236,15 +309,274 @@ describe('Members & Invitations', () => {
     await supertest
       .agent(testApp.app)
       .post(`/api/v1/invitations/${token}/accept`)
-      .send({ displayName: 'First', password: 'securepass123' })
+      .send({
+        email: 'once@example.com',
+        displayName: 'First',
+        password: 'securepass123',
+      })
       .expect(201);
 
     // A second redemption of the same token is refused.
     await supertest
       .agent(testApp.app)
       .post(`/api/v1/invitations/${token}/accept`)
-      .send({ displayName: 'Second', password: 'securepass123' })
+      .send({
+        email: 'once@example.com',
+        displayName: 'Second',
+        password: 'securepass123',
+      })
       .expect(404);
+  });
+
+  it('accepts an invitation only once under concurrent redemption', async () => {
+    const invRes = await testApp.agent
+      .post('/api/v1/invitations')
+      .send({ email: 'race@example.com', roles: ['member'] })
+      .expect(201);
+    const token = invRes.body.token as string;
+
+    const payload = {
+      email: 'race@example.com',
+      displayName: 'Race Winner',
+      password: 'securepass123',
+    };
+    const attempts = await Promise.all([
+      supertest
+        .agent(testApp.app)
+        .post(`/api/v1/invitations/${token}/accept`)
+        .send(payload),
+      supertest
+        .agent(testApp.app)
+        .post(`/api/v1/invitations/${token}/accept`)
+        .send(payload),
+    ]);
+
+    const statuses = attempts.map((res) => res.status).sort();
+    expect(statuses).toContain(201);
+    expect(statuses.filter((status) => status === 201)).toHaveLength(1);
+    expect(
+      statuses.every((status) => [201, 400, 404, 409].includes(status)),
+    ).toBe(true);
+
+    const credentials = await testApp.container.db
+      .selectFrom('auth_credential')
+      .where('identifier', '=', 'race@example.com')
+      .where('invalidated_at', 'is', null)
+      .select(['entity_did'])
+      .execute();
+    expect(credentials).toHaveLength(1);
+
+    const memberships = await testApp.container.db
+      .selectFrom('membership')
+      .where('cooperative_did', '=', coopDid)
+      .where('member_did', '=', credentials[0].entity_did)
+      .where('status', '=', 'active')
+      .where('invalidated_at', 'is', null)
+      .select(['id'])
+      .execute();
+    expect(memberships).toHaveLength(1);
+
+    const invitation = await testApp.container.db
+      .selectFrom('invitation')
+      .where('token', '=', token)
+      .select(['status', 'invitee_did', 'invalidated_at'])
+      .executeTakeFirstOrThrow();
+    expect(invitation.status).toBe('accepted');
+    expect(invitation.invitee_did).toBe(credentials[0].entity_did);
+    expect(invitation.invalidated_at).toBeNull();
+  });
+
+  it('does not create external PDS artifacts for the losing concurrent redemption', async () => {
+    const invRes = await testApp.agent
+      .post('/api/v1/invitations')
+      .send({ email: 'artifact-race@example.com', roles: ['member'] })
+      .expect(201);
+    const token = invRes.body.token as string;
+
+    const countPdsRecords = async (collection: string): Promise<number> =>
+      (
+        await testApp.container.db
+          .selectFrom('pds_record')
+          .where('collection', '=', collection)
+          .select('uri')
+          .execute()
+      ).length;
+
+    const profileRecordsBefore = await countPdsRecords(
+      'network.coopsource.actor.profile',
+    );
+    const consentRecordsBefore = await countPdsRecords(
+      'network.coopsource.org.memberConsent',
+    );
+
+    const originalAuthService = testApp.container.authService;
+    const delayedPds = new DelayedCreateDidPdsService(
+      testApp.container.pdsService,
+      75,
+    );
+    testApp.container.authService = new AuthService(
+      testApp.container.db,
+      delayedPds,
+      testApp.container.clock,
+      testApp.container.profileService,
+      'http://localhost:3001',
+      undefined,
+      testApp.container.groupMutationsForDb,
+      testApp.container.membershipReadModel,
+    );
+
+    let statuses: number[] = [];
+    try {
+      const payload = {
+        email: 'artifact-race@example.com',
+        displayName: 'Artifact Race',
+        password: 'securepass123',
+      };
+      const attempts = await Promise.all([
+        supertest
+          .agent(testApp.app)
+          .post(`/api/v1/invitations/${token}/accept`)
+          .send(payload),
+        supertest
+          .agent(testApp.app)
+          .post(`/api/v1/invitations/${token}/accept`)
+          .send(payload),
+      ]);
+      statuses = attempts.map((res) => res.status).sort();
+    } finally {
+      testApp.container.authService = originalAuthService;
+    }
+
+    expect(statuses.filter((status) => status === 201)).toHaveLength(1);
+    expect(
+      statuses.every((status) => [201, 400, 404, 409].includes(status)),
+    ).toBe(true);
+    expect(delayedPds.createDidCalls).toBe(1);
+    expect(await countPdsRecords('network.coopsource.actor.profile')).toBe(
+      profileRecordsBefore + 1,
+    );
+    expect(await countPdsRecords('network.coopsource.org.memberConsent')).toBe(
+      consentRecordsBefore + 1,
+    );
+  });
+
+  it('does not burn an invitation or create an account if membership authority rejects acceptance', async () => {
+    const invRes = await testApp.agent
+      .post('/api/v1/invitations')
+      .send({ email: 'rollback@example.com', roles: ['member'] })
+      .expect(201);
+    const token = invRes.body.token as string;
+
+    const originalAuthService = testApp.container.authService;
+    const failingGroupMutationsForDb: typeof testApp.container.groupMutationsForDb =
+      (authorityDb) => {
+        const base = testApp.container.groupMutationsForDb(authorityDb);
+        return new Proxy(base, {
+          get(target, prop, receiver) {
+            if (prop === 'addMember') {
+              const addMember: GroupMutationPort['addMember'] = async (
+                args,
+              ) => ({
+                ok: false,
+                changed: false,
+                operation: 'add-member',
+                cooperativeDid: args.cooperativeDid,
+                memberDid: args.memberDid,
+                reason: 'invalid-role',
+              });
+              return addMember;
+            }
+            const value = Reflect.get(target, prop, receiver);
+            return typeof value === 'function' ? value.bind(target) : value;
+          },
+        }) as GroupMutationPort;
+      };
+
+    testApp.container.authService = new AuthService(
+      testApp.container.db,
+      testApp.container.pdsService,
+      testApp.container.clock,
+      testApp.container.profileService,
+      'http://localhost:3001',
+      undefined,
+      failingGroupMutationsForDb,
+      testApp.container.membershipReadModel,
+    );
+
+    try {
+      await supertest
+        .agent(testApp.app)
+        .post(`/api/v1/invitations/${token}/accept`)
+        .send({
+          email: 'rollback@example.com',
+          displayName: 'Rollback Invitee',
+          password: 'securepass123',
+        })
+        .expect(400);
+    } finally {
+      testApp.container.authService = originalAuthService;
+    }
+
+    const invitation = await testApp.container.db
+      .selectFrom('invitation')
+      .where('token', '=', token)
+      .select(['status', 'invitee_did', 'invalidated_at'])
+      .executeTakeFirstOrThrow();
+    expect(invitation.status).toBe('pending');
+    expect(invitation.invitee_did).toBeNull();
+    expect(invitation.invalidated_at).toBeNull();
+
+    const credentials = await testApp.container.db
+      .selectFrom('auth_credential')
+      .where('identifier', '=', 'rollback@example.com')
+      .where('invalidated_at', 'is', null)
+      .select('id')
+      .execute();
+    expect(credentials).toHaveLength(0);
+
+    const entities = await testApp.container.db
+      .selectFrom('entity')
+      .where('display_name', '=', 'Rollback Invitee')
+      .select('did')
+      .execute();
+    expect(entities).toHaveLength(0);
+
+    await supertest
+      .agent(testApp.app)
+      .post(`/api/v1/invitations/${token}/accept`)
+      .send({
+        email: 'rollback@example.com',
+        displayName: 'Rollback Invitee',
+        password: 'securepass123',
+      })
+      .expect(201);
+  });
+
+  it('rejects public invitation accept with a different email', async () => {
+    const invRes = await testApp.agent
+      .post('/api/v1/invitations')
+      .send({ email: 'right@example.com', roles: ['member'] })
+      .expect(201);
+
+    await supertest
+      .agent(testApp.app)
+      .post(`/api/v1/invitations/${invRes.body.token}/accept`)
+      .send({
+        email: 'wrong@example.com',
+        displayName: 'Wrong Email',
+        password: 'securepass123',
+      })
+      .expect(400);
+
+    await supertest
+      .agent(testApp.app)
+      .post(`/api/v1/invitations/${invRes.body.token}/accept`)
+      .send({
+        email: 'right@example.com',
+        displayName: 'Right Email',
+        password: 'securepass123',
+      })
+      .expect(201);
   });
 
   it('rejects register with an invitation addressed to a different email', async () => {
@@ -258,19 +590,34 @@ describe('Members & Invitations', () => {
     await supertest
       .agent(testApp.app)
       .post('/api/v1/auth/register')
-      .send({ email: 'attacker@example.com', password: 'password123', displayName: 'Mallory', invitationToken: token })
+      .send({
+        email: 'attacker@example.com',
+        password: 'password123',
+        displayName: 'Mallory',
+        invitationToken: token,
+      })
       .expect(400);
 
     // The addressed email can, and the token is then single-use.
     await supertest
       .agent(testApp.app)
       .post('/api/v1/auth/register')
-      .send({ email: 'invited@example.com', password: 'password123', displayName: 'Invitee', invitationToken: token })
+      .send({
+        email: 'invited@example.com',
+        password: 'password123',
+        displayName: 'Invitee',
+        invitationToken: token,
+      })
       .expect(201);
     await supertest
       .agent(testApp.app)
       .post('/api/v1/auth/register')
-      .send({ email: 'invited@example.com', password: 'password123', displayName: 'Again', invitationToken: token })
+      .send({
+        email: 'invited@example.com',
+        password: 'password123',
+        displayName: 'Again',
+        invitationToken: token,
+      })
       .expect(400);
   });
 
@@ -287,6 +634,7 @@ describe('Members & Invitations', () => {
     await publicAgent
       .post(`/api/v1/invitations/${invRes.body.token}/accept`)
       .send({
+        email: 'carol@example.com',
         displayName: 'Carol Danvers',
         handle: 'carol',
         password: 'securepass123',
@@ -323,6 +671,7 @@ describe('Members & Invitations', () => {
     const acceptRes = await publicAgent
       .post(`/api/v1/invitations/${invRes.body.token}/accept`)
       .send({
+        email: 'dave@example.com',
         displayName: 'Dave Grohl',
         handle: 'dave',
         password: 'securepass123',
@@ -360,6 +709,7 @@ describe('Members & Invitations', () => {
     const acceptRes = await publicAgent
       .post(`/api/v1/invitations/${invRes.body.token}/accept`)
       .send({
+        email: 'eve@example.com',
         displayName: 'Eve Torres',
         handle: 'eve',
         password: 'securepass123',
@@ -403,6 +753,7 @@ describe('Members & Invitations', () => {
     const res = await publicAgent
       .post('/api/v1/invitations/nonexistent-token-abc123/accept')
       .send({
+        email: 'ghost@example.com',
         displayName: 'Ghost User',
         handle: 'ghost',
         password: 'securepass123',
@@ -413,3 +764,54 @@ describe('Members & Invitations', () => {
     expect(res.body.message).toMatch(/not found/i);
   });
 });
+
+class DelayedCreateDidPdsService implements IPdsService {
+  createDidCalls = 0;
+
+  constructor(
+    private readonly inner: IPdsService,
+    private readonly delayMs: number,
+  ) {}
+
+  async createDid(...args: Parameters<IPdsService['createDid']>) {
+    this.createDidCalls += 1;
+    await delay(this.delayMs);
+    return this.inner.createDid(...args);
+  }
+
+  resolveDid(...args: Parameters<IPdsService['resolveDid']>) {
+    return this.inner.resolveDid(...args);
+  }
+
+  updateDidDocument(...args: Parameters<IPdsService['updateDidDocument']>) {
+    return this.inner.updateDidDocument(...args);
+  }
+
+  createRecord(...args: Parameters<IPdsService['createRecord']>) {
+    return this.inner.createRecord(...args);
+  }
+
+  putRecord(...args: Parameters<IPdsService['putRecord']>) {
+    return this.inner.putRecord(...args);
+  }
+
+  deleteRecord(...args: Parameters<IPdsService['deleteRecord']>) {
+    return this.inner.deleteRecord(...args);
+  }
+
+  getRecord(...args: Parameters<IPdsService['getRecord']>) {
+    return this.inner.getRecord(...args);
+  }
+
+  listRecords(...args: Parameters<IPdsService['listRecords']>) {
+    return this.inner.listRecords(...args);
+  }
+
+  subscribeRepos(...args: Parameters<IPdsService['subscribeRepos']>) {
+    return this.inner.subscribeRepos(...args);
+  }
+}
+
+async function delay(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}

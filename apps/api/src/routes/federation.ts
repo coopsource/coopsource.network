@@ -7,8 +7,12 @@ import type { DidWebResolver } from '@coopsource/federation/http';
 import type { AppConfig } from '../config.js';
 import { asyncHandler } from '../lib/async-handler.js';
 import { requireFederationAuth } from '../middleware/federation-auth.js';
-import { didHasPermission } from '../middleware/permissions.js';
 import { emitMemberJoined } from '../appview/membership-events.js';
+import {
+  membershipAuthorityErrorCode,
+  membershipAuthorityHttpStatus,
+  type PermissionCheckResult,
+} from '../services/membership-read-model.js';
 
 /**
  * The authoritative caller identity for a federation request: the verified
@@ -22,7 +26,8 @@ function federationCallerDid(req: {
   const sender = (req as { federationSender?: unknown }).federationSender;
   if (typeof sender === 'string' && sender.length > 0) return sender;
   const sessionDid = req.session?.did;
-  if (typeof sessionDid === 'string' && sessionDid.length > 0) return sessionDid;
+  if (typeof sessionDid === 'string' && sessionDid.length > 0)
+    return sessionDid;
   return null;
 }
 
@@ -39,10 +44,14 @@ async function callerHasCoopPermission(
   callerDid: string | null,
   cooperativeDid: DID,
   permission: Permission,
-): Promise<boolean> {
-  if (!callerDid) return false;
-  if (callerDid === cooperativeDid) return true;
-  return didHasPermission(container.db, cooperativeDid, callerDid, permission);
+): Promise<PermissionCheckResult> {
+  if (!callerDid) return { ok: true, allowed: false };
+  if (callerDid === cooperativeDid) return { ok: true, allowed: true };
+  return container.membershipReadModel.hasPermissionResult(
+    cooperativeDid,
+    callerDid as DID,
+    permission,
+  );
 }
 
 // ── Zod schemas for request validation ──
@@ -172,13 +181,22 @@ export function createFederationRoutes(
         throw new NotFoundError(`Co-op profile not found: ${did}`);
       }
 
-      const countResult = await container.db
-        .selectFrom('membership')
-        .where('cooperative_did', '=', did)
-        .where('status', '=', 'active')
-        .where('invalidated_at', 'is', null)
-        .select(container.db.fn.countAll<number>().as('count'))
-        .executeTakeFirst();
+      const memberCountResult =
+        await container.membershipReadModel.countActiveMembersResult(
+          did as DID,
+        );
+      if (!memberCountResult.ok) {
+        res.status(membershipAuthorityHttpStatus(memberCountResult, 503)).json({
+          error: membershipAuthorityErrorCode(
+            memberCountResult,
+            'SPACES_AUTHORITY_UNAVAILABLE',
+          ),
+          message: memberCountResult.message,
+          axis: memberCountResult.axis,
+          reason: memberCountResult.reason,
+        });
+        return;
+      }
 
       res.json({
         did: row.did,
@@ -187,7 +205,7 @@ export function createFederationRoutes(
         description: row.description,
         cooperativeType: row.cooperative_type,
         membershipPolicy: row.membership_policy,
-        memberCount: Number(countResult?.count ?? 0),
+        memberCount: memberCountResult.count,
         website: row.website,
         visibility: {
           publicDescription: row.public_description,
@@ -217,7 +235,8 @@ export function createFederationRoutes(
       if (!verification.ok) {
         res.status(400).json({
           error: 'InvalidConsentEvidence',
-          message: verification.reason ?? 'Consent evidence verification failed',
+          message:
+            verification.reason ?? 'Consent evidence verification failed',
         });
         return;
       }
@@ -243,18 +262,26 @@ export function createFederationRoutes(
       // user or any peer signing as a DID it controls could inject an active
       // membership (with arbitrary roles) into an arbitrary cooperative.
       const callerDid = federationCallerDid(req);
-      const authorized = await callerHasCoopPermission(
+      const authorization = await callerHasCoopPermission(
         container,
         callerDid,
         params.cooperativeDid as DID,
         'member.approve',
       );
-      if (!authorized) {
+      if (!authorization.ok) {
+        res.status(membershipAuthorityHttpStatus(authorization, 403)).json({
+          error: membershipAuthorityErrorCode(authorization, 'Forbidden'),
+          axis: authorization.axis,
+          reason: authorization.reason,
+          message: authorization.message,
+        });
+        return;
+      }
+      if (!authorization.allowed) {
         res.status(403).json({
           error: 'Forbidden',
           axis: 'spaces',
-          message:
-            'Caller lacks group authority over the target cooperative',
+          message: 'Caller lacks group authority over the target cooperative',
         });
         return;
       }
@@ -264,12 +291,17 @@ export function createFederationRoutes(
         cooperativeDid: params.cooperativeDid as DID,
         consentRecordUri: params.consentRecordUri,
         consentRecordCid: params.consentRecordCid,
-        allowedConsentTypes: ['joinRequest', 'invitationAcceptance', 'networkJoin'],
+        allowedConsentTypes: [
+          'joinRequest',
+          'invitationAcceptance',
+          'networkJoin',
+        ],
       });
       if (!verification.ok) {
         res.status(400).json({
           error: 'InvalidConsentEvidence',
-          message: verification.reason ?? 'Consent evidence verification failed',
+          message:
+            verification.reason ?? 'Consent evidence verification failed',
         });
         return;
       }
@@ -335,7 +367,8 @@ export function createFederationRoutes(
       if (existing) {
         res.status(409).json({
           error: 'Conflict',
-          message: 'A pending signature request already exists for this agreement and signer',
+          message:
+            'A pending signature request already exists for this agreement and signer',
         });
         return;
       }
@@ -558,7 +591,8 @@ export function createFederationRoutes(
     asyncHandler(async (_req, res) => {
       res.status(501).json({
         error: 'NotImplemented',
-        message: 'Hub registration is deprecated. Cooperatives are discovered via the ATProto relay firehose.',
+        message:
+          'Hub registration is deprecated. Cooperatives are discovered via the ATProto relay firehose.',
       });
     }),
   );
@@ -568,7 +602,8 @@ export function createFederationRoutes(
     asyncHandler(async (_req, res) => {
       res.status(501).json({
         error: 'NotImplemented',
-        message: 'Hub notification is deprecated. Events flow through the ATProto firehose.',
+        message:
+          'Hub notification is deprecated. Events flow through the ATProto firehose.',
       });
     }),
   );

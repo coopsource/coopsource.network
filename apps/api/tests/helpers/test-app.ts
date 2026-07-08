@@ -3,7 +3,22 @@ import session from 'express-session';
 import supertest from 'supertest';
 import type { Kysely, Transaction } from 'kysely';
 import type { Database } from '@coopsource/db';
-import { CsnDbGroupMutationPort } from '@coopsource/arbiter-client';
+import type { PermissionedRecordWritePort } from '@coopsource/spaces-consumer';
+import { createDefaultGovernancePluginSet } from '@coopsource/governance-view';
+import {
+  CoopDelegatedVoteWeightReader,
+  createCoopActionAuthorizerPlugin,
+  createCoopDelegateChainsPlugin,
+  createCoopEligibilityPlugin,
+  createCoopPatronageAllocatorPlugin,
+  createCoopQuorumPlugin,
+  createCoopSurplusDistributorPlugin,
+  createCoopVoteWeightPlugin,
+} from '@coopsource/coop-view';
+import {
+  CsnDbGroupDirectoryPort,
+  CsnDbGroupMutationPort,
+} from '@coopsource/arbiter-client';
 import { MockClock, AtprotoPdsService } from '@coopsource/federation';
 import { LocalPdsService, LocalBlobStore } from '@coopsource/federation/local';
 import type { FederationDatabase } from '@coopsource/federation/local';
@@ -14,6 +29,7 @@ import { AuthService } from '../../src/services/auth-service.js';
 import { EntityService } from '../../src/services/entity-service.js';
 import { ProfileService } from '../../src/services/profile-service.js';
 import { MembershipService } from '../../src/services/membership-service.js';
+import { MembershipReadModel } from '../../src/services/membership-read-model.js';
 import { PostService } from '../../src/services/post-service.js';
 import { SearchService } from '../../src/services/search-service.js';
 import { MatchmakingService } from '../../src/services/matchmaking-service.js';
@@ -41,7 +57,22 @@ import { MeetingRecordService } from '../../src/services/meeting-record-service.
 import { MemberNoticeService } from '../../src/services/member-notice-service.js';
 import { FiscalPeriodService } from '../../src/services/fiscal-period-service.js';
 import { PrivateRecordService } from '../../src/services/private-record-service.js';
+import { PrivateRecordPermissionedWritePort } from '../../src/services/private-record-permissioned-write-port.js';
+import { OAuthPermissionedRecordWriteSessionProvider } from '../../src/services/oauth-permissioned-record-write-session-provider.js';
+import { MembershipReadModelActionPermissionReader } from '../../src/services/coop-view-action-authorizer-adapters.js';
+import {
+  MembershipReadModelVoteWeightReader,
+  MembershipReadModelVotingEligibilityReader,
+} from '../../src/services/coop-view-membership-adapters.js';
+import {
+  DelegationVotingServiceDelegateChainReader,
+  DelegationVotingServiceVoteWeightDelegationReader,
+} from '../../src/services/coop-view-delegation-adapters.js';
 import { VisibilityRouter } from '../../src/services/visibility-router.js';
+import {
+  PdsPublicGovernanceAnchorWritePort,
+  PublicGovernanceAnchorService,
+} from '../../src/services/public-governance-anchor-service.js';
 import { PatronageService } from '../../src/services/patronage-service.js';
 import { CapitalAccountService } from '../../src/services/capital-account-service.js';
 import { Tax1099Service } from '../../src/services/tax-1099-service.js';
@@ -62,8 +93,15 @@ import { LexiconManagementService } from '../../src/services/lexicon-management-
 import { ScriptWorkerPool } from '../../src/scripting/worker-pool.js';
 import { ScriptService } from '../../src/scripting/script-service.js';
 import type { AppConfig } from '../../src/config.js';
-import { setDb, resetSetupCache } from '../../src/auth/middleware.js';
-import { setPermissionsDb } from '../../src/middleware/permissions.js';
+import {
+  setDb,
+  setMembershipReadModel,
+  resetSetupCache,
+} from '../../src/auth/middleware.js';
+import {
+  setPermissionAuthorizer,
+  setPermissionsDb,
+} from '../../src/middleware/permissions.js';
 import { createHealthRoutes } from '../../src/routes/health.js';
 import { createWellKnownRoutes } from '../../src/routes/well-known.js';
 import { createSetupRoutes } from '../../src/routes/setup.js';
@@ -113,7 +151,10 @@ import { createMemberClassRoutes } from '../../src/routes/governance/member-clas
 import { createCooperativeLinkRoutes } from '../../src/routes/governance/cooperative-links.js';
 import { createAdminLexiconRoutes } from '../../src/routes/admin-lexicons.js';
 import { createAdminScriptRoutes } from '../../src/routes/admin-scripts.js';
-import { createXrpcRoutes, type XrpcRouteOptions } from '../../src/xrpc/dispatcher.js';
+import {
+  createXrpcRoutes,
+  type XrpcRouteOptions,
+} from '../../src/xrpc/dispatcher.js';
 import { buildXrpcHandlers } from '../../src/xrpc/index.js';
 import { errorHandler } from '../../src/middleware/error-handler.js';
 import { getTestDb, getTestConnectionString } from './test-db.js';
@@ -128,6 +169,7 @@ export interface TestApp {
 
 export interface TestAppOptions {
   xrpcRouteOptions?: XrpcRouteOptions;
+  permissionedRecordWriter?: PermissionedRecordWritePort;
 }
 
 export function createTestApp(options?: TestAppOptions): TestApp {
@@ -154,7 +196,9 @@ export function createTestApp(options?: TestAppOptions): TestApp {
         clock,
       );
 
-  const blobStore = new LocalBlobStore({ blobDir: '/tmp/coopsource-test-blobs' });
+  const blobStore = new LocalBlobStore({
+    blobDir: '/tmp/coopsource-test-blobs',
+  });
 
   const didResolver = new DidWebResolver();
 
@@ -170,13 +214,51 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     FRONTEND_URL: 'http://localhost:5173',
   } as AppConfig;
 
-  const operatorWriteProxy = new OperatorWriteProxy(pdsService, db, testConfig);
-  const groupMutationsForDb = (authorityDb: Kysely<Database> | Transaction<Database>) => new CsnDbGroupMutationPort(authorityDb, {
-    now: () => clock.now(),
+  const groupMutationsForDb = (
+    authorityDb: Kysely<Database> | Transaction<Database>,
+  ) =>
+    new CsnDbGroupMutationPort(authorityDb, {
+      now: () => clock.now(),
+    });
+  const groupDirectory = new CsnDbGroupDirectoryPort(db);
+  const membershipReadModel = new MembershipReadModel(db, groupDirectory);
+  const actionAuthorizer = createCoopActionAuthorizerPlugin(
+    new MembershipReadModelActionPermissionReader(db, membershipReadModel),
+  );
+  const delegationVotingService = new DelegationVotingService(
+    db,
+    clock,
+    actionAuthorizer,
+  );
+  const membershipVoteWeightReader = new MembershipReadModelVoteWeightReader(
+    membershipReadModel,
+  );
+  const governanceCorePlugins = createDefaultGovernancePluginSet({
+    voteWeight: createCoopVoteWeightPlugin(
+      new CoopDelegatedVoteWeightReader({
+        baseWeightReader: membershipVoteWeightReader,
+        delegationReader: new DelegationVotingServiceVoteWeightDelegationReader(
+          delegationVotingService,
+        ),
+      }),
+    ),
+    eligibility: createCoopEligibilityPlugin(
+      new MembershipReadModelVotingEligibilityReader(membershipReadModel),
+    ),
+    quorum: createCoopQuorumPlugin(),
+    actionAuthorizer,
+    patronageAllocator: createCoopPatronageAllocatorPlugin(),
+    surplusDistributor: createCoopSurplusDistributorPlugin(),
   });
   const groupMutations = groupMutationsForDb(db);
+  const operatorWriteProxy = new OperatorWriteProxy(
+    pdsService,
+    db,
+    testConfig,
+    membershipReadModel,
+  );
 
-  const profileService = new ProfileService(db, clock);
+  const profileService = new ProfileService(db, clock, membershipReadModel);
   const authService = new AuthService(
     db,
     pdsService,
@@ -184,7 +266,8 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     profileService,
     'http://localhost:3001',
     memberWriteProxy,
-    groupMutations,
+    groupMutationsForDb,
+    membershipReadModel,
   );
   const entityService = new EntityService(db, blobStore);
   const membershipService = new MembershipService(
@@ -192,40 +275,123 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     emailService,
     clock,
     groupMutations,
+    membershipReadModel,
+    actionAuthorizer,
   );
   const labelSubscriptionManager = new LabelSubscriptionManager(db);
   const governanceLabeler = new GovernanceLabeler(db, labelSubscriptionManager);
+  const privateRecordService = new PrivateRecordService(db, clock);
+  const permissionedRecordWriteSessionProvider =
+    new OAuthPermissionedRecordWriteSessionProvider(undefined);
+  const permissionedRecordWriter =
+    options?.permissionedRecordWriter ??
+    new PrivateRecordPermissionedWritePort(privateRecordService);
+  const visibilityRouter = new VisibilityRouter(db);
+  const publicGovernanceAnchorService = new PublicGovernanceAnchorService(
+    new PdsPublicGovernanceAnchorWritePort(pdsService),
+    () => clock.now(),
+  );
   const postService = new PostService(db, clock);
-  const searchService = new SearchService(db);
-  const matchmakingService = new MatchmakingService(db, clock);
-  const proposalService = new ProposalService(db, pdsService, clock, memberWriteProxy, governanceLabeler);
-  const agreementService = new AgreementService(db, pdsService, clock, memberWriteProxy);
+  const searchService = new SearchService(db, membershipReadModel);
+  const matchmakingService = new MatchmakingService(
+    db,
+    clock,
+    membershipReadModel,
+  );
+  const proposalService = new ProposalService(
+    db,
+    pdsService,
+    clock,
+    membershipReadModel,
+    governanceCorePlugins.voteWeight,
+    governanceCorePlugins.quorum,
+    memberWriteProxy,
+    governanceLabeler,
+    visibilityRouter,
+    permissionedRecordWriter,
+    publicGovernanceAnchorService,
+    governanceCorePlugins.actionAuthorizer,
+  );
+  const agreementService = new AgreementService(
+    db,
+    pdsService,
+    clock,
+    memberWriteProxy,
+  );
   const agreementTemplateService = new AgreementTemplateService(db, clock);
-  const networkService = new NetworkService(db, pdsService, clock, groupMutations);
-  const paymentRegistry = new PaymentProviderRegistry(db, 'yIknTzhyTfVpR7cc/ZrwSpewmhyiOJA97leVbKqccsY=');
-  const fundingService = new FundingService(db, pdsService, clock, paymentRegistry, memberWriteProxy);
+  const networkService = new NetworkService(
+    db,
+    pdsService,
+    clock,
+    groupMutations,
+    membershipReadModel,
+  );
+  const paymentRegistry = new PaymentProviderRegistry(
+    db,
+    'yIknTzhyTfVpR7cc/ZrwSpewmhyiOJA97leVbKqccsY=',
+  );
+  const fundingService = new FundingService(
+    db,
+    pdsService,
+    clock,
+    paymentRegistry,
+    memberWriteProxy,
+  );
   const alignmentService = new AlignmentService(db, pdsService, clock);
-  const connectionService = new ConnectionService(db, pdsService, clock, testConfig);
-  const modelProviderRegistry = new ModelProviderRegistry(db, 'yIknTzhyTfVpR7cc/ZrwSpewmhyiOJA97leVbKqccsY=');
+  const connectionService = new ConnectionService(
+    db,
+    pdsService,
+    clock,
+    testConfig,
+  );
+  const modelProviderRegistry = new ModelProviderRegistry(
+    db,
+    'yIknTzhyTfVpR7cc/ZrwSpewmhyiOJA97leVbKqccsY=',
+  );
   const agentService = new AgentService(db, clock, modelProviderRegistry);
   const mcpClient = new McpClient();
-  const chatEngine = new ChatEngine(db, clock, modelProviderRegistry, mcpClient);
-  const eventDispatcher = new EventDispatcher(db, chatEngine);
+  const chatEngine = new ChatEngine(
+    db,
+    clock,
+    modelProviderRegistry,
+    membershipReadModel,
+    mcpClient,
+  );
+  const eventDispatcher = new EventDispatcher(
+    db,
+    chatEngine,
+    membershipReadModel,
+  );
   const legalDocumentService = new LegalDocumentService(db, clock);
   const complianceCalendarService = new ComplianceCalendarService(db, clock);
   const officerRecordService = new OfficerRecordService(db, clock);
   const meetingRecordService = new MeetingRecordService(db, clock);
   const memberNoticeService = new MemberNoticeService(db, clock);
   const fiscalPeriodService = new FiscalPeriodService(db, clock);
-  const privateRecordService = new PrivateRecordService(db, clock);
-  const visibilityRouter = new VisibilityRouter(db, privateRecordService);
-  const patronageService = new PatronageService(db, clock);
-  const capitalAccountService = new CapitalAccountService(db, clock);
+  const patronageService = new PatronageService(
+    db,
+    clock,
+    governanceCorePlugins.patronageAllocator,
+  );
+  const capitalAccountService = new CapitalAccountService(
+    db,
+    clock,
+    governanceCorePlugins.surplusDistributor,
+  );
   const tax1099Service = new Tax1099Service(db, clock);
   const onboardingService = new OnboardingService(db, clock);
-  const delegationVotingService = new DelegationVotingService(db, clock);
+  const governancePlugins = {
+    ...governanceCorePlugins,
+    delegateChains: createCoopDelegateChainsPlugin(
+      new DelegationVotingServiceDelegateChainReader(delegationVotingService),
+    ),
+  };
   const governanceFeedService = new GovernanceFeedService(db, clock);
-  const memberClassService = new MemberClassService(db, clock);
+  const memberClassService = new MemberClassService(
+    db,
+    clock,
+    membershipReadModel,
+  );
   const cooperativeLinkService = new CooperativeLinkService(db, clock);
   const starterPackService = new StarterPackService(db, pdsService);
   const consentEvidenceVerifier = new ConsentEvidenceVerifier(
@@ -239,7 +405,10 @@ export function createTestApp(options?: TestAppOptions): TestApp {
   hookRegistry.register(lexiconValidatorHook);
 
   // V7 P7: Lexicon management
-  const lexiconManagementService = new LexiconManagementService(db, hookRegistry);
+  const lexiconManagementService = new LexiconManagementService(
+    db,
+    hookRegistry,
+  );
 
   // V7 P8: Cooperative scripting
   const scriptWorkerPool = new ScriptWorkerPool();
@@ -249,6 +418,7 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     scriptWorkerPool,
     emailService,
     operatorWriteProxy,
+    membershipReadModel,
   );
 
   const container: Container = {
@@ -258,8 +428,11 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     blobStore,
     clock,
     emailService,
+    groupDirectory,
     groupMutations,
     groupMutationsForDb,
+    governancePlugins,
+    membershipReadModel,
     authService,
     profileService,
     entityService,
@@ -292,7 +465,10 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     memberNoticeService,
     fiscalPeriodService,
     privateRecordService,
+    permissionedRecordWriter,
+    permissionedRecordWriteSessionProvider,
     visibilityRouter,
+    publicGovernanceAnchorService,
     patronageService,
     capitalAccountService,
     tax1099Service,
@@ -313,7 +489,9 @@ export function createTestApp(options?: TestAppOptions): TestApp {
 
   // Set the DB reference for auth middleware + permissions middleware
   setDb(db);
+  setMembershipReadModel(membershipReadModel);
   setPermissionsDb(db);
+  setPermissionAuthorizer(governancePlugins.actionAuthorizer);
   resetSetupCache();
 
   const app = express();
@@ -343,7 +521,9 @@ export function createTestApp(options?: TestAppOptions): TestApp {
   app.use(createSearchRoutes(container));
   app.use(createBlobRoutes(container));
   app.use(createSetupRoutes(container));
-  app.use(createAuthRoutes(container, { frontendUrl: 'http://localhost:5173' }));
+  app.use(
+    createAuthRoutes(container, { frontendUrl: 'http://localhost:5173' }),
+  );
   app.use(createCooperativeRoutes(container));
   app.use(createMembershipRoutes(container));
   app.use(createPostRoutes(container));
@@ -385,7 +565,13 @@ export function createTestApp(options?: TestAppOptions): TestApp {
   app.use(createCooperativeLinkRoutes(container));
   app.use(createAdminLexiconRoutes(container));
   app.use(createAdminScriptRoutes(container));
-  app.use(createXrpcRoutes(container, buildXrpcHandlers(container), options?.xrpcRouteOptions));
+  app.use(
+    createXrpcRoutes(
+      container,
+      buildXrpcHandlers(container),
+      options?.xrpcRouteOptions,
+    ),
+  );
 
   // Error handler (must be last)
   app.use(errorHandler);

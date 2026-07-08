@@ -1,6 +1,13 @@
 import type { DID } from '@coopsource/common';
+import {
+  RawDidEquivalencePort,
+  type DidEquivalencePort,
+} from './did-equivalence-port.js';
 import type { GroupDirectoryPort } from './group-directory-port.js';
-import type { PermissionedRepoPort, PermissionedWatchHandle } from './permissioned-repo-port.js';
+import type {
+  PermissionedRepoPort,
+  PermissionedWatchHandle,
+} from './permissioned-repo-port.js';
 import {
   SpacesConsumerError,
   type ClockedOptions,
@@ -19,13 +26,22 @@ export interface RejectedPermissionedRecord {
 
 export interface SpacesConsumerOptions extends ClockedOptions {
   readonly groupDirectory: GroupDirectoryPort;
+  readonly didEquivalence?: DidEquivalencePort;
   readonly permissionedRepo: PermissionedRepoPort;
-  readonly onAccepted: (record: VerifiedPermissionedRecord) => Promise<void> | void;
-  readonly onRejected?: (rejection: RejectedPermissionedRecord) => Promise<void> | void;
-  readonly onError: (err: unknown, context: { space: SpaceRef; authorDid?: DID }) => Promise<void> | void;
+  readonly onAccepted: (
+    record: VerifiedPermissionedRecord,
+  ) => Promise<void> | void;
+  readonly onRejected?: (
+    rejection: RejectedPermissionedRecord,
+  ) => Promise<void> | void;
+  readonly onError: (
+    err: unknown,
+    context: { space: SpaceRef; authorDid?: DID },
+  ) => Promise<void> | void;
 }
 
 export class SpacesConsumer {
+  private readonly didEquivalence: DidEquivalencePort;
   private readonly startedAt: string;
   private watchHandle: PermissionedWatchHandle | null = null;
   private subscribedSpaces = 0;
@@ -38,6 +54,7 @@ export class SpacesConsumer {
   private errorCount = 0;
 
   constructor(private readonly opts: SpacesConsumerOptions) {
+    this.didEquivalence = opts.didEquivalence ?? new RawDidEquivalencePort();
     this.startedAt = opts.clock().toISOString();
   }
 
@@ -72,7 +89,10 @@ export class SpacesConsumer {
   private async handleChange(hint: PermissionedChangeHint): Promise<void> {
     let changes: VerifiedPermissionedChanges;
     try {
-      changes = await this.opts.permissionedRepo.sync({ space: hint.space, hint });
+      changes = await this.opts.permissionedRepo.sync({
+        space: hint.space,
+        hint,
+      });
     } catch (err) {
       await this.recordError(err, { space: hint.space });
       return;
@@ -107,7 +127,9 @@ export class SpacesConsumer {
     }
   }
 
-  private async handleRecord(record: VerifiedPermissionedRecord): Promise<boolean> {
+  private async handleRecord(
+    record: VerifiedPermissionedRecord,
+  ): Promise<boolean> {
     let resolvedMembers: ResolvedMembers;
     try {
       resolvedMembers = await this.opts.groupDirectory.resolveSpaceMembers({
@@ -133,7 +155,10 @@ export class SpacesConsumer {
       this.recordsRejected += 1;
       this.memberCrossCheckFailures += 1;
       await this.recordError(
-        new SpacesConsumerError('member-list', 'strict resolved membership was indeterminate'),
+        new SpacesConsumerError(
+          'member-list',
+          'strict resolved membership was indeterminate',
+        ),
         {
           space: record.location.space,
           authorDid: record.location.authorDid,
@@ -142,7 +167,29 @@ export class SpacesConsumer {
       return false;
     }
 
-    const isMember = resolvedMembers.members.some((member) => member.did === record.location.authorDid);
+    let isMember = false;
+    try {
+      for (const member of resolvedMembers.members) {
+        if (
+          await this.didEquivalence.areEquivalent(
+            member.did,
+            record.location.authorDid,
+          )
+        ) {
+          isMember = true;
+          break;
+        }
+      }
+    } catch (err) {
+      this.recordsRejected += 1;
+      this.memberCrossCheckFailures += 1;
+      await this.recordError(err, {
+        space: record.location.space,
+        authorDid: record.location.authorDid,
+      });
+      return false;
+    }
+
     if (!isMember) {
       // A record authored by a non-member is an EXPECTED, successful cross-check
       // outcome (the trust anchor discards non-member records), not a failure.
@@ -174,7 +221,10 @@ export class SpacesConsumer {
     }
   }
 
-  private async recordError(err: unknown, context: { space: SpaceRef; authorDid?: DID }): Promise<void> {
+  private async recordError(
+    err: unknown,
+    context: { space: SpaceRef; authorDid?: DID },
+  ): Promise<void> {
     this.errorCount += 1;
     await this.opts.onError(err, context);
   }

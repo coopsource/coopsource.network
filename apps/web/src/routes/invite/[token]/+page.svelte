@@ -35,7 +35,7 @@
 
     <div class="mb-4 rounded-lg bg-[var(--cs-primary-soft)] p-4">
       <p class="text-sm text-[var(--cs-primary)]">
-        <strong>Invitation for:</strong> {inv.email}
+        <strong>Invitation for:</strong> {inv.emailHint ?? 'your invited email address'}
       </p>
       {#if inv.message}
         <p class="mt-2 text-sm text-[var(--cs-primary)]">"{inv.message}"</p>
@@ -67,6 +67,21 @@
         class="space-y-4"
       >
         <input type="hidden" name="handle" value={handle} />
+
+        <div>
+          <label for="email" class="block text-sm font-medium text-[var(--cs-text-secondary)]">
+            Email
+          </label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            required
+            autocomplete="email"
+            class="mt-1 block w-full rounded-md border border-[var(--cs-border)] px-3 py-2 text-sm focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
+            placeholder="you@example.com"
+          />
+        </div>
 
         <div>
           <label for="displayName" class="block text-sm font-medium text-[var(--cs-text-secondary)]">

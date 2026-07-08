@@ -4,7 +4,9 @@
 
 **Goal:** Bring the repo, docs, and substrate into alignment with July 2026 ATProto reality (per `docs/plans/2026-07-04-atproto-shared-spaces-research.md`), advance the four-layer architecture through the remaining stages, then execute a full UX overhaul.
 
-**Architecture:** Same four layers as V11 (Spaces → Arbiter → GovernanceView → CoopView) — V12 is a *doc-and-alignment* rev, not a design pivot. Grounded facts: proposal 0016 merged upstream (`at://…/space/…` URIs, LtHash digests, three-token credentials); 16 draft `town.muni.arbiter.*` lexicons exist; GovernanceView/CoopView are unbuilt; all V9 retirement targets still live.
+> **2026-07-05 re-plan:** `docs/plans/2026-07-05-v12-replan-after-code-deep-dive.md` is the active addendum for Phase 3 onward. It reconciles this plan with current code and Proposal 0016. Where this file says to create or use a package-root `CommitDigestVerifier`, read that as superseded: current code exposes `PermissionedRepoPort` as the public watch/sync/verification boundary.
+
+**Architecture:** Same four layers as V11 (Spaces → Arbiter → GovernanceView → CoopView) — V12 is a _doc-and-alignment_ rev, not a design pivot. Grounded facts: proposal 0016 merged upstream (`at://…/space/…` URIs, LtHash digests, three-token credentials); 16 draft `town.muni.arbiter.*` lexicons exist; GovernanceView/CoopView are unbuilt; all V9 retirement targets still live.
 
 **Tech Stack:** Unchanged — TypeScript strict, Express 5, Kysely 0.28+/PostgreSQL 16, SvelteKit 2/Svelte 5 runes, Tailwind 4, Vitest 4, Zod 4, pnpm 10+/Turborepo, ATProto only.
 
@@ -14,16 +16,16 @@
 2. **V12 doc shape:** Consolidate to **two** docs — `ARCHITECTURE-V12.md` (canonical spec, absorbing the operational prompt) + slim `CLAUDE.md` (~150 lines). `CLAUDE-CODE-PROMPT-*` line ends at V11.
 3. **UI/UX spike scope:** **Full UX overhaul** — distinctive visual direction + design system, information-architecture restructuring, navigation redesign, and empty/error/loading sweep across all 88 pages. Sequenced after the ATProto work settles (Phases 3–4).
 4. **Autonomous execution (2026-07-04):** the user is not a gating item. Standing approval to proceed through phases — including merges to `main` — provided everything is carefully tracked in git (no-ff merges, `v12-phase-N` tag at each phase completion) so any decision can be reverted. **Exception:** outward-facing communications (WG posts, TSC outreach, anything published off-repo) remain draft-for-review only.
-5. **HappyView 2 enters the build-vs-use register** (below) as a live candidate rather than a foreclosed option; V11 Pitfall #4 ("don't migrate onto HappyView") is downgraded in V12 from hard rule to open decision with a default of *build*.
+5. **HappyView 2 enters the build-vs-use register** (below) as a live candidate rather than a foreclosed option; V11 Pitfall #4 ("don't migrate onto HappyView") is downgraded in V12 from hard rule to open decision with a default of _build_.
 
 ## Global Constraints
 
 - **Merges to `main` proceed autonomously under decision-log item 4**: always `--no-ff`, always green build+tests first, tag `v12-phase-N` at each phase completion. The old approval rule is replaced by revertibility.
 - **All work on feature branches.** V12 naming: `feature/v12-phase-N-<short-description>`.
-- **PoC posture (AGENTS.md):** no backwards-compatibility artifacts; rename canonical types in place; no `FooV2` names in *code* (doc filenames are versioned by convention — that stays).
+- **PoC posture (AGENTS.md):** no backwards-compatibility artifacts; rename canonical types in place; no `FooV2` names in _code_ (doc filenames are versioned by convention — that stays).
 - **Schema changes go into `packages/db/src/schema.ts`** — never new migration files.
 - **DIDs authoritative; consult `did_rotation_history`; Tier 2 never on the public firehose; fail closed on partial/stale membership resolution.**
-- **Don't bake the URI scheme or digest algorithm as constants** — helpers and ports only (`SpaceRef`, `PermissionedRepoPort`, digest-verifier port).
+- **Don't bake the URI scheme or digest algorithm as constants** — helpers and ports only (`SpaceRef`, `space-uri.ts`, `PermissionedRepoPort`).
 - **Errors name their authorization axis** (OAuth / spaces / application / labels / service-auth).
 - Build federation package after structural changes: `pnpm --filter @coopsource/federation build`.
 - Verification commands for every phase: `pnpm build && pnpm test` (Vitest), `make test:all` for the full suite when Docker is available.
@@ -32,18 +34,18 @@
 
 Standing register of "do we build this or adopt an existing implementation" questions. Each row names its decision point; defaults hold until a spike says otherwise. Lives on in ARCHITECTURE-V12 §10 after Phase 1.
 
-| # | Capability | Build option (current) | Use option (candidate) | Default | Decide at |
-|---|---|---|---|---|---|
-| 1 | **AppView substrate** | Custom `apps/api` Express AppView (594 files, alive and tested) | **HappyView 2.10+** — schema-driven AppView, `com.atproto.space.*` endpoints, LtHash, oplog, notifications, Lua/WASM extension model, active again (v2.10.2, Jun 30) | **Build** (keep `apps/api`) — migration cost of 60+ services and the Postgres projection model is large; HappyView's Lua/XRPC model doesn't obviously carry CSN's plugin set | Re-evaluate at Phase 5 start with a 1-day spike: CSN lexicons uploaded to a local HappyView, assess endpoint coverage + where the ten-plugin set would live |
-| 2 | **Spaces dev/test harness** | Hand-rolled fixtures (`InMemoryPermissionedRepoPort` etc.) | **HappyView 2.10** as a local spaces server the consumer syncs against | **Use** (near-certain) — it exercises notification→pull→digest→cross-check end-to-end without us building a fake PDS | Phase 3 start |
-| 3 | **Spaces protocol primitives** (digest verify, oplog decode, credential parsing) | Extend `spaces-consumer` internals | **`@atproto/space`** from PR #5187 once published to npm | **Use when published** — first-party primitives; our ports were designed for exactly this swap | Watchlist check each sweep; adopt in Phase 3/4 when it ships |
-| 4 | **Group directory / arbiter server** | `CsnDbGroupDirectoryPort`/`CsnDbGroupMutationPort` over CSN tables (current interim) | Muni Town arbiter server speaking `town.muni.arbiter.*` (promised "soon", unshipped as of Jul 4) | **Build interim, use when real** — the ports are the seam | Phase 3; integration test the day it ships |
-| 5 | **Axis-3 policy engine** | TS `GovernancePluginSet` (ten typed plugins) | Rego/OPA (what the arbiter prototype uses server-side) | **Build** — the plugin set *is* the Layer 3/4 contract; Rego belongs to the arbiter's side of the boundary, not ours | Firm unless Phase 5 finds plugin-set gaps |
-| 6 | **Tier 3 E2EE** | (never build) | Germ DM / MLS | **Use, optional-only** — still iOS-only | Re-check on Android/desktop parity news |
+| #   | Capability                                                                       | Build option (current)                                                               | Use option (candidate)                                                                                                                                               | Default                                                                                                                                                                      | Decide at                                                                                                                                                   |
+| --- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **AppView substrate**                                                            | Custom `apps/api` Express AppView (594 files, alive and tested)                      | **HappyView 2.10+** — schema-driven AppView, `com.atproto.space.*` endpoints, LtHash, oplog, notifications, Lua/WASM extension model, active again (v2.10.2, Jun 30) | **Build** (keep `apps/api`) — migration cost of 60+ services and the Postgres projection model is large; HappyView's Lua/XRPC model doesn't obviously carry CSN's plugin set | Re-evaluate at Phase 5 start with a 1-day spike: CSN lexicons uploaded to a local HappyView, assess endpoint coverage + where the ten-plugin set would live |
+| 2   | **Spaces dev/test harness**                                                      | Hand-rolled fixtures (`InMemoryPermissionedRepoPort` etc.)                           | **HappyView 2.10** as a local spaces server the consumer syncs against                                                                                               | **Use** (near-certain) — it exercises notification→pull→digest→cross-check end-to-end without us building a fake PDS                                                         | Phase 3 start                                                                                                                                               |
+| 3   | **Spaces protocol primitives** (digest verify, oplog decode, credential parsing) | Extend `spaces-consumer` internals behind `PermissionedRepoPort`                     | **`@atproto/space`** from PR #5187 once published to npm (not published as of 2026-07-05)                                                                            | **Use when published** — first-party primitives; our ports were designed for exactly this swap                                                                               | Watchlist check each sweep; adopt in Phase 3/4 when it ships                                                                                                |
+| 4   | **Group directory / arbiter server**                                             | `CsnDbGroupDirectoryPort`/`CsnDbGroupMutationPort` over CSN tables (current interim) | Muni Town arbiter server speaking `town.muni.arbiter.*` (promised "soon", unshipped as of Jul 4)                                                                     | **Build interim, use when real** — the ports are the seam                                                                                                                    | Phase 3; integration test the day it ships                                                                                                                  |
+| 5   | **Axis-3 policy engine**                                                         | TS `GovernancePluginSet` (ten typed plugins)                                         | Rego/OPA (what the arbiter prototype uses server-side)                                                                                                               | **Build** — the plugin set _is_ the Layer 3/4 contract; Rego belongs to the arbiter's side of the boundary, not ours                                                         | Firm unless Phase 5 finds plugin-set gaps                                                                                                                   |
+| 6   | **Tier 3 E2EE**                                                                  | (never build)                                                                        | Germ DM / MLS                                                                                                                                                        | **Use, optional-only** — still iOS-only                                                                                                                                      | Re-check on Android/desktop parity news                                                                                                                     |
 
 ## Phase ordering rationale
 
-Repo cleanup first (user priority: must know which branch is truth before judging which docs are stale). Docs second, because V12 docs must describe merged-to-`main` reality, and every later phase cites them. Code drift-alignment third (small, unblocks upstream-facing work). Then substrate stages; GovernanceView/CoopView (Phase 5) is **ungated and may run in parallel** with Phases 3–4 if capacity allows. Stage-8 retirement waits for 3–5 to stabilize. UX overhaul last by explicit user priority, but its *audit* task is read-only and may start any time after Phase 1.
+Repo cleanup first (user priority: must know which branch is truth before judging which docs are stale). Docs second, because V12 docs must describe merged-to-`main` reality, and every later phase cites them. Code drift-alignment third (small, unblocks upstream-facing work). Then substrate stages; GovernanceView/CoopView (Phase 5) is **ungated and may run in parallel** with Phases 3–4 if capacity allows. Stage-8 retirement waits for 3–5 to stabilize. UX overhaul last by explicit user priority, but its _audit_ task is read-only and may start any time after Phase 1.
 
 ---
 
@@ -51,16 +53,16 @@ Repo cleanup first (user priority: must know which branch is truth before judgin
 
 **Inventory (verified 2026-07-04):**
 
-| Item | State | Disposition & why |
-|---|---|---|
-| `codex/v11-atproto-alignment-planning` (current) | 33 commits ahead of `main`; contains ALL V11 substrate code; not on origin | Review → merge to `main` → delete. It is the only copy of the V11 implementation; unmerged it makes `main` (docs-only) lie about the project. |
-| `feature/v11-stage-1-spaces-consumer` | Strict ancestor of codex branch (verified `git merge-base --is-ancestor` = yes); not on origin | Delete after merge — fully contained, zero unique commits. |
-| `feature/v7-declarative-hooks` | 1 commit ahead (`54cc066`, V7 P7 declarative hooks + admin lexicon management), forked at V7-era `1599ce8` | Tag `archive/v7-declarative-hooks`, then delete. Why: V7 is two architectures gone, and the feature direction (declarative config hooks / runtime lexicon admin) is what V11 explicitly rejected (Pitfall #4, no HappyView-style scripting substrate). Tag preserves the commit if ever wanted. |
-| `chore/opus-4.7-config-upgrade` | Merged to `main`; copy on origin | Delete local + remote branch — merged branches get cleaned per CLAUDE.md. |
-| `main` | **11 commits ahead of `origin/main`** (all docs: V11 direction/addendum/archives) | Push after merge. |
-| Worktree `.worktrees/pre-v11-main` | Detached HEAD `604c476`, verified ancestor of `main`; no unique work | `git worktree remove` — it was a pre-V11 comparison snapshot; the commit is fully reachable from `main`. |
-| Stashes | None | Nothing to do. |
-| Uncommitted | Only `docs/plans/2026-07-04-atproto-shared-spaces-research.md` + this plan (untracked) | Commit in Task 0.1. |
+| Item                                             | State                                                                                                      | Disposition & why                                                                                                                                                                                                                                                                               |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `codex/v11-atproto-alignment-planning` (current) | 33 commits ahead of `main`; contains ALL V11 substrate code; not on origin                                 | Review → merge to `main` → delete. It is the only copy of the V11 implementation; unmerged it makes `main` (docs-only) lie about the project.                                                                                                                                                   |
+| `feature/v11-stage-1-spaces-consumer`            | Strict ancestor of codex branch (verified `git merge-base --is-ancestor` = yes); not on origin             | Delete after merge — fully contained, zero unique commits.                                                                                                                                                                                                                                      |
+| `feature/v7-declarative-hooks`                   | 1 commit ahead (`54cc066`, V7 P7 declarative hooks + admin lexicon management), forked at V7-era `1599ce8` | Tag `archive/v7-declarative-hooks`, then delete. Why: V7 is two architectures gone, and the feature direction (declarative config hooks / runtime lexicon admin) is what V11 explicitly rejected (Pitfall #4, no HappyView-style scripting substrate). Tag preserves the commit if ever wanted. |
+| `chore/opus-4.7-config-upgrade`                  | Merged to `main`; copy on origin                                                                           | Delete local + remote branch — merged branches get cleaned per CLAUDE.md.                                                                                                                                                                                                                       |
+| `main`                                           | **11 commits ahead of `origin/main`** (all docs: V11 direction/addendum/archives)                          | Push after merge.                                                                                                                                                                                                                                                                               |
+| Worktree `.worktrees/pre-v11-main`               | Detached HEAD `604c476`, verified ancestor of `main`; no unique work                                       | `git worktree remove` — it was a pre-V11 comparison snapshot; the commit is fully reachable from `main`.                                                                                                                                                                                        |
+| Stashes                                          | None                                                                                                       | Nothing to do.                                                                                                                                                                                                                                                                                  |
+| Uncommitted                                      | Only `docs/plans/2026-07-04-atproto-shared-spaces-research.md` + this plan (untracked)                     | Commit in Task 0.1.                                                                                                                                                                                                                                                                             |
 
 ### Task 0.1: Commit the research report and this plan
 
@@ -174,20 +176,20 @@ Expected: origin/main advances from `263ffab` past the 11 docs commits + the mer
 
 **Doc disposition table (verdicts grounded in the July 4 research + code audit):**
 
-| Doc | Verdict | Action |
-|---|---|---|
-| `ARCHITECTURE-V11.md` | Superseded (7 weeks stale on upstream; wrong on `ats://`, ECMH, IETF 125, seam mechanics) | Archive → `docs/archive/`; content absorbed into V12 |
-| `CLAUDE-CODE-PROMPT-V11.md` | Superseded; line discontinued per decision log | Archive; operational content becomes ARCHITECTURE-V12 "Implementation playbook" section |
-| `CLAUDE.md` (547 lines) | Drifted: describes container registrations that don't exist, spaceType lexicons that don't exist, Opus-4.7-specific guidance, stale pins | Rewrite slim (~150 lines) |
-| `AGENTS.md` (7 lines) | Current and load-bearing (PoC posture) | Keep as-is |
-| `README.md` | Likely stale on architecture references | Audit + refresh in place |
-| `DEPLOYMENT.md` (581) / `docs/operations.md` (105) | Overlapping ops content | Verify against `Makefile`/`infrastructure/`; fold operations.md into DEPLOYMENT.md if >50% redundant, else banner-link them |
-| `docs/inlay-components.md`, `docs/inlay-developer-guide.md` | **Live feature docs** (correction 2026-07-04: `apps/api/src/xrpc/handlers/inlay-*`, `packages/federation` `inlay-auth-verifier.ts` implement V9.3 Inlay components) | Keep; add a status line noting the implementing modules |
-| `docs/plans/2026-05-08-*`, `2026-05-11-*` (research/direction/addendum/design-review) | Historically valuable, factually superseded on upstream state | Keep in place; add a one-line superseded banner pointing at the 2026-07-04 report and ARCHITECTURE-V12 |
-| `docs/plans/2026-05-17-*` (5 stage docs) | Executed (their content is now code on `main`) | Keep; add "executed — see packages/…" banner |
-| `docs/plans/2026-03-02-dev-environment-automation-design.md` | Verify against current `Makefile` | Banner or refresh |
-| `docs/superpowers/plans/*`, `specs/*` (V7/V8 era + stage-1) | Historical execution records | Leave in place (dated, self-describing); add SHELVED banner to `2026-04-11-actor-profile-and-rename.md` (never started) |
-| `docs/archive/*` | Already archived | No action |
+| Doc                                                                                   | Verdict                                                                                                                                                             | Action                                                                                                                      |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `ARCHITECTURE-V11.md`                                                                 | Superseded (7 weeks stale on upstream; wrong on `ats://`, ECMH, IETF 125, seam mechanics)                                                                           | Archive → `docs/archive/`; content absorbed into V12                                                                        |
+| `CLAUDE-CODE-PROMPT-V11.md`                                                           | Superseded; line discontinued per decision log                                                                                                                      | Archive; operational content becomes ARCHITECTURE-V12 "Implementation playbook" section                                     |
+| `CLAUDE.md` (547 lines)                                                               | Drifted: describes container registrations that don't exist, spaceType lexicons that don't exist, Opus-4.7-specific guidance, stale pins                            | Rewrite slim (~150 lines)                                                                                                   |
+| `AGENTS.md` (7 lines)                                                                 | Current and load-bearing (PoC posture)                                                                                                                              | Keep as-is                                                                                                                  |
+| `README.md`                                                                           | Likely stale on architecture references                                                                                                                             | Audit + refresh in place                                                                                                    |
+| `DEPLOYMENT.md` (581) / `docs/operations.md` (105)                                    | Overlapping ops content                                                                                                                                             | Verify against `Makefile`/`infrastructure/`; fold operations.md into DEPLOYMENT.md if >50% redundant, else banner-link them |
+| `docs/inlay-components.md`, `docs/inlay-developer-guide.md`                           | **Live feature docs** (correction 2026-07-04: `apps/api/src/xrpc/handlers/inlay-*`, `packages/federation` `inlay-auth-verifier.ts` implement V9.3 Inlay components) | Keep; add a status line noting the implementing modules                                                                     |
+| `docs/plans/2026-05-08-*`, `2026-05-11-*` (research/direction/addendum/design-review) | Historically valuable, factually superseded on upstream state                                                                                                       | Keep in place; add a one-line superseded banner pointing at the 2026-07-04 report and ARCHITECTURE-V12                      |
+| `docs/plans/2026-05-17-*` (5 stage docs)                                              | Executed (their content is now code on `main`)                                                                                                                      | Keep; add "executed — see packages/…" banner                                                                                |
+| `docs/plans/2026-03-02-dev-environment-automation-design.md`                          | Verify against current `Makefile`                                                                                                                                   | Banner or refresh                                                                                                           |
+| `docs/superpowers/plans/*`, `specs/*` (V7/V8 era + stage-1)                           | Historical execution records                                                                                                                                        | Leave in place (dated, self-describing); add SHELVED banner to `2026-04-11-actor-profile-and-rename.md` (never started)     |
+| `docs/archive/*`                                                                      | Already archived                                                                                                                                                    | No action                                                                                                                   |
 
 ### Task 1.1: Apply the disposition table
 
@@ -202,15 +204,15 @@ Single canonical spec. Required section list (content sources in parentheses):
 
 1. **Δ from V11** — one page: what changed upstream (proposal 0016 merged; `at://…/space/…`; LtHash; three-token credential flow; 16 draft arbiter lexicons; oauth-scopes 0.5.x; pds 0.5.x; IETF ATP WG excludes non-public data — meeting is IETF 126) and what did NOT change (four layers, plugin set, axes, recursive model, fail-closed posture).
 2. Four-layer model + three axes (carry from V11 §2–3, corrected terminology: "space authority" ≙ our `arbiterDid`).
-3. Spaces substrate (proposal-0016-accurate: space triple, URI shape via helpers, LtHash digest via `CommitDigestVerifier` port, oplog sync `listRepoOps` + CAR fallback, simplespace baseline, reader-side write enforcement as *the* mechanism).
+3. Spaces substrate (proposal-0016-accurate: space triple, URI shape via helpers, LtHash digest surfaced through the `PermissionedRepoPort` sync/verification boundary, oplog sync `listRepoOps` + CAR fallback, simplespace baseline, reader-side write enforcement as _the_ mechanism).
 4. Arbiter integration incl. **the port↔lexicon mapping table** (`GroupDirectoryPort.resolveSpaceMembers` ↔ `town.muni.arbiter.resolveSpaceMembers`, `listSpaces`, `getSpaceConfig`, `getSpaceMembers`; `GroupMutationPort.addMember/removeMember/…` ↔ `createSpace`/`removeSpaceMember`/`setSpaceMemberAccess`; DID provisioning ↔ `createDid`/`updateDidDoc`) and the identity-vs-authorization (Rego) split mapped to Axis 2 vs Axis 3.
 5. OAuth-spaces seam (three tokens: delegation token / client attestation / space credential; client allow-deny lists; the three failure modes with axis names).
-6. GovernanceView + the ten-plugin `GovernancePluginSet` (verbatim from V11 §9 — unchanged; note it's unbuilt and is Phase 5).
+6. GovernanceView + the ten-plugin `GovernancePluginSet` (verbatim from V11 §9 — unchanged; note initial packages exist and service extraction remains Phase 5).
 7. CoopView (from V11, trimmed).
 8. Data tiers (Tier 3 still optional — Germ still iOS-only).
 9. Security requirements (carry; digest algorithm now "LtHash per proposal 0016, behind port").
 10. **Implementation playbook** (absorbs CLAUDE-CODE-PROMPT: current code state per the July 4 audit — what exists, what's flag-gated, what's a CSN-DB stand-in; stage/phase table = this plan's Phases 2–7 with entry/exit gates; branch naming `feature/v12-phase-N-*`).
-11. Design commitments (§17 carry, re-affirmed by the graded-forecast table from the research report) and open questions (§18 rewritten: seam mechanics now *known-but-unshipped*; remaining open: arbiter hosting, cross-modality routing, `$publish`/`$labeler` conventions, Lexicon Community sponsorship, Diary 7 sync details).
+11. Design commitments (§17 carry, re-affirmed by the graded-forecast table from the research report) and open questions (§18 rewritten: seam mechanics now _known-but-unshipped_; remaining open: arbiter hosting, cross-modality routing, `$publish`/`$labeler` conventions, Lexicon Community sponsorship, Diary 7 sync details).
 12. Ecosystem watchlist (same endpoints + `github.com/bluesky-social/proposals`, PR #5187, and the reactivated `github.com/gamesgamesgamesgamesgames/happyview` — the May "GitHub stale, use Tangled" note is outdated; cadence two weeks; next due **2026-07-18**, IETF 126 week). Track whether HappyView 2.10's `read_self` access level and `com.atproto.space.*`/`com.atproto.simplespace.*` NSIDs get confirmed in PR #5187 — first implementation sightings, not yet upstream-normative.
 
 - [ ] Write the doc per the section list; every upstream claim cites the 2026-07-04 research report rather than restating history.
@@ -221,10 +223,13 @@ Single canonical spec. Required section list (content sources in parentheses):
 Target ≤160 lines. Contents: project one-paragraph + recursive-model paragraph; pointer block (ARCHITECTURE-V12.md is canonical; research report; this plan); the hard rules that must survive verbatim (git workflow incl. merge approval; schema-into-schema.ts; DID/security pitfalls 8–13; Tailwind plugin order; bigint/UUID/cursor notes; stack table with **corrected pins** from Phase 2 findings); build commands; **corrected wiring facts** (container exposes `groupMutations` + `consentEvidenceVerifier`; consumer via `startSpacesConsumer` behind `SPACES_CONSUMER_ENABLED`; no `spacesConsumer`/`arbiterClient`/`governanceView`/`coopView` registrations yet — Phase 5 adds the latter two).
 
 Removals (the "too-restrictive/stale rules" pass — each removal is deliberate):
+
 - "Working with Claude (Opus 4.7)" section — model-specific guidance (tokenizer ratios, effort defaults) is stale and doesn't belong in a repo doc.
-- The lexicon-namespace table rows for retired concepts; the `network.coopsource.org.spaceType.*` example (those lexicons don't exist — space types are constants in `arbiter-client/src/space-ref.ts`).
+- The lexicon-namespace table rows for retired concepts; stale claims that
+  `network.coopsource.org.spaceType.*` declarations do not exist. They now exist
+  as draft Proposal 0016 space declarations outside generated record schemas.
 - Duplicated stage tables/pitfalls now living in ARCHITECTURE-V12 §10 (link instead).
-- Keep-but-soften: "Direct URL fetches, not search-driven discovery" becomes "direct fetches of watchlist endpoints first; search to discover *new* venues" (the July research found proposal 0016's merge via search — the strict rule would have missed it).
+- Keep-but-soften: "Direct URL fetches, not search-driven discovery" becomes "direct fetches of watchlist endpoints first; search to discover _new_ venues" (the July research found proposal 0016's merge via search — the strict rule would have missed it).
 - Reframe Pitfall #4: "don't migrate onto HappyView" becomes build-vs-use register row 1 (default build, re-evaluated at Phase 5 with a spike) — per decision-log 5.
 
 - [ ] Rewrite; commit: `git commit -m "docs: slim CLAUDE.md to pointers + hard rules (V12)"`
@@ -242,13 +247,14 @@ Removals (the "too-restrictive/stale rules" pass — each removal is deliberate)
 
 **Branch:** `feature/v12-phase-2-drift-alignment`. All tasks TDD; run `pnpm --filter @coopsource/spaces-consumer test` per task.
 
-### Task 2.1: Rename `EcmhVerifier` → `CommitDigestVerifier`
+### Task 2.1: Digest-verification boundary reconciliation
 
-**Files:** Rename `packages/spaces-consumer/src/ecmh-verifier.ts` → `commit-digest-verifier.ts`; update `index.ts`, `consumer.ts`, `arbiter-member-list.ts`, `__tests__/ecmh-verifier.test.ts` → `__tests__/commit-digest-verifier.test.ts`, `__tests__/public-api.test.ts`, and `apps/api/src/appview/spaces-consumer-dispatch.ts`.
+> **2026-07-05 status:** this task did not land as originally written. The current `packages/spaces-consumer` public API has no `EcmhVerifier` or `CommitDigestVerifier`; stale verifier ports were removed/folded into `PermissionedRepoPort`. Future digest work should happen inside a concrete `PermissionedRepoPort` adapter unless a separate verifier boundary becomes necessary.
 
-Per AGENTS.md: rename in place, no aliases. `FailClosedEcmhVerifier` → `FailClosedCommitDigestVerifier`; `UnsafeAlwaysOkEcmhVerifier` → `UnsafeAlwaysOkCommitDigestVerifier`. JSDoc: "Digest algorithm per upstream proposal 0016 is LtHash (lattice-based homomorphic set hash); this port is algorithm-agnostic and fails closed until a real verifier lands."
+**Current files:** `packages/spaces-consumer/src/permissioned-repo-port.ts`, `packages/spaces-consumer/src/types.ts`, `packages/spaces-consumer/src/index.ts`, `apps/api/src/appview/spaces-consumer-dispatch.ts`.
 
-- [ ] Update the public-api test expectations first (they assert export names) → run → fail → rename file + symbols (`git mv`, then project-wide `grep -rln "EcmhVerifier"` must return only dist/ leftovers) → build → tests pass → commit `refactor(spaces-consumer): rename EcmhVerifier port to CommitDigestVerifier (LtHash upstream)`.
+- [x] Remove/fold stale verifier exports into the stable public sync boundary.
+- [ ] When real LtHash primitives are adopted, add them behind `PermissionedRepoPort.sync(...)` and preserve fail-closed behavior on verification failure.
 
 ### Task 2.2: Space-URI helpers
 
@@ -258,11 +264,11 @@ Per AGENTS.md: rename in place, no aliases. `FailClosedEcmhVerifier` → `FailCl
 
 ```typescript
 export interface SpaceRecordUri {
-  spaceDid: string;      // space authority DID
-  spaceType: string;     // NSID
+  spaceDid: string; // space authority DID
+  spaceType: string; // NSID
   skey: string;
   authorDid: string;
-  collection: string;    // NSID
+  collection: string; // NSID
   rkey: string;
 }
 export function formatSpaceRecordUri(u: SpaceRecordUri): string;
@@ -271,7 +277,7 @@ export function parseSpaceRecordUri(uri: string): SpaceRecordUri | null; // null
 ```
 
 - [ ] Failing tests first: round-trip; proposal-shaped example (`at://did:plc:abc/space/network.coopsource.org.members/main/did:plc:xyz/network.coopsource.governance.vote/3k2a…`); `parseSpaceRecordUri('at://did:plc:abc/app.bsky.feed.post/xyz')` → `null`; malformed → `null`. Implement; pass; commit `feat(spaces-consumer): at:// space-segment URI helpers per proposal 0016`.
-- [ ] Add JSDoc to `SpaceRef` in `types.ts`: "`arbiterDid` is the proposal's *space authority*; we keep arbiter naming to match `town.muni.arbiter.*`." Commit.
+- [ ] Add JSDoc to `SpaceRef` in `types.ts`: "`arbiterDid` is the proposal's _space authority_; we keep arbiter naming to match `town.muni.arbiter.*`." Commit.
 
 ### Task 2.3: Dependency currency check
 
@@ -288,8 +294,9 @@ export function parseSpaceRecordUri(uri: string): SpaceRecordUri | null; // null
 ### Task 2.5: Pre-merge review cleanup carry-ins
 
 From `docs/plans/2026-07-04-v11-merge-review-findings.md` (verified low-severity cleanup):
+
 - [ ] **V12/URI parsers:** consolidate the three AT-URI parsers (`consent-evidence-verifier` regex, `common/uri.ts`, `federation` split-based) onto the canonical helper from Task 2.2; fix `federation`'s unchecked `parts[2]!` latent crash.
-- [ ] **V11/orphaned ports:** delete the superseded spaces-consumer set with zero consumers (`RepoPuller`, `NotificationSubscriber`, `ArbiterMemberList`, old `EcmhVerifier`/`CursorStore`) — pairs with the Task 2.1 rename; verify `public-api.test.ts` export assertions still hold.
+- [x] **V11/orphaned ports:** delete the superseded spaces-consumer set with zero consumers (`RepoPuller`, `NotificationSubscriber`, `ArbiterMemberList`, old verifier/cursor-store sketches); verify `public-api.test.ts` export assertions still hold.
 - [ ] **Reuse:** `consent-evidence-verifier` takes `IClock` (not `() => Date`); replace hand-rolled cursor codecs with a shared `packages/common` codec.
 - [ ] **Simplify:** remove dead `indexMemberApproval` stub, unused `GroupMutationContext` (re-inline sites should `extends` it), `roleResult` positional-boolean tail → options object, `normalizeRoleSpaceKey` dead `custom/` branch, and the duplicated audit-envelope across the 5 mutating methods.
 
@@ -301,40 +308,52 @@ From `docs/plans/2026-07-04-v11-merge-review-findings.md` (verified low-severity
 
 **Entry gate:** none hard (CSN-DB adapters remain the substrate); convergence target is the draft `town.muni.arbiter.*` lexicons. **Re-check before starting:** has Muni Town shipped the promised arbiter server? (watchlist item; if yes, add an integration-test task against it.) **HappyView 2.10 (June 30) is a candidate dev/test harness for the spaces side** — it implements the proposal's endpoint surface (`com.atproto.space.*` / `com.atproto.simplespace.*`, LtHash, `listRepoOps`, `registerNotify`/`notifyWrite`) and could exercise the spaces consumer end-to-end. Reference/harness only — V11 Pitfall #4 (don't migrate onto HappyView) stands.
 
-**Deliverables:**
-1. `XrpcGroupDirectoryPort` in `packages/arbiter-client` implementing the existing `GroupDirectoryPort` against `town.muni.arbiter.resolveSpaceMembers`/`listSpaces`/`getSpaceConfig` — flag-gated, fails closed, selected by env (`GROUP_DIRECTORY_ADAPTER=csn-db|xrpc`).
-2. **Membership reads routed through `GroupDirectoryPort`** — today only writes go through the boundary; `membership-service.ts` still does `selectFrom('membership')` directly. Reads move behind the port (the CSN-DB adapter keeps serving them from the projection, so behavior is unchanged — but Axis-2 becomes fully port-shaped).
-3. Role-space reads (`roles/board`, `classes/<slug>`) via the `roleSpace()`/`parseCsnSpace()` helpers in `arbiter-client/src/space-ref.ts`, replacing remaining direct `membership_role` queries in services.
+**Deliverables (superseded where narrower than the July 5 re-plan):**
+
+1. `XrpcGroupDirectoryPort` in `packages/arbiter-client` — done as a non-default, mock-server-tested adapter against the current draft substrate shape (`com.atproto.space.*` / `com.atproto.simplespace.*`). Runtime env selection is deferred until a shipped/stable server and auth/credential posture exist.
+2. **Membership reads routed through a designed authority seam — done on the Phase 3 closeout branch.** Do not overload package-level `GroupDirectoryPort` with profiles, quorum, vote weights, or cooperative-specific app semantics; keep Layer 2 generic. The API-layer `MembershipReadModel` composes directory resolution with local projections, and app-level direct `membership`/`membership_role` readers have been removed outside that seam and documented low-level exceptions.
+3. Role-space reads (`roles/board`, `classes/<slug>`) via the `roleSpace()`/`parseCsnSpace()` helpers in `arbiter-client/src/space-ref.ts`, replacing remaining direct `membership_role` queries in services where role membership is the authority question.
 4. Controlled-DID provisioning aligned to `createDid`/`updateDidDoc` semantics in `did-provisioning-port.ts`.
 5. Spaces consumer subscribed to a real space list (replace the `spaces: []` Stage-1 placeholder with per-cooperative `members` + role spaces from the directory).
 6. Replay protection per V12 security §: child-still-member check at write acceptance.
 
-**Exit:** no service reads `membership`/`membership_role` tables except through the ports; `SPACES_CONSUMER_ENABLED=true` in dev exercises a full notification→pull→cross-check→project loop against fixtures.
+**Exit:** membership-read-seam exit is satisfied: no service reads `membership`/`membership_role` tables except through `MembershipReadModel`/low-level exceptions. The remaining consumer-activation exit is separate: `SPACES_CONSUMER_ENABLED=true` in dev still needs to exercise a full notification→pull→cross-check→project loop against fixtures before treating Phase 4 integration as live.
 
 **Pre-merge review carry-ins (from `docs/plans/2026-07-04-v11-merge-review-findings.md`) — resolve in this phase:**
+
 - **V3:** add a suspend/reinstate mutation to `GroupMutationPort` (or formally retire label-based suspension) — `status='suspended'` currently has no writer while the labeler/vote-eligibility still assume it.
 - **V5:** emit `member.joined`/`member.departed`/`member.approved` from the membership write path (all `addMember`/`removeMember` callers) — the events are advertised but dead.
 - **V10 + A2-1/A2-2/A2-4:** harden the firehose `indexMemberConsent` — verify consent evidence (don't let an unverified self-published record overwrite the join-verified pointer), fix the delete-branch `cid=''` filter, drop the dead `prevCid` branch, and stop counting expected non-member drops as `memberCrossCheckFailures`.
 - **V4:** `CsnDbGroupDirectoryPort.resolveSpaceMembers` must compute `partial` from truncation and honor `consistency:'strict'` — today it hardcodes `partial:false`, defeating the consumer's fail-closed guard for >5000-member coops.
 - **V9:** consult `did_rotation_history` in the consumer's DID-equality accept path before flipping `SPACES_CONSUMER_ENABLED` on.
-- **Read-seam:** introduce a `GroupDirectoryPort` read path and unify the divergent active/invalidated filters (`listMembers` shows non-active members; `network-service`/coop-profile count require `active`).
-- **V2 (needs user decision):** invitation redemption now goes straight to `active` with the invite's `intended_roles`, removing V9's pending→approve checkpoint. Confirm this is intended before building further onboarding on it; if not, restore a pending state.
+- **Read-seam:** done on the Phase 3 closeout branch. The API-layer membership read seam centralizes active/invalidated projection reads and fail-closed strict authority checks where authorization depends on membership.
+- **V2:** invitation immediate-active was confirmed by the user on 2026-07-04. Local bootstrap addressee binding and atomic single-use redemption are done; OAuth BYO-DID acceptance is deferred to Phase 4 with the `space:`/OAuth credential seam.
 
-- [ ] First task: expand this phase via superpowers:writing-plans into `docs/superpowers/plans/2026-MM-DD-v12-phase-3-arbiter-convergence.md`.
+- [x] First task: expand this phase via superpowers:writing-plans into `docs/superpowers/plans/2026-MM-DD-v12-phase-3-arbiter-convergence.md`.
 
 ## Phase 4 — Governance onto spaces + the credential seam (Stage 4/5)
 
-**Entry gate:** Phase 3 exit + upstream credential flow usable in *some* form — either `@atproto/space` from PR #5187 becomes consumable, or we sketch the three-token flow (delegation token → client attestation → space credential) behind `SpaceCredentialStore` per proposal 0016. Surface to user if the gate is still ambiguous at start.
+**Entry gate:** Phase 3 exit + upstream credential flow usable in _some_ form — either `@atproto/space` from PR #5187 becomes consumable, HappyView 2.10 is sufficient as a harness, or we sketch the three-token flow (delegation token → client attestation → space credential) behind `SpaceCredentialStore` per proposal 0016. Surface to user if the gate is still ambiguous at start. Phase 4 must also resolve the `space:` OAuth scope split (`read` vs `read_self`) and the background-sync credential posture.
 
 **Deliverables:** real `SpaceCredentialStore` implementation (short-lived credentials, refresh-per-batch, rotation on member-list change); proposals/votes/deliberations written via per-space placement (write path stops calling `visibilityRouter.routeWrite` — `proposal-service.ts:209`); `private_record` demoted to projection-only; personal spaces (per-(coop,member)) for Stage 5; axis-named errors across the seam (the three failure modes: scope not granted / not in space / app not authorized for space).
 
+**Progress 2026-07-07:** `KyselySpaceCredentialStore` now backs
+`SpaceCredentialStore` with the `space_credential` table and integration tests;
+`SpaceCredentialManager` already covers refresh-per-batch, near-expiry refresh,
+and member-list-change invalidation. Background sync posture is now documented
+as a cooperative-designated managing session pool in
+`docs/plans/2026-07-07-v12-phase-4-background-sync-credential-posture.md`.
+Remaining credential-seam work is the live issuer/session-selection
+implementation and PDS/HappyView exercise.
+
 - [ ] First task: expand into its own task-level plan.
 
-## Phase 5 — GovernanceView + CoopView (Stages 6/7) — *may run in parallel with Phases 3–4*
+## Phase 5 — GovernanceView + CoopView (Stages 6/7) — _may run in parallel with Phases 3–4_
 
 **Entry gate:** none (explicitly ungated in V11 §16 and still true). The largest purely-CSN-controlled gap.
 
 **Deliverables:**
+
 1. `packages/governance-view`: `GovernancePluginSet` — all ten interfaces (`voteWeight`, `eligibility`, `quorum`, `actionAuthorizer`, `anchorSummary`, `historicalState`, `patronageAllocator`, `surplusDistributor`, `meetingMinutes`, `delegateChains`), async, plain-value inputs, no-op defaults; extraction of generic proposal/vote/delegation logic from `proposal-service`/`delegation-voting-service`.
 2. `packages/coop-view`: CSN plugin implementations wired from existing services (member classes → `voteWeight`; patronage service → `patronageAllocator`/`surplusDistributor`; meeting records → `meetingMinutes`).
 3. Container registrations `governanceView`/`coopView` (making the doc-described wiring real).
@@ -355,6 +374,7 @@ From `docs/plans/2026-07-04-v11-merge-review-findings.md` (verified low-severity
 **Entry gate:** Phases 3–4 merged (ATProto work "settled" per user priority). **Exception:** Task 7.1 (read-only audit) may run any time after Phase 1.
 
 **Scope (user decision: full overhaul):**
+
 1. **UX audit** (7.1): dead ends, dismiss traps, buried CTAs, missing empty/error/loading states across all 88 pages; journey maps for the 6 core flows (onboarding/join-a-coop, proposals+voting, membership admin, agreements/signatures, finance/patronage, network directory). Deliverable: findings doc + severity-ranked backlog.
 2. **Information architecture restructure**: nav model redesigned around the recursive-cooperative mental model (person ↔ coop ↔ network contexts) rather than the current flat route list; route-group changes in `apps/web/src/routes`.
 3. **Distinctive visual direction**: 3 candidate directions (moodboard + 2 key screens each) to replace the generic dark-sidebar Linear look; multi-round design review with user (per established preference) before any implementation; then design tokens (Tailwind 4 theme), typography, color, motion, iconography.
@@ -368,9 +388,9 @@ From `docs/plans/2026-07-04-v11-merge-review-findings.md` (verified low-severity
 ## Ongoing track — Ecosystem cadence (parallel to all phases)
 
 - [ ] Reinstate the two-week watchlist sweep; **next due 2026-07-18** (IETF 126 week, Vienna — check for ATP WG non-public-data signals even though the charter excludes them). Endpoints per ARCHITECTURE-V12 §12 + `bluesky-social/proposals` + PR #5187.
-- [ ] Post `resolveSpaceMembers` semantics feedback (depth/partial/staleness — where CSN has real implementation experience) to WG thread t/750. *Outward-facing: draft for user review before posting.*
+- [ ] Post `resolveSpaceMembers` semantics feedback (depth/partial/staleness — where CSN has real implementation experience) to WG thread t/750. _Outward-facing: draft for user review before posting._
 - [ ] Watch for Diary 7 (sync protocol / "what an app does with a space credential" — promised in Diary 6); it directly feeds Phase 4's gate.
-- [ ] Lexicon Community TSC-sponsorship inquiry for `community.lexicon.governance.*` (feeds Phase 5.4). *Outward-facing: draft for user review.*
+- [ ] Lexicon Community TSC-sponsorship inquiry for `community.lexicon.governance.*` (feeds Phase 5.4). _Outward-facing: draft for user review._
 
 ---
 
@@ -391,4 +411,4 @@ Ecosystem cadence: every 2 weeks, next 2026-07-18
 
 - **Spec coverage:** user asks mapped — repo cleanup (Phase 0, first, as required), docs redundancy/conflict/staleness pass grounded in code (Phase 1 + disposition table), research-report recommendations (Phases 1–3 + ecosystem track: all 6 recommendations have homes), push forward (Phases 3–6), UI/UX after ATProto (Phase 7 + gate), V12 docs (Task 1.2–1.4), questions asked (decision log).
 - **Placeholder scan:** Phases 3–7 are deliberate phase-specs with expansion tasks, not placeholders inside executable tasks; Phases 0–2 have exact commands/paths/code.
-- **Consistency:** `CommitDigestVerifier` naming used consistently from Task 2.1 onward; `GroupDirectoryPort`/`GroupMutationPort` names match actual code (`packages/spaces-consumer/src/group-directory-port.ts`, `packages/arbiter-client/src/group-mutation-port.ts`).
+- **Consistency:** `PermissionedRepoPort` is the actual public watch/sync/verification boundary; `GroupDirectoryPort`/`GroupMutationPort` names match actual code (`packages/spaces-consumer/src/group-directory-port.ts`, `packages/arbiter-client/src/group-mutation-port.ts`).

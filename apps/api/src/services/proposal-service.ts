@@ -1,18 +1,51 @@
 import type { Kysely, Selectable } from 'kysely';
-import type { Database, ProposalTable, VoteTable } from '@coopsource/db';
+import type {
+  Database,
+  ProposalTable,
+  PublicGovernanceAnchorTable,
+  VoteTable,
+} from '@coopsource/db';
+import { membersSpace } from '@coopsource/arbiter-client';
+import type {
+  PermissionedRecordWritePort,
+  PermissionedRecordWriteResult,
+  SpaceRef,
+} from '@coopsource/spaces-consumer';
+import type {
+  ActionAuthorizerPlugin,
+  GovernanceClassDenominator,
+  GovernanceClassQuorumRule,
+  GovernanceGroupRef,
+  GovernanceProposalRef,
+  GovernanceQuorumConfig,
+  QuorumPlugin,
+  VoteWeightPlugin,
+} from '@coopsource/governance-view';
+import {
+  decideGovernanceProposalOutcome,
+  reduceGovernanceVoteTally,
+} from '@coopsource/governance-view';
+import {
+  formatPermissionedRecordLocationUri,
+  isSpaceRecordUri,
+  parseSpaceRecordUri,
+  PermissionedRecordWriteError,
+} from '@coopsource/spaces-consumer';
 
 type ProposalRow = Selectable<ProposalTable>;
+type PublicGovernanceAnchorRow = Selectable<PublicGovernanceAnchorTable>;
 type VoteRow = Selectable<VoteTable>;
-import type { DID } from '@coopsource/common';
+import type { AtUri, CID, DID } from '@coopsource/common';
 import {
   NotFoundError,
   UnauthorizedError,
   ValidationError,
 } from '@coopsource/common';
-import type { IPdsService, IClock } from '@coopsource/federation';
+import type { IPdsService, IClock, RecordRef } from '@coopsource/federation';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
 import { logger } from '../middleware/logger.js';
+import type { MembershipReadModel } from './membership-read-model.js';
 
 export interface ProposalWithVotes {
   proposal: ProposalRow;
@@ -32,23 +65,44 @@ export interface CreateProposalInput {
   quorumThreshold?: number;
   closesAt?: string;
   tags?: string[];
-  meetingEvent?: string;      // AT-URI: Smoke Signal calendar event
-  fullDocument?: string;      // AT-URI: WhiteWind blog entry
-  discussionThread?: string;  // AT-URI: Frontpage link submission
+  meetingEvent?: string; // AT-URI: Smoke Signal calendar event
+  fullDocument?: string; // AT-URI: WhiteWind blog entry
+  discussionThread?: string; // AT-URI: Frontpage link submission
+}
+
+export interface UpdateDraftProposalInput {
+  title?: string;
+  body?: string;
+  closesAt?: string;
+  tags?: string[];
 }
 
 import type { IMemberRecordWriter } from './member-write-proxy.js';
 import type { GovernanceLabeler } from './governance-labeler.js';
 import type { VisibilityRouter } from './visibility-router.js';
+import type {
+  PublicGovernanceAnchorService,
+  PublicGovernanceAnchorWriteResult,
+  ProposalAnchorRecord,
+} from './public-governance-anchor-service.js';
+
+const PROPOSAL_COLLECTION = 'network.coopsource.governance.proposal';
+const VOTE_COLLECTION = 'network.coopsource.governance.vote';
 
 export class ProposalService {
   constructor(
     private db: Kysely<Database>,
     private pdsService: IPdsService,
     private clock: IClock,
+    private membershipReadModel: MembershipReadModel,
+    private voteWeightPlugin: VoteWeightPlugin,
+    private quorumPlugin: QuorumPlugin,
     private memberWriteProxy?: IMemberRecordWriter,
     private labeler?: GovernanceLabeler,
     private visibilityRouter?: VisibilityRouter,
+    private permissionedRecordWriter?: PermissionedRecordWritePort,
+    private publicGovernanceAnchorService?: PublicGovernanceAnchorService,
+    private actionAuthorizer?: ActionAuthorizerPlugin,
   ) {}
 
   async listProposals(
@@ -74,10 +128,7 @@ export class ProposalService {
       query = query.where((eb) =>
         eb.or([
           eb('created_at', '<', new Date(t)),
-          eb.and([
-            eb('created_at', '=', new Date(t)),
-            eb('id', '<', i),
-          ]),
+          eb.and([eb('created_at', '=', new Date(t)), eb('id', '<', i)]),
         ]),
       );
     }
@@ -133,13 +184,61 @@ export class ProposalService {
     }));
   }
 
-  async getProposal(id: string): Promise<ProposalWithVotes | null> {
-    const proposal = await this.db
+  async listPublicProposalAnchors(
+    cooperativeDid: string,
+    params: PageParams & { status?: string } = {},
+  ): Promise<Page<PublicGovernanceAnchorRow>> {
+    const limit = params.limit ?? 50;
+    let query = this.db
+      .selectFrom('public_governance_anchor')
+      .where('cooperative_did', '=', cooperativeDid)
+      .selectAll()
+      .orderBy('updated_at', 'desc')
+      .orderBy('id', 'desc')
+      .limit(limit + 1);
+
+    if (params.status) {
+      query = query.where('status', '=', params.status);
+    }
+
+    if (params.cursor) {
+      const { t, i } = decodeCursor(params.cursor);
+      query = query.where((eb) =>
+        eb.or([
+          eb('updated_at', '<', new Date(t)),
+          eb.and([eb('updated_at', '=', new Date(t)), eb('id', '<', i)]),
+        ]),
+      );
+    }
+
+    const rows = await query.execute();
+    const slice = rows.slice(0, limit);
+    const cursor =
+      rows.length > limit
+        ? encodeCursor(
+            slice[slice.length - 1]!.updated_at,
+            slice[slice.length - 1]!.id,
+          )
+        : undefined;
+
+    return { items: slice, cursor };
+  }
+
+  async getProposal(
+    id: string,
+    cooperativeDid?: string,
+  ): Promise<ProposalWithVotes | null> {
+    let query = this.db
       .selectFrom('proposal')
       .where('id', '=', id)
       .where('invalidated_at', 'is', null)
-      .selectAll()
-      .executeTakeFirst();
+      .selectAll();
+
+    if (cooperativeDid) {
+      query = query.where('cooperative_did', '=', cooperativeDid);
+    }
+
+    const proposal = await query.executeTakeFirst();
 
     if (!proposal) return null;
 
@@ -158,13 +257,21 @@ export class ProposalService {
     return { proposal, votes, voteSummary };
   }
 
-  async getProposalByUri(uri: string): Promise<ProposalWithVotes | null> {
-    const proposal = await this.db
+  async getProposalByUri(
+    uri: string,
+    cooperativeDid?: string,
+  ): Promise<ProposalWithVotes | null> {
+    let query = this.db
       .selectFrom('proposal')
       .where('uri', '=', uri)
       .where('invalidated_at', 'is', null)
-      .selectAll()
-      .executeTakeFirst();
+      .selectAll();
+
+    if (cooperativeDid) {
+      query = query.where('cooperative_did', '=', cooperativeDid);
+    }
+
+    const proposal = await query.executeTakeFirst();
 
     if (!proposal) return null;
 
@@ -190,22 +297,10 @@ export class ProposalService {
     const now = this.clock.now();
 
     // Check visibility routing for closed cooperatives (Tier 2 private data)
-    const collection = 'network.coopsource.governance.proposal';
-    const record = {
-      title: data.title,
-      body: data.body,
-      votingType: data.votingType,
-      options: data.options,
-      quorumType: data.quorumType,
-      quorumBasis: data.quorumBasis,
-      cooperative: data.cooperativeDid,
-      ...(data.meetingEvent && { meetingEvent: data.meetingEvent }),
-      ...(data.fullDocument && { fullDocument: data.fullDocument }),
-      ...(data.discussionThread && { discussionThread: data.discussionThread }),
-      createdAt: now.toISOString(),
-    };
+    const collection = PROPOSAL_COLLECTION;
+    const record = proposalRecordFromCreateInput(data, now);
 
-    let ref;
+    let ref: RecordRef;
     if (this.visibilityRouter) {
       const route = await this.visibilityRouter.routeWrite({
         cooperativeDid: data.cooperativeDid,
@@ -214,13 +309,25 @@ export class ProposalService {
         createdBy: authorDid,
       });
       if (route.tier === 2) {
-        // Tier 2: stored in private_record table, not on PDS/firehose
-        ref = { uri: `at://${data.cooperativeDid}/${collection}/${route.rkey}` as const, cid: 'private' as const };
+        ref = await this.writePermissionedRecordRef({
+          routeSpace: route.space,
+          authorDid,
+          collection,
+          record,
+        });
       } else {
-        ref = await this.pdsService.createRecord({ did: authorDid as DID, collection, record });
+        ref = await this.pdsService.createRecord({
+          did: authorDid as DID,
+          collection,
+          record,
+        });
       }
     } else {
-      ref = await this.pdsService.createRecord({ did: authorDid as DID, collection, record });
+      ref = await this.pdsService.createRecord({
+        did: authorDid as DID,
+        collection,
+        record,
+      });
     }
 
     const [row] = await this.db
@@ -241,6 +348,9 @@ export class ProposalService {
         status: 'draft',
         closes_at: data.closesAt ? new Date(data.closesAt) : null,
         tags: data.tags ?? [],
+        meeting_event: data.meetingEvent ?? null,
+        full_document: data.fullDocument ?? null,
+        discussion_thread: data.discussionThread ?? null,
         created_at: now,
         created_by: authorDid,
         indexed_at: now,
@@ -251,8 +361,93 @@ export class ProposalService {
     return row!;
   }
 
-  async openProposal(id: string, actorDid: string): Promise<ProposalRow> {
-    const proposal = await this._getOwnedProposal(id, actorDid);
+  async updateDraftProposal(params: {
+    readonly id: string;
+    readonly cooperativeDid: string;
+    readonly data: UpdateDraftProposalInput;
+  }): Promise<ProposalRow> {
+    const proposal = await this.db
+      .selectFrom('proposal')
+      .where('id', '=', params.id)
+      .where('cooperative_did', '=', params.cooperativeDid)
+      .where('invalidated_at', 'is', null)
+      .selectAll()
+      .executeTakeFirst();
+    if (!proposal) throw new NotFoundError('Proposal not found');
+    if (proposal.status !== 'draft') {
+      throw new ValidationError('Can only edit draft proposals');
+    }
+
+    const closesAt =
+      params.data.closesAt !== undefined
+        ? new Date(params.data.closesAt)
+        : proposal.closes_at;
+    const nextProposal: ProposalRow = {
+      ...proposal,
+      ...(params.data.title !== undefined ? { title: params.data.title } : {}),
+      ...(params.data.body !== undefined ? { body: params.data.body } : {}),
+      ...(params.data.tags !== undefined ? { tags: params.data.tags } : {}),
+      closes_at: closesAt,
+    };
+
+    const sourceRef = await this.updateProposalSourceRecord(nextProposal);
+    const now = this.clock.now();
+    const [updated] = await this.db
+      .updateTable('proposal')
+      .set({
+        ...(params.data.title !== undefined
+          ? { title: params.data.title }
+          : {}),
+        ...(params.data.body !== undefined ? { body: params.data.body } : {}),
+        ...(params.data.closesAt !== undefined ? { closes_at: closesAt } : {}),
+        ...(params.data.tags !== undefined ? { tags: params.data.tags } : {}),
+        uri: sourceRef.uri,
+        cid: sourceRef.cid,
+        indexed_at: now,
+      })
+      .where('id', '=', params.id)
+      .returningAll()
+      .execute();
+
+    return updated!;
+  }
+
+  async deleteProposal(params: {
+    readonly id: string;
+    readonly cooperativeDid: string;
+    readonly actorDid: string;
+  }): Promise<void> {
+    const proposal = await this.db
+      .selectFrom('proposal')
+      .where('id', '=', params.id)
+      .where('cooperative_did', '=', params.cooperativeDid)
+      .where('invalidated_at', 'is', null)
+      .selectAll()
+      .executeTakeFirst();
+    if (!proposal) throw new NotFoundError('Proposal not found');
+
+    await this.deleteProposalSourceRecord(proposal);
+    await this.withdrawPublicGovernanceAnchorIfPresent(proposal);
+
+    const now = this.clock.now();
+    await this.db
+      .updateTable('proposal')
+      .set({
+        status: 'withdrawn',
+        invalidated_at: now,
+        invalidated_by: params.actorDid,
+        indexed_at: now,
+      })
+      .where('id', '=', params.id)
+      .execute();
+  }
+
+  async openProposal(
+    id: string,
+    actorDid: string,
+    cooperativeDid?: string,
+  ): Promise<ProposalRow> {
+    const proposal = await this._getOwnedProposal(id, actorDid, cooperativeDid);
     if (proposal.status !== 'draft') {
       throw new ValidationError('Can only open a draft proposal');
     }
@@ -265,16 +460,27 @@ export class ProposalService {
       .returningAll()
       .execute();
 
+    await this.upsertPublicGovernanceAnchor(updated!);
+
     return updated!;
   }
 
-  async closeProposal(id: string, _actorDid: string): Promise<ProposalRow> {
-    const proposal = await this.db
+  async closeProposal(
+    id: string,
+    _actorDid: string,
+    cooperativeDid?: string,
+  ): Promise<ProposalRow> {
+    let query = this.db
       .selectFrom('proposal')
       .where('id', '=', id)
       .where('invalidated_at', 'is', null)
-      .selectAll()
-      .executeTakeFirst();
+      .selectAll();
+
+    if (cooperativeDid) {
+      query = query.where('cooperative_did', '=', cooperativeDid);
+    }
+
+    const proposal = await query.executeTakeFirst();
 
     if (!proposal) throw new NotFoundError('Proposal not found');
     if (proposal.status !== 'open') {
@@ -289,21 +495,29 @@ export class ProposalService {
       .returningAll()
       .execute();
 
+    await this.upsertPublicGovernanceAnchor(updated!);
+
     return updated!;
   }
 
   async castVote(params: {
     proposalId: string;
+    cooperativeDid?: string;
     voterDid: string;
     choice: string;
     rationale?: string;
   }): Promise<VoteRow> {
-    const proposal = await this.db
+    let query = this.db
       .selectFrom('proposal')
       .where('id', '=', params.proposalId)
       .where('invalidated_at', 'is', null)
-      .selectAll()
-      .executeTakeFirst();
+      .selectAll();
+
+    if (params.cooperativeDid) {
+      query = query.where('cooperative_did', '=', params.cooperativeDid);
+    }
+
+    const proposal = await query.executeTakeFirst();
 
     if (!proposal) throw new NotFoundError('Proposal not found');
     if (proposal.status !== 'open') {
@@ -311,8 +525,17 @@ export class ProposalService {
     }
 
     const now = this.clock.now();
+    const weight = await this.weightForVote({
+      proposal,
+      voterDid: params.voterDid,
+      choice: params.choice,
+      at: now,
+    });
 
-    // Write PDS record (member-owned → MemberWriteProxy)
+    // Write vote record. Closed-governance cooperatives route votes to Tier 2
+    // private storage; open/mixed-default cooperatives keep member-owned PDS
+    // writes through MemberWriteProxy.
+    const collection = VOTE_COLLECTION;
     const voteRecord = {
       proposal: proposal.uri,
       proposalCid: proposal.cid,
@@ -320,90 +543,144 @@ export class ProposalService {
       rationale: params.rationale,
       createdAt: now.toISOString(),
     };
-    const ref = this.memberWriteProxy
-      ? await this.memberWriteProxy.writeRecord({
-          memberDid: params.voterDid as DID,
-          collection: 'network.coopsource.governance.vote',
+    const writePublicVote = () =>
+      this.memberWriteProxy
+        ? this.memberWriteProxy.writeRecord({
+            memberDid: params.voterDid as DID,
+            collection,
+            record: voteRecord,
+          })
+        : this.pdsService.createRecord({
+            did: params.voterDid as DID,
+            collection,
+            record: voteRecord,
+          });
+
+    let ref: RecordRef | undefined;
+    try {
+      if (this.visibilityRouter) {
+        const route = await this.visibilityRouter.routeWrite({
+          cooperativeDid: proposal.cooperative_did,
+          collection,
           record: voteRecord,
-        })
-      : await this.pdsService.createRecord({
-          did: params.voterDid as DID,
-          collection: 'network.coopsource.governance.vote',
-          record: voteRecord,
+          createdBy: params.voterDid,
         });
+        if (route.tier === 2) {
+          ref = await this.writePermissionedRecordRef({
+            routeSpace: route.space,
+            authorDid: params.voterDid,
+            collection,
+            record: voteRecord,
+          });
+        } else {
+          ref = await writePublicVote();
+        }
+      } else {
+        ref = await writePublicVote();
+      }
 
-    // Retract any previous vote
-    await this.db
-      .updateTable('vote')
-      .set({ retracted_at: now, retracted_by: params.voterDid })
-      .where('proposal_id', '=', params.proposalId)
-      .where('voter_did', '=', params.voterDid)
-      .where('retracted_at', 'is', null)
-      .execute();
+      await this.retractActiveVotes({
+        proposalId: params.proposalId,
+        voterDid: params.voterDid,
+        retractedAt: now,
+      });
 
-    // Look up voter's class weight
-    const membershipRow = await this.db
-      .selectFrom('membership')
-      .leftJoin('member_class', (j) =>
-        j
-          .onRef('member_class.name', '=', 'membership.member_class')
-          .onRef('member_class.cooperative_did', '=', 'membership.cooperative_did'),
-      )
-      .where('membership.member_did', '=', params.voterDid)
-      .where('membership.cooperative_did', '=', proposal.cooperative_did)
-      .select('member_class.vote_weight')
-      .executeTakeFirst();
-    const weight = membershipRow?.vote_weight ?? 1;
+      const [vote] = await this.db
+        .insertInto('vote')
+        .values({
+          uri: ref.uri,
+          cid: ref.cid,
+          proposal_id: params.proposalId,
+          proposal_uri: proposal.uri ?? '',
+          proposal_cid: proposal.cid ?? '',
+          voter_did: params.voterDid,
+          choice: params.choice,
+          vote_weight: weight,
+          rationale: params.rationale ?? null,
+          created_at: now,
+          indexed_at: now,
+        })
+        .returningAll()
+        .execute();
 
-    const [vote] = await this.db
-      .insertInto('vote')
-      .values({
-        uri: ref.uri,
-        cid: ref.cid,
-        proposal_id: params.proposalId,
-        proposal_uri: proposal.uri ?? '',
-        proposal_cid: proposal.cid ?? '',
-        voter_did: params.voterDid,
-        choice: params.choice,
-        vote_weight: weight,
-        rationale: params.rationale ?? null,
-        created_at: now,
-        indexed_at: now,
-      })
-      .returningAll()
-      .execute();
-
-    return vote!;
+      return vote!;
+    } catch (err) {
+      if (ref?.uri) {
+        await this.deletePermissionedRecordIfNeeded(ref.uri).catch(
+          (cleanupErr) => {
+            logger.warn(
+              { err: cleanupErr, uri: ref?.uri },
+              'Failed to clean up permissioned vote record after cast failure',
+            );
+          },
+        );
+      }
+      throw err;
+    }
   }
 
-  async retractVote(
-    proposalId: string,
-    voterDid: string,
-  ): Promise<void> {
-    const vote = await this.db
+  async retractVote(params: {
+    proposalId: string;
+    actorDid: string;
+    cooperativeDid?: string;
+    voterDid?: string;
+  }): Promise<void> {
+    const voterDid = params.voterDid ?? params.actorDid;
+    let proposalQuery = this.db
+      .selectFrom('proposal')
+      .where('id', '=', params.proposalId)
+      .where('invalidated_at', 'is', null)
+      .select(['id', 'uri', 'cid', 'cooperative_did']);
+
+    if (params.cooperativeDid) {
+      proposalQuery = proposalQuery.where(
+        'cooperative_did',
+        '=',
+        params.cooperativeDid,
+      );
+    }
+
+    const proposal = await proposalQuery.executeTakeFirst();
+    if (!proposal) throw new NotFoundError('Proposal not found');
+
+    const votes = await this.db
       .selectFrom('vote')
-      .where('proposal_id', '=', proposalId)
+      .where('proposal_id', '=', params.proposalId)
       .where('voter_did', '=', voterDid)
       .where('retracted_at', 'is', null)
-      .select('id')
-      .executeTakeFirst();
-
-    if (!vote) throw new NotFoundError('Vote not found');
-
-    await this.db
-      .updateTable('vote')
-      .set({ retracted_at: this.clock.now(), retracted_by: voterDid })
-      .where('id', '=', vote.id)
+      .select(['id', 'uri', 'voter_did'])
       .execute();
+
+    if (votes.length === 0) throw new NotFoundError('Vote not found');
+
+    await this.authorizeVoteRetraction({
+      proposal,
+      actorDid: params.actorDid,
+      voteVoterDid: votes[0]!.voter_did,
+    });
+
+    await this.retractVoteRows(votes, voterDid, this.clock.now());
   }
 
-  async resolveProposal(id: string): Promise<ProposalRow> {
-    const proposal = await this.db
+  async resolveProposal(
+    id: string,
+    cooperativeDid?: string,
+  ): Promise<ProposalRow> {
+    let proposalQuery = this.db
       .selectFrom('proposal')
       .where('id', '=', id)
       .where('invalidated_at', 'is', null)
-      .selectAll()
-      .executeTakeFirst();
+      .selectAll();
+
+    if (cooperativeDid) {
+      proposalQuery = proposalQuery.where(
+        'cooperative_did',
+        '=',
+        cooperativeDid,
+      );
+    }
+
+    const proposal = await proposalQuery.executeTakeFirst();
 
     if (!proposal) throw new NotFoundError('Proposal not found');
     if (proposal.status !== 'closed') {
@@ -418,120 +695,59 @@ export class ProposalService {
       .selectAll()
       .execute();
 
-    // Count active members for quorum check
-    const memberCount = await this.db
-      .selectFrom('membership')
-      .where('cooperative_did', '=', proposal.cooperative_did)
-      .where('status', '=', 'active')
-      .where('invalidated_at', 'is', null)
-      .select((eb) => [eb.fn.countAll<number>().as('count')])
-      .executeTakeFirst();
+    const memberCounts =
+      await this.membershipReadModel.countProjectedActiveMembersByCooperative([
+        proposal.cooperative_did as DID,
+      ]);
+    const totalMembers = memberCounts.get(proposal.cooperative_did) ?? 0;
 
-    const totalMembers = memberCount?.count ?? 0;
-    const totalVotes = votes.length;
-
-    // Determine quorum (fixed: match DB constraint values)
-    let quorumMet = true;
-    const threshold = proposal.quorum_threshold ?? 0.5;
-    if (proposal.quorum_type === 'simpleMajority') {
-      quorumMet = totalVotes > totalMembers * threshold;
-    } else if (proposal.quorum_type === 'superMajority') {
-      quorumMet = totalVotes > totalMembers * (threshold || 0.67);
-    }
-
-    // Weighted tally (sum of vote_weight) and head count tally
-    const tally: Record<string, number> = {};
-    const weightedTally: Record<string, number> = {};
-    for (const v of votes) {
-      tally[v.choice] = (tally[v.choice] ?? 0) + 1;
-      weightedTally[v.choice] = (weightedTally[v.choice] ?? 0) + (v.vote_weight ?? 1);
-    }
+    const { weightedTally } = reduceGovernanceVoteTally(
+      votes.map((vote) => ({
+        choice: vote.choice,
+        weight: vote.vote_weight ?? 1,
+      })),
+    );
 
     // Per-class quorum check
-    let outcome: string;
-    if (proposal.class_quorum_rules && quorumMet) {
-      const rules = proposal.class_quorum_rules as Record<
-        string,
-        { minVotes?: number; minWeight?: number }
-      >;
-
-      // Look up voter classes for all votes
-      const voterClasses = await this.db
-        .selectFrom('membership')
-        .where('cooperative_did', '=', proposal.cooperative_did)
-        .where(
-          'member_did',
-          'in',
-          votes.map((v) => v.voter_did),
+    const classQuorumRules = classQuorumRulesFromRecord(
+      proposal.class_quorum_rules,
+    );
+    const classMap = classQuorumRules
+      ? await this.membershipReadModel.getProjectedMemberClassMap(
+          proposal.cooperative_did as DID,
+          votes.map((v) => v.voter_did as DID),
         )
-        .select(['member_did', 'member_class'])
-        .execute();
-      const classMap = new Map(
-        voterClasses.map((m) => [m.member_did, m.member_class]),
-      );
-
-      for (const [className, rule] of Object.entries(rules)) {
-        const classVotes = votes.filter(
-          (v) => classMap.get(v.voter_did) === className,
-        );
-
-        if (rule.minVotes && classVotes.length < rule.minVotes) {
-          quorumMet = false;
-          break;
-        }
-
-        if (rule.minWeight) {
-          const classWeight = classVotes.reduce(
-            (sum, v) => sum + (v.vote_weight ?? 1),
-            0,
-          );
-          // Get total weight for this class (sum of all active members in class)
-          const totalClassResult = await this.db
-            .selectFrom('membership')
-            .leftJoin('member_class', (j) =>
-              j
-                .onRef('member_class.name', '=', 'membership.member_class')
-                .onRef(
-                  'member_class.cooperative_did',
-                  '=',
-                  'membership.cooperative_did',
-                ),
-            )
-            .where('membership.cooperative_did', '=', proposal.cooperative_did)
-            .where('membership.member_class', '=', className)
-            .where('membership.status', '=', 'active')
-            .where('membership.invalidated_at', 'is', null)
-            .select((eb) => [
-              eb.fn
-                .coalesce(
-                  eb.fn.sum<number>('member_class.vote_weight'),
-                  eb.val(0),
-                )
-                .as('total_weight'),
-            ])
-            .executeTakeFirst();
-
-          const totalClassWeight = Number(totalClassResult?.total_weight ?? 0);
-          if (totalClassWeight > 0 && classWeight / totalClassWeight < rule.minWeight) {
-            quorumMet = false;
-            break;
+      : undefined;
+    const quorumResult = await this.quorumPlugin.evaluate({
+      proposal: this.proposalRef(proposal),
+      cooperative: this.cooperativeRef(proposal.cooperative_did),
+      votes: votes.map((vote) => ({
+        voter: { did: vote.voter_did },
+        choice: vote.choice,
+        weight: vote.vote_weight ?? 1,
+        ...(classMap
+          ? { memberClass: classMap.get(vote.voter_did) ?? null }
+          : {}),
+        at: vote.created_at.toISOString(),
+      })),
+      eligibleVoterCount: totalMembers,
+      quorum: quorumConfigFromProposal(proposal),
+      ...(classQuorumRules ? { classQuorumRules } : {}),
+      ...(classQuorumRules
+        ? {
+            classDenominators: await this.classDenominators(
+              proposal.cooperative_did,
+              classQuorumRules,
+            ),
           }
-        }
-      }
-    }
+        : {}),
+    });
 
-    // Determine outcome (using weighted tally for yes/no decisions)
-    if (!quorumMet) {
-      outcome = proposal.class_quorum_rules ? 'class_quorum_not_met' : 'no_quorum';
-    } else if (proposal.voting_type === 'binary') {
-      const yes = weightedTally['yes'] ?? 0;
-      const no = weightedTally['no'] ?? 0;
-      outcome = yes > no ? 'passed' : 'failed';
-    } else {
-      // For other types, the option with most weighted votes wins
-      const sorted = Object.entries(weightedTally).sort((a, b) => b[1] - a[1]);
-      outcome = sorted.length > 0 ? 'passed' : 'no_quorum';
-    }
+    const outcome = decideGovernanceProposalOutcome({
+      votingType: proposal.voting_type,
+      weightedTally,
+      quorum: quorumResult,
+    });
 
     const now = this.clock.now();
     const [updated] = await this.db
@@ -546,18 +762,27 @@ export class ProposalService {
       .returningAll()
       .execute();
 
+    const publicAnchor = await this.upsertPublicGovernanceAnchor(updated!);
+
     // Emit governance label (best-effort)
-    if (this.labeler && updated?.uri) {
-      const labelValue = outcome === 'passed'
-        ? 'proposal-approved'
-        : outcome === 'failed'
-          ? 'proposal-rejected'
-          : 'proposal-archived';
+    const labelSubject = updated
+      ? getPublicGovernanceLabelSubject(updated, publicAnchor)
+      : null;
+    if (this.labeler && labelSubject) {
+      const labelValue =
+        outcome === 'passed'
+          ? 'proposal-approved'
+          : outcome === 'failed'
+            ? 'proposal-rejected'
+            : 'proposal-archived';
       await this.labeler.emitLabel(
         updated.cooperative_did,
-        updated.uri,
-        labelValue as 'proposal-approved' | 'proposal-rejected' | 'proposal-archived',
-        updated.cid ?? undefined,
+        labelSubject.uri,
+        labelValue as
+          | 'proposal-approved'
+          | 'proposal-rejected'
+          | 'proposal-archived',
+        labelSubject.cid,
       );
     }
 
@@ -579,21 +804,397 @@ export class ProposalService {
       try {
         await this.resolveProposal(id);
       } catch (err) {
-        logger.error({ err, proposalId: id }, 'Failed to resolve expired proposal');
+        logger.error(
+          { err, proposalId: id },
+          'Failed to resolve expired proposal',
+        );
       }
     }
+  }
+
+  private async writePermissionedRecordRef(args: {
+    routeSpace: SpaceRef | undefined;
+    authorDid: string;
+    collection: string;
+    record: Record<string, unknown>;
+    rkey?: string;
+  }): Promise<RecordRef> {
+    if (!args.routeSpace) {
+      throw new Error('VisibilityRouter returned Tier 2 without a space');
+    }
+    if (!this.permissionedRecordWriter) {
+      throw new Error(
+        'VisibilityRouter returned Tier 2 without a PermissionedRecordWritePort',
+      );
+    }
+
+    const write = await this.permissionedRecordWriter.createRecord({
+      space: args.routeSpace,
+      authorDid: args.authorDid as DID,
+      collection: args.collection,
+      record: args.record,
+      rkey: args.rkey,
+    });
+    return permissionedRecordRef(write);
+  }
+
+  private async updateProposalSourceRecord(
+    proposal: ProposalRow,
+  ): Promise<RecordRef> {
+    if (!proposal.uri) {
+      throw new Error('Cannot update a proposal without a source URI');
+    }
+
+    const record = proposalRecordFromRow(proposal);
+    const permissioned = parseSpaceRecordUri(proposal.uri);
+    if (permissioned) {
+      if (!this.permissionedRecordWriter) {
+        throw new Error(
+          'Permissioned proposal update requires a PermissionedRecordWritePort',
+        );
+      }
+      const write = await this.permissionedRecordWriter.updateRecord({
+        space: {
+          arbiterDid: permissioned.spaceDid as DID,
+          spaceKey: permissioned.skey,
+          expectedSpaceType: permissioned.spaceType,
+        },
+        authorDid: permissioned.authorDid as DID,
+        collection: permissioned.collection,
+        rkey: permissioned.rkey,
+        record,
+      });
+      return permissionedRecordRef(write);
+    }
+
+    const publicRecord = parsePublicRecordUri(proposal.uri);
+    if (!publicRecord || publicRecord.collection !== PROPOSAL_COLLECTION) {
+      throw new Error(`Unsupported proposal source URI: ${proposal.uri}`);
+    }
+    return this.pdsService.putRecord({
+      did: publicRecord.did as DID,
+      collection: publicRecord.collection,
+      rkey: publicRecord.rkey,
+      record,
+    });
+  }
+
+  private async deleteProposalSourceRecord(
+    proposal: ProposalRow,
+  ): Promise<void> {
+    if (!proposal.uri) return;
+
+    const permissioned = parseSpaceRecordUri(proposal.uri);
+    if (permissioned) {
+      await this.deletePermissionedRecordIfNeeded(proposal.uri);
+      return;
+    }
+
+    const publicRecord = parsePublicRecordUri(proposal.uri);
+    if (!publicRecord || publicRecord.collection !== PROPOSAL_COLLECTION) {
+      throw new Error(`Unsupported proposal source URI: ${proposal.uri}`);
+    }
+    try {
+      await this.pdsService.deleteRecord({
+        did: publicRecord.did as DID,
+        collection: publicRecord.collection,
+        rkey: publicRecord.rkey,
+      });
+    } catch (err) {
+      if (err instanceof NotFoundError) return;
+      throw err;
+    }
+  }
+
+  private async withdrawPublicGovernanceAnchorIfPresent(
+    proposal: ProposalRow,
+  ): Promise<void> {
+    const existing = await this.db
+      .selectFrom('public_governance_anchor')
+      .where('proposal_id', '=', proposal.id)
+      .select('id')
+      .executeTakeFirst();
+    if (!existing) return;
+
+    await this.upsertPublicGovernanceAnchor({
+      ...proposal,
+      status: 'withdrawn',
+    });
+  }
+
+  private async retractActiveVotes(args: {
+    proposalId: string;
+    voterDid: string;
+    retractedAt: Date;
+  }): Promise<void> {
+    const votes = await this.db
+      .selectFrom('vote')
+      .where('proposal_id', '=', args.proposalId)
+      .where('voter_did', '=', args.voterDid)
+      .where('retracted_at', 'is', null)
+      .select(['id', 'uri'])
+      .execute();
+
+    if (votes.length === 0) return;
+    await this.retractVoteRows(votes, args.voterDid, args.retractedAt);
+  }
+
+  private async retractVoteRows(
+    votes: Array<{ id: string; uri: string | null }>,
+    voterDid: string,
+    retractedAt: Date,
+  ): Promise<void> {
+    for (const vote of votes) {
+      if (vote.uri) {
+        await this.deletePermissionedRecordIfNeeded(vote.uri);
+      }
+    }
+
+    await this.db
+      .updateTable('vote')
+      .set({ retracted_at: retractedAt, retracted_by: voterDid })
+      .where(
+        'id',
+        'in',
+        votes.map((vote) => vote.id),
+      )
+      .execute();
+  }
+
+  private async deletePermissionedRecordIfNeeded(uri: string): Promise<void> {
+    const parsed = parseSpaceRecordUri(uri);
+    if (!parsed) return;
+    if (!this.permissionedRecordWriter) {
+      throw new Error(
+        'Permissioned vote retraction requires a PermissionedRecordWritePort',
+      );
+    }
+
+    try {
+      await this.permissionedRecordWriter.deleteRecord({
+        space: {
+          arbiterDid: parsed.spaceDid as DID,
+          spaceKey: parsed.skey,
+          expectedSpaceType: parsed.spaceType,
+        },
+        authorDid: parsed.authorDid as DID,
+        collection: parsed.collection,
+        rkey: parsed.rkey,
+      });
+    } catch (err) {
+      if (
+        err instanceof PermissionedRecordWriteError &&
+        err.kind === 'not-found'
+      ) {
+        return;
+      }
+      throw err;
+    }
+  }
+
+  private async weightForVote(params: {
+    readonly proposal: ProposalRow;
+    readonly voterDid: string;
+    readonly choice: string;
+    readonly at: Date;
+  }): Promise<number> {
+    const result = await this.voteWeightPlugin.weightForVote({
+      voter: { did: params.voterDid },
+      proposal: this.proposalRef(params.proposal),
+      cooperative: this.cooperativeRef(params.proposal.cooperative_did),
+      voteChoice: params.choice,
+      at: params.at.toISOString(),
+    });
+
+    return result.weight;
+  }
+
+  private async authorizeVoteRetraction(args: {
+    readonly proposal: Pick<
+      ProposalRow,
+      'id' | 'uri' | 'cid' | 'cooperative_did'
+    >;
+    readonly actorDid: string;
+    readonly voteVoterDid: string;
+  }): Promise<void> {
+    if (!this.actionAuthorizer) {
+      if (args.actorDid !== args.voteVoterDid) {
+        throw new UnauthorizedError('Not the vote owner');
+      }
+      return;
+    }
+
+    const decision = await this.actionAuthorizer.authorize({
+      actor: { did: args.actorDid },
+      cooperative: this.cooperativeRef(args.proposal.cooperative_did),
+      action: 'vote.retract.own',
+      at: this.clock.now().toISOString(),
+      ...(args.proposal.uri
+        ? {
+            proposal: {
+              uri: args.proposal.uri,
+              ...(args.proposal.cid ? { cid: args.proposal.cid } : {}),
+              collection: PROPOSAL_COLLECTION,
+            },
+          }
+        : {}),
+      payload: { voteVoterDid: args.voteVoterDid },
+    });
+
+    if (!decision.authorized) {
+      throw new UnauthorizedError('Not the vote owner');
+    }
+  }
+
+  private proposalRef(proposal: ProposalRow): GovernanceProposalRef {
+    if (!proposal.uri) {
+      throw new Error(
+        `Cannot evaluate proposal ${proposal.id}: missing proposal URI`,
+      );
+    }
+
+    return {
+      uri: proposal.uri,
+      ...(proposal.cid ? { cid: proposal.cid } : {}),
+      collection: PROPOSAL_COLLECTION,
+    };
+  }
+
+  private cooperativeRef(cooperativeDid: string): GovernanceGroupRef {
+    const memberSpace = membersSpace(cooperativeDid as DID);
+    return {
+      authorityDid: cooperativeDid,
+      spaceKey: memberSpace.spaceKey,
+      spaceType: memberSpace.expectedSpaceType,
+    };
+  }
+
+  private async classDenominators(
+    cooperativeDid: string,
+    rules: Readonly<Record<string, GovernanceClassQuorumRule>>,
+  ): Promise<readonly GovernanceClassDenominator[]> {
+    const classes = Object.entries(rules)
+      .filter(([, rule]) => rule.minWeightRatio !== undefined)
+      .map(([className]) => className);
+
+    return Promise.all(
+      classes.map(async (className) => ({
+        className,
+        totalWeight:
+          await this.membershipReadModel.getProjectedClassWeightDenominator(
+            cooperativeDid as DID,
+            className,
+          ),
+      })),
+    );
+  }
+
+  private async upsertPublicGovernanceAnchor(
+    proposal: ProposalRow,
+  ): Promise<PublicGovernanceAnchorWriteResult | null> {
+    if (
+      !this.publicGovernanceAnchorService ||
+      !proposal.uri ||
+      !isSpaceRecordUri(proposal.uri)
+    ) {
+      return null;
+    }
+
+    try {
+      const policy = await this.db
+        .selectFrom('cooperative_profile')
+        .where('entity_did', '=', proposal.cooperative_did)
+        .select([
+          'public_governance_anchors',
+          'public_governance_anchor_outcomes',
+        ])
+        .executeTakeFirst();
+
+      if (!policy) return null;
+
+      const existingAnchor = await this.db
+        .selectFrom('public_governance_anchor')
+        .where('proposal_id', '=', proposal.id)
+        .select('anchor_uri')
+        .executeTakeFirst();
+
+      const result =
+        await this.publicGovernanceAnchorService.upsertProposalAnchor({
+          policy: {
+            enabled: policy.public_governance_anchors,
+            publishOutcome: policy.public_governance_anchor_outcomes,
+          },
+          proposal: {
+            cooperativeDid: proposal.cooperative_did,
+            proposalId: proposal.id,
+            status: proposal.status,
+            outcome: proposal.outcome,
+            openedAt: proposal.opens_at,
+            closedAt: proposal.closes_at,
+            resolvedAt: proposal.resolved_at,
+          },
+          existingAnchorUri: existingAnchor?.anchor_uri as AtUri | undefined,
+        });
+
+      if (!result) return null;
+      await this.persistPublicGovernanceAnchor(proposal, result);
+      return result;
+    } catch (err) {
+      logger.warn(
+        { err, proposalId: proposal.id },
+        'Failed to publish public governance anchor',
+      );
+      return null;
+    }
+  }
+
+  private async persistPublicGovernanceAnchor(
+    proposal: ProposalRow,
+    result: PublicGovernanceAnchorWriteResult,
+  ): Promise<void> {
+    const now = this.clock.now();
+    const row = publicGovernanceAnchorRow(proposal, result.record, now);
+
+    await this.db
+      .insertInto('public_governance_anchor')
+      .values({
+        ...row,
+        anchor_uri: result.uri,
+        anchor_cid: result.cid,
+        created_at: now,
+      })
+      .onConflict((oc) =>
+        oc.column('proposal_id').doUpdateSet({
+          anchor_uri: result.uri,
+          anchor_cid: result.cid,
+          status: row.status,
+          outcome: row.outcome,
+          opened_at: row.opened_at,
+          closed_at: row.closed_at,
+          resolved_at: row.resolved_at,
+          anchor_version: row.anchor_version,
+          updated_at: now,
+        }),
+      )
+      .execute();
   }
 
   private async _getOwnedProposal(
     id: string,
     actorDid: string,
+    cooperativeDid?: string,
   ): Promise<ProposalRow> {
-    const proposal = await this.db
+    let query = this.db
       .selectFrom('proposal')
       .where('id', '=', id)
       .where('invalidated_at', 'is', null)
-      .selectAll()
-      .executeTakeFirst();
+      .selectAll();
+
+    if (cooperativeDid) {
+      query = query.where('cooperative_did', '=', cooperativeDid);
+    }
+
+    const proposal = await query.executeTakeFirst();
 
     if (!proposal) throw new NotFoundError('Proposal not found');
     if (proposal.author_did !== actorDid) {
@@ -602,4 +1203,178 @@ export class ProposalService {
 
     return proposal;
   }
+}
+
+function permissionedRecordRef(
+  write: PermissionedRecordWriteResult,
+): RecordRef {
+  return {
+    uri: formatPermissionedRecordLocationUri(write.location) as AtUri,
+    cid: write.cid as CID,
+  };
+}
+
+function proposalRecordFromCreateInput(
+  data: CreateProposalInput,
+  createdAt: Date,
+): Record<string, unknown> {
+  return withoutUndefinedRecord({
+    title: data.title,
+    body: data.body,
+    bodyFormat: data.bodyFormat ?? 'text',
+    votingType: data.votingType,
+    options: data.options,
+    quorumType: data.quorumType,
+    quorumBasis: data.quorumBasis,
+    quorumThreshold: data.quorumThreshold,
+    cooperative: data.cooperativeDid,
+    closesAt: data.closesAt,
+    tags: data.tags,
+    meetingEvent: data.meetingEvent,
+    fullDocument: data.fullDocument,
+    discussionThread: data.discussionThread,
+    createdAt: createdAt.toISOString(),
+  });
+}
+
+function proposalRecordFromRow(proposal: ProposalRow): Record<string, unknown> {
+  return withoutUndefinedRecord({
+    title: proposal.title,
+    body: proposal.body,
+    bodyFormat: proposal.body_format,
+    votingType: proposal.voting_type,
+    options: proposal.options ?? undefined,
+    quorumType: proposal.quorum_type,
+    quorumBasis: proposal.quorum_basis,
+    quorumThreshold: proposal.quorum_threshold ?? undefined,
+    cooperative: proposal.cooperative_did,
+    closesAt: proposal.closes_at ? toIsoString(proposal.closes_at) : undefined,
+    tags: proposal.tags.length > 0 ? proposal.tags : undefined,
+    meetingEvent: proposal.meeting_event ?? undefined,
+    fullDocument: proposal.full_document ?? undefined,
+    discussionThread: proposal.discussion_thread ?? undefined,
+    createdAt: toIsoString(proposal.created_at),
+  });
+}
+
+function withoutUndefinedRecord(
+  record: Record<string, unknown>,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(record).filter(([, value]) => value !== undefined),
+  );
+}
+
+function parsePublicRecordUri(uri: string): {
+  readonly did: string;
+  readonly collection: string;
+  readonly rkey: string;
+} | null {
+  const match = /^at:\/\/([^/]+)\/([^/]+)\/([^/?#]+)$/.exec(uri);
+  const [, did, collection, rkey] = match ?? [];
+  if (!did || !collection || !rkey) return null;
+  return { did, collection, rkey };
+}
+
+function toIsoString(value: Date | string): string {
+  return value instanceof Date ? value.toISOString() : value;
+}
+
+function quorumConfigFromProposal(
+  proposal: ProposalRow,
+): GovernanceQuorumConfig | undefined {
+  if (proposal.quorum_type === 'none') {
+    return { type: 'none' };
+  }
+
+  if (
+    proposal.quorum_type !== 'simpleMajority' &&
+    proposal.quorum_type !== 'superMajority'
+  ) {
+    return undefined;
+  }
+
+  const currentDefaultThreshold = proposal.quorum_threshold ?? 0.5;
+  return {
+    type: proposal.quorum_type,
+    threshold:
+      proposal.quorum_type === 'superMajority'
+        ? currentDefaultThreshold || 0.67
+        : currentDefaultThreshold,
+  };
+}
+
+function classQuorumRulesFromRecord(
+  record: Record<string, unknown> | null,
+): Readonly<Record<string, GovernanceClassQuorumRule>> | undefined {
+  if (!record) return undefined;
+
+  const entries: Array<[string, GovernanceClassQuorumRule]> = [];
+  for (const [className, rawRule] of Object.entries(record)) {
+    if (!rawRule || typeof rawRule !== 'object' || Array.isArray(rawRule)) {
+      continue;
+    }
+
+    const source = rawRule as Record<string, unknown>;
+    const minVotes = numberField(source.minVotes);
+    const minWeightRatio =
+      numberField(source.minWeightRatio) ?? numberField(source.minWeight);
+    const rule: GovernanceClassQuorumRule = {
+      ...(minVotes === undefined ? {} : { minVotes }),
+      ...(minWeightRatio === undefined ? {} : { minWeightRatio }),
+    };
+    if (Object.keys(rule).length > 0) {
+      entries.push([className, rule]);
+    }
+  }
+
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+function numberField(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? value
+    : undefined;
+}
+
+function shouldEmitPublicGovernanceLabel(uri: string): boolean {
+  return !isSpaceRecordUri(uri);
+}
+
+function getPublicGovernanceLabelSubject(
+  proposal: ProposalRow,
+  publicAnchor: PublicGovernanceAnchorWriteResult | null,
+): { readonly uri: AtUri; readonly cid?: CID } | null {
+  if (proposal.uri && shouldEmitPublicGovernanceLabel(proposal.uri)) {
+    return {
+      uri: proposal.uri as AtUri,
+      cid: proposal.cid ? (proposal.cid as CID) : undefined,
+    };
+  }
+  if (publicAnchor?.record.outcome) {
+    return { uri: publicAnchor.uri, cid: publicAnchor.cid };
+  }
+  return null;
+}
+
+function publicGovernanceAnchorRow(
+  proposal: ProposalRow,
+  record: ProposalAnchorRecord,
+  updatedAt: Date,
+) {
+  return {
+    cooperative_did: proposal.cooperative_did,
+    proposal_id: proposal.id,
+    status: record.status,
+    outcome: record.outcome ?? null,
+    opened_at: dateOrNull(record.openedAt),
+    closed_at: dateOrNull(record.closedAt),
+    resolved_at: dateOrNull(record.resolvedAt),
+    anchor_version: record.anchorVersion,
+    updated_at: updatedAt,
+  };
+}
+
+function dateOrNull(value: string | undefined): Date | null {
+  return value ? new Date(value) : null;
 }

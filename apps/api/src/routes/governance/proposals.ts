@@ -5,8 +5,8 @@ import { requireAuth } from '../../auth/middleware.js';
 import { requirePermission } from '../../middleware/permissions.js';
 import { parsePagination } from '../../lib/pagination.js';
 import {
+  type DID,
   NotFoundError,
-  ValidationError,
   CreateProposalBodySchema,
   UpdateProposalBodySchema,
   CastVoteSchema,
@@ -17,6 +17,9 @@ import {
   type ProposalResponse,
   type VoteResponse,
 } from '../../lib/formatters.js';
+import { membersSpace } from '@coopsource/arbiter-client';
+
+const PROPOSAL_COLLECTION = 'network.coopsource.governance.proposal';
 
 // Enrich a proposal row with author display name/handle
 async function enrichProposal(
@@ -125,7 +128,8 @@ export function createProposalRoutes(container: Container): Router {
     requireAuth,
     asyncHandler(async (req, res) => {
       const result = await container.proposalService.getProposal(
-        (req.params.id as string),
+        req.params.id as string,
+        req.actor!.cooperativeDid,
       );
       if (!result) throw new NotFoundError('Proposal not found');
       res.json(await enrichProposal(container, result.proposal));
@@ -139,38 +143,44 @@ export function createProposalRoutes(container: Container): Router {
     asyncHandler(async (req, res) => {
       const proposal = await container.db
         .selectFrom('proposal')
-        .where('id', '=', (req.params.id as string))
+        .where('id', '=', req.params.id as string)
+        .where('cooperative_did', '=', req.actor!.cooperativeDid)
         .where('invalidated_at', 'is', null)
         .selectAll()
         .executeTakeFirst();
 
       if (!proposal) throw new NotFoundError('Proposal not found');
-      if (proposal.author_did !== req.actor!.did) {
+      const decision = await authorizeProposalAction(container, {
+        cooperativeDid: req.actor!.cooperativeDid,
+        actorDid: req.actor!.did,
+        action: 'proposal.update.own',
+        proposalUri: proposal.uri,
+        proposalCid: proposal.cid,
+        proposalAuthorDid: proposal.author_did,
+      });
+      if (!decision.authorized) {
         res.status(403).json({
-          error: 'FORBIDDEN', message: 'Not the proposal author',
+          error: 'FORBIDDEN',
+          message: 'Not the proposal author',
         });
         return;
       }
-      if (proposal.status !== 'draft') {
-        throw new ValidationError('Can only edit draft proposals');
-      }
+      const { title, body, closesAt, tags } = UpdateProposalBodySchema.parse(
+        req.body,
+      );
 
-      const { title, body, closesAt, tags } = UpdateProposalBodySchema.parse(req.body);
+      const updated = await container.proposalService.updateDraftProposal({
+        id: req.params.id as string,
+        cooperativeDid: req.actor!.cooperativeDid,
+        data: {
+          ...(title !== undefined ? { title } : {}),
+          ...(body !== undefined ? { body } : {}),
+          ...(closesAt !== undefined ? { closesAt } : {}),
+          ...(tags !== undefined ? { tags } : {}),
+        },
+      });
 
-      const [updated] = await container.db
-        .updateTable('proposal')
-        .set({
-          ...(title ? { title } : {}),
-          ...(body ? { body } : {}),
-          ...(closesAt ? { closes_at: new Date(closesAt) } : {}),
-          ...(tags ? { tags } : {}),
-          indexed_at: new Date(),
-        })
-        .where('id', '=', (req.params.id as string))
-        .returningAll()
-        .execute();
-
-      res.json(await enrichProposal(container, updated!));
+      res.json(await enrichProposal(container, updated));
     }),
   );
 
@@ -181,31 +191,35 @@ export function createProposalRoutes(container: Container): Router {
     asyncHandler(async (req, res) => {
       const proposal = await container.db
         .selectFrom('proposal')
-        .where('id', '=', (req.params.id as string))
+        .where('id', '=', req.params.id as string)
+        .where('cooperative_did', '=', req.actor!.cooperativeDid)
         .where('invalidated_at', 'is', null)
-        .select(['author_did'])
+        .select(['author_did', 'cid', 'uri'])
         .executeTakeFirst();
 
       if (!proposal) throw new NotFoundError('Proposal not found');
 
-      const isAuthor = proposal.author_did === req.actor!.did;
-      const isAdmin = req.actor!.hasRole('admin', 'owner');
-      if (!isAuthor && !isAdmin) {
+      const decision = await authorizeProposalAction(container, {
+        cooperativeDid: req.actor!.cooperativeDid,
+        actorDid: req.actor!.did,
+        action: 'proposal.delete',
+        proposalUri: proposal.uri,
+        proposalCid: proposal.cid,
+        proposalAuthorDid: proposal.author_did,
+      });
+      if (!decision.authorized) {
         res.status(403).json({
-          error: 'FORBIDDEN', message: 'Not authorized',
+          error: 'FORBIDDEN',
+          message: 'Not authorized',
         });
         return;
       }
 
-      await container.db
-        .updateTable('proposal')
-        .set({
-          invalidated_at: new Date(),
-          invalidated_by: req.actor!.did,
-          indexed_at: new Date(),
-        })
-        .where('id', '=', (req.params.id as string))
-        .execute();
+      await container.proposalService.deleteProposal({
+        id: req.params.id as string,
+        cooperativeDid: req.actor!.cooperativeDid,
+        actorDid: req.actor!.did,
+      });
 
       res.status(204).send();
     }),
@@ -218,8 +232,9 @@ export function createProposalRoutes(container: Container): Router {
     requirePermission('proposal.open'),
     asyncHandler(async (req, res) => {
       const result = await container.proposalService.openProposal(
-        (req.params.id as string),
+        req.params.id as string,
         req.actor!.did,
+        req.actor!.cooperativeDid,
       );
       res.json(await enrichProposal(container, result));
     }),
@@ -232,8 +247,9 @@ export function createProposalRoutes(container: Container): Router {
     requirePermission('proposal.close'),
     asyncHandler(async (req, res) => {
       const result = await container.proposalService.closeProposal(
-        (req.params.id as string),
+        req.params.id as string,
         req.actor!.did,
+        req.actor!.cooperativeDid,
       );
       res.json(await enrichProposal(container, result));
     }),
@@ -246,7 +262,8 @@ export function createProposalRoutes(container: Container): Router {
     requirePermission('proposal.resolve'),
     asyncHandler(async (req, res) => {
       const result = await container.proposalService.resolveProposal(
-        (req.params.id as string),
+        req.params.id as string,
+        req.actor!.cooperativeDid,
       );
       res.json(await enrichProposal(container, result));
     }),
@@ -257,9 +274,15 @@ export function createProposalRoutes(container: Container): Router {
     '/api/v1/proposals/:id/votes',
     requireAuth,
     asyncHandler(async (req, res) => {
+      const result = await container.proposalService.getProposal(
+        req.params.id as string,
+        req.actor!.cooperativeDid,
+      );
+      if (!result) throw new NotFoundError('Proposal not found');
+
       const voteRows = await container.db
         .selectFrom('vote')
-        .where('proposal_id', '=', (req.params.id as string))
+        .where('proposal_id', '=', result.proposal.id)
         .where('retracted_at', 'is', null)
         .selectAll()
         .execute();
@@ -273,7 +296,8 @@ export function createProposalRoutes(container: Container): Router {
       const weightedTally: Record<string, number> = {};
       for (const v of voteRows) {
         tally[v.choice] = (tally[v.choice] ?? 0) + 1;
-        weightedTally[v.choice] = (weightedTally[v.choice] ?? 0) + (v.vote_weight ?? 1);
+        weightedTally[v.choice] =
+          (weightedTally[v.choice] ?? 0) + (v.vote_weight ?? 1);
       }
 
       res.json({ votes, tally, weightedTally });
@@ -289,7 +313,8 @@ export function createProposalRoutes(container: Container): Router {
       const { choice, rationale } = CastVoteSchema.parse(req.body);
 
       const vote = await container.proposalService.castVote({
-        proposalId: (req.params.id as string),
+        proposalId: req.params.id as string,
+        cooperativeDid: req.actor!.cooperativeDid,
         voterDid: req.actor!.did,
         choice,
         rationale,
@@ -304,13 +329,50 @@ export function createProposalRoutes(container: Container): Router {
     '/api/v1/proposals/:id/vote',
     requireAuth,
     asyncHandler(async (req, res) => {
-      await container.proposalService.retractVote(
-        (req.params.id as string),
-        req.actor!.did,
-      );
+      await container.proposalService.retractVote({
+        proposalId: req.params.id as string,
+        actorDid: req.actor!.did,
+        cooperativeDid: req.actor!.cooperativeDid,
+      });
       res.status(204).send();
     }),
   );
 
   return router;
+}
+
+async function authorizeProposalAction(
+  container: Container,
+  input: {
+    readonly cooperativeDid: string;
+    readonly actorDid: string;
+    readonly action: string;
+    readonly proposalUri: string | null;
+    readonly proposalCid: string | null;
+    readonly proposalAuthorDid: string;
+  },
+): ReturnType<Container['governancePlugins']['actionAuthorizer']['authorize']> {
+  const memberSpace = membersSpace(input.cooperativeDid as DID);
+  const proposal = input.proposalUri
+    ? {
+        uri: input.proposalUri,
+        ...(input.proposalCid ? { cid: input.proposalCid } : {}),
+        collection: PROPOSAL_COLLECTION,
+      }
+    : undefined;
+
+  return container.governancePlugins.actionAuthorizer.authorize({
+    actor: { did: input.actorDid },
+    cooperative: {
+      authorityDid: input.cooperativeDid,
+      spaceKey: memberSpace.spaceKey,
+      spaceType: memberSpace.expectedSpaceType,
+    },
+    ...(proposal ? { proposal } : {}),
+    action: input.action,
+    at: container.clock.now().toISOString(),
+    payload: {
+      proposalAuthorDid: input.proposalAuthorDid,
+    },
+  });
 }

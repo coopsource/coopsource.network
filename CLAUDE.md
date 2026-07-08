@@ -7,6 +7,7 @@ Co-op Source Network is a federated cooperative governance platform on ATProtoco
 - **[ARCHITECTURE-V12.md](./ARCHITECTURE-V12.md)** — the canonical spec (four layers, ten-plugin contract, five axes, current code state, phase map, watchlist). **When this file and ARCHITECTURE-V12.md disagree, ARCHITECTURE-V12.md wins.**
 - **[docs/plans/2026-07-04-v12-program-plan.md](./docs/plans/2026-07-04-v12-program-plan.md)** — the active phased plan (Phase 0 done).
 - **[docs/plans/2026-07-04-atproto-shared-spaces-research.md](./docs/plans/2026-07-04-atproto-shared-spaces-research.md)** — July 2026 ecosystem state behind V12.
+- **[docs/plans/2026-07-05-v12-replan-after-code-deep-dive.md](./docs/plans/2026-07-05-v12-replan-after-code-deep-dive.md)** — July 5 code/proposal reconciliation and updated Phase 3 execution order.
 - **[docs/plans/2026-07-04-v11-merge-review-findings.md](./docs/plans/2026-07-04-v11-merge-review-findings.md)** — tracked review findings feeding Phases 2–3.
 - **[AGENTS.md](./AGENTS.md)** — PoC posture: no backwards-compat artifacts, no `FooV2` names in code; rename canonical types in place.
 
@@ -15,31 +16,35 @@ Prior architectures (V3–V11) are archived in `docs/archive/`. V12 supersedes t
 ## Hard rules (imperative — load-bearing)
 
 ### Git
+
 - All work on feature branches, never `main`. V12 naming: `feature/v12-phase-N-<desc>`.
 - Merges to `main`: `--no-ff`, green `pnpm build && pnpm test` first, tag `v12-phase-N`. (Autonomous execution is authorized for the current program per the plan's decision log; outward-facing/published actions still need review.)
 - Clean up merged branches.
 
 ### Architecture invariants
+
 - **DIDs are authoritative.** Never use handles for security. Consult `did_rotation_history` on every DID-equality check.
 - **Name the authorization axis** on every failure (OAuth / spaces / application / labels / service-auth). See `apps/api/src/routes/federation.ts` `/membership/approve` for the reference Axis-2 gate.
 - **Fail closed** on partial/stale membership resolution; discard records from non-members.
 - **Tier 2 data never on the public firehose.** Tier 3 (Germ) is optional — never a required path.
-- **Don't bake the URI scheme or digest algorithm as constants** — go through helpers/ports (`SpaceRef`, `space-uri.ts`, `CommitDigestVerifier`). Current values (`at://…/space/…`, LtHash) are still substrate.
+- **Don't bake the URI scheme or digest algorithm as constants** — go through helpers/ports (`SpaceRef`, `space-uri.ts`, `PermissionedRepoPort`). Current values (`at://…/space/…`, LtHash) are still substrate.
 - **Don't put application logic in the protocol/arbiter layer** — it belongs in the `GovernancePluginSet` (Layer 3/4).
 - Bilateral membership is retired; `memberConsent` is non-authoritative evidence. Writes go through `GroupMutationPort`.
 
 ### Schema & DB
+
 - **Schema changes edit `packages/db/src/schema.ts` AND regenerate `packages/db/src/migrations/schema.sql`** (`pg_dump --schema-only --no-owner --no-privileges -T 'kysely_migration*' coopsource_dev | grep -v '^\\' > packages/db/src/migrations/schema.sql`). **Never create new migration files** — `0001_v11_baseline.ts` is the permanent bootstrap; archived incrementals in `.archive/` are not executed.
 - PostgreSQL bigint returns string → use `Number()`. AT URI as PK for PDS tables, UUID for app tables. Cursor-based pagination everywhere.
 
 ### Frontend
+
 - Svelte 5 runes only (`$state`/`$derived`/`$effect`/`$props`). `tailwindcss()` MUST precede `sveltekit()` in `vite.config.ts`.
 
 ## Stack (non-negotiable)
 
 TypeScript strict (no `any`, no unsafe casts) · Express 5 (standard routes; `@atproto/xrpc-server` not used) · Kysely 0.28+/PostgreSQL 16 (not Prisma/Drizzle/TypeORM) · SvelteKit 2 + Svelte 5 · Vite 8 + `@sveltejs/vite-plugin-svelte` 7 · Tailwind 4 via `@tailwindcss/vite` · pnpm 10+/Turborepo · Vitest 4 · Zod 4 · Pino 10 · Node 24 LTS · ATProtocol only (no cross-protocol bridges).
 
-Key upstream pins: `@atproto/oauth-scopes` ^0.5.3 (watch bumps — 0.4.0 was breaking) · `@atproto/pds` 0.5.x (was 0.4.212; verify before PDS-touching work) · `@atproto/api`/`@atproto/oauth-client-node`/`@atproto/sync` latest · Stripe latest. **Do not use** `@skyware/labeler` (archived; bootstrap-only), `vm2`, or Node's `vm` for sandboxing.
+Key upstream watch items: `@atproto/space` from `bluesky-social/atproto#5187` is not published as of 2026-07-05; `@atproto/oauth-scopes` current registry version is 0.5.3; `@atproto/pds` current registry version is 0.5.14. This repo does not directly depend on those three packages today, so verify before adding or bumping PDS/OAuth/space dependencies. Existing ATProto packages (`@atproto/api`, `@atproto/oauth-client-node`, `@atproto/sync`) should stay current. **Do not use** `@skyware/labeler` (archived; bootstrap-only), `vm2`, or Node's `vm` for sandboxing.
 
 ## Build commands
 
@@ -57,7 +62,7 @@ make test:all                             # full suite with real PDS (Docker; re
 
 ## Current code state (one paragraph)
 
-`main` holds the V11 substrate: `packages/spaces-consumer` (Stage 1, flag-gated off behind `SPACES_CONSUMER_ENABLED`, real notification/pull loop lands Phase 3) and `packages/arbiter-client` (CSN-Postgres-backed `CsnDbGroupDirectoryPort`/`CsnDbGroupMutationPort` standing in for a real arbiter). GovernanceView and CoopView **do not exist yet** (Phase 5). The container exposes `groupMutations` + `consentEvidenceVerifier` and starts the consumer via `startSpacesConsumer` — there are **no** `spacesConsumer`/`arbiterClient`/`governanceView`/`coopView` registrations. Membership **writes** route through `GroupMutationPort`; **reads** still query `membership`/`membership_role` directly (the seam is half-drawn — Phase 3 completes it). The application layer (~59 services, 68 routes, 88 web pages, 103 DB tables) survives from V9.
+`main` holds the V11 substrate plus Phase 3 checkpoints: `packages/spaces-consumer` (flag-gated off behind `SPACES_CONSUMER_ENABLED`; `PermissionedRepoPort` is the public watch/sync/verification boundary; external PDS/space integration is not wired) and `packages/arbiter-client` (CSN-Postgres-backed `CsnDbGroupDirectoryPort`/`CsnDbGroupMutationPort` standing in for a real arbiter). GovernanceView and CoopView **do not exist yet** (Phase 5). The container exposes `groupMutations` + `consentEvidenceVerifier` and starts the consumer via `startSpacesConsumer` — there are **no** `spacesConsumer`/`arbiterClient`/`governanceView`/`coopView` registrations. Membership **writes** route through `GroupMutationPort`; **reads** still query `membership`/`membership_role` directly (the seam is half-drawn — Phase 3 completes it). The application layer (~59 services, 68 routes, 88 web pages, 103 DB tables) survives from V9.
 
 ## When upstream isn't settled
 

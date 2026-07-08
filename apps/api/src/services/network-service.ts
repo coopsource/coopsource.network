@@ -6,7 +6,14 @@ import type { GroupMutationPort } from '@coopsource/arbiter-client';
 import type { IPdsService, IClock } from '@coopsource/federation';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
-import { emitMemberJoined, emitMemberDeparted } from '../appview/membership-events.js';
+import {
+  emitMemberJoined,
+  emitMemberDeparted,
+} from '../appview/membership-events.js';
+import {
+  membershipAuthorityAppError,
+  type MembershipReadModel,
+} from './membership-read-model.js';
 
 export interface NetworkSummary {
   did: string;
@@ -39,6 +46,7 @@ export class NetworkService {
     private pdsService: IPdsService,
     private clock: IClock,
     private groupMutations: GroupMutationPort,
+    private membershipReadModel: MembershipReadModel,
   ) {}
 
   async listNetworks(params: PageParams): Promise<Page<NetworkSummary>> {
@@ -62,15 +70,6 @@ export class NetworkService {
         'cooperative_profile.cooperative_type',
         'cooperative_profile.membership_policy',
       ])
-      .select((eb) =>
-        eb
-          .selectFrom('membership')
-          .whereRef('membership.cooperative_did', '=', 'entity.did')
-          .where('membership.status', '=', 'active')
-          .where('membership.invalidated_at', 'is', null)
-          .select(eb.fn.countAll<number>().as('count'))
-          .as('member_count'),
-      )
       .orderBy('entity.created_at', 'desc')
       .orderBy('entity.did', 'desc')
       .limit(limit + 1);
@@ -90,6 +89,10 @@ export class NetworkService {
 
     const rows = await query.execute();
     const slice = rows.slice(0, limit);
+    const memberCounts =
+      await this.membershipReadModel.countProjectedActiveMembersByCooperative(
+        slice.map((row) => row.did as DID),
+      );
 
     const items: NetworkSummary[] = slice.map((row) => ({
       did: row.did,
@@ -98,12 +101,15 @@ export class NetworkService {
       description: row.description,
       cooperativeType: row.cooperative_type,
       membershipPolicy: row.membership_policy,
-      memberCount: Number(row.member_count ?? 0),
+      memberCount: memberCounts.get(row.did) ?? 0,
     }));
 
     const cursor =
       rows.length > limit
-        ? encodeCursor(slice[slice.length - 1]!.created_at, slice[slice.length - 1]!.did)
+        ? encodeCursor(
+            slice[slice.length - 1]!.created_at,
+            slice[slice.length - 1]!.did,
+          )
         : undefined;
 
     return { items, cursor };
@@ -129,20 +135,15 @@ export class NetworkService {
         'cooperative_profile.membership_policy',
         'cooperative_profile.website',
       ])
-      .select((eb) =>
-        eb
-          .selectFrom('membership')
-          .whereRef('membership.cooperative_did', '=', 'entity.did')
-          .where('membership.status', '=', 'active')
-          .where('membership.invalidated_at', 'is', null)
-          .select(eb.fn.countAll<number>().as('count'))
-          .as('member_count'),
-      )
       .executeTakeFirst();
 
     if (!row) {
       throw new NotFoundError('Network not found');
     }
+    const memberCounts =
+      await this.membershipReadModel.countProjectedActiveMembersByCooperative([
+        row.did as DID,
+      ]);
 
     return {
       did: row.did,
@@ -151,7 +152,7 @@ export class NetworkService {
       description: row.description,
       cooperativeType: row.cooperative_type,
       membershipPolicy: row.membership_policy,
-      memberCount: Number(row.member_count ?? 0),
+      memberCount: memberCounts.get(row.did) ?? 0,
       website: row.website,
       createdAt: row.created_at,
     };
@@ -161,66 +162,50 @@ export class NetworkService {
     networkDid: string,
     params: PageParams,
   ): Promise<Page<NetworkMember>> {
-    const limit = params.limit ?? 50;
-
-    let query = this.db
-      .selectFrom('membership')
-      .innerJoin('entity', 'entity.did', 'membership.member_did')
-      .leftJoin(
-        'cooperative_profile',
-        'cooperative_profile.entity_did',
-        'membership.member_did',
-      )
-      .where('membership.cooperative_did', '=', networkDid)
-      .where('membership.status', '=', 'active')
-      .where('membership.invalidated_at', 'is', null)
-      .select([
-        'membership.id',
-        'membership.member_did',
-        'membership.status',
-        'membership.joined_at',
-        'membership.created_at',
-        'entity.handle',
-        'entity.display_name',
-        'entity.description',
-        'cooperative_profile.cooperative_type',
-      ])
-      .orderBy('membership.created_at', 'desc')
-      .orderBy('membership.id', 'desc')
-      .limit(limit + 1);
-
-    if (params.cursor) {
-      const { t, i } = decodeCursor(params.cursor);
-      query = query.where((eb) =>
-        eb.or([
-          eb('membership.created_at', '<', new Date(t)),
-          eb.and([
-            eb('membership.created_at', '=', new Date(t)),
-            eb('membership.id', '<', i),
-          ]),
-        ]),
+    const roster = await this.membershipReadModel.listMembersResult(
+      networkDid as DID,
+      params,
+    );
+    if (!roster.ok) {
+      throw membershipAuthorityAppError(
+        roster,
+        403,
+        'NETWORK_MEMBERS_UNAVAILABLE',
       );
     }
 
-    const rows = await query.execute();
-    const slice = rows.slice(0, limit);
+    const memberDids = roster.page.items.map((member) => member.did);
+    const rows =
+      memberDids.length > 0
+        ? await this.db
+            .selectFrom('entity')
+            .leftJoin(
+              'cooperative_profile',
+              'cooperative_profile.entity_did',
+              'entity.did',
+            )
+            .where('entity.did', 'in', memberDids)
+            .select([
+              'entity.did',
+              'entity.handle',
+              'entity.description',
+              'cooperative_profile.cooperative_type',
+            ])
+            .execute()
+        : [];
+    const entityMap = new Map(rows.map((row) => [row.did, row]));
 
-    const items: NetworkMember[] = slice.map((row) => ({
-      did: row.member_did,
-      handle: row.handle,
-      displayName: row.display_name,
-      description: row.description,
-      cooperativeType: row.cooperative_type ?? 'unknown',
-      status: row.status,
-      joinedAt: row.joined_at,
+    const items: NetworkMember[] = roster.page.items.map((member) => ({
+      did: member.did,
+      handle: entityMap.get(member.did)?.handle ?? null,
+      displayName: member.displayName,
+      description: entityMap.get(member.did)?.description ?? null,
+      cooperativeType: entityMap.get(member.did)?.cooperative_type ?? 'unknown',
+      status: member.status,
+      joinedAt: member.joinedAt,
     }));
 
-    const cursor =
-      rows.length > limit
-        ? encodeCursor(slice[slice.length - 1]!.created_at, slice[slice.length - 1]!.id)
-        : undefined;
-
-    return { items, cursor };
+    return { items, cursor: roster.page.cursor };
   }
 
   async createNetwork(params: {
@@ -312,18 +297,16 @@ export class NetworkService {
       throw new NotFoundError('Network not found');
     }
 
-    // Check for existing active membership
-    const existing = await this.db
-      .selectFrom('membership')
-      .where('member_did', '=', params.cooperativeDid)
-      .where('cooperative_did', '=', params.networkDid)
-      .where('invalidated_at', 'is', null)
-      .where('status', '=', 'active')
-      .select('id')
-      .executeTakeFirst();
+    const existing = await this.membershipReadModel.getActiveMembershipResult(
+      params.networkDid as DID,
+      params.cooperativeDid as DID,
+    );
 
-    if (existing) {
+    if (existing.ok) {
       throw new ConflictError('Already a member of this network');
+    }
+    if (existing.reason !== 'not-member') {
+      throw membershipAuthorityAppError(existing, 409, 'Conflict');
     }
 
     const consentRef = await this.pdsService.createRecord({

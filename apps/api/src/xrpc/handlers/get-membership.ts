@@ -1,5 +1,9 @@
 import type { XrpcContext } from '../dispatcher.js';
-import { NotFoundError } from '@coopsource/common';
+import { AppError, NotFoundError, type DID } from '@coopsource/common';
+import {
+  membershipAuthorityErrorCode,
+  membershipAuthorityHttpStatus,
+} from '../../services/membership-read-model.js';
 
 export async function handleGetMembership(ctx: XrpcContext): Promise<unknown> {
   const cooperativeDid = ctx.params.cooperative as string;
@@ -19,11 +23,23 @@ export async function handleGetMembership(ctx: XrpcContext): Promise<unknown> {
   }
 
   const viewerDid = ctx.viewer!.did;
-  const member = await ctx.container.membershipService.getMember(
-    cooperativeDid,
-    viewerDid,
+  const memberResult = await ctx.container.membershipReadModel.getMemberResult(
+    cooperativeDid as DID,
+    viewerDid as DID,
   );
 
+  if (!memberResult.ok) {
+    if (memberResult.reason === 'not-member') {
+      return { isMember: false };
+    }
+    throw new AppError(
+      memberResult.message,
+      membershipAuthorityHttpStatus(memberResult, 404),
+      membershipAuthorityErrorCode(memberResult, 'NotFound'),
+    );
+  }
+
+  const member = memberResult.member;
   if (!member) {
     return { isMember: false };
   }
@@ -33,9 +49,9 @@ export async function handleGetMembership(ctx: XrpcContext): Promise<unknown> {
     status: member.status,
     roles: member.status === 'active' ? member.roles : undefined,
     joinedAt: member.joinedAt
-      ? (member.joinedAt instanceof Date
-          ? member.joinedAt.toISOString()
-          : member.joinedAt)
+      ? member.joinedAt instanceof Date
+        ? member.joinedAt.toISOString()
+        : member.joinedAt
       : undefined,
   };
 }

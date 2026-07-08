@@ -2365,6 +2365,119 @@ export const lexicons = [
   },
   {
     "lexicon": 1,
+    "id": "network.coopsource.governance.listProposalAnchors",
+    "defs": {
+      "main": {
+        "type": "query",
+        "description": "List public proposal anchors without exposing private proposal records.",
+        "parameters": {
+          "type": "params",
+          "required": [
+            "cooperative"
+          ],
+          "properties": {
+            "cooperative": {
+              "type": "string",
+              "format": "did",
+              "description": "DID of the cooperative whose public proposal anchors to list."
+            },
+            "status": {
+              "type": "string",
+              "description": "Filter by public anchor status.",
+              "knownValues": [
+                "open",
+                "closed",
+                "resolved",
+                "withdrawn",
+                "archived"
+              ]
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            },
+            "cursor": {
+              "type": "string"
+            }
+          }
+        },
+        "output": {
+          "encoding": "application/json",
+          "schema": {
+            "type": "object",
+            "required": [
+              "anchors"
+            ],
+            "properties": {
+              "anchors": {
+                "type": "array",
+                "items": {
+                  "type": "ref",
+                  "ref": "#proposalAnchorSummary"
+                }
+              },
+              "cursor": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "proposalAnchorSummary": {
+        "type": "object",
+        "required": [
+          "uri",
+          "cooperativeDid",
+          "proposalId",
+          "status",
+          "updatedAt",
+          "anchorVersion"
+        ],
+        "properties": {
+          "uri": {
+            "type": "string",
+            "format": "at-uri"
+          },
+          "cooperativeDid": {
+            "type": "string",
+            "format": "did"
+          },
+          "proposalId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "openedAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "closedAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "resolvedAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "anchorVersion": {
+            "type": "integer"
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
     "id": "network.coopsource.governance.listProposals",
     "defs": {
       "main": {
@@ -2465,6 +2578,83 @@ export const lexicons = [
           "resolvedAt": {
             "type": "string",
             "format": "datetime"
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
+    "id": "network.coopsource.governance.proposalAnchor",
+    "defs": {
+      "main": {
+        "type": "record",
+        "description": "A public, non-identifying anchor for a private governance proposal.",
+        "key": "tid",
+        "record": {
+          "type": "object",
+          "required": [
+            "cooperativeDid",
+            "proposalId",
+            "status",
+            "updatedAt",
+            "anchorVersion"
+          ],
+          "properties": {
+            "cooperativeDid": {
+              "type": "string",
+              "format": "did",
+              "description": "The cooperative this anchor belongs to."
+            },
+            "proposalId": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "The app-layer proposal UUID. Private proposal URIs are intentionally not public."
+            },
+            "status": {
+              "type": "string",
+              "knownValues": [
+                "open",
+                "closed",
+                "resolved",
+                "withdrawn",
+                "archived"
+              ],
+              "description": "Public lifecycle status. Draft private proposals must not have anchors."
+            },
+            "outcome": {
+              "type": "string",
+              "knownValues": [
+                "passed",
+                "failed",
+                "no_quorum",
+                "class_quorum_not_met",
+                "archived"
+              ],
+              "description": "Final public outcome, if the cooperative anchor policy allows outcomes."
+            },
+            "openedAt": {
+              "type": "string",
+              "format": "datetime"
+            },
+            "closedAt": {
+              "type": "string",
+              "format": "datetime"
+            },
+            "resolvedAt": {
+              "type": "string",
+              "format": "datetime"
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "datetime"
+            },
+            "anchorVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1,
+              "description": "Schema version for the public anchor contract."
+            }
           }
         }
       }

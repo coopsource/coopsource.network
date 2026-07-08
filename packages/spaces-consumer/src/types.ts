@@ -9,7 +9,9 @@ type Brand<T, B extends string> = T & { readonly __brand: B };
  * to change, so SpaceRef carries identity, not a URI.
  *
  * `arbiterDid` is the proposal's *space authority* DID; we keep the arbiter
- * naming to match the `town.muni.arbiter.*` group-server lexicons.
+ * naming because CSN still treats this as the higher-level group-authority
+ * boundary, even when an adapter maps it to current `com.atproto.space.*`
+ * endpoints.
  */
 export interface SpaceRef {
   readonly arbiterDid: DID;

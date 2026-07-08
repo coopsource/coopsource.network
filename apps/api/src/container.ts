@@ -1,15 +1,53 @@
 import { createDb } from '@coopsource/db';
-import { CsnDbGroupMutationPort } from '@coopsource/arbiter-client';
+import type { DID } from '@coopsource/common';
+import {
+  CsnDbGroupDirectoryPort,
+  CsnDbGroupMutationPort,
+} from '@coopsource/arbiter-client';
 import type { GroupMutationPort } from '@coopsource/arbiter-client';
+import {
+  XrpcPermissionedRecordWritePort,
+  type GroupDirectoryPort,
+  type PermissionedRecordWritePort,
+} from '@coopsource/spaces-consumer';
 import type { Kysely, Transaction } from 'kysely';
 import type { Database } from '@coopsource/db';
+import {
+  createDefaultGovernancePluginSet,
+  type GovernancePluginSet,
+} from '@coopsource/governance-view';
+import {
+  CoopDelegatedVoteWeightReader,
+  createCoopActionAuthorizerPlugin,
+  createCoopDelegateChainsPlugin,
+  createCoopEligibilityPlugin,
+  createCoopPatronageAllocatorPlugin,
+  createCoopQuorumPlugin,
+  createCoopSurplusDistributorPlugin,
+  createCoopVoteWeightPlugin,
+} from '@coopsource/coop-view';
 import { SystemClock } from '@coopsource/federation';
 import type { IPdsService } from '@coopsource/federation';
-import { LocalPdsService, LocalBlobStore, LocalPlcClient, PlcClient } from '@coopsource/federation/local';
+import {
+  LocalPdsService,
+  LocalBlobStore,
+  LocalPlcClient,
+  PlcClient,
+} from '@coopsource/federation/local';
 import type { FederationDatabase } from '@coopsource/federation/local';
-import { DidWebResolver, AuthCredentialResolver } from '@coopsource/federation/http';
-import { AtprotoPdsService, ServiceAuthVerifier, InlayAuthVerifier } from '@coopsource/federation/atproto';
-import { SmtpEmailService, NoopEmailService } from '@coopsource/federation/email';
+import {
+  DidWebResolver,
+  AuthCredentialResolver,
+} from '@coopsource/federation/http';
+import {
+  AtprotoPdsService,
+  ServiceAuthVerifier,
+  InlayAuthVerifier,
+} from '@coopsource/federation/atproto';
+import {
+  SmtpEmailService,
+  NoopEmailService,
+} from '@coopsource/federation/email';
 import type { IEmailService } from '@coopsource/federation';
 import { logger } from './middleware/logger.js';
 import type { AppConfig } from './config.js';
@@ -17,6 +55,7 @@ import { AuthService } from './services/auth-service.js';
 import { EntityService } from './services/entity-service.js';
 import { ProfileService } from './services/profile-service.js';
 import { MembershipService } from './services/membership-service.js';
+import { MembershipReadModel } from './services/membership-read-model.js';
 import { PostService } from './services/post-service.js';
 import { SearchService } from './services/search-service.js';
 import { MatchmakingService } from './services/matchmaking-service.js';
@@ -46,7 +85,27 @@ import { MeetingRecordService } from './services/meeting-record-service.js';
 import { MemberNoticeService } from './services/member-notice-service.js';
 import { FiscalPeriodService } from './services/fiscal-period-service.js';
 import { PrivateRecordService } from './services/private-record-service.js';
+import { PrivateRecordPermissionedWritePort } from './services/private-record-permissioned-write-port.js';
+import { OAuthPermissionedRecordWriteSessionProvider } from './services/oauth-permissioned-record-write-session-provider.js';
+import {
+  OAuthManagingSpaceCredentialSessionSelector,
+  StaticManagingSpaceSessionCandidateProvider,
+} from './services/oauth-managing-space-credential-session-selector.js';
+import { OAuthSpaceDelegationTokenClient } from './services/oauth-space-delegation-token-client.js';
+import { MembershipReadModelActionPermissionReader } from './services/coop-view-action-authorizer-adapters.js';
+import {
+  MembershipReadModelVoteWeightReader,
+  MembershipReadModelVotingEligibilityReader,
+} from './services/coop-view-membership-adapters.js';
+import {
+  DelegationVotingServiceDelegateChainReader,
+  DelegationVotingServiceVoteWeightDelegationReader,
+} from './services/coop-view-delegation-adapters.js';
 import { VisibilityRouter } from './services/visibility-router.js';
+import {
+  PdsPublicGovernanceAnchorWritePort,
+  PublicGovernanceAnchorService,
+} from './services/public-governance-anchor-service.js';
 import { PatronageService } from './services/patronage-service.js';
 import { CapitalAccountService } from './services/capital-account-service.js';
 import { Tax1099Service } from './services/tax-1099-service.js';
@@ -91,8 +150,13 @@ export interface Container {
   blobStore: LocalBlobStore;
   clock: SystemClock;
   emailService: IEmailService;
+  groupDirectory: GroupDirectoryPort;
   groupMutations: GroupMutationPort;
-  groupMutationsForDb: (db: Kysely<Database> | Transaction<Database>) => GroupMutationPort;
+  groupMutationsForDb: (
+    db: Kysely<Database> | Transaction<Database>,
+  ) => GroupMutationPort;
+  governancePlugins: GovernancePluginSet;
+  membershipReadModel: MembershipReadModel;
   authService: AuthService;
   profileService: ProfileService;
   entityService: EntityService;
@@ -125,7 +189,14 @@ export interface Container {
   memberNoticeService: MemberNoticeService;
   fiscalPeriodService: FiscalPeriodService;
   privateRecordService: PrivateRecordService;
+  permissionedRecordWriter: PermissionedRecordWritePort;
+  permissionedRecordWriteSessionProvider:
+    OAuthPermissionedRecordWriteSessionProvider;
+  managingSpaceCredentialSessionSelector:
+    OAuthManagingSpaceCredentialSessionSelector;
+  spaceDelegationTokenClient: OAuthSpaceDelegationTokenClient;
   visibilityRouter: VisibilityRouter;
+  publicGovernanceAnchorService: PublicGovernanceAnchorService;
   patronageService: PatronageService;
   capitalAccountService: CapitalAccountService;
   tax1099Service: Tax1099Service;
@@ -183,7 +254,8 @@ export function createContainer(config: AppConfig): Container {
   );
 
   const effectivePdsUrl = config.COOP_PDS_URL ?? config.PDS_URL;
-  const effectivePdsPassword = config.COOP_PDS_ADMIN_PASSWORD ?? config.PDS_ADMIN_PASSWORD;
+  const effectivePdsPassword =
+    config.COOP_PDS_ADMIN_PASSWORD ?? config.PDS_ADMIN_PASSWORD;
   const pdsService: IPdsService = effectivePdsUrl
     ? new AtprotoPdsService(
         effectivePdsUrl,
@@ -205,21 +277,26 @@ export function createContainer(config: AppConfig): Container {
   // Fallback DID resolution for did:plc identifiers:
   // - When PLC_URL is a real URL → use PlcClient (HTTP to PLC directory)
   // - When PLC_URL is 'local' → use LocalPlcClient (DB-backed, dev-only)
-  const plcFallback = config.PLC_URL !== 'local'
-    ? new PlcClient(config.PLC_URL)
-    : new LocalPlcClient(
-        db as unknown as import('kysely').Kysely<FederationDatabase>,
-        config.INSTANCE_URL,
-      );
+  const plcFallback =
+    config.PLC_URL !== 'local'
+      ? new PlcClient(config.PLC_URL)
+      : new LocalPlcClient(
+          db as unknown as import('kysely').Kysely<FederationDatabase>,
+          config.INSTANCE_URL,
+        );
   const didResolver = new DidWebResolver({
-    fallbackResolve: (did) => plcFallback.resolve(did) as Promise<import('@coopsource/federation').DidDocument>,
+    fallbackResolve: (did) =>
+      plcFallback.resolve(did) as Promise<
+        import('@coopsource/federation').DidDocument
+      >,
   });
 
   // V9.2.5: Service-auth JWT verifier for external ATProto apps.
   // Only instantiated when an audience DID AND at least one trusted issuer
   // are configured — an audience without issuers would reject every JWT
   // with a confusing "Untrusted issuer" error.
-  const serviceAuthAudienceDid = config.SERVICE_AUTH_AUDIENCE_DID ?? config.INSTANCE_DID;
+  const serviceAuthAudienceDid =
+    config.SERVICE_AUTH_AUDIENCE_DID ?? config.INSTANCE_DID;
   const serviceAuthTrustedIssuers = new Set(
     (config.SERVICE_AUTH_TRUSTED_ISSUERS ?? '')
       .split(',')
@@ -228,7 +305,11 @@ export function createContainer(config: AppConfig): Container {
   );
   const serviceAuthVerifier =
     serviceAuthAudienceDid && serviceAuthTrustedIssuers.size > 0
-      ? new ServiceAuthVerifier(didResolver, serviceAuthAudienceDid, serviceAuthTrustedIssuers)
+      ? new ServiceAuthVerifier(
+          didResolver,
+          serviceAuthAudienceDid,
+          serviceAuthTrustedIssuers,
+        )
       : undefined;
 
   // V9.3: Inlay viewer-auth verifier for personalized component rendering.
@@ -250,21 +331,65 @@ export function createContainer(config: AppConfig): Container {
         from: config.SMTP_FROM,
       })
     : (() => {
-        logger.info('Email disabled: SMTP_HOST not configured. Invitations will be created without sending email.');
+        logger.info(
+          'Email disabled: SMTP_HOST not configured. Invitations will be created without sending email.',
+        );
         return new NoopEmailService();
       })();
 
   // V5: Member write proxy (OAuth → member PDS) + operator write proxy (ACL + audit)
   // oauthClient is undefined here; it's created in index.ts and could be passed via config.
   // For now, services use the proxy in dev-fallback mode (writes to cooperative PDS with warning).
-  const memberWriteProxy = new MemberWriteProxy(undefined, pdsService, config.NODE_ENV);
-  const operatorWriteProxy = new OperatorWriteProxy(pdsService, db, config);
-  const groupMutationsForDb = (authorityDb: Kysely<Database> | Transaction<Database>) => new CsnDbGroupMutationPort(authorityDb, {
-    now: () => clock.now(),
+  const memberWriteProxy = new MemberWriteProxy(
+    undefined,
+    pdsService,
+    config.NODE_ENV,
+  );
+  const groupMutationsForDb = (
+    authorityDb: Kysely<Database> | Transaction<Database>,
+  ) =>
+    new CsnDbGroupMutationPort(authorityDb, {
+      now: () => clock.now(),
+    });
+  const groupDirectory = new CsnDbGroupDirectoryPort(db);
+  const membershipReadModel = new MembershipReadModel(db, groupDirectory);
+  const actionAuthorizer = createCoopActionAuthorizerPlugin(
+    new MembershipReadModelActionPermissionReader(db, membershipReadModel),
+  );
+  const delegationVotingService = new DelegationVotingService(
+    db,
+    clock,
+    actionAuthorizer,
+  );
+  const membershipVoteWeightReader = new MembershipReadModelVoteWeightReader(
+    membershipReadModel,
+  );
+  const governanceCorePlugins = createDefaultGovernancePluginSet({
+    voteWeight: createCoopVoteWeightPlugin(
+      new CoopDelegatedVoteWeightReader({
+        baseWeightReader: membershipVoteWeightReader,
+        delegationReader: new DelegationVotingServiceVoteWeightDelegationReader(
+          delegationVotingService,
+        ),
+      }),
+    ),
+    eligibility: createCoopEligibilityPlugin(
+      new MembershipReadModelVotingEligibilityReader(membershipReadModel),
+    ),
+    quorum: createCoopQuorumPlugin(),
+    actionAuthorizer,
+    patronageAllocator: createCoopPatronageAllocatorPlugin(),
+    surplusDistributor: createCoopSurplusDistributorPlugin(),
   });
   const groupMutations = groupMutationsForDb(db);
+  const operatorWriteProxy = new OperatorWriteProxy(
+    pdsService,
+    db,
+    config,
+    membershipReadModel,
+  );
 
-  const profileService = new ProfileService(db, clock);
+  const profileService = new ProfileService(db, clock, membershipReadModel);
   const authService = new AuthService(
     db,
     pdsService,
@@ -272,7 +397,8 @@ export function createContainer(config: AppConfig): Container {
     profileService,
     config.INSTANCE_URL ?? 'http://localhost:3001',
     memberWriteProxy,
-    groupMutations,
+    groupMutationsForDb,
+    membershipReadModel,
   );
   const entityService = new EntityService(db, blobStore);
   const membershipService = new MembershipService(
@@ -280,60 +406,198 @@ export function createContainer(config: AppConfig): Container {
     emailService,
     clock,
     groupMutations,
+    membershipReadModel,
+    actionAuthorizer,
   );
   const privateRecordService = new PrivateRecordService(db, clock);
-  const visibilityRouter = new VisibilityRouter(db, privateRecordService);
+  const permissionedRecordWriteSessionProvider =
+    new OAuthPermissionedRecordWriteSessionProvider(undefined);
+  const managingSpaceCredentialSessionSelector =
+    new OAuthManagingSpaceCredentialSessionSelector({
+      membershipReadModel,
+      candidateProvider: new StaticManagingSpaceSessionCandidateProvider(
+        parseManagingSessionDids(config.SPACE_MANAGING_SESSION_DIDS),
+      ),
+      requiredPermission: 'private.manage',
+    });
+  const spaceDelegationTokenClient = new OAuthSpaceDelegationTokenClient({
+    sessionSelector: managingSpaceCredentialSessionSelector,
+  });
+  const permissionedRecordWriter =
+    config.PERMISSIONED_RECORD_WRITER_MODE === 'draft-xrpc'
+      ? new XrpcPermissionedRecordWritePort({
+          sessionProvider:
+            permissionedRecordWriteSessionProvider.sessionProvider,
+        })
+      : new PrivateRecordPermissionedWritePort(privateRecordService);
+  const visibilityRouter = new VisibilityRouter(db);
+  const publicGovernanceAnchorService = new PublicGovernanceAnchorService(
+    new PdsPublicGovernanceAnchorWritePort(pdsService),
+    () => clock.now(),
+  );
   const labelSubscriptionManager = new LabelSubscriptionManager(db);
   const labelSigner = config.COOP_ROTATION_KEY_HEX
     ? new LabelSigner(config.COOP_ROTATION_KEY_HEX)
     : undefined;
-  const governanceLabeler = new GovernanceLabeler(db, labelSubscriptionManager, labelSigner);
+  const governanceLabeler = new GovernanceLabeler(
+    db,
+    labelSubscriptionManager,
+    labelSigner,
+  );
   const postService = new PostService(db, clock);
-  const searchService = new SearchService(db);
-  const matchmakingService = new MatchmakingService(db, clock);
-  const proposalService = new ProposalService(db, pdsService, clock, memberWriteProxy, governanceLabeler, visibilityRouter);
-  const agreementService = new AgreementService(db, pdsService, clock, memberWriteProxy);
+  const searchService = new SearchService(db, membershipReadModel);
+  const matchmakingService = new MatchmakingService(
+    db,
+    clock,
+    membershipReadModel,
+  );
+  const proposalService = new ProposalService(
+    db,
+    pdsService,
+    clock,
+    membershipReadModel,
+    governanceCorePlugins.voteWeight,
+    governanceCorePlugins.quorum,
+    memberWriteProxy,
+    governanceLabeler,
+    visibilityRouter,
+    permissionedRecordWriter,
+    publicGovernanceAnchorService,
+    governanceCorePlugins.actionAuthorizer,
+  );
+  const agreementService = new AgreementService(
+    db,
+    pdsService,
+    clock,
+    memberWriteProxy,
+  );
   const agreementTemplateService = new AgreementTemplateService(db, clock);
-  const networkService = new NetworkService(db, pdsService, clock, groupMutations);
+  const networkService = new NetworkService(
+    db,
+    pdsService,
+    clock,
+    groupMutations,
+    membershipReadModel,
+  );
   const paymentRegistry = new PaymentProviderRegistry(db, config.KEY_ENC_KEY);
-  const fundingService = new FundingService(db, pdsService, clock, paymentRegistry, memberWriteProxy);
-  const alignmentService = new AlignmentService(db, pdsService, clock, memberWriteProxy);
-  const connectionService = new ConnectionService(db, pdsService, clock, config);
-  const modelProviderRegistry = new ModelProviderRegistry(db, config.KEY_ENC_KEY);
+  const fundingService = new FundingService(
+    db,
+    pdsService,
+    clock,
+    paymentRegistry,
+    memberWriteProxy,
+  );
+  const alignmentService = new AlignmentService(
+    db,
+    pdsService,
+    clock,
+    memberWriteProxy,
+  );
+  const connectionService = new ConnectionService(
+    db,
+    pdsService,
+    clock,
+    config,
+  );
+  const modelProviderRegistry = new ModelProviderRegistry(
+    db,
+    config.KEY_ENC_KEY,
+  );
   const agentService = new AgentService(db, clock, modelProviderRegistry);
   const mcpClient = new McpClient();
-  const chatEngine = new ChatEngine(db, clock, modelProviderRegistry, mcpClient);
-  const eventDispatcher = new EventDispatcher(db, chatEngine);
+  const chatEngine = new ChatEngine(
+    db,
+    clock,
+    modelProviderRegistry,
+    membershipReadModel,
+    mcpClient,
+  );
+  const eventDispatcher = new EventDispatcher(
+    db,
+    chatEngine,
+    membershipReadModel,
+  );
   const legalDocumentService = new LegalDocumentService(db, clock);
   const complianceCalendarService = new ComplianceCalendarService(db, clock);
   const officerRecordService = new OfficerRecordService(db, clock);
   const meetingRecordService = new MeetingRecordService(db, clock);
   const memberNoticeService = new MemberNoticeService(db, clock);
   const fiscalPeriodService = new FiscalPeriodService(db, clock);
-  const patronageService = new PatronageService(db, clock);
-  const capitalAccountService = new CapitalAccountService(db, clock);
+  const patronageService = new PatronageService(
+    db,
+    clock,
+    governanceCorePlugins.patronageAllocator,
+  );
+  const capitalAccountService = new CapitalAccountService(
+    db,
+    clock,
+    governanceCorePlugins.surplusDistributor,
+  );
   const tax1099Service = new Tax1099Service(db, clock);
   const onboardingService = new OnboardingService(db, clock);
-  const delegationVotingService = new DelegationVotingService(db, clock);
+  const governancePlugins: GovernancePluginSet = {
+    ...governanceCorePlugins,
+    delegateChains: createCoopDelegateChainsPlugin(
+      new DelegationVotingServiceDelegateChainReader(delegationVotingService),
+    ),
+  };
   const governanceFeedService = new GovernanceFeedService(db, clock);
-  const memberClassService = new MemberClassService(db, clock);
+  const memberClassService = new MemberClassService(
+    db,
+    clock,
+    membershipReadModel,
+  );
   const cooperativeLinkService = new CooperativeLinkService(db, clock);
-  const taskService = new TaskService(db, pdsService, clock, operatorWriteProxy);
+  const taskService = new TaskService(
+    db,
+    pdsService,
+    clock,
+    operatorWriteProxy,
+  );
   const timeTrackingService = new TimeTrackingService(db, clock);
-  const scheduleService = new ScheduleService(db, pdsService, clock, operatorWriteProxy);
+  const scheduleService = new ScheduleService(
+    db,
+    pdsService,
+    clock,
+    operatorWriteProxy,
+  );
   const expenseService = new ExpenseService(db, clock);
   const revenueService = new RevenueService(db, clock);
-  const commerceListingService = new CommerceListingService(db, pdsService, clock, operatorWriteProxy);
-  const commerceNeedService = new CommerceNeedService(db, pdsService, clock, operatorWriteProxy);
-  const intercoopAgreementService = new IntercoopAgreementService(db, pdsService, clock);
-  const collaborativeProjectService = new CollaborativeProjectService(db, pdsService, clock, operatorWriteProxy);
-  const sharedResourceService = new SharedResourceService(db, pdsService, clock, operatorWriteProxy);
+  const commerceListingService = new CommerceListingService(
+    db,
+    pdsService,
+    clock,
+    operatorWriteProxy,
+  );
+  const commerceNeedService = new CommerceNeedService(
+    db,
+    pdsService,
+    clock,
+    operatorWriteProxy,
+  );
+  const intercoopAgreementService = new IntercoopAgreementService(
+    db,
+    pdsService,
+    clock,
+  );
+  const collaborativeProjectService = new CollaborativeProjectService(
+    db,
+    pdsService,
+    clock,
+    operatorWriteProxy,
+  );
+  const sharedResourceService = new SharedResourceService(
+    db,
+    pdsService,
+    clock,
+    operatorWriteProxy,
+  );
   const procurementService = new ProcurementService(db, clock);
   const connectorRegistryService = new ConnectorRegistryService(db, clock);
   const eventBusService = new EventBusService(db, clock);
   const webhookService = new WebhookService(db, clock);
-  const reportingService = new ReportingService(db, clock);
-  const dashboardService = new DashboardService(db);
+  const reportingService = new ReportingService(db, clock, membershipReadModel);
+  const dashboardService = new DashboardService(db, membershipReadModel);
   const mentionService = new MentionService(db, clock);
   const starterPackService = new StarterPackService(db, pdsService);
   const consentEvidenceVerifier = new ConsentEvidenceVerifier(
@@ -347,7 +611,10 @@ export function createContainer(config: AppConfig): Container {
   hookRegistry.register(lexiconValidatorHook);
 
   // V7 P7: Lexicon management service — runtime lexicon registration + declarative hooks
-  const lexiconManagementService = new LexiconManagementService(db, hookRegistry);
+  const lexiconManagementService = new LexiconManagementService(
+    db,
+    hookRegistry,
+  );
   // V7 P8: Cooperative scripting engine
   const scriptWorkerPool = new ScriptWorkerPool();
   const scriptService = new ScriptService(
@@ -356,6 +623,7 @@ export function createContainer(config: AppConfig): Container {
     scriptWorkerPool,
     emailService,
     operatorWriteProxy,
+    membershipReadModel,
   );
 
   return {
@@ -365,8 +633,11 @@ export function createContainer(config: AppConfig): Container {
     blobStore,
     clock,
     emailService,
+    groupDirectory,
     groupMutations,
     groupMutationsForDb,
+    governancePlugins,
+    membershipReadModel,
     authService,
     profileService,
     entityService,
@@ -399,7 +670,12 @@ export function createContainer(config: AppConfig): Container {
     memberNoticeService,
     fiscalPeriodService,
     privateRecordService,
+    permissionedRecordWriter,
+    permissionedRecordWriteSessionProvider,
+    managingSpaceCredentialSessionSelector,
+    spaceDelegationTokenClient,
     visibilityRouter,
+    publicGovernanceAnchorService,
     patronageService,
     capitalAccountService,
     tax1099Service,
@@ -434,4 +710,11 @@ export function createContainer(config: AppConfig): Container {
     serviceAuthVerifier,
     inlayAuthVerifier,
   };
+}
+
+function parseManagingSessionDids(value: string | undefined): readonly DID[] {
+  return (value ?? '')
+    .split(',')
+    .map((did) => did.trim())
+    .filter(Boolean) as DID[];
 }

@@ -1,6 +1,18 @@
 import type { Kysely, Selectable } from 'kysely';
 import type { Database, PatronageConfigTable, PatronageRecordTable } from '@coopsource/db';
-import { NotFoundError, ConflictError, ValidationError } from '@coopsource/common';
+import { NotFoundError, ConflictError, ValidationError, type DID } from '@coopsource/common';
+import { membersSpace } from '@coopsource/arbiter-client';
+import type {
+  JsonValue,
+  PatronageAllocatorPlugin,
+} from '@coopsource/governance-view';
+import {
+  CoopPatronageAllocationError,
+  calculateCoopPatronageAllocations,
+  parseCoopPatronageAllocations,
+  type CoopPatronageAllocation,
+  type CoopPatronageMetric,
+} from '@coopsource/coop-view';
 import type { IClock } from '@coopsource/federation';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
@@ -12,6 +24,7 @@ export class PatronageService {
   constructor(
     private db: Kysely<Database>,
     private clock: IClock,
+    private patronageAllocator?: PatronageAllocatorPlugin,
   ) {}
 
   async createConfig(
@@ -152,34 +165,31 @@ export class PatronageService {
     const config = await this.getConfig(cooperativeDid);
     const cashPayoutPct = config?.cash_payout_pct ?? 20;
 
-    // Calculate total metrics
-    const totalMetrics = data.metrics.reduce((sum, m) => sum + m.metricValue, 0);
-    if (totalMetrics === 0) {
-      throw new ValidationError('Total metric values cannot be zero');
-    }
+    const allocations = await this.allocatePatronage({
+      cooperativeDid,
+      fiscalPeriodId: data.fiscalPeriodId,
+      totalSurplus: data.totalSurplus,
+      cashPayoutPct,
+      metrics: data.metrics,
+    });
 
     const now = this.clock.now();
     const records: RecordRow[] = [];
 
-    for (const metric of data.metrics) {
-      const ratio = metric.metricValue / totalMetrics;
-      const totalAllocation = Math.round(data.totalSurplus * ratio * 100) / 100;
-      const cashAmount = Math.round(totalAllocation * (cashPayoutPct / 100) * 100) / 100;
-      const retainedAmount = Math.round((totalAllocation - cashAmount) * 100) / 100;
-
+    for (const allocation of allocations) {
       try {
         const [row] = await this.db
           .insertInto('patronage_record')
           .values({
             cooperative_did: cooperativeDid,
             fiscal_period_id: data.fiscalPeriodId,
-            member_did: metric.memberDid,
-            stakeholder_class: metric.stakeholderClass ?? null,
-            metric_value: metric.metricValue,
-            patronage_ratio: ratio,
-            total_allocation: totalAllocation,
-            cash_amount: cashAmount,
-            retained_amount: retainedAmount,
+            member_did: allocation.memberDid,
+            stakeholder_class: allocation.stakeholderClass,
+            metric_value: allocation.metricValue,
+            patronage_ratio: allocation.patronageRatio,
+            total_allocation: allocation.totalAllocation,
+            cash_amount: allocation.cashAmount,
+            retained_amount: allocation.retainedAmount,
             status: 'calculated',
             created_at: now,
             indexed_at: now,
@@ -194,7 +204,7 @@ export class PatronageService {
           (err.message.includes('duplicate key') ||
            err.message.includes('unique constraint'))
         ) {
-          throw new ConflictError(`Patronage already calculated for member ${metric.memberDid} in this period`);
+          throw new ConflictError(`Patronage already calculated for member ${allocation.memberDid} in this period`);
         }
         throw err;
       }
@@ -301,4 +311,49 @@ export class PatronageService {
 
     return { items: slice, cursor };
   }
+
+  private async allocatePatronage(input: {
+    readonly cooperativeDid: string;
+    readonly fiscalPeriodId: string;
+    readonly totalSurplus: number;
+    readonly cashPayoutPct: number;
+    readonly metrics: readonly CoopPatronageMetric[];
+  }): Promise<readonly CoopPatronageAllocation[]> {
+    try {
+      if (!this.patronageAllocator) {
+        return calculateCoopPatronageAllocations({
+          surplus: input.totalSurplus,
+          metrics: input.metrics,
+          cashPayoutPct: input.cashPayoutPct,
+        });
+      }
+
+      const memberSpace = membersSpace(input.cooperativeDid as DID);
+      const result = await this.patronageAllocator.allocate({
+        cooperative: {
+          authorityDid: input.cooperativeDid,
+          spaceKey: memberSpace.spaceKey,
+          spaceType: memberSpace.expectedSpaceType,
+        },
+        period: { id: input.fiscalPeriodId },
+        surplus: input.totalSurplus,
+        metrics: input.metrics.map(patronageMetricToJson),
+        policy: { cashPayoutPct: input.cashPayoutPct },
+      });
+      return parseCoopPatronageAllocations(result.allocations);
+    } catch (err) {
+      if (err instanceof CoopPatronageAllocationError) {
+        throw new ValidationError(err.message);
+      }
+      throw err;
+    }
+  }
+}
+
+function patronageMetricToJson(metric: CoopPatronageMetric): JsonValue {
+  return {
+    memberDid: metric.memberDid,
+    metricValue: metric.metricValue,
+    stakeholderClass: metric.stakeholderClass ?? null,
+  };
 }

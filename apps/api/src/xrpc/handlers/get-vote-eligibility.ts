@@ -22,15 +22,16 @@ export async function handleGetVoteEligibility(
     ctx.container.db,
     proposal.cooperative_did,
     ctx.viewer,
-    ctx.container.membershipService,
+    ctx.container.membershipReadModel,
   );
 
   return checkVoteEligibility(
     ctx.container.db,
-    ctx.container.membershipService,
-    ctx.container.delegationVotingService,
+    ctx.container.governancePlugins.eligibility,
+    ctx.container.governancePlugins.voteWeight,
     proposal,
     viewerDid,
+    ctx.container.clock.now(),
     viewerMembership,
   );
 }

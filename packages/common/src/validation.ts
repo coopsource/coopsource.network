@@ -10,7 +10,8 @@ export const PaginationSchema = z.object({
   cursor: z.string().optional(),
 });
 
-export const DidSchema = z.string()
+export const DidSchema = z
+  .string()
   .min(1)
   .regex(/^did:(plc|web|key):/, 'Invalid DID format');
 
@@ -111,12 +112,23 @@ export const UpdateInterestSchema = z.object({
 export const CreateOutcomeSchema = z.object({
   title: z.string().min(1).max(255),
   description: z.string().max(3000).optional(),
-  category: z.enum(['financial', 'social', 'environmental', 'governance', 'other']),
-  successCriteria: z.array(z.object({
-    metric: z.string().min(1).max(500),
-    target: z.string().min(1).max(500),
-    timeline: z.string().max(200).optional(),
-  })).max(20).optional(),
+  category: z.enum([
+    'financial',
+    'social',
+    'environmental',
+    'governance',
+    'other',
+  ]),
+  successCriteria: z
+    .array(
+      z.object({
+        metric: z.string().min(1).max(500),
+        target: z.string().min(1).max(500),
+        timeline: z.string().max(200).optional(),
+      }),
+    )
+    .max(20)
+    .optional(),
 });
 
 export type CreateInterestInput = z.infer<typeof CreateInterestSchema>;
@@ -154,15 +166,17 @@ export const CreateMasterAgreementSchema = z.object({
   title: z.string().min(1).max(255),
   purpose: z.string().max(3000).optional(),
   scope: z.string().max(3000).optional(),
-  agreementType: z.enum([
-    'worker-cooperative',
-    'multi-stakeholder',
-    'platform-cooperative',
-    'open-source',
-    'producer-cooperative',
-    'hybrid-member-investor',
-    'custom',
-  ]).default('custom'),
+  agreementType: z
+    .enum([
+      'worker-cooperative',
+      'multi-stakeholder',
+      'platform-cooperative',
+      'open-source',
+      'producer-cooperative',
+      'hybrid-member-investor',
+      'custom',
+    ])
+    .default('custom'),
   governanceFramework: GovernanceFrameworkSchema.optional(),
   disputeResolution: DisputeResolutionSchema.optional(),
   amendmentProcess: AmendmentProcessSchema.optional(),
@@ -214,7 +228,14 @@ const ExitTermsSchema = z.object({
 
 export const CreateStakeholderTermsSchema = z.object({
   stakeholderDid: z.string().min(1),
-  stakeholderType: z.enum(['worker', 'investor', 'customer', 'supplier', 'community', 'partner']),
+  stakeholderType: z.enum([
+    'worker',
+    'investor',
+    'customer',
+    'supplier',
+    'community',
+    'partner',
+  ]),
   stakeholderClass: z.string().max(200).optional(),
   contributions: z.array(ContributionTermSchema).max(50).optional(),
   financialTerms: FinancialTermsSchema.optional(),
@@ -224,12 +245,20 @@ export const CreateStakeholderTermsSchema = z.object({
 });
 
 export const CreateSignatureSchema = z.object({
-  signatureType: z.enum(['digital', 'witnessed', 'notarized']).default('digital'),
+  signatureType: z
+    .enum(['digital', 'witnessed', 'notarized'])
+    .default('digital'),
 });
 
-export type CreateMasterAgreementInput = z.infer<typeof CreateMasterAgreementSchema>;
-export type UpdateMasterAgreementInput = z.infer<typeof UpdateMasterAgreementSchema>;
-export type CreateStakeholderTermsInput = z.infer<typeof CreateStakeholderTermsSchema>;
+export type CreateMasterAgreementInput = z.infer<
+  typeof CreateMasterAgreementSchema
+>;
+export type UpdateMasterAgreementInput = z.infer<
+  typeof UpdateMasterAgreementSchema
+>;
+export type CreateStakeholderTermsInput = z.infer<
+  typeof CreateStakeholderTermsSchema
+>;
 export type CreateSignatureInput = z.infer<typeof CreateSignatureSchema>;
 
 // --- Agreement Template Schemas ---
@@ -249,35 +278,43 @@ const TemplateDataSchema = z.object({
 export const CreateAgreementTemplateSchema = z.object({
   name: z.string().min(1).max(255),
   description: z.string().max(2000).optional(),
-  agreementType: z.enum([
-    'worker-cooperative',
-    'multi-stakeholder',
-    'platform-cooperative',
-    'open-source',
-    'producer-cooperative',
-    'hybrid-member-investor',
-    'custom',
-  ]).default('custom'),
+  agreementType: z
+    .enum([
+      'worker-cooperative',
+      'multi-stakeholder',
+      'platform-cooperative',
+      'open-source',
+      'producer-cooperative',
+      'hybrid-member-investor',
+      'custom',
+    ])
+    .default('custom'),
   templateData: TemplateDataSchema.default({}),
 });
 
 export const UpdateAgreementTemplateSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   description: z.string().max(2000).optional(),
-  agreementType: z.enum([
-    'worker-cooperative',
-    'multi-stakeholder',
-    'platform-cooperative',
-    'open-source',
-    'producer-cooperative',
-    'hybrid-member-investor',
-    'custom',
-  ]).optional(),
+  agreementType: z
+    .enum([
+      'worker-cooperative',
+      'multi-stakeholder',
+      'platform-cooperative',
+      'open-source',
+      'producer-cooperative',
+      'hybrid-member-investor',
+      'custom',
+    ])
+    .optional(),
   templateData: TemplateDataSchema.optional(),
 });
 
-export type CreateAgreementTemplateInput = z.infer<typeof CreateAgreementTemplateSchema>;
-export type UpdateAgreementTemplateInput = z.infer<typeof UpdateAgreementTemplateSchema>;
+export type CreateAgreementTemplateInput = z.infer<
+  typeof CreateAgreementTemplateSchema
+>;
+export type UpdateAgreementTemplateInput = z.infer<
+  typeof UpdateAgreementTemplateSchema
+>;
 
 // --- Amendment Schemas ---
 
@@ -286,24 +323,27 @@ const FieldChangeSchema = z.object({
   to: z.unknown(),
 });
 
-const AmendmentChangesSchema = z.object({
-  title: FieldChangeSchema.optional(),
-  purpose: FieldChangeSchema.optional(),
-  scope: FieldChangeSchema.optional(),
-  governanceFramework: FieldChangeSchema.optional(),
-  disputeResolution: FieldChangeSchema.optional(),
-  amendmentProcess: FieldChangeSchema.optional(),
-  terminationConditions: FieldChangeSchema.optional(),
-}).refine(
-  (data) => Object.values(data).some((v) => v !== undefined),
-  { message: 'At least one field change is required' },
-);
+const AmendmentChangesSchema = z
+  .object({
+    title: FieldChangeSchema.optional(),
+    purpose: FieldChangeSchema.optional(),
+    scope: FieldChangeSchema.optional(),
+    governanceFramework: FieldChangeSchema.optional(),
+    disputeResolution: FieldChangeSchema.optional(),
+    amendmentProcess: FieldChangeSchema.optional(),
+    terminationConditions: FieldChangeSchema.optional(),
+  })
+  .refine((data) => Object.values(data).some((v) => v !== undefined), {
+    message: 'At least one field change is required',
+  });
 
 export const CreateAmendmentSchema = z.object({
   title: z.string().min(1).max(255),
   description: z.string().min(1).max(10000),
   changes: AmendmentChangesSchema,
-  votingMethod: z.enum(['simple_majority', 'supermajority', 'consensus']).default('simple_majority'),
+  votingMethod: z
+    .enum(['simple_majority', 'supermajority', 'consensus'])
+    .default('simple_majority'),
   quorumRequired: z.number().min(0).max(1).optional(),
   votingEndsAt: z.string().optional(),
 });
@@ -324,7 +364,16 @@ const ResourceMetadataSchema = z.object({
 
 export const BindResourceSchema = z.object({
   projectUri: z.string().min(1),
-  resourceType: z.enum(['github_repo', 'google_doc', 'google_sheet', 'google_drive_folder', 'slack_channel', 'linear_team', 'linear_project', 'zoom_meeting']),
+  resourceType: z.enum([
+    'github_repo',
+    'google_doc',
+    'google_sheet',
+    'google_drive_folder',
+    'slack_channel',
+    'linear_team',
+    'linear_project',
+    'zoom_meeting',
+  ]),
   resourceId: z.string().min(1).max(1000),
   metadata: ResourceMetadataSchema.optional(),
 });
@@ -337,8 +386,17 @@ export type BindResourceInput = z.infer<typeof BindResourceSchema>;
 export const CreateProposalSchema = z.object({
   title: z.string().min(1).max(256),
   body: z.string().min(1).max(10000),
-  proposalType: z.enum(['amendment', 'budget', 'membership', 'policy', 'election', 'other']),
-  votingMethod: z.enum(['simple_majority', 'supermajority', 'consensus', 'ranked_choice']).default('simple_majority'),
+  proposalType: z.enum([
+    'amendment',
+    'budget',
+    'membership',
+    'policy',
+    'election',
+    'other',
+  ]),
+  votingMethod: z
+    .enum(['simple_majority', 'supermajority', 'consensus', 'ranked_choice'])
+    .default('simple_majority'),
   quorumRequired: z.number().min(0).max(1).optional(),
   discussionEndsAt: z.string().optional(),
   votingEndsAt: z.string().optional(),
@@ -349,7 +407,9 @@ export const UpdateProposalStatusSchema = z.object({
 });
 
 export type CreateProposalInput = z.infer<typeof CreateProposalSchema>;
-export type UpdateProposalStatusInput = z.infer<typeof UpdateProposalStatusSchema>;
+export type UpdateProposalStatusInput = z.infer<
+  typeof UpdateProposalStatusSchema
+>;
 
 // --- Voting Schemas ---
 
@@ -370,8 +430,19 @@ export type CreateDelegationInput = z.infer<typeof CreateDelegationSchema>;
 // --- Funding Schemas ---
 
 export const CampaignTier = z.enum(['network', 'cooperative', 'project']);
-export const CampaignType = z.enum(['rewards', 'patronage', 'donation', 'revenue_share']);
-export const CampaignStatus = z.enum(['draft', 'active', 'funded', 'completed', 'cancelled']);
+export const CampaignType = z.enum([
+  'rewards',
+  'patronage',
+  'donation',
+  'revenue_share',
+]);
+export const CampaignStatus = z.enum([
+  'draft',
+  'active',
+  'funded',
+  'completed',
+  'cancelled',
+]);
 export const FundingModel = z.enum(['all_or_nothing', 'keep_it_all']);
 
 export const CreateCampaignSchema = z.object({
@@ -405,11 +476,18 @@ export const UpdateCampaignStatusSchema = z.object({
 
 export type CreateCampaignInput = z.infer<typeof CreateCampaignSchema>;
 export type UpdateCampaignInput = z.infer<typeof UpdateCampaignSchema>;
-export type UpdateCampaignStatusInput = z.infer<typeof UpdateCampaignStatusSchema>;
+export type UpdateCampaignStatusInput = z.infer<
+  typeof UpdateCampaignStatusSchema
+>;
 
 // --- Pledge Schemas ---
 
-export const PaymentStatus = z.enum(['pending', 'completed', 'failed', 'refunded']);
+export const PaymentStatus = z.enum([
+  'pending',
+  'completed',
+  'failed',
+  'refunded',
+]);
 
 export const CreatePledgeSchema = z.object({
   campaignUri: z.string().min(1),
@@ -449,7 +527,11 @@ export const EventTypeEnum = z.enum([
   'agent.budget.exceeded',
 ]);
 
-export const TriggerActionTypeEnum = z.enum(['agent_message', 'notify', 'call_webhook']);
+export const TriggerActionTypeEnum = z.enum([
+  'agent_message',
+  'notify',
+  'call_webhook',
+]);
 
 export const CreateWorkflowSchema = z.object({
   name: z.string().min(1).max(255),
@@ -499,7 +581,12 @@ export const UpdateTriggerSchema = z.object({
 
 // --- Workflow Definition Schemas ---
 
-export const WorkflowNodeTypeEnum = z.enum(['trigger', 'condition', 'action', 'delay']);
+export const WorkflowNodeTypeEnum = z.enum([
+  'trigger',
+  'condition',
+  'action',
+  'delay',
+]);
 
 export const WorkflowNodeSchema = z.object({
   id: z.string().min(1),
@@ -536,11 +623,19 @@ export type UpdateTriggerInput = z.infer<typeof UpdateTriggerSchema>;
 export type WorkflowNode = z.infer<typeof WorkflowNodeSchema>;
 export type WorkflowConnection = z.infer<typeof WorkflowConnectionSchema>;
 export type WorkflowDefinition = z.infer<typeof WorkflowDefinitionSchema>;
-export type UpdateWorkflowDefinitionInput = z.infer<typeof UpdateWorkflowDefinitionSchema>;
+export type UpdateWorkflowDefinitionInput = z.infer<
+  typeof UpdateWorkflowDefinitionSchema
+>;
 
 // --- Agent Schemas ---
 
-export const AgentTypeEnum = z.enum(['custom', 'facilitator', 'governance', 'coordinator', 'analyst']);
+export const AgentTypeEnum = z.enum([
+  'custom',
+  'facilitator',
+  'governance',
+  'coordinator',
+  'analyst',
+]);
 
 /** Model routing config — maps task types to provider:model strings */
 export const ModelRoutingConfigSchema = z.object({
@@ -613,9 +708,13 @@ export type ModelRoutingConfigInput = z.infer<typeof ModelRoutingConfigSchema>;
 export type CreateAgentConfigInput = z.infer<typeof CreateAgentConfigSchema>;
 export type UpdateAgentConfigInput = z.infer<typeof UpdateAgentConfigSchema>;
 export type SendAgentMessageInput = z.infer<typeof SendAgentMessageSchema>;
-export type CreateAgentFromTemplateInput = z.infer<typeof CreateAgentFromTemplateSchema>;
+export type CreateAgentFromTemplateInput = z.infer<
+  typeof CreateAgentFromTemplateSchema
+>;
 export type AddModelProviderInput = z.infer<typeof AddModelProviderSchema>;
-export type UpdateModelProviderInput = z.infer<typeof UpdateModelProviderSchema>;
+export type UpdateModelProviderInput = z.infer<
+  typeof UpdateModelProviderSchema
+>;
 
 // --- Route-Level Request Body Schemas ---
 // Used by API route handlers for runtime validation
@@ -653,6 +752,8 @@ export const UpdateCoopSchema = z.object({
   publicActivity: z.boolean().optional(),
   publicAgreements: z.boolean().optional(),
   publicCampaigns: z.boolean().optional(),
+  publicGovernanceAnchors: z.boolean().optional(),
+  publicGovernanceAnchorOutcomes: z.boolean().optional(),
   governanceVisibility: GovernanceVisibilityEnum.optional(),
 });
 
@@ -664,6 +765,7 @@ export const CreateInvitationSchema = z.object({
 });
 
 export const AcceptInvitationSchema = z.object({
+  email: z.string().email(),
   displayName: z.string().min(1).max(255),
   handle: z.string().max(255).optional(),
   password: z.string().min(8).max(256),
@@ -778,7 +880,13 @@ export const CreateComplianceItemSchema = z.object({
 export const CreateMemberNoticeSchema = z.object({
   title: z.string().min(1).max(255),
   body: z.string().min(1).max(10000),
-  noticeType: z.enum(['general', 'election', 'meeting', 'policy_change', 'other']),
+  noticeType: z.enum([
+    'general',
+    'election',
+    'meeting',
+    'policy_change',
+    'other',
+  ]),
   targetAudience: z.enum(['all', 'board', 'officers']),
 });
 
@@ -798,7 +906,9 @@ export const UpdateComplianceItemSchema = z.object({
   title: z.string().min(1).max(255).optional(),
   description: z.string().max(3000).optional(),
   dueDate: z.string().optional(),
-  filingType: z.enum(['annual_report', 'tax_filing', 'state_report', 'other']).optional(),
+  filingType: z
+    .enum(['annual_report', 'tax_filing', 'state_report', 'other'])
+    .optional(),
 });
 
 export const UpdateFiscalPeriodSchema = z.object({
@@ -807,15 +917,25 @@ export const UpdateFiscalPeriodSchema = z.object({
   endsAt: z.string().optional(),
 });
 
-export type CreateLegalDocumentInput = z.infer<typeof CreateLegalDocumentSchema>;
-export type UpdateLegalDocumentInput = z.infer<typeof UpdateLegalDocumentSchema>;
-export type CreateMeetingRecordInput = z.infer<typeof CreateMeetingRecordSchema>;
+export type CreateLegalDocumentInput = z.infer<
+  typeof CreateLegalDocumentSchema
+>;
+export type UpdateLegalDocumentInput = z.infer<
+  typeof UpdateLegalDocumentSchema
+>;
+export type CreateMeetingRecordInput = z.infer<
+  typeof CreateMeetingRecordSchema
+>;
 export type CreateOfficerInput = z.infer<typeof CreateOfficerSchema>;
-export type CreateComplianceItemInput = z.infer<typeof CreateComplianceItemSchema>;
+export type CreateComplianceItemInput = z.infer<
+  typeof CreateComplianceItemSchema
+>;
 export type CreateMemberNoticeInput = z.infer<typeof CreateMemberNoticeSchema>;
 export type CreateFiscalPeriodInput = z.infer<typeof CreateFiscalPeriodSchema>;
 export type UpdateOfficerInput = z.infer<typeof UpdateOfficerSchema>;
-export type UpdateComplianceItemInput = z.infer<typeof UpdateComplianceItemSchema>;
+export type UpdateComplianceItemInput = z.infer<
+  typeof UpdateComplianceItemSchema
+>;
 export type UpdateFiscalPeriodInput = z.infer<typeof UpdateFiscalPeriodSchema>;
 
 // --- Private Record Schemas ---
@@ -830,14 +950,23 @@ export const UpdatePrivateRecordSchema = z.object({
   record: z.record(z.string(), z.unknown()),
 });
 
-export type CreatePrivateRecordInput = z.infer<typeof CreatePrivateRecordSchema>;
-export type UpdatePrivateRecordInput = z.infer<typeof UpdatePrivateRecordSchema>;
+export type CreatePrivateRecordInput = z.infer<
+  typeof CreatePrivateRecordSchema
+>;
+export type UpdatePrivateRecordInput = z.infer<
+  typeof UpdatePrivateRecordSchema
+>;
 export type GovernanceVisibility = z.infer<typeof GovernanceVisibilityEnum>;
 
 // --- Financial Tool Schemas ---
 
 export const PatronageMetricTypeEnum = z.enum([
-  'hours_worked', 'salary', 'combined', 'purchase_volume', 'supply_volume', 'custom',
+  'hours_worked',
+  'salary',
+  'combined',
+  'purchase_volume',
+  'supply_volume',
+  'custom',
 ]);
 
 export const CreatePatronageConfigSchema = z.object({
@@ -877,9 +1006,15 @@ export const RedeemAllocationSchema = z.object({
   description: z.string().max(500).optional(),
 });
 
-export type CreatePatronageConfigInput = z.infer<typeof CreatePatronageConfigSchema>;
-export type UpdatePatronageConfigInput = z.infer<typeof UpdatePatronageConfigSchema>;
-export type RunPatronageCalculationInput = z.infer<typeof RunPatronageCalculationSchema>;
+export type CreatePatronageConfigInput = z.infer<
+  typeof CreatePatronageConfigSchema
+>;
+export type UpdatePatronageConfigInput = z.infer<
+  typeof UpdatePatronageConfigSchema
+>;
+export type RunPatronageCalculationInput = z.infer<
+  typeof RunPatronageCalculationSchema
+>;
 export type PatronageMetricInput = z.infer<typeof PatronageMetricInputSchema>;
 export type RecordContributionInput = z.infer<typeof RecordContributionSchema>;
 export type RedeemAllocationInput = z.infer<typeof RedeemAllocationSchema>;
@@ -993,23 +1128,36 @@ export const RespondToLinkSchema = z.object({
 export type CreateMemberClassInput = z.infer<typeof CreateMemberClassSchema>;
 export type UpdateMemberClassInput = z.infer<typeof UpdateMemberClassSchema>;
 export type AssignMemberClassInput = z.infer<typeof AssignMemberClassSchema>;
-export type CreateCooperativeLinkInput = z.infer<typeof CreateCooperativeLinkSchema>;
+export type CreateCooperativeLinkInput = z.infer<
+  typeof CreateCooperativeLinkSchema
+>;
 export type RespondToLinkInput = z.infer<typeof RespondToLinkSchema>;
 
-export type CreateOnboardingConfigInput = z.infer<typeof CreateOnboardingConfigSchema>;
-export type UpdateOnboardingConfigInput = z.infer<typeof UpdateOnboardingConfigSchema>;
+export type CreateOnboardingConfigInput = z.infer<
+  typeof CreateOnboardingConfigSchema
+>;
+export type UpdateOnboardingConfigInput = z.infer<
+  typeof UpdateOnboardingConfigSchema
+>;
 export type StartOnboardingInput = z.infer<typeof StartOnboardingSchema>;
 export type CompleteTrainingInput = z.infer<typeof CompleteTrainingSchema>;
 export type CompleteBuyInInput = z.infer<typeof CompleteBuyInSchema>;
 export type CompleteMilestoneInput = z.infer<typeof CompleteMilestoneSchema>;
 export type AssignBuddyInput = z.infer<typeof AssignBuddySchema>;
-export type CreateOnboardingReviewInput = z.infer<typeof CreateOnboardingReviewSchema>;
+export type CreateOnboardingReviewInput = z.infer<
+  typeof CreateOnboardingReviewSchema
+>;
 export type CompleteOnboardingInput = z.infer<typeof CompleteOnboardingSchema>;
 
 // --- Operations Schemas (Phase 8) ---
 
 export const TaskStatusEnum = z.enum([
-  'backlog', 'todo', 'in_progress', 'in_review', 'done', 'cancelled',
+  'backlog',
+  'todo',
+  'in_progress',
+  'in_review',
+  'done',
+  'cancelled',
 ]);
 
 export const TaskPriorityEnum = z.enum(['urgent', 'high', 'medium', 'low']);
@@ -1024,10 +1172,15 @@ export const CreateTaskSchema = z.object({
   dueDate: z.string().optional(),
   labels: z.array(z.string().max(50)).max(20).default([]),
   linkedProposalId: z.string().optional(),
-  checklist: z.array(z.object({
-    title: z.string().min(1).max(500),
-    completed: z.boolean().default(false),
-  })).max(50).optional(),
+  checklist: z
+    .array(
+      z.object({
+        title: z.string().min(1).max(500),
+        completed: z.boolean().default(false),
+      }),
+    )
+    .max(50)
+    .optional(),
 });
 
 export const UpdateTaskSchema = z.object({
@@ -1059,7 +1212,12 @@ export const UpdateChecklistItemSchema = z.object({
 
 // --- Time Tracking Schemas ---
 
-export const TimeEntryStatusEnum = z.enum(['draft', 'submitted', 'approved', 'rejected']);
+export const TimeEntryStatusEnum = z.enum([
+  'draft',
+  'submitted',
+  'approved',
+  'rejected',
+]);
 
 export const CreateTimeEntrySchema = z.object({
   taskId: z.string().optional(),
@@ -1090,7 +1248,12 @@ export const ReviewTimeEntriesSchema = z.object({
 
 // --- Schedule Schemas ---
 
-export const ShiftStatusEnum = z.enum(['open', 'assigned', 'completed', 'cancelled']);
+export const ShiftStatusEnum = z.enum([
+  'open',
+  'assigned',
+  'completed',
+  'cancelled',
+]);
 
 export const CreateShiftSchema = z.object({
   title: z.string().min(1).max(255),
@@ -1115,7 +1278,13 @@ export const UpdateShiftSchema = z.object({
 
 // --- Expense Schemas ---
 
-export const ExpenseStatusEnum = z.enum(['draft', 'submitted', 'approved', 'rejected', 'reimbursed']);
+export const ExpenseStatusEnum = z.enum([
+  'draft',
+  'submitted',
+  'approved',
+  'rejected',
+  'reimbursed',
+]);
 
 export const CreateExpenseCategorySchema = z.object({
   name: z.string().min(1).max(100),
@@ -1181,15 +1350,21 @@ export const UpdateRevenueEntrySchema = z.object({
 export type CreateTaskInput = z.infer<typeof CreateTaskSchema>;
 export type UpdateTaskInput = z.infer<typeof UpdateTaskSchema>;
 export type CreateTaskLabelInput = z.infer<typeof CreateTaskLabelSchema>;
-export type CreateChecklistItemInput = z.infer<typeof CreateChecklistItemSchema>;
-export type UpdateChecklistItemInput = z.infer<typeof UpdateChecklistItemSchema>;
+export type CreateChecklistItemInput = z.infer<
+  typeof CreateChecklistItemSchema
+>;
+export type UpdateChecklistItemInput = z.infer<
+  typeof UpdateChecklistItemSchema
+>;
 export type CreateTimeEntryInput = z.infer<typeof CreateTimeEntrySchema>;
 export type UpdateTimeEntryInput = z.infer<typeof UpdateTimeEntrySchema>;
 export type SubmitTimeEntriesInput = z.infer<typeof SubmitTimeEntriesSchema>;
 export type ReviewTimeEntriesInput = z.infer<typeof ReviewTimeEntriesSchema>;
 export type CreateShiftInput = z.infer<typeof CreateShiftSchema>;
 export type UpdateShiftInput = z.infer<typeof UpdateShiftSchema>;
-export type CreateExpenseCategoryInput = z.infer<typeof CreateExpenseCategorySchema>;
+export type CreateExpenseCategoryInput = z.infer<
+  typeof CreateExpenseCategorySchema
+>;
 export type CreateExpenseInput = z.infer<typeof CreateExpenseSchema>;
 export type UpdateExpenseInput = z.infer<typeof UpdateExpenseSchema>;
 export type ReviewExpenseInput = z.infer<typeof ReviewExpenseSchema>;
@@ -1199,8 +1374,16 @@ export type UpdateRevenueEntryInput = z.infer<typeof UpdateRevenueEntrySchema>;
 
 // --- Commerce Schemas (Phase 9) ---
 
-export const CommerceListingStatusEnum = z.enum(['active', 'paused', 'archived']);
-export const CommerceAvailabilityEnum = z.enum(['available', 'limited', 'unavailable']);
+export const CommerceListingStatusEnum = z.enum([
+  'active',
+  'paused',
+  'archived',
+]);
+export const CommerceAvailabilityEnum = z.enum([
+  'available',
+  'limited',
+  'unavailable',
+]);
 
 export const CreateCommerceListingSchema = z.object({
   title: z.string().min(1).max(255),
@@ -1223,8 +1406,18 @@ export const UpdateCommerceListingSchema = z.object({
   status: CommerceListingStatusEnum.optional(),
 });
 
-export const CommerceNeedStatusEnum = z.enum(['open', 'matched', 'fulfilled', 'cancelled']);
-export const CommerceNeedUrgencyEnum = z.enum(['low', 'normal', 'high', 'urgent']);
+export const CommerceNeedStatusEnum = z.enum([
+  'open',
+  'matched',
+  'fulfilled',
+  'cancelled',
+]);
+export const CommerceNeedUrgencyEnum = z.enum([
+  'low',
+  'normal',
+  'high',
+  'urgent',
+]);
 
 export const CreateCommerceNeedSchema = z.object({
   title: z.string().min(1).max(255),
@@ -1245,7 +1438,14 @@ export const UpdateCommerceNeedSchema = z.object({
   status: CommerceNeedStatusEnum.optional(),
 });
 
-export const IntercoopAgreementTypeEnum = z.enum(['service', 'supply', 'joint_venture', 'procurement', 'resource_sharing', 'other']);
+export const IntercoopAgreementTypeEnum = z.enum([
+  'service',
+  'supply',
+  'joint_venture',
+  'procurement',
+  'resource_sharing',
+  'other',
+]);
 
 export const CreateIntercoopAgreementSchema = z.object({
   responderDid: z.string().min(1),
@@ -1259,7 +1459,9 @@ export const UpdateIntercoopAgreementSchema = z.object({
   title: z.string().min(1).max(255).optional(),
   description: z.string().max(10000).optional(),
   terms: z.record(z.string(), z.unknown()).optional(),
-  status: z.enum(['proposed', 'negotiating', 'active', 'completed', 'cancelled']).optional(),
+  status: z
+    .enum(['proposed', 'negotiating', 'active', 'completed', 'cancelled'])
+    .optional(),
 });
 
 export const CreateCollaborativeProjectSchema = z.object({
@@ -1286,7 +1488,13 @@ export const RecordContributionToProjectSchema = z.object({
   periodEnd: z.string().min(1),
 });
 
-export const ResourceTypeEnum = z.enum(['equipment', 'space', 'expertise', 'vehicle', 'other']);
+export const ResourceTypeEnum = z.enum([
+  'equipment',
+  'space',
+  'expertise',
+  'vehicle',
+  'other',
+]);
 
 export const CreateSharedResourceSchema = z.object({
   title: z.string().min(1).max(255),
@@ -1365,30 +1573,69 @@ export const UpdateWebhookEndpointSchema = z.object({
 });
 
 // Type exports
-export type CreateCommerceListingInput = z.infer<typeof CreateCommerceListingSchema>;
-export type UpdateCommerceListingInput = z.infer<typeof UpdateCommerceListingSchema>;
+export type CreateCommerceListingInput = z.infer<
+  typeof CreateCommerceListingSchema
+>;
+export type UpdateCommerceListingInput = z.infer<
+  typeof UpdateCommerceListingSchema
+>;
 export type CreateCommerceNeedInput = z.infer<typeof CreateCommerceNeedSchema>;
 export type UpdateCommerceNeedInput = z.infer<typeof UpdateCommerceNeedSchema>;
-export type CreateIntercoopAgreementInput = z.infer<typeof CreateIntercoopAgreementSchema>;
-export type UpdateIntercoopAgreementInput = z.infer<typeof UpdateIntercoopAgreementSchema>;
-export type CreateCollaborativeProjectInput = z.infer<typeof CreateCollaborativeProjectSchema>;
-export type UpdateCollaborativeProjectInput = z.infer<typeof UpdateCollaborativeProjectSchema>;
-export type RecordContributionToProjectInput = z.infer<typeof RecordContributionToProjectSchema>;
-export type CreateSharedResourceInput = z.infer<typeof CreateSharedResourceSchema>;
-export type UpdateSharedResourceInput = z.infer<typeof UpdateSharedResourceSchema>;
-export type CreateResourceBookingInput = z.infer<typeof CreateResourceBookingSchema>;
+export type CreateIntercoopAgreementInput = z.infer<
+  typeof CreateIntercoopAgreementSchema
+>;
+export type UpdateIntercoopAgreementInput = z.infer<
+  typeof UpdateIntercoopAgreementSchema
+>;
+export type CreateCollaborativeProjectInput = z.infer<
+  typeof CreateCollaborativeProjectSchema
+>;
+export type UpdateCollaborativeProjectInput = z.infer<
+  typeof UpdateCollaborativeProjectSchema
+>;
+export type RecordContributionToProjectInput = z.infer<
+  typeof RecordContributionToProjectSchema
+>;
+export type CreateSharedResourceInput = z.infer<
+  typeof CreateSharedResourceSchema
+>;
+export type UpdateSharedResourceInput = z.infer<
+  typeof UpdateSharedResourceSchema
+>;
+export type CreateResourceBookingInput = z.infer<
+  typeof CreateResourceBookingSchema
+>;
 export type ReviewBookingInput = z.infer<typeof ReviewBookingSchema>;
-export type CreateProcurementGroupInput = z.infer<typeof CreateProcurementGroupSchema>;
-export type AddProcurementDemandInput = z.infer<typeof AddProcurementDemandSchema>;
-export type CreateConnectorConfigInput = z.infer<typeof CreateConnectorConfigSchema>;
-export type UpdateConnectorConfigInput = z.infer<typeof UpdateConnectorConfigSchema>;
+export type CreateProcurementGroupInput = z.infer<
+  typeof CreateProcurementGroupSchema
+>;
+export type AddProcurementDemandInput = z.infer<
+  typeof AddProcurementDemandSchema
+>;
+export type CreateConnectorConfigInput = z.infer<
+  typeof CreateConnectorConfigSchema
+>;
+export type UpdateConnectorConfigInput = z.infer<
+  typeof UpdateConnectorConfigSchema
+>;
 export type CreateFieldMappingInput = z.infer<typeof CreateFieldMappingSchema>;
-export type CreateWebhookEndpointInput = z.infer<typeof CreateWebhookEndpointSchema>;
-export type UpdateWebhookEndpointInput = z.infer<typeof UpdateWebhookEndpointSchema>;
+export type CreateWebhookEndpointInput = z.infer<
+  typeof CreateWebhookEndpointSchema
+>;
+export type UpdateWebhookEndpointInput = z.infer<
+  typeof UpdateWebhookEndpointSchema
+>;
 
 // --- Reporting & Notifications Schemas (Phase 10) ---
 
-export const ReportTypeEnum = z.enum(['annual', 'board_packet', 'equity_statement', 'patronage', 'commerce', 'custom']);
+export const ReportTypeEnum = z.enum([
+  'annual',
+  'board_packet',
+  'equity_statement',
+  'patronage',
+  'commerce',
+  'custom',
+]);
 
 export const CreateReportTemplateSchema = z.object({
   name: z.string().min(1).max(255),
@@ -1407,7 +1654,9 @@ export const GenerateReportSchema = z.object({
 export const UpdateNotificationPreferenceSchema = z.object({
   channel: z.enum(['in_app', 'email', 'digest']),
   eventTypes: z.array(z.string().min(1).max(100)).max(50),
-  digestFrequency: z.enum(['immediate', 'daily', 'weekly']).default('immediate'),
+  digestFrequency: z
+    .enum(['immediate', 'daily', 'weekly'])
+    .default('immediate'),
   enabled: z.boolean().default(true),
 });
 
@@ -1417,7 +1666,11 @@ export const CreateMentionSchema = z.object({
   mentionedDid: z.string().min(1),
 });
 
-export type CreateReportTemplateInput = z.infer<typeof CreateReportTemplateSchema>;
+export type CreateReportTemplateInput = z.infer<
+  typeof CreateReportTemplateSchema
+>;
 export type GenerateReportInput = z.infer<typeof GenerateReportSchema>;
-export type UpdateNotificationPreferenceInput = z.infer<typeof UpdateNotificationPreferenceSchema>;
+export type UpdateNotificationPreferenceInput = z.infer<
+  typeof UpdateNotificationPreferenceSchema
+>;
 export type CreateMentionInput = z.infer<typeof CreateMentionSchema>;

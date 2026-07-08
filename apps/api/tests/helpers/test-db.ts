@@ -1,5 +1,11 @@
 import pg from 'pg';
-import { Kysely, PostgresDialect, FileMigrationProvider, Migrator, sql } from 'kysely';
+import {
+  Kysely,
+  PostgresDialect,
+  FileMigrationProvider,
+  Migrator,
+  sql,
+} from 'kysely';
 import type { Database } from '@coopsource/db';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,7 +16,10 @@ const TEST_DB_NAME = 'coopsource_test';
 const ADMIN_URL = 'postgresql://localhost:5432/postgres';
 
 export function getTestConnectionString(): string {
-  return process.env.TEST_DATABASE_URL ?? `postgresql://localhost:5432/${TEST_DB_NAME}`;
+  return (
+    process.env.TEST_DATABASE_URL ??
+    `postgresql://localhost:5432/${TEST_DB_NAME}`
+  );
 }
 
 export async function createTestDb(): Promise<void> {
@@ -89,7 +98,7 @@ export async function truncateAllTables(): Promise<void> {
       interest_map, desired_outcome, stakeholder_interest,
       payment_provider_config,
       funding_pledge, funding_campaign,
-      vote, proposal,
+      vote, public_governance_anchor, proposal,
       post, thread_member, thread,
       membership_role, membership, invitation,
       pds_record, pds_firehose_cursor,
@@ -100,7 +109,8 @@ export async function truncateAllTables(): Promise<void> {
       data_deletion_request, system_config,
       hook_dead_letter,
       registered_lexicon,
-      script_execution_log, cooperative_script
+      script_execution_log, cooperative_script,
+      did_rotation_history, spaces_consumer_cursor, space_credential
     CASCADE
   `.execute(db);
 }

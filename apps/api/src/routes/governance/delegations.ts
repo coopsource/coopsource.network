@@ -4,7 +4,15 @@ import { asyncHandler } from '../../lib/async-handler.js';
 import { requireAuth } from '../../auth/middleware.js';
 import { requirePermission } from '../../middleware/permissions.js';
 import { parsePagination } from '../../lib/pagination.js';
-import { CreateDelegationSchema } from '@coopsource/common';
+import {
+  CreateDelegationSchema,
+  NotFoundError,
+  type DID,
+} from '@coopsource/common';
+import { membersSpace } from '@coopsource/arbiter-client';
+
+const PROPOSAL_COLLECTION = 'network.coopsource.governance.proposal';
+const VOTE_WEIGHT_PREVIEW_CHOICE = 'preview';
 
 function formatDelegation(row: Record<string, unknown>) {
   return {
@@ -31,12 +39,17 @@ export function createDelegationRoutes(container: Container): Router {
     requirePermission('vote.cast'),
     asyncHandler(async (req, res) => {
       const data = CreateDelegationSchema.parse(req.body);
-      const delegation = await container.delegationVotingService.createDelegation(
-        req.actor!.cooperativeDid,
-        req.actor!.did,
-        data,
-      );
-      res.status(201).json(formatDelegation(delegation as unknown as Record<string, unknown>));
+      const delegation =
+        await container.delegationVotingService.createDelegation(
+          req.actor!.cooperativeDid,
+          req.actor!.did,
+          data,
+        );
+      res
+        .status(201)
+        .json(
+          formatDelegation(delegation as unknown as Record<string, unknown>),
+        );
     }),
   );
 
@@ -47,12 +60,15 @@ export function createDelegationRoutes(container: Container): Router {
     requirePermission('vote.cast'),
     asyncHandler(async (req, res) => {
       const uri = decodeURIComponent(String(req.params.uri));
-      const delegation = await container.delegationVotingService.revokeDelegation(
-        req.actor!.cooperativeDid,
-        req.actor!.did,
-        uri,
+      const delegation =
+        await container.delegationVotingService.revokeDelegation(
+          req.actor!.cooperativeDid,
+          req.actor!.did,
+          uri,
+        );
+      res.json(
+        formatDelegation(delegation as unknown as Record<string, unknown>),
       );
-      res.json(formatDelegation(delegation as unknown as Record<string, unknown>));
     }),
   );
 
@@ -101,16 +117,42 @@ export function createDelegationRoutes(container: Container): Router {
     asyncHandler(async (req, res) => {
       const memberDid = decodeURIComponent(String(req.params.memberDid));
       if (!req.query.proposalId) {
-        res.status(400).json({ error: 'VALIDATION_ERROR', message: 'proposalId query parameter is required' });
+        res.status(400).json({
+          error: 'VALIDATION_ERROR',
+          message: 'proposalId query parameter is required',
+        });
         return;
       }
       const proposalId = String(req.query.proposalId);
-      const weight = await container.delegationVotingService.calculateVoteWeight(
-        req.actor!.cooperativeDid,
-        memberDid,
+      const result = await container.proposalService.getProposal(
         proposalId,
+        req.actor!.cooperativeDid,
       );
-      res.json({ memberDid, weight });
+      if (!result) throw new NotFoundError('Proposal not found');
+      if (!result.proposal.uri) {
+        throw new Error(
+          `Cannot calculate vote weight for proposal ${proposalId}: missing proposal URI`,
+        );
+      }
+
+      const memberSpace = membersSpace(req.actor!.cooperativeDid as DID);
+      const weightResult =
+        await container.governancePlugins.voteWeight.weightForVote({
+          voter: { did: memberDid },
+          proposal: {
+            uri: result.proposal.uri,
+            ...(result.proposal.cid ? { cid: result.proposal.cid } : {}),
+            collection: PROPOSAL_COLLECTION,
+          },
+          cooperative: {
+            authorityDid: req.actor!.cooperativeDid,
+            spaceKey: memberSpace.spaceKey,
+            spaceType: memberSpace.expectedSpaceType,
+          },
+          voteChoice: VOTE_WEIGHT_PREVIEW_CHOICE,
+          at: container.clock.now().toISOString(),
+        });
+      res.json({ memberDid, weight: weightResult.weight });
     }),
   );
 

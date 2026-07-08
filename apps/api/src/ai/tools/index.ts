@@ -5,6 +5,8 @@ import { tool, type Tool } from 'ai';
 import { z } from 'zod';
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
+import type { DID } from '@coopsource/common';
+import type { MembershipReadModel } from '../../services/membership-read-model.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyTool = Tool<any, any>;
@@ -13,6 +15,7 @@ type ToolSet = Record<string, AnyTool>;
 /** Context available to agent tools */
 export interface AgentToolContext {
   db: Kysely<Database>;
+  membershipReadModel: MembershipReadModel;
   cooperativeDid: string;
   actorDid: string;
 }
@@ -61,24 +64,39 @@ function createToolDefinitions(ctx: AgentToolContext) {
     'list-members': tool({
       description: 'List all active members of the cooperative.',
       inputSchema: z.object({
-        limit: z.number().optional().describe('Max members to return (default 50)'),
+        limit: z
+          .number()
+          .optional()
+          .describe('Max members to return (default 50)'),
       }),
       execute: async ({ limit }) => {
         const l = Math.min(limit ?? 50, 100);
-        const rows = await ctx.db
-          .selectFrom('membership')
-          .innerJoin('entity', 'entity.did', 'membership.member_did')
-          .where('membership.cooperative_did', '=', ctx.cooperativeDid)
-          .where('membership.status', '=', 'active')
-          .select([
-            'entity.did',
-            'entity.display_name',
-            'entity.handle',
-            'membership.created_at',
-          ])
-          .limit(l)
-          .execute();
-        return JSON.stringify(rows);
+        const result = await ctx.membershipReadModel.listMembersResult(
+          ctx.cooperativeDid as DID,
+          { limit: l },
+        );
+        if (!result.ok) return JSON.stringify(result);
+
+        const dids = result.page.items.map((member) => member.did);
+        const handles =
+          dids.length > 0
+            ? await ctx.db
+                .selectFrom('entity')
+                .where('did', 'in', dids)
+                .select(['did', 'handle'])
+                .execute()
+            : [];
+        const handleMap = new Map(handles.map((row) => [row.did, row.handle]));
+
+        return JSON.stringify(
+          result.page.items.map((member) => ({
+            did: member.did,
+            displayName: member.displayName,
+            handle: handleMap.get(member.did) ?? null,
+            status: member.status,
+            joinedAt: member.joinedAt,
+          })),
+        );
       },
     }),
 
@@ -88,21 +106,26 @@ function createToolDefinitions(ctx: AgentToolContext) {
         did: z.string().describe('The member DID'),
       }),
       execute: async ({ did }) => {
-        const row = await ctx.db
-          .selectFrom('membership')
-          .innerJoin('entity', 'entity.did', 'membership.member_did')
-          .where('membership.cooperative_did', '=', ctx.cooperativeDid)
-          .where('membership.member_did', '=', did)
-          .select([
-            'entity.did',
-            'entity.display_name',
-            'entity.handle',
-            'membership.status',
-            'membership.created_at',
-          ])
+        const result = await ctx.membershipReadModel.getMemberResult(
+          ctx.cooperativeDid as DID,
+          did as DID,
+        );
+        if (!result.ok) return JSON.stringify(result);
+        if (!result.member)
+          return JSON.stringify({ error: 'Member not found' });
+
+        const entity = await ctx.db
+          .selectFrom('entity')
+          .where('did', '=', did)
+          .select(['handle'])
           .executeTakeFirst();
-        if (!row) return JSON.stringify({ error: 'Member not found' });
-        return JSON.stringify(row);
+        return JSON.stringify({
+          did: result.member.did,
+          displayName: result.member.displayName,
+          handle: entity?.handle ?? null,
+          status: result.member.status,
+          joinedAt: result.member.joinedAt,
+        });
       },
     }),
 
@@ -281,16 +304,14 @@ function createToolDefinitions(ctx: AgentToolContext) {
           .where('entity_did', '=', ctx.cooperativeDid)
           .selectAll()
           .executeTakeFirst();
-        const memberCount = await ctx.db
-          .selectFrom('membership')
-          .where('cooperative_did', '=', ctx.cooperativeDid)
-          .where('status', '=', 'active')
-          .select(ctx.db.fn.count('id').as('count'))
-          .executeTakeFirst();
+        const memberCounts =
+          await ctx.membershipReadModel.countProjectedActiveMembersByCooperative(
+            [ctx.cooperativeDid as DID],
+          );
         return JSON.stringify({
           ...entity,
           profile,
-          activeMemberCount: Number(memberCount?.count ?? 0),
+          activeMemberCount: memberCounts.get(ctx.cooperativeDid) ?? 0,
         });
       },
     }),

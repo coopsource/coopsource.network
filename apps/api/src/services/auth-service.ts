@@ -1,5 +1,5 @@
 import { hash, compare } from 'bcrypt';
-import type { Kysely } from 'kysely';
+import type { Kysely, Transaction } from 'kysely';
 import type { Database } from '@coopsource/db';
 import type { DID } from '@coopsource/common';
 import {
@@ -8,14 +8,26 @@ import {
   UnauthorizedError,
   ValidationError,
 } from '@coopsource/common';
-import type { IPdsService } from '@coopsource/federation';
-import type { IClock } from '@coopsource/federation';
+import type { IClock, IPdsService, RecordRef } from '@coopsource/federation';
 import type { GroupMutationPort } from '@coopsource/arbiter-client';
 import type { Actor } from '../auth/middleware.js';
 import { BCRYPT_ROUNDS } from '../lib/crypto-config.js';
 import { emitMemberJoined } from '../appview/membership-events.js';
 import type { IMemberRecordWriter } from './member-write-proxy.js';
+import type { MembershipReadModel } from './membership-read-model.js';
 import type { ProfileService } from './profile-service.js';
+
+interface InvitationRegistration {
+  readonly id: string;
+  readonly cooperative_did: string;
+  readonly invited_by_did: string;
+  readonly intended_roles: readonly string[];
+}
+
+interface RegistrationArtifacts {
+  readonly did: string;
+  readonly consentRef: RecordRef;
+}
 
 export class AuthService {
   constructor(
@@ -25,30 +37,43 @@ export class AuthService {
     private profileService: ProfileService,
     private instanceUrl: string = 'http://localhost:3001',
     private memberWriteProxy: IMemberRecordWriter | undefined,
-    private groupMutations: GroupMutationPort,
+    private groupMutationsForDb: (
+      db: Kysely<Database> | Transaction<Database>,
+    ) => GroupMutationPort,
+    private membershipReadModel: MembershipReadModel,
   ) {}
 
   async register(params: {
     email: string;
     password: string;
     displayName: string;
-    cooperativeDid: string;
+    handle?: string | null;
+    cooperativeDid?: string;
     invitationToken?: string;
-  }): Promise<{ did: string; displayName: string }> {
+  }): Promise<{
+    did: string;
+    displayName: string;
+    handle: string | null;
+    cooperativeDid: string;
+    roles: readonly string[];
+    joinedAt: string;
+  }> {
     // Validate invitation token if provided
-    let invitation: {
-      readonly id: string;
-      readonly cooperative_did: string;
-      readonly invited_by_did: string;
-      readonly intended_roles: string[];
-    } | undefined;
+    let invitation: InvitationRegistration | undefined;
     if (params.invitationToken) {
       const inv = await this.db
         .selectFrom('invitation')
         .where('token', '=', params.invitationToken)
         .where('status', '=', 'pending')
         .where('invalidated_at', 'is', null)
-        .select(['id', 'cooperative_did', 'expires_at', 'invited_by_did', 'intended_roles', 'invitee_email'])
+        .select([
+          'id',
+          'cooperative_did',
+          'expires_at',
+          'invited_by_did',
+          'intended_roles',
+          'invitee_email',
+        ])
         .executeTakeFirst();
 
       if (!inv) {
@@ -65,20 +90,19 @@ export class AuthService {
         inv.invitee_email &&
         inv.invitee_email.toLowerCase() !== params.email.toLowerCase()
       ) {
-        throw new ValidationError('This invitation was issued to a different email address');
+        throw new ValidationError(
+          'This invitation was issued to a different email address',
+        );
       }
-      // Atomic single-use consume: only the first redeemer flips pending →
-      // accepted, so a token cannot be replayed or double-redeemed. invitee_did
-      // is backfilled once the DID is minted below.
-      const consumed = await this.db
-        .updateTable('invitation')
-        .set({ status: 'accepted', invalidated_at: this.clock.now() })
-        .where('id', '=', inv.id)
-        .where('status', '=', 'pending')
+      const existing = await this.db
+        .selectFrom('auth_credential')
+        .where('identifier', '=', params.email)
         .where('invalidated_at', 'is', null)
+        .select('id')
         .executeTakeFirst();
-      if (Number(consumed.numUpdatedRows) === 0) {
-        throw new ValidationError('Invitation has already been used');
+
+      if (existing) {
+        throw new ConflictError('Email already registered');
       }
       invitation = {
         id: inv.id,
@@ -89,85 +113,134 @@ export class AuthService {
     }
 
     // Check email not already used
-    const existing = await this.db
-      .selectFrom('auth_credential')
-      .where('identifier', '=', params.email)
-      .where('invalidated_at', 'is', null)
-      .select('id')
-      .executeTakeFirst();
+    if (!params.invitationToken) {
+      const existing = await this.db
+        .selectFrom('auth_credential')
+        .where('identifier', '=', params.email)
+        .where('invalidated_at', 'is', null)
+        .select('id')
+        .executeTakeFirst();
 
-    if (existing) {
-      throw new ConflictError('Email already registered');
+      if (existing) {
+        throw new ConflictError('Email already registered');
+      }
     }
 
-    // Create DID via pdsService
+    const cooperativeDid = invitation?.cooperative_did ?? params.cooperativeDid;
+    if (!cooperativeDid) {
+      throw new ValidationError('Instance not set up');
+    }
+
+    const now = this.clock.now();
+
+    // Hash password
+    const secretHash = await hash(params.password, BCRYPT_ROUNDS);
+    const roles = invitation?.intended_roles ?? ['member'];
+
+    let artifacts: RegistrationArtifacts | undefined;
+    if (invitation) {
+      await this.db.transaction().execute(async (trx) => {
+        // Atomic single-use consume happens before external PDS writes. The
+        // row lock forces concurrent redeemers to wait here, so losers fail
+        // before creating DIDs or records outside the DB transaction.
+        const consumed = await trx
+          .updateTable('invitation')
+          .set({ status: 'accepted' })
+          .where('id', '=', invitation.id)
+          .where('status', '=', 'pending')
+          .where('invalidated_at', 'is', null)
+          .executeTakeFirst();
+        if (Number(consumed.numUpdatedRows) === 0) {
+          throw new ValidationError('Invitation has already been used');
+        }
+
+        artifacts = await this.createRegistrationArtifacts({
+          cooperativeDid,
+          displayName: params.displayName,
+          invitation: true,
+          now,
+        });
+        await this.persistRegistration({
+          trx,
+          params,
+          cooperativeDid,
+          roles,
+          invitation,
+          artifacts,
+          secretHash,
+          now,
+        });
+        await trx
+          .updateTable('invitation')
+          .set({ invitee_did: artifacts.did })
+          .where('id', '=', invitation.id)
+          .execute();
+      });
+    } else {
+      // PDS writes are not rollback-safe, so self-registration keeps the
+      // existing fail-before-DB shape: if an external write fails, no DB state
+      // is committed.
+      artifacts = await this.createRegistrationArtifacts({
+        cooperativeDid,
+        displayName: params.displayName,
+        invitation: false,
+        now,
+      });
+      await this.db.transaction().execute((trx) =>
+        this.persistRegistration({
+          trx,
+          params,
+          cooperativeDid,
+          roles,
+          artifacts: artifacts!,
+          secretHash,
+          now,
+        }),
+      );
+    }
+
+    if (!artifacts) {
+      throw new Error('Registration artifacts were not created');
+    }
+
+    const did = artifacts.did;
+    emitMemberJoined(cooperativeDid, did);
+
+    return {
+      did,
+      displayName: params.displayName,
+      handle: params.handle ?? null,
+      cooperativeDid,
+      roles,
+      joinedAt: now.toISOString(),
+    };
+  }
+
+  private async createRegistrationArtifacts(args: {
+    readonly cooperativeDid: string;
+    readonly displayName: string;
+    readonly invitation: boolean;
+    readonly now: Date;
+  }): Promise<RegistrationArtifacts> {
     const didDoc = await this.pdsService.createDid({
       entityType: 'person',
       pdsUrl: this.instanceUrl,
     });
     const did = didDoc.id;
 
-    const now = this.clock.now();
-
-    // Hash password
-    const secretHash = await hash(params.password, BCRYPT_ROUNDS);
-
-    // V8.3 — entity, default profile, and auth_credential are written in a
-    // single transaction so the entity row never exists without its companion
-    // profile + credential. PDS writes below remain outside the transaction
-    // (they're network calls and not rollback-safe).
-    await this.db.transaction().execute(async (trx) => {
-      await trx
-        .insertInto('entity')
-        .values({
-          did,
-          type: 'person',
-          display_name: params.displayName,
-          status: 'active',
-          created_at: now,
-          indexed_at: now,
-        })
-        .execute();
-
-      // Default profile carries the user's presentation layer. Entity owns
-      // the DID; profile owns display name / avatar / bio. One default
-      // profile per person, verified=true in V8.3 (single profile per user).
-      await this.profileService.createDefaultProfile({
-        entityDid: did,
-        displayName: params.displayName,
-        db: trx,
-      });
-
-      await trx
-        .insertInto('auth_credential')
-        .values({
-          entity_did: did,
-          credential_type: 'password',
-          identifier: params.email,
-          secret_hash: secretHash,
-          created_at: now,
-        })
-        .execute();
-    });
-
-    // Write actor.profile PDS record
     await this.pdsService.createRecord({
       did: did as DID,
       collection: 'network.coopsource.actor.profile',
       record: {
-        displayName: params.displayName,
-        createdAt: now.toISOString(),
+        displayName: args.displayName,
+        createdAt: args.now.toISOString(),
       },
     });
 
-    // Create member-authored consent evidence; membership authority is
-    // written through the V11 Group Mutation port.
-    const cooperativeDid = params.cooperativeDid;
-
     const consentRecord = {
-      cooperative: cooperativeDid,
-      consentType: invitation ? 'invitationAcceptance' : 'joinRequest',
-      createdAt: now.toISOString(),
+      cooperative: args.cooperativeDid,
+      consentType: args.invitation ? 'invitationAcceptance' : 'joinRequest',
+      createdAt: args.now.toISOString(),
     };
     const consentRef = this.memberWriteProxy
       ? await this.memberWriteProxy.writeRecord({
@@ -181,33 +254,74 @@ export class AuthService {
           record: consentRecord,
         });
 
-    const authorityResult = await this.groupMutations.addMember({
-      cooperativeDid: cooperativeDid as DID,
+    return { did, consentRef };
+  }
+
+  private async persistRegistration(args: {
+    readonly trx: Transaction<Database>;
+    readonly params: {
+      readonly email: string;
+      readonly displayName: string;
+      readonly handle?: string | null;
+    };
+    readonly cooperativeDid: string;
+    readonly roles: readonly string[];
+    readonly invitation?: InvitationRegistration;
+    readonly artifacts: RegistrationArtifacts;
+    readonly secretHash: string;
+    readonly now: Date;
+  }): Promise<void> {
+    const { trx, params, artifacts, invitation } = args;
+    const did = artifacts.did;
+
+    await trx
+      .insertInto('entity')
+      .values({
+        did,
+        type: 'person',
+        handle: params.handle ?? null,
+        display_name: params.displayName,
+        status: 'active',
+        created_at: args.now,
+        indexed_at: args.now,
+      })
+      .execute();
+
+    // Default profile carries the user's presentation layer. Entity owns
+    // the DID; profile owns display name / avatar / bio. One default
+    // profile per person, verified=true in V8.3 (single profile per user).
+    await this.profileService.createDefaultProfile({
+      entityDid: did,
+      displayName: params.displayName,
+      db: trx,
+    });
+
+    await trx
+      .insertInto('auth_credential')
+      .values({
+        entity_did: did,
+        credential_type: 'password',
+        identifier: params.email,
+        secret_hash: args.secretHash,
+        created_at: args.now,
+      })
+      .execute();
+
+    const authority = this.groupMutationsForDb(trx);
+    const authorityResult = await authority.addMember({
+      cooperativeDid: args.cooperativeDid as DID,
       memberDid: did as DID,
       actorDid: (invitation?.invited_by_did ?? did) as DID,
-      roles: invitation?.intended_roles ?? ['member'],
-      consentRecordUri: consentRef.uri,
-      consentRecordCid: consentRef.cid,
+      roles: args.roles,
+      consentRecordUri: artifacts.consentRef.uri,
+      consentRecordCid: artifacts.consentRef.cid,
       invitationId: invitation?.id ?? null,
-      joinedAt: now,
+      joinedAt: args.now,
       reason: invitation ? 'accept invitation' : 'self registration',
     });
     if (!authorityResult.ok) {
       throw new ValidationError('Invalid membership mutation');
     }
-    emitMemberJoined(cooperativeDid, did);
-
-    // The invitation was already consumed (status→accepted) above; record which
-    // DID redeemed it now that it is minted.
-    if (invitation) {
-      await this.db
-        .updateTable('invitation')
-        .set({ invitee_did: did })
-        .where('id', '=', invitation.id)
-        .execute();
-    }
-
-    return { did, displayName: params.displayName };
   }
 
   async login(
@@ -254,42 +368,19 @@ export class AuthService {
   }
 
   async getSessionActor(did: string): Promise<Actor | null> {
-    const entity = await this.db
-      .selectFrom('entity')
-      .where('did', '=', did)
-      .where('status', '=', 'active')
-      .select(['did', 'display_name'])
-      .executeTakeFirst();
-
-    if (!entity) return null;
-
-    const membership = await this.db
-      .selectFrom('membership')
-      .where('member_did', '=', did)
-      .where('status', '=', 'active')
-      .where('invalidated_at', 'is', null)
-      .select(['id', 'cooperative_did'])
-      .executeTakeFirst();
-
+    const membership = await this.membershipReadModel.getPrimaryActorMembership(
+      did as DID,
+    );
     if (!membership) return null;
-
-    const roleRows = await this.db
-      .selectFrom('membership_role')
-      .where('membership_id', '=', membership.id)
-      .select('role')
-      .execute();
-
-    const roles = roleRows.map((r) => r.role);
-
+    const roles = [...membership.roles];
     return {
-      did: entity.did,
-      displayName: entity.display_name,
+      did,
+      displayName: membership.displayName,
       roles,
-      cooperativeDid: membership.cooperative_did,
-      membershipId: membership.id,
+      cooperativeDid: membership.cooperativeDid,
+      membershipId: membership.membershipId,
       hasRole: (...check: string[]) =>
-        check.some((r) => roles.includes(r)),
+        check.some((role) => roles.includes(role)),
     };
   }
-
 }

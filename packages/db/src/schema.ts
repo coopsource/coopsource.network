@@ -100,6 +100,8 @@ export interface CooperativeProfileTable {
   public_activity: ColumnType<boolean, boolean | undefined, boolean>;
   public_agreements: ColumnType<boolean, boolean | undefined, boolean>;
   public_campaigns: ColumnType<boolean, boolean | undefined, boolean>;
+  public_governance_anchors: ColumnType<boolean, boolean | undefined, boolean>;
+  public_governance_anchor_outcomes: ColumnType<boolean, boolean | undefined, boolean>;
   governance_visibility: ColumnType<string, string | undefined, string>;
   anon_discoverable: ColumnType<boolean, boolean | undefined, boolean>;
   cross_coop_visible: ColumnType<boolean, boolean | undefined, boolean>;
@@ -253,11 +255,30 @@ export interface ProposalTable {
   resolved_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
   class_quorum_rules: ColumnType<Record<string, unknown> | null, string | Record<string, unknown> | null, string | Record<string, unknown> | null>;
   tags: string[];
+  meeting_event: string | null;
+  full_document: string | null;
+  discussion_thread: string | null;
   created_at: ColumnType<Date, Date | string | undefined, Date | string>;
   created_by: string;
   invalidated_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
   invalidated_by: string | null;
   indexed_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface PublicGovernanceAnchorTable {
+  id: Generated<string>;
+  cooperative_did: string;
+  proposal_id: string;
+  anchor_uri: string;
+  anchor_cid: string;
+  status: string;
+  outcome: string | null;
+  opened_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  closed_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  resolved_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  anchor_version: ColumnType<number, number | undefined, number>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }
 
 export interface VoteTable {
@@ -918,6 +939,7 @@ export interface Database {
   thread_member: ThreadMemberTable;
   post: PostTable;
   proposal: ProposalTable;
+  public_governance_anchor: PublicGovernanceAnchorTable;
   vote: VoteTable;
   agreement: AgreementTable;
   agreement_signature: AgreementSignatureTable;
@@ -1058,9 +1080,10 @@ export interface Database {
   cooperative_script: CooperativeScriptTable;
   script_execution_log: ScriptExecutionLogTable;
 
-  // V11 Stage 1 — Spaces consumer (no migration files; schema-only addition)
+  // V11/V12 spaces substrate (no migration files; schema-only addition)
   did_rotation_history: DidRotationHistoryTable;
   spaces_consumer_cursor: SpacesConsumerCursorTable;
+  space_credential: SpaceCredentialTable;
 }
 
 // ──────────────────────────────────────────────
@@ -1744,5 +1767,20 @@ export interface SpacesConsumerCursorTable {
   expected_space_type: string | null;
   member_did: string;
   cursor: string;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+/**
+ * Short-lived permissioned-space credentials cached by the spaces consumer.
+ * `space_ref_key` is the canonical SpaceRef key; decomposed columns keep the
+ * table inspectable without making nullable expected_space_type part of the PK.
+ */
+export interface SpaceCredentialTable {
+  space_ref_key: string;
+  arbiter_did: string;
+  space_key: string;
+  expected_space_type: string | null;
+  token: string;
+  expires_at: ColumnType<Date, Date | string, Date | string>;
   updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }

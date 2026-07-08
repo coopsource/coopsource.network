@@ -1,5 +1,7 @@
 import type { Kysely } from 'kysely';
+import type { DID } from '@coopsource/common';
 import type { Database } from '@coopsource/db';
+import type { MembershipReadModel } from './membership-read-model.js';
 
 export interface MemberEngagement {
   votingParticipation: number;
@@ -28,6 +30,7 @@ export interface OperationalSummary {
 export class DashboardService {
   constructor(
     private db: Kysely<Database>,
+    private membershipReadModel: MembershipReadModel,
   ) {}
 
   async getMemberEngagement(
@@ -63,18 +66,15 @@ export class DashboardService {
       .select((eb) => eb.fn.count('uri').as('count'))
       .executeTakeFirst();
 
-    const memberCount = await this.db
-      .selectFrom('membership')
-      .where('cooperative_did', '=', cooperativeDid)
-      .select((eb) => eb.fn.count('id').as('count'))
-      .executeTakeFirst();
-
-    const activeMemberCount = await this.db
-      .selectFrom('membership')
-      .where('cooperative_did', '=', cooperativeDid)
-      .where('status', '=', 'active')
-      .select((eb) => eb.fn.count('id').as('count'))
-      .executeTakeFirst();
+    const [memberCounts, activeMemberCounts] = await Promise.all([
+      this.membershipReadModel.countProjectedMembershipRowsByCooperative(
+        [cooperativeDid as DID],
+        { includeInvalidated: true },
+      ),
+      this.membershipReadModel.countProjectedActiveMembersByCooperative([
+        cooperativeDid as DID,
+      ]),
+    ]);
 
     const proposals = Number(proposalCount?.count ?? 0);
     const votes = Number(voteCount?.count ?? 0);
@@ -85,8 +85,8 @@ export class DashboardService {
       votingParticipation: Math.round(votingParticipation * 100) / 100,
       proposalCount: proposals,
       agreementCount: Number(agreementCount?.count ?? 0),
-      memberCount: Number(memberCount?.count ?? 0),
-      activeMemberCount: Number(activeMemberCount?.count ?? 0),
+      memberCount: memberCounts.get(cooperativeDid) ?? 0,
+      activeMemberCount: activeMemberCounts.get(cooperativeDid) ?? 0,
     };
   }
 

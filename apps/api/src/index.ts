@@ -17,8 +17,11 @@ import { loadConfig } from './config.js';
 import { httpLogger, logger } from './middleware/logger.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { createContainer } from './container.js';
-import { setDb } from './auth/middleware.js';
-import { setPermissionsDb } from './middleware/permissions.js';
+import { setDb, setMembershipReadModel } from './auth/middleware.js';
+import {
+  setPermissionAuthorizer,
+  setPermissionsDb,
+} from './middleware/permissions.js';
 import { createSessionMiddleware } from './auth/session.js';
 import { createHealthRoutes } from './routes/health.js';
 import { createSetupRoutes } from './routes/setup.js';
@@ -89,8 +92,11 @@ import { createDashboardRoutes } from './routes/reports/dashboards.js';
 import { createMentionRoutes } from './routes/notifications/mentions.js';
 import { createAdminScriptRoutes } from './routes/admin-scripts.js';
 import { startAppViewLoop } from './appview/loop.js';
-import { startSpacesConsumer, stopSpacesConsumer } from './appview/spaces-consumer-dispatch.js';
-import { createOAuthClient } from './auth/oauth-client.js';
+import {
+  startSpacesConsumer,
+  stopSpacesConsumer,
+} from './appview/spaces-consumer-dispatch.js';
+import { createOAuthClient, oauthScopeForConfig } from './auth/oauth-client.js';
 import { setupLabelWebSocket } from './routes/xrpc-labels.js';
 import { createXrpcRoutes } from './xrpc/dispatcher.js';
 import { buildXrpcHandlers } from './xrpc/index.js';
@@ -107,9 +113,10 @@ if (config.NODE_ENV === 'production') {
 app.use(helmet());
 app.use(
   cors({
-    origin: config.NODE_ENV === 'production'
-      ? config.FRONTEND_URL
-      : 'http://localhost:5173',
+    origin:
+      config.NODE_ENV === 'production'
+        ? config.FRONTEND_URL
+        : 'http://localhost:5173',
     credentials: true,
   }),
 );
@@ -144,7 +151,9 @@ async function start(): Promise<void> {
   // Create dependency injection container
   const container = createContainer(config);
   setDb(container.db);
+  setMembershipReadModel(container.membershipReadModel);
   setPermissionsDb(container.db);
+  setPermissionAuthorizer(container.governancePlugins.actionAuthorizer);
   logger.info('Container created');
 
   // Health routes (always available, no auth required)
@@ -185,21 +194,34 @@ async function start(): Promise<void> {
   // SSE events
   app.use(createEventRoutes());
 
-  // ATProto OAuth client (V6 — only when PDS_URL is configured)
-  const oauthClient = config.PDS_URL
-    ? createOAuthClient({ publicUrl: config.PUBLIC_API_URL, db: container.db })
+  const oauthScope = oauthScopeForConfig(config);
+
+  // ATProto OAuth client (V6 member writes; V12 draft permissioned-space writes)
+  const needsOAuthClient =
+    config.PDS_URL || config.PERMISSIONED_RECORD_WRITER_MODE === 'draft-xrpc';
+  const oauthClient = needsOAuthClient
+    ? createOAuthClient({
+        publicUrl: config.PUBLIC_API_URL,
+        db: container.db,
+        scope: oauthScope,
+      })
     : undefined;
 
-  // Wire OAuth client into MemberWriteProxy so it can proxy writes to member PDS
+  // Wire OAuth client into member and permissioned-space writers.
   if (oauthClient) {
     container.memberWriteProxy.setOAuthClient(oauthClient);
+    container.permissionedRecordWriteSessionProvider.setOAuthClient(oauthClient);
+    container.managingSpaceCredentialSessionSelector.setOAuthClient(oauthClient);
   }
 
   // Auth routes
-  app.use(createAuthRoutes(container, {
-    oauthClient,
-    frontendUrl: config.FRONTEND_URL,
-  }));
+  app.use(
+    createAuthRoutes(container, {
+      oauthClient,
+      oauthScope,
+      frontendUrl: config.FRONTEND_URL,
+    }),
+  );
 
   // Org/member/invitation routes
   app.use(createCooperativeRoutes(container));
@@ -299,10 +321,12 @@ async function start(): Promise<void> {
   app.use(createLabelRoutes(container.governanceLabeler));
 
   // XRPC query dispatcher (V9.2 governance AppView + migrated label query)
-  app.use(createXrpcRoutes(container, buildXrpcHandlers(container), {
-    serviceAuthVerifier: container.serviceAuthVerifier,
-    inlayAuthVerifier: container.inlayAuthVerifier,
-  }));
+  app.use(
+    createXrpcRoutes(container, buildXrpcHandlers(container), {
+      serviceAuthVerifier: container.serviceAuthVerifier,
+      inlayAuthVerifier: container.inlayAuthVerifier,
+    }),
+  );
 
   // Onboarding routes (Phase 7)
   app.use(createOnboardingRoutes(container));
@@ -316,7 +340,7 @@ async function start(): Promise<void> {
   app.use(createCooperativeLinkRoutes(container));
 
   // MCP server (bearer token auth)
-  app.use(createMcpRoutes(container.db));
+  app.use(createMcpRoutes(container.db, container.membershipReadModel));
 
   // Admin lexicon management (V7 P7)
   app.use(createAdminLexiconRoutes(container));
@@ -338,7 +362,8 @@ async function start(): Promise<void> {
   // V11 Stage 1: Pull-based spaces consumer (sketch-only; gated off by default).
   startSpacesConsumer({
     enabled: config.SPACES_CONSUMER_ENABLED,
-    unsafeAcceptUnverifiedPermissionedData: config.UNSAFE_ACCEPT_UNVERIFIED_PERMISSIONED_DATA,
+    unsafeAcceptUnverifiedPermissionedData:
+      config.UNSAFE_ACCEPT_UNVERIFIED_PERMISSIONED_DATA,
     db: container.db,
     spaces: [], // Stage 1: empty by design; real subscriptions land with Stage 2.
   }).catch((err) => {
@@ -370,18 +395,24 @@ async function start(): Promise<void> {
     .then(() => container.matchmakingService.pruneStale())
     .catch((err) => logger.error(err, 'Initial matchmaking run failed'));
 
-  const matchmakingHandle = setInterval(() => {
-    container.matchmakingService
-      .runMatchmakingForAllUsers()
-      .then(() => container.matchmakingService.pruneStale())
-      .catch((err) => logger.error(err, 'Matchmaking job failed'));
-  }, 60 * 60 * 1000);
+  const matchmakingHandle = setInterval(
+    () => {
+      container.matchmakingService
+        .runMatchmakingForAllUsers()
+        .then(() => container.matchmakingService.pruneStale())
+        .catch((err) => logger.error(err, 'Matchmaking job failed'));
+    },
+    60 * 60 * 1000,
+  );
 
   const server = app.listen(config.PORT, () => {
     logger.info(`API server listening on port ${config.PORT}`);
   });
 
-  const labelWss = setupLabelWebSocket(server, container.labelSubscriptionManager);
+  const labelWss = setupLabelWebSocket(
+    server,
+    container.labelSubscriptionManager,
+  );
 
   // Graceful shutdown — drain connections before exit
   const shutdown = async () => {

@@ -9,6 +9,7 @@ The first implementation is deliberately a CSN-backed temporary adapter, not a f
 - `membersSpace(cooperativeDid)`: canonical CSN members space reference.
 - `roleSpace(cooperativeDid, role)`: canonical `roles/<slug>`, `roles/custom/<slug>`, or `classes/<slug>` space reference.
 - `CsnDbGroupDirectoryPort`: reads current CSN `membership` and `membership_role` tables as a temporary directory source.
+- `XrpcGroupDirectoryPort`: experimental mock-tested adapter for current draft `com.atproto.space.*` + `com.atproto.simplespace.*` endpoints. It is not wired as the default because the upstream implementation is still draft and only exposes direct simplespace membership.
 - `GroupMutationPort`: write-side boundary for cooperative provisioning, member changes, role changes, and audit reads.
 - `CsnDbGroupMutationPort`: writes the current CSN tables behind that boundary until Arbiter XRPC semantics are available.
 - `DidProvisioningPort`: binds DID service entries such as `#space_host`.
@@ -16,18 +17,37 @@ The first implementation is deliberately a CSN-backed temporary adapter, not a f
 ## Temporary Space Conventions
 
 ```ts
-membersSpace(cooperativeDid)
+membersSpace(cooperativeDid);
 // { arbiterDid: cooperativeDid, spaceKey: 'members', expectedSpaceType: 'network.coopsource.org.spaceType.members' }
 
-roleSpace(cooperativeDid, 'treasurer')
+roleSpace(cooperativeDid, 'treasurer');
 // { arbiterDid: cooperativeDid, spaceKey: 'roles/treasurer', expectedSpaceType: 'network.coopsource.org.spaceType.role' }
 ```
 
-`spaceKey` is the stable identity. `expectedSpaceType` is validation/config metadata.
+`spaceKey` is the stable identity. `expectedSpaceType` is validation/config
+metadata. The current `expectedSpaceType` values have draft Proposal 0016 space
+type declarations in `@coopsource/lexicons`
+(`packages/lexicons/network/coopsource/org/spaceType/`), but this package keeps
+the constants local to avoid coupling the directory adapter to lexicon runtime
+exports.
 
 ## Adapter Semantics
 
 `CsnDbGroupDirectoryPort` treats active, non-invalidated `membership` rows as direct DID members of the `members` space. Role spaces require both active membership and a matching `membership_role` row. Class spaces resolve active memberships with matching `member_class`.
+
+`XrpcGroupDirectoryPort` maps `SpaceRef` to the current Proposal 0016 URI shape
+`at://{authorityDid}/space/{spaceType}/{skey}` and calls:
+
+- `com.atproto.space.listSpaces`
+- `com.atproto.space.getSpace`
+- `com.atproto.simplespace.listMembers`
+
+The adapter intentionally does not claim a protocol-level recursive
+`resolveSpaceMembers` primitive exists. Resolution returns the direct DID set
+from `simplespace.listMembers`; pagination under `consistency: 'strict'` walks
+all pages, while `projection-ok` may return `partial: true` after the first
+page. Network or malformed upstream responses fail closed as partial/stale
+results. CSN-DB remains the runtime default.
 
 Unknown space shapes fail closed as partial/stale resolved membership.
 

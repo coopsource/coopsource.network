@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { membersSpace } from '@coopsource/arbiter-client';
 import { truncateAllTables } from './helpers/test-db.js';
 import { createTestApp, setupAndLogin } from './helpers/test-app.js';
 import { resetSetupCache } from '../src/auth/middleware.js';
@@ -49,6 +50,37 @@ describe('Delegation Voting API', () => {
 
     expect(res.body.status).toBe('revoked');
     expect(res.body.revokedAt).toBeDefined();
+  });
+
+  it('delegation revocation ownership is enforced through the action authorizer', async () => {
+    const testApp = createTestApp();
+    const { adminDid, coopDid } = await setupAndLogin(testApp);
+    const now = testApp.clock.now();
+    const delegationUri = `at://${coopDid}/network.coopsource.governance.delegation/revoke-owner`;
+
+    await testApp.container.db
+      .insertInto('delegation')
+      .values({
+        uri: delegationUri,
+        did: coopDid,
+        rkey: 'revoke-owner',
+        project_uri: coopDid,
+        delegator_did: 'did:web:other-delegator.example.com',
+        delegatee_did: adminDid,
+        scope: 'project',
+        status: 'active',
+        created_at: now,
+        indexed_at: now,
+      })
+      .execute();
+
+    await expect(
+      testApp.container.delegationVotingService.revokeDelegation(
+        coopDid,
+        adminDid,
+        delegationUri,
+      ),
+    ).rejects.toThrow('Only the delegator can revoke a delegation');
   });
 
   // ─── List ───────────────────────────────────────────────────────────
@@ -136,6 +168,60 @@ describe('Delegation Voting API', () => {
     );
   });
 
+  it('resolves outgoing chains through the composed governance plugin', async () => {
+    const testApp = createTestApp();
+    const { adminDid, coopDid } = await setupAndLogin(testApp);
+
+    const proposalRes = await testApp.agent
+      .post('/api/v1/proposals')
+      .send({
+        title: 'Delegation plugin proposal',
+        body: 'Test body',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+      })
+      .expect(201);
+
+    await testApp.agent
+      .post('/api/v1/governance/delegations')
+      .send({
+        delegateeDid: 'did:web:delegate1.example.com',
+        scope: 'project',
+      })
+      .expect(201);
+
+    const proposal = await testApp.container.db
+      .selectFrom('proposal')
+      .where('id', '=', proposalRes.body.id as string)
+      .select(['uri', 'cid'])
+      .executeTakeFirstOrThrow();
+    if (!proposal.uri) {
+      throw new Error('Expected proposal URI');
+    }
+    const memberSpace = membersSpace(coopDid);
+
+    const result =
+      await testApp.container.governancePlugins.delegateChains.resolve({
+        voter: { did: adminDid },
+        cooperative: {
+          authorityDid: coopDid,
+          spaceKey: memberSpace.spaceKey,
+          spaceType: memberSpace.expectedSpaceType,
+        },
+        proposal: {
+          uri: proposal.uri,
+          ...(proposal.cid ? { cid: proposal.cid } : {}),
+          collection: 'network.coopsource.governance.proposal',
+        },
+        at: testApp.clock.now().toISOString(),
+      });
+
+    expect(result).toEqual({
+      chain: [{ did: adminDid }, { did: 'did:web:delegate1.example.com' }],
+      terminal: { did: 'did:web:delegate1.example.com' },
+    });
+  });
+
   // ─── Circular Prevention ────────────────────────────────────────────
 
   it('prevents circular delegation (400)', async () => {
@@ -173,6 +259,134 @@ describe('Delegation Voting API', () => {
       .expect(400);
 
     expect(res.body.message).toContain('Circular delegation');
+  });
+
+  it('prevents mixed project and proposal delegation cycles', async () => {
+    const testApp = createTestApp();
+    const { adminDid, coopDid } = await setupAndLogin(testApp);
+
+    const proposalRes = await testApp.agent
+      .post('/api/v1/proposals')
+      .send({
+        title: 'Mixed Cycle',
+        body: 'Test body',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+      })
+      .expect(201);
+    const proposal = await testApp.container.db
+      .selectFrom('proposal')
+      .where('id', '=', proposalRes.body.id as string)
+      .select('uri')
+      .executeTakeFirstOrThrow();
+    if (!proposal.uri) {
+      throw new Error('Expected proposal URI');
+    }
+
+    const now = testApp.clock.now();
+    const delegatorDid = 'did:web:mixed-cycle-delegator.example.com';
+    await testApp.container.db
+      .insertInto('delegation')
+      .values({
+        uri: `at://${coopDid}/network.coopsource.governance.delegation/mixed-cycle-project`,
+        did: coopDid,
+        rkey: 'mixed-cycle-project',
+        project_uri: coopDid,
+        delegator_did: delegatorDid,
+        delegatee_did: adminDid,
+        scope: 'project',
+        status: 'active',
+        created_at: now,
+        indexed_at: now,
+      })
+      .execute();
+
+    const res = await testApp.agent
+      .post('/api/v1/governance/delegations')
+      .send({
+        delegateeDid: delegatorDid,
+        scope: 'proposal',
+        proposalUri: proposal.uri,
+      })
+      .expect(400);
+
+    expect(res.body.message).toContain('Circular delegation');
+  });
+
+  it('prevents project delegations that would close an existing proposal cycle', async () => {
+    const testApp = createTestApp();
+    const { adminDid, coopDid } = await setupAndLogin(testApp);
+
+    const proposalRes = await testApp.agent
+      .post('/api/v1/proposals')
+      .send({
+        title: 'Project Cycle',
+        body: 'Test body',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+      })
+      .expect(201);
+    const proposal = await testApp.container.db
+      .selectFrom('proposal')
+      .where('id', '=', proposalRes.body.id as string)
+      .select('uri')
+      .executeTakeFirstOrThrow();
+    if (!proposal.uri) {
+      throw new Error('Expected proposal URI');
+    }
+
+    const now = testApp.clock.now();
+    const delegatorDid = 'did:web:project-cycle-delegator.example.com';
+    await testApp.container.db
+      .insertInto('delegation')
+      .values({
+        uri: `at://${coopDid}/network.coopsource.governance.delegation/project-cycle-proposal`,
+        did: coopDid,
+        rkey: 'project-cycle-proposal',
+        project_uri: coopDid,
+        delegator_did: delegatorDid,
+        delegatee_did: adminDid,
+        scope: 'proposal',
+        proposal_uri: proposal.uri,
+        status: 'active',
+        created_at: now,
+        indexed_at: now,
+      })
+      .execute();
+
+    const res = await testApp.agent
+      .post('/api/v1/governance/delegations')
+      .send({
+        delegateeDid: delegatorDid,
+        scope: 'project',
+      })
+      .expect(400);
+
+    expect(res.body.message).toContain('Circular delegation');
+  });
+
+  it('rejects ambiguous delegation scope and proposal URI combinations', async () => {
+    const testApp = createTestApp();
+    await setupAndLogin(testApp);
+
+    const missingProposalUri = await testApp.agent
+      .post('/api/v1/governance/delegations')
+      .send({
+        delegateeDid: 'did:web:delegate.example.com',
+        scope: 'proposal',
+      })
+      .expect(400);
+    expect(missingProposalUri.body.message).toContain('proposalUri');
+
+    const projectWithProposalUri = await testApp.agent
+      .post('/api/v1/governance/delegations')
+      .send({
+        delegateeDid: 'did:web:delegate.example.com',
+        scope: 'project',
+        proposalUri: 'at://did:web:test/proposal/123',
+      })
+      .expect(400);
+    expect(projectWithProposalUri.body.message).toContain('proposalUri');
   });
 
   // ─── Vote Weight ────────────────────────────────────────────────────
@@ -223,6 +437,121 @@ describe('Delegation Voting API', () => {
     expect(res.body.weight).toBe(2);
   });
 
+  it('lets proposal-scoped delegation override project delegation for vote weight', async () => {
+    const testApp = createTestApp();
+    const { adminDid, coopDid } = await setupAndLogin(testApp);
+
+    const proposalRes = await testApp.agent
+      .post('/api/v1/proposals')
+      .send({
+        title: 'Delegation Override',
+        body: 'Test body',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+      })
+      .expect(201);
+
+    const proposal = await testApp.container.db
+      .selectFrom('proposal')
+      .where('id', '=', proposalRes.body.id as string)
+      .select('uri')
+      .executeTakeFirstOrThrow();
+    if (!proposal.uri) {
+      throw new Error('Expected proposal URI');
+    }
+
+    const now = testApp.clock.now();
+    const delegatorDid = 'did:web:delegator.example.com';
+    const proposalDelegateDid = 'did:web:proposal-delegate.example.com';
+    await testApp.container.db
+      .insertInto('delegation')
+      .values([
+        {
+          uri: `at://${coopDid}/network.coopsource.governance.delegation/project-override`,
+          did: coopDid,
+          rkey: 'project-override',
+          project_uri: coopDid,
+          delegator_did: delegatorDid,
+          delegatee_did: adminDid,
+          scope: 'project',
+          status: 'active',
+          created_at: now,
+          indexed_at: now,
+        },
+        {
+          uri: `at://${coopDid}/network.coopsource.governance.delegation/proposal-override`,
+          did: coopDid,
+          rkey: 'proposal-override',
+          project_uri: coopDid,
+          delegator_did: delegatorDid,
+          delegatee_did: proposalDelegateDid,
+          scope: 'proposal',
+          proposal_uri: proposal.uri,
+          status: 'active',
+          created_at: now,
+          indexed_at: now,
+        },
+      ])
+      .execute();
+
+    const adminWeightRes = await testApp.agent
+      .get(
+        `/api/v1/governance/vote-weight/${encodeURIComponent(adminDid)}?proposalId=${proposalRes.body.id}`,
+      )
+      .expect(200);
+    const proposalDelegateWeightRes = await testApp.agent
+      .get(
+        `/api/v1/governance/vote-weight/${encodeURIComponent(proposalDelegateDid)}?proposalId=${proposalRes.body.id}`,
+      )
+      .expect(200);
+
+    expect(adminWeightRes.body.weight).toBe(1);
+    expect(proposalDelegateWeightRes.body.weight).toBe(2);
+  });
+
+  it('snapshots delegation-inclusive vote weight when casting a vote', async () => {
+    const testApp = createTestApp();
+    const { adminDid, coopDid } = await setupAndLogin(testApp);
+
+    const proposalRes = await testApp.agent
+      .post('/api/v1/proposals')
+      .send({
+        title: 'Delegated Vote Snapshot',
+        body: 'Test body',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+      })
+      .expect(201);
+
+    const now = testApp.clock.now();
+    await testApp.container.db
+      .insertInto('delegation')
+      .values({
+        uri: `at://${coopDid}/network.coopsource.governance.delegation/snapshot1`,
+        did: coopDid,
+        rkey: 'snapshot1',
+        project_uri: coopDid,
+        delegator_did: 'did:web:delegator.example.com',
+        delegatee_did: adminDid,
+        scope: 'project',
+        status: 'active',
+        created_at: now,
+        indexed_at: now,
+      })
+      .execute();
+
+    await testApp.agent
+      .post(`/api/v1/proposals/${proposalRes.body.id}/open`)
+      .expect(200);
+
+    const voteRes = await testApp.agent
+      .post(`/api/v1/proposals/${proposalRes.body.id}/vote`)
+      .send({ choice: 'yes' })
+      .expect(201);
+
+    expect(voteRes.body.voteWeight).toBe(2);
+  });
+
   // ─── Scope ──────────────────────────────────────────────────────────
 
   it('scopes delegation to proposal vs project (201)', async () => {
@@ -252,9 +581,7 @@ describe('Delegation Voting API', () => {
       .expect(201);
 
     expect(proposalRes.body.scope).toBe('proposal');
-    expect(proposalRes.body.proposalUri).toBe(
-      'at://did:web:test/proposal/456',
-    );
+    expect(proposalRes.body.proposalUri).toBe('at://did:web:test/proposal/456');
   });
 
   it('replaces existing active delegation in same scope (201)', async () => {

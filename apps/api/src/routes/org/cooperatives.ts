@@ -26,6 +26,9 @@ export function createCooperativeRoutes(container: Container): Router {
       publicActivity: result.profile.public_activity,
       publicAgreements: result.profile.public_agreements,
       publicCampaigns: result.profile.public_campaigns,
+      publicGovernanceAnchors: result.profile.public_governance_anchors,
+      publicGovernanceAnchorOutcomes:
+        result.profile.public_governance_anchor_outcomes,
       governanceVisibility: result.profile.governance_visibility,
     };
   }
@@ -75,6 +78,9 @@ export function createCooperativeRoutes(container: Container): Router {
         publicActivity: result.profile.public_activity,
         publicAgreements: result.profile.public_agreements,
         publicCampaigns: result.profile.public_campaigns,
+        publicGovernanceAnchors: result.profile.public_governance_anchors,
+        publicGovernanceAnchorOutcomes:
+          result.profile.public_governance_anchor_outcomes,
         governanceVisibility: result.profile.governance_visibility,
       });
     }),
@@ -86,11 +92,37 @@ export function createCooperativeRoutes(container: Container): Router {
     requireAuth,
     requirePermission('coop.settings.edit'),
     asyncHandler(async (req, res) => {
-      const { displayName, description, website, anonDiscoverable, publicDescription, publicMembers, publicActivity, publicAgreements, publicCampaigns, governanceVisibility } = UpdateCoopSchema.parse(req.body);
+      const {
+        displayName,
+        description,
+        website,
+        anonDiscoverable,
+        publicDescription,
+        publicMembers,
+        publicActivity,
+        publicAgreements,
+        publicCampaigns,
+        publicGovernanceAnchors,
+        publicGovernanceAnchorOutcomes,
+        governanceVisibility,
+      } = UpdateCoopSchema.parse(req.body);
 
       await container.entityService.updateCooperative(
         req.actor!.cooperativeDid,
-        { displayName, description, website, anonDiscoverable, publicDescription, publicMembers, publicActivity, publicAgreements, publicCampaigns, governanceVisibility },
+        {
+          displayName,
+          description,
+          website,
+          anonDiscoverable,
+          publicDescription,
+          publicMembers,
+          publicActivity,
+          publicAgreements,
+          publicCampaigns,
+          publicGovernanceAnchors,
+          publicGovernanceAnchorOutcomes,
+          governanceVisibility,
+        },
       );
 
       const updated = await container.entityService.getCooperative();

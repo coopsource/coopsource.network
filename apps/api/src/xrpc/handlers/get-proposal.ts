@@ -17,7 +17,7 @@ export async function handleGetProposal(ctx: XrpcContext): Promise<unknown> {
     ctx.container.db,
     proposal.cooperative_did,
     ctx.viewer,
-    ctx.container.membershipService,
+    ctx.container.membershipReadModel,
   );
 
   // Convert voteSummary map to tally array
@@ -37,13 +37,14 @@ export async function handleGetProposal(ctx: XrpcContext): Promise<unknown> {
     quorumBasis: proposal.quorum_basis ?? undefined,
     cooperativeDid: proposal.cooperative_did,
     authorDid: proposal.author_did,
-    createdAt: proposal.created_at instanceof Date
-      ? proposal.created_at.toISOString()
-      : proposal.created_at,
+    createdAt:
+      proposal.created_at instanceof Date
+        ? proposal.created_at.toISOString()
+        : proposal.created_at,
     resolvedAt: proposal.resolved_at
-      ? (proposal.resolved_at instanceof Date
-          ? proposal.resolved_at.toISOString()
-          : proposal.resolved_at)
+      ? proposal.resolved_at instanceof Date
+        ? proposal.resolved_at.toISOString()
+        : proposal.resolved_at
       : undefined,
     tally,
   };

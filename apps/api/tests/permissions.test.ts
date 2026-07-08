@@ -29,6 +29,7 @@ async function createMemberWithRoles(
   const acceptRes = await memberAgent
     .post(`/api/v1/invitations/${invRes.body.token}/accept`)
     .send({
+      email: opts.email,
       displayName: opts.displayName,
       handle: opts.handle,
       password: opts.password,
@@ -334,6 +335,203 @@ describe('Permissions System', () => {
       message: 'Insufficient permissions',
       required: 'coop.settings.edit',
     });
+  });
+
+  it('proposal updates remain author-only through the action authorizer', async () => {
+    const proposalRes = await testApp.agent
+      .post('/api/v1/proposals')
+      .send({
+        title: 'Admin-authored proposal',
+        body: 'Original body',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+      })
+      .expect(201);
+
+    const { agent: memberAgent } = await createMemberWithRoles(testApp, {
+      email: 'proposal-editor@example.com',
+      displayName: 'Proposal Editor',
+      handle: 'proposal-editor',
+      password: 'password123',
+      roles: ['member'],
+    });
+
+    const denied = await memberAgent
+      .put(`/api/v1/proposals/${proposalRes.body.id}`)
+      .send({ title: 'Nonauthor edit' })
+      .expect(403);
+    expect(denied.body).toMatchObject({
+      error: 'FORBIDDEN',
+      message: 'Not the proposal author',
+    });
+
+    const ownProposal = await memberAgent
+      .post('/api/v1/proposals')
+      .send({
+        title: 'Member-authored proposal',
+        body: 'Original body',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+      })
+      .expect(201);
+
+    const updated = await memberAgent
+      .put(`/api/v1/proposals/${ownProposal.body.id}`)
+      .send({ title: 'Member edit' })
+      .expect(200);
+    expect(updated.body.title).toBe('Member edit');
+  });
+
+  it('proposal deletes remain author-or-explicit-admin through the action authorizer', async () => {
+    const { agent: authorAgent } = await createMemberWithRoles(testApp, {
+      email: 'proposal-author@example.com',
+      displayName: 'Proposal Author',
+      handle: 'proposal-author',
+      password: 'password123',
+      roles: ['member'],
+    });
+    const { agent: nonauthorAgent } = await createMemberWithRoles(testApp, {
+      email: 'proposal-nonauthor@example.com',
+      displayName: 'Proposal Nonauthor',
+      handle: 'proposal-nonauthor',
+      password: 'password123',
+      roles: ['member'],
+    });
+    await testApp.container.db
+      .insertInto('role_definition')
+      .values({
+        cooperative_did: coopDid,
+        name: 'wildcard-staff',
+        permissions: ['*'],
+        inherits: [],
+        is_builtin: false,
+        created_at: testApp.clock.now(),
+        updated_at: testApp.clock.now(),
+      })
+      .execute();
+    const { agent: wildcardAgent } = await createMemberWithRoles(testApp, {
+      email: 'proposal-wildcard@example.com',
+      displayName: 'Proposal Wildcard',
+      handle: 'proposal-wildcard',
+      password: 'password123',
+      roles: ['wildcard-staff'],
+    });
+
+    const proposal = await authorAgent
+      .post('/api/v1/proposals')
+      .send({
+        title: 'Member-owned proposal',
+        body: 'Original body',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+      })
+      .expect(201);
+
+    await nonauthorAgent
+      .delete(`/api/v1/proposals/${proposal.body.id}`)
+      .expect(403);
+    await wildcardAgent
+      .delete(`/api/v1/proposals/${proposal.body.id}`)
+      .expect(403);
+    await testApp.agent
+      .delete(`/api/v1/proposals/${proposal.body.id}`)
+      .expect(204);
+  });
+
+  it('vote retraction ownership is enforced through the action authorizer', async () => {
+    const { did: memberDid } = await createMemberWithRoles(testApp, {
+      email: 'vote-retract-nonowner@example.com',
+      displayName: 'Vote Retract Nonauthor',
+      handle: 'vote-retract-nonowner',
+      password: 'password123',
+      roles: ['member'],
+    });
+
+    const proposal = await testApp.agent
+      .post('/api/v1/proposals')
+      .send({
+        title: 'Retract ownership',
+        body: 'Original body',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+      })
+      .expect(201);
+
+    await testApp.agent
+      .post(`/api/v1/proposals/${proposal.body.id}/open`)
+      .expect(200);
+    await testApp.agent
+      .post(`/api/v1/proposals/${proposal.body.id}/vote`)
+      .send({ choice: 'yes' })
+      .expect(201);
+
+    await expect(
+      testApp.container.proposalService.retractVote({
+        proposalId: proposal.body.id,
+        actorDid: memberDid,
+        voterDid: adminDid,
+        cooperativeDid: coopDid,
+      }),
+    ).rejects.toThrow('Not the vote owner');
+
+    const votes = await testApp.agent
+      .get(`/api/v1/proposals/${proposal.body.id}/votes`)
+      .expect(200);
+    expect(votes.body.votes).toHaveLength(1);
+
+    await expect(
+      testApp.container.proposalService.retractVote({
+        proposalId: proposal.body.id,
+        actorDid: adminDid,
+        cooperativeDid: coopDid,
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('membership service management commands use the action authorizer', async () => {
+    const { did: memberDid } = await createMemberWithRoles(testApp, {
+      email: 'service-member-authz@example.com',
+      displayName: 'Service Member Authz',
+      handle: 'service-member-authz',
+      password: 'password123',
+      roles: ['member'],
+    });
+
+    await expect(
+      testApp.container.membershipService.createInvitation({
+        cooperativeDid: coopDid,
+        invitedByDid: memberDid,
+        email: 'service-denied@example.com',
+        instanceUrl: 'http://localhost:5173',
+      }),
+    ).rejects.toThrow('Insufficient permissions');
+
+    await expect(
+      testApp.container.membershipService.updateMemberRoles(
+        coopDid,
+        memberDid,
+        ['member'],
+        memberDid,
+      ),
+    ).rejects.toThrow('Insufficient permissions');
+
+    await expect(
+      testApp.container.membershipService.updateMemberRoles(
+        coopDid,
+        memberDid,
+        ['member'],
+        adminDid,
+      ),
+    ).resolves.toBeUndefined();
+
+    await expect(
+      testApp.container.membershipService.updateMemberRoles(
+        coopDid,
+        memberDid,
+        ['member'],
+        coopDid,
+      ),
+    ).resolves.toBeUndefined();
   });
 
   // ─── Member role: post creation ───────────────────────────────────

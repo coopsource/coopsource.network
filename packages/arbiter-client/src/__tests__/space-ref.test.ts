@@ -66,4 +66,19 @@ describe('CSN space helpers', () => {
       }),
     ).toBeNull();
   });
+
+  it('rejects known space keys with mismatched expected space types', () => {
+    expect(
+      parseCsnSpace({
+        ...roleSpace(cooperativeDid, 'admin'),
+        expectedSpaceType: MEMBERS_SPACE_TYPE,
+      }),
+    ).toBeNull();
+    expect(
+      parseCsnSpace({
+        ...roleSpace(cooperativeDid, 'classes/worker'),
+        expectedSpaceType: ROLE_SPACE_TYPE,
+      }),
+    ).toBeNull();
+  });
 });

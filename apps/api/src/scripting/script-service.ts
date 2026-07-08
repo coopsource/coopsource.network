@@ -4,6 +4,7 @@ import type { IEmailService } from '@coopsource/federation';
 import type { HookRegistry } from '../appview/hooks/registry.js';
 import type { HookContext, PreStorageResult } from '../appview/hooks/types.js';
 import type { OperatorWriteProxy } from '../services/operator-write-proxy.js';
+import type { MembershipReadModel } from '../services/membership-read-model.js';
 import type { ScriptWorkerPool } from './worker-pool.js';
 import type { DID } from '@coopsource/common';
 import type {
@@ -94,6 +95,7 @@ export class ScriptService {
     private workerPool: ScriptWorkerPool,
     private emailService: IEmailService,
     private operatorWriteProxy: OperatorWriteProxy,
+    private membershipReadModel: MembershipReadModel,
   ) {}
 
   // ─── CRUD ─────────────────────────────────────────────────────────────
@@ -125,7 +127,10 @@ export class ScriptService {
     return this.rowToScript(row);
   }
 
-  async get(cooperativeDid: string, id: string): Promise<CooperativeScript | null> {
+  async get(
+    cooperativeDid: string,
+    id: string,
+  ): Promise<CooperativeScript | null> {
     const row = await this.db
       .selectFrom('cooperative_script')
       .where('id', '=', id)
@@ -163,14 +168,19 @@ export class ScriptService {
     };
 
     if (params.name !== undefined) updates.name = params.name;
-    if (params.description !== undefined) updates.description = params.description;
-    if (params.sourceCode !== undefined) updates.source_code = params.sourceCode;
+    if (params.description !== undefined)
+      updates.description = params.description;
+    if (params.sourceCode !== undefined)
+      updates.source_code = params.sourceCode;
     if (compiledJs !== undefined) updates.compiled_js = compiledJs;
     if (params.phase !== undefined) updates.phase = params.phase;
-    if (params.collections !== undefined) updates.collections = params.collections;
-    if (params.eventTypes !== undefined) updates.event_types = params.eventTypes;
+    if (params.collections !== undefined)
+      updates.collections = params.collections;
+    if (params.eventTypes !== undefined)
+      updates.event_types = params.eventTypes;
     if (params.priority !== undefined) updates.priority = params.priority;
-    if (params.config !== undefined) updates.config = JSON.stringify(params.config);
+    if (params.config !== undefined)
+      updates.config = JSON.stringify(params.config);
     if (params.timeoutMs !== undefined) updates.timeout_ms = params.timeoutMs;
 
     const row = await this.db
@@ -375,7 +385,10 @@ export class ScriptService {
 
       // Skip if this script is already executing (prevent queue exhaustion under load)
       if (this.executingScripts.has(script.id)) {
-        logger.debug({ scriptId: script.id }, 'Skipping domain event script (already executing)');
+        logger.debug(
+          { scriptId: script.id },
+          'Skipping domain event script (already executing)',
+        );
         return;
       }
       this.executingScripts.add(script.id);
@@ -418,7 +431,12 @@ export class ScriptService {
       cooperativeDid: script.cooperativeDid,
     };
 
-    const result = await this.executeAndLog(script, contextData, 'pre-storage', ctx.collection);
+    const result = await this.executeAndLog(
+      script,
+      contextData,
+      'pre-storage',
+      ctx.collection,
+    );
 
     // Pre-storage scripts default to 'store' unless they explicitly error
     if (!result.success) {
@@ -450,7 +468,12 @@ export class ScriptService {
       cooperativeDid: script.cooperativeDid,
     };
 
-    await this.executeAndLog(script, contextData, 'post-storage', ctx.collection);
+    await this.executeAndLog(
+      script,
+      contextData,
+      'post-storage',
+      ctx.collection,
+    );
   }
 
   private async executeDomainEventScript(
@@ -511,7 +534,10 @@ export class ScriptService {
       })
       .execute()
       .catch((err) => {
-        logger.error({ err, scriptId: script.id }, 'Failed to log script execution');
+        logger.error(
+          { err, scriptId: script.id },
+          'Failed to log script execution',
+        );
       });
 
     return result;
@@ -565,19 +591,10 @@ export class ScriptService {
     if (filters.did) {
       query = query.where('did', '=', filters.did);
     } else {
-      // Scope to cooperative's own records or its members' records
-      query = query.where((eb) =>
-        eb.or([
-          eb('did', '=', cooperativeDid),
-          eb.exists(
-            eb
-              .selectFrom('membership')
-              .whereRef('membership.member_did', '=', 'pds_record.did')
-              .where('membership.cooperative_did', '=', cooperativeDid)
-              .where('membership.status', '=', 'active')
-              .select('membership.id'),
-          ),
-        ]),
+      query = query.where(
+        'did',
+        'in',
+        await this.scopedRecordDids(cooperativeDid),
       );
     }
 
@@ -590,7 +607,16 @@ export class ScriptService {
       uri: r.uri,
       did: r.did,
       collection: r.collection,
-      content: typeof r.content === 'string' ? (() => { try { return JSON.parse(r.content as string); } catch { return {}; } })() : (r.content ?? {}),
+      content:
+        typeof r.content === 'string'
+          ? (() => {
+              try {
+                return JSON.parse(r.content as string);
+              } catch {
+                return {};
+              }
+            })()
+          : (r.content ?? {}),
     }));
   }
 
@@ -604,19 +630,7 @@ export class ScriptService {
       .selectFrom('pds_record')
       .where('uri', '=', uri)
       .where('deleted_at', 'is', null)
-      .where((eb) =>
-        eb.or([
-          eb('did', '=', cooperativeDid),
-          eb.exists(
-            eb
-              .selectFrom('membership')
-              .whereRef('membership.member_did', '=', 'pds_record.did')
-              .where('membership.cooperative_did', '=', cooperativeDid)
-              .where('membership.status', '=', 'active')
-              .select('membership.id'),
-          ),
-        ]),
-      )
+      .where('did', 'in', await this.scopedRecordDids(cooperativeDid))
       .select(['uri', 'did', 'collection', 'content'])
       .executeTakeFirst();
 
@@ -626,7 +640,16 @@ export class ScriptService {
       uri: row.uri,
       did: row.did,
       collection: row.collection,
-      content: typeof row.content === 'string' ? (() => { try { return JSON.parse(row.content as string); } catch { return {}; } })() : (row.content ?? {}),
+      content:
+        typeof row.content === 'string'
+          ? (() => {
+              try {
+                return JSON.parse(row.content as string);
+              } catch {
+                return {};
+              }
+            })()
+          : (row.content ?? {}),
     };
   }
 
@@ -645,18 +668,10 @@ export class ScriptService {
     if (filters.did) {
       query = query.where('did', '=', filters.did);
     } else {
-      query = query.where((eb) =>
-        eb.or([
-          eb('did', '=', cooperativeDid),
-          eb.exists(
-            eb
-              .selectFrom('membership')
-              .whereRef('membership.member_did', '=', 'pds_record.did')
-              .where('membership.cooperative_did', '=', cooperativeDid)
-              .where('membership.status', '=', 'active')
-              .select('membership.id'),
-          ),
-        ]),
+      query = query.where(
+        'did',
+        'in',
+        await this.scopedRecordDids(cooperativeDid),
       );
     }
 
@@ -665,6 +680,14 @@ export class ScriptService {
       .executeTakeFirst();
 
     return result?.count ?? 0;
+  }
+
+  private async scopedRecordDids(cooperativeDid: string): Promise<string[]> {
+    const memberDids =
+      await this.membershipReadModel.listProjectedActiveMemberDids(
+        cooperativeDid as DID,
+      );
+    return [cooperativeDid, ...memberDids];
   }
 
   private async handleHttpFetch(args: unknown[]): Promise<unknown> {
@@ -777,8 +800,14 @@ export class ScriptService {
       enabled: row.enabled,
       config: row.config,
       timeoutMs: row.timeout_ms,
-      createdAt: row.created_at instanceof Date ? row.created_at : new Date(row.created_at),
-      updatedAt: row.updated_at instanceof Date ? row.updated_at : new Date(row.updated_at),
+      createdAt:
+        row.created_at instanceof Date
+          ? row.created_at
+          : new Date(row.created_at),
+      updatedAt:
+        row.updated_at instanceof Date
+          ? row.updated_at
+          : new Date(row.updated_at),
     };
   }
 }
