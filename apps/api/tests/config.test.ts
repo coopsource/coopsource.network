@@ -18,6 +18,7 @@ describe('loadConfig', () => {
     expect(config.SPACES_CONSUMER_ENABLED).toBe(false);
     expect(config.UNSAFE_ACCEPT_UNVERIFIED_PERMISSIONED_DATA).toBe(false);
     expect(config.PERMISSIONED_RECORD_WRITER_MODE).toBe('private-record');
+    expect(config.SPACE_MANAGING_SESSION_DIDS).toBeUndefined();
   });
 
   it('parses string boolean environment values explicitly', () => {
@@ -48,6 +49,17 @@ describe('loadConfig', () => {
     const config = loadConfig();
 
     expect(config.PERMISSIONED_RECORD_WRITER_MODE).toBe('draft-xrpc');
+  });
+
+  it('parses managing session candidate DIDs', () => {
+    process.env.SPACE_MANAGING_SESSION_DIDS =
+      'did:plc:first, did:plc:second';
+
+    const config = loadConfig();
+
+    expect(config.SPACE_MANAGING_SESSION_DIDS).toBe(
+      'did:plc:first, did:plc:second',
+    );
   });
 
   it('rejects invalid permissioned record writer mode values', () => {

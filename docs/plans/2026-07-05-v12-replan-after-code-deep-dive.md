@@ -589,10 +589,10 @@ Initial Phase 4 substrate artifact started in this branch:
   token refresh, and Authorization scheme selection remain inside the atproto
   OAuth library. `PERMISSIONED_RECORD_WRITER_MODE=draft-xrpc` now selects the
   XRPC writer in API composition, enables the OAuth client even when `PDS_URL`
-  is otherwise unset, and expands requested OAuth scope with draft
-  `space:` member-write grants (`create`/`delete`, not `update`). The default
-  remains `private-record` until a space-enabled PDS or HappyView-compatible
-  target is exercised end-to-end.
+  is otherwise unset, and expands requested OAuth scope with draft AppView
+  `space:` read grants plus member-write grants (`create`/`delete`, not
+  `update`). The default remains `private-record` until a space-enabled PDS or
+  HappyView-compatible target is exercised end-to-end.
 - `apps/api` now also has
   `OAuthManagingSpaceCredentialSessionSelector`, the background-sync session
   selection seam for the cooperative-designated managing session pool. It takes
@@ -602,6 +602,12 @@ Initial Phase 4 substrate artifact started in this branch:
   restored PDS audience. Unusable token/audience metadata is a per-candidate
   miss so later eligible designated candidates can be tried; restored DID
   mismatch still fails closed.
+- `apps/api` now connects that selector to `OAuthSpaceDelegationTokenClient`,
+  which implements the draft `SpaceDelegationTokenClientPort` by calling
+  `com.atproto.space.getDelegationToken` as a session-bound GET request with
+  the `space` query parameter. The initial candidate source is the explicit
+  `SPACE_MANAGING_SESSION_DIDS` config list; per-cooperative operator UI and
+  rotation policy remain future work.
 - `ProposalService.castVote()` now asks `VisibilityRouter` before writing the
   `network.coopsource.governance.vote` record. Closed-governance cooperatives
   route votes to Tier 2 private storage under the cooperative DID; open and
@@ -629,10 +635,9 @@ Initial Phase 4 substrate artifact started in this branch:
 - With the background-sync credential posture decided, remaining Phase 4
   substrate work should exercise `PERMISSIONED_RECORD_WRITER_MODE=draft-xrpc`
   against a space-enabled PDS or HappyView-compatible prototype, including real
-  OAuth consent, the managing-session selector wired to a draft delegation-token
-  client, space creation with CSN's encoded `skey` convention, member
-  authorization, create/delete writes, and failure mapping. Do not make it the
-  default until that integration evidence exists.
+  OAuth consent, the delegation-token client, space creation with CSN's encoded
+  `skey` convention, member authorization, create/delete writes, and failure
+  mapping. Do not make it the default until that integration evidence exists.
 
 ## Phase 5 Parallelization
 

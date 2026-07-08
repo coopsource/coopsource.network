@@ -38,14 +38,22 @@ export interface OAuthManagingSpaceCredentialSessionSelectorOptions {
  * through the membership read seam before restoring OAuth.
  */
 export class OAuthManagingSpaceCredentialSessionSelector {
+  private oauthClient: OAuthPermissionedRecordWriteClient | undefined;
+
   constructor(
     private readonly opts: OAuthManagingSpaceCredentialSessionSelectorOptions,
-  ) {}
+  ) {
+    this.oauthClient = opts.oauthClient;
+  }
+
+  setOAuthClient(client: OAuthPermissionedRecordWriteClient): void {
+    this.oauthClient = client;
+  }
 
   async selectSession(
     ref: SpaceRef,
   ): Promise<OAuthManagingSpaceCredentialSession | null> {
-    if (!this.opts.oauthClient) return null;
+    if (!this.oauthClient) return null;
 
     const candidates = await this.opts.candidateProvider.listCandidates(ref);
     for (const candidateDid of candidates) {
@@ -77,7 +85,7 @@ export class OAuthManagingSpaceCredentialSessionSelector {
     candidateDid: DID,
   ): Promise<OAuthPermissionedRecordWriteSession | null> {
     try {
-      return await this.opts.oauthClient!.restore(candidateDid);
+      return await this.oauthClient!.restore(candidateDid);
     } catch {
       return null;
     }

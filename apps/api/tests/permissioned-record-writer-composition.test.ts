@@ -3,6 +3,8 @@ import { XrpcPermissionedRecordWritePort } from '@coopsource/spaces-consumer';
 import type { Container } from '../src/container.js';
 import { createContainer } from '../src/container.js';
 import { loadConfig } from '../src/config.js';
+import { OAuthManagingSpaceCredentialSessionSelector } from '../src/services/oauth-managing-space-credential-session-selector.js';
+import { OAuthSpaceDelegationTokenClient } from '../src/services/oauth-space-delegation-token-client.js';
 import { PrivateRecordPermissionedWritePort } from '../src/services/private-record-permissioned-write-port.js';
 import { getTestConnectionString } from './helpers/test-db.js';
 
@@ -30,6 +32,12 @@ describe('permissioned record writer composition', () => {
 
     expect(container.permissionedRecordWriter).toBeInstanceOf(
       PrivateRecordPermissionedWritePort,
+    );
+    expect(container.managingSpaceCredentialSessionSelector).toBeInstanceOf(
+      OAuthManagingSpaceCredentialSessionSelector,
+    );
+    expect(container.spaceDelegationTokenClient).toBeInstanceOf(
+      OAuthSpaceDelegationTokenClient,
     );
   });
 

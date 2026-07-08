@@ -1,4 +1,5 @@
 import { createDb } from '@coopsource/db';
+import type { DID } from '@coopsource/common';
 import {
   CsnDbGroupDirectoryPort,
   CsnDbGroupMutationPort,
@@ -86,6 +87,11 @@ import { FiscalPeriodService } from './services/fiscal-period-service.js';
 import { PrivateRecordService } from './services/private-record-service.js';
 import { PrivateRecordPermissionedWritePort } from './services/private-record-permissioned-write-port.js';
 import { OAuthPermissionedRecordWriteSessionProvider } from './services/oauth-permissioned-record-write-session-provider.js';
+import {
+  OAuthManagingSpaceCredentialSessionSelector,
+  StaticManagingSpaceSessionCandidateProvider,
+} from './services/oauth-managing-space-credential-session-selector.js';
+import { OAuthSpaceDelegationTokenClient } from './services/oauth-space-delegation-token-client.js';
 import { MembershipReadModelActionPermissionReader } from './services/coop-view-action-authorizer-adapters.js';
 import {
   MembershipReadModelVoteWeightReader,
@@ -186,6 +192,9 @@ export interface Container {
   permissionedRecordWriter: PermissionedRecordWritePort;
   permissionedRecordWriteSessionProvider:
     OAuthPermissionedRecordWriteSessionProvider;
+  managingSpaceCredentialSessionSelector:
+    OAuthManagingSpaceCredentialSessionSelector;
+  spaceDelegationTokenClient: OAuthSpaceDelegationTokenClient;
   visibilityRouter: VisibilityRouter;
   publicGovernanceAnchorService: PublicGovernanceAnchorService;
   patronageService: PatronageService;
@@ -403,6 +412,17 @@ export function createContainer(config: AppConfig): Container {
   const privateRecordService = new PrivateRecordService(db, clock);
   const permissionedRecordWriteSessionProvider =
     new OAuthPermissionedRecordWriteSessionProvider(undefined);
+  const managingSpaceCredentialSessionSelector =
+    new OAuthManagingSpaceCredentialSessionSelector({
+      membershipReadModel,
+      candidateProvider: new StaticManagingSpaceSessionCandidateProvider(
+        parseManagingSessionDids(config.SPACE_MANAGING_SESSION_DIDS),
+      ),
+      requiredPermission: 'private.manage',
+    });
+  const spaceDelegationTokenClient = new OAuthSpaceDelegationTokenClient({
+    sessionSelector: managingSpaceCredentialSessionSelector,
+  });
   const permissionedRecordWriter =
     config.PERMISSIONED_RECORD_WRITER_MODE === 'draft-xrpc'
       ? new XrpcPermissionedRecordWritePort({
@@ -652,6 +672,8 @@ export function createContainer(config: AppConfig): Container {
     privateRecordService,
     permissionedRecordWriter,
     permissionedRecordWriteSessionProvider,
+    managingSpaceCredentialSessionSelector,
+    spaceDelegationTokenClient,
     visibilityRouter,
     publicGovernanceAnchorService,
     patronageService,
@@ -688,4 +710,11 @@ export function createContainer(config: AppConfig): Container {
     serviceAuthVerifier,
     inlayAuthVerifier,
   };
+}
+
+function parseManagingSessionDids(value: string | undefined): readonly DID[] {
+  return (value ?? '')
+    .split(',')
+    .map((did) => did.trim())
+    .filter(Boolean) as DID[];
 }

@@ -43,8 +43,11 @@ from stale cached credentials after expiry.
   Restored sessions with unusable token/audience metadata are skipped in favor
   of later eligible designated candidates; a restored DID mismatch still fails
   closed.
-- The live Phase 4 PDS/HappyView exercise still needs to connect that selected
-  session to a real draft delegation-token client.
+- The selected session is now connected to `OAuthSpaceDelegationTokenClient`,
+  which calls the current draft `com.atproto.space.getDelegationToken` GET
+  endpoint through the session-bound OAuth fetch.
+- The live Phase 4 PDS/HappyView exercise still needs to connect the resulting
+  delegation token to a compatible space-credential exchange target.
 - Eligibility must be checked through the membership read seam and the group
   directory boundary before using a session.
 - Member-list changes must invalidate the affected space credential cache entry

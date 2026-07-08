@@ -211,6 +211,7 @@ async function start(): Promise<void> {
   if (oauthClient) {
     container.memberWriteProxy.setOAuthClient(oauthClient);
     container.permissionedRecordWriteSessionProvider.setOAuthClient(oauthClient);
+    container.managingSpaceCredentialSessionSelector.setOAuthClient(oauthClient);
   }
 
   // Auth routes

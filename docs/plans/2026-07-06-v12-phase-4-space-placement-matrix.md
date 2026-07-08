@@ -124,10 +124,11 @@ Reference links:
 
 ## Next Slice
 
-1. Connect `OAuthManagingSpaceCredentialSessionSelector` to a draft
-   delegation-token client for the cooperative-designated managing session
-   pool.
-2. Exercise `PERMISSIONED_RECORD_WRITER_MODE=draft-xrpc` against a
+1. `OAuthManagingSpaceCredentialSessionSelector` is now connected to
+   `OAuthSpaceDelegationTokenClient` for the cooperative-designated managing
+   session pool. The first candidate source is the explicit
+   `SPACE_MANAGING_SESSION_DIDS` config list.
+2. Next: exercise `PERMISSIONED_RECORD_WRITER_MODE=draft-xrpc` against a
    space-enabled PDS or HappyView-compatible prototype with real OAuth consent,
    space creation, member authorization, create/delete writes, and typed failure
    mapping.

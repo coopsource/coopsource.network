@@ -21,9 +21,9 @@ const DELETE_RECORD_NSID = 'com.atproto.space.deleteRecord';
 type JsonObject = { readonly [key: string]: unknown };
 
 export interface XrpcPermissionedRecordWriteFetchInit {
-  readonly method: 'POST';
+  readonly method: 'GET' | 'POST';
   readonly headers: Record<string, string>;
-  readonly body: string;
+  readonly body?: string;
 }
 
 export interface XrpcPermissionedRecordWriteFetchResponse {

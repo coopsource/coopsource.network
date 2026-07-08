@@ -4,7 +4,10 @@
 import { NodeOAuthClient } from '@atproto/oauth-client-node';
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
-import { formatCsnMemberWriteScopePlan } from '@coopsource/lexicons';
+import {
+  formatCsnAppViewReadScopePlan,
+  formatCsnMemberWriteScopePlan,
+} from '@coopsource/lexicons';
 import type { AppConfig } from '../config.js';
 import { PostgresStateStore, PostgresSessionStore } from './oauth-stores.js';
 
@@ -45,6 +48,10 @@ export const DRAFT_PERMISSIONED_SPACE_WRITE_SCOPES =
     authority: '*',
     actions: ['create', 'delete'],
   });
+export const DRAFT_PERMISSIONED_SPACE_APPVIEW_READ_SCOPES =
+  formatCsnAppViewReadScopePlan({
+    authority: '*',
+  });
 
 export const OAUTH_SCOPE = BASE_OAUTH_SCOPES.join(' ');
 
@@ -54,7 +61,10 @@ export function oauthScopeForConfig(
   return [
     ...BASE_OAUTH_SCOPES,
     ...(config.PERMISSIONED_RECORD_WRITER_MODE === 'draft-xrpc'
-      ? DRAFT_PERMISSIONED_SPACE_WRITE_SCOPES
+      ? [
+          ...DRAFT_PERMISSIONED_SPACE_APPVIEW_READ_SCOPES,
+          ...DRAFT_PERMISSIONED_SPACE_WRITE_SCOPES,
+        ]
       : []),
   ].join(' ');
 }

@@ -35,6 +35,40 @@ describe('OAuthManagingSpaceCredentialSessionSelector', () => {
     await expect(selector.selectSession(space)).resolves.toBeNull();
   });
 
+  it('uses an OAuth client injected after construction', async () => {
+    const selector = new OAuthManagingSpaceCredentialSessionSelector({
+      membershipReadModel: new FakeMembershipReadModel([firstCandidate]),
+      candidateProvider: new StaticManagingSpaceSessionCandidateProvider([
+        firstCandidate,
+      ]),
+      requiredPermission,
+    });
+    selector.setOAuthClient(
+      new FakeOAuthClient(
+        new Map([
+          [
+            firstCandidate,
+            {
+              did: firstCandidate,
+              async getTokenInfo() {
+                await Promise.resolve();
+                return { aud: 'https://pds.example' };
+              },
+              async fetchHandler() {
+                return new Response('{}');
+              },
+            },
+          ],
+        ]),
+      ),
+    );
+
+    await expect(selector.selectSession(space)).resolves.toMatchObject({
+      managerDid: firstCandidate,
+      serviceUrl: 'https://pds.example',
+    });
+  });
+
   it('selects the first eligible candidate with a restorable OAuth session', async () => {
     const fetchCalls: Array<{
       readonly path: string;
