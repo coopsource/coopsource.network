@@ -92,6 +92,7 @@ import {
   StaticManagingSpaceSessionCandidateProvider,
 } from './services/oauth-managing-space-credential-session-selector.js';
 import { OAuthSpaceDelegationTokenClient } from './services/oauth-space-delegation-token-client.js';
+import { OAuthSpaceCredentialExchangeClient } from './services/oauth-space-credential-exchange-client.js';
 import { MembershipReadModelActionPermissionReader } from './services/coop-view-action-authorizer-adapters.js';
 import {
   MembershipReadModelVoteWeightReader,
@@ -195,6 +196,7 @@ export interface Container {
   managingSpaceCredentialSessionSelector:
     OAuthManagingSpaceCredentialSessionSelector;
   spaceDelegationTokenClient: OAuthSpaceDelegationTokenClient;
+  spaceCredentialExchangeClient: OAuthSpaceCredentialExchangeClient;
   visibilityRouter: VisibilityRouter;
   publicGovernanceAnchorService: PublicGovernanceAnchorService;
   patronageService: PatronageService;
@@ -422,6 +424,9 @@ export function createContainer(config: AppConfig): Container {
     });
   const spaceDelegationTokenClient = new OAuthSpaceDelegationTokenClient({
     sessionSelector: managingSpaceCredentialSessionSelector,
+  });
+  const spaceCredentialExchangeClient = new OAuthSpaceCredentialExchangeClient({
+    serviceUrlForSpaceAuthority: () => config.COOP_PDS_URL ?? config.PDS_URL,
   });
   const permissionedRecordWriter =
     config.PERMISSIONED_RECORD_WRITER_MODE === 'draft-xrpc'
@@ -674,6 +679,7 @@ export function createContainer(config: AppConfig): Container {
     permissionedRecordWriteSessionProvider,
     managingSpaceCredentialSessionSelector,
     spaceDelegationTokenClient,
+    spaceCredentialExchangeClient,
     visibilityRouter,
     publicGovernanceAnchorService,
     patronageService,

@@ -23,6 +23,21 @@ export {
   XrpcGroupDirectoryPort,
 } from './xrpc-group-directory-port.js';
 export type {
+  XrpcCreateSimpleSpaceRequest,
+  XrpcCreateSimpleSpaceResult,
+  XrpcSimpleSpaceManagementClientOptions,
+  XrpcSimpleSpaceManagementFetch,
+  XrpcSimpleSpaceManagementFetchInit,
+  XrpcSimpleSpaceManagementFetchResponse,
+  XrpcSimpleSpaceManagementHeaderProvider,
+  XrpcSimpleSpaceManagementHeaderRequest,
+  XrpcSimpleSpaceManagementErrorKind,
+} from './xrpc-simplespace-management-client.js';
+export {
+  XrpcSimpleSpaceManagementClient,
+  XrpcSimpleSpaceManagementError,
+} from './xrpc-simplespace-management-client.js';
+export type {
   AddMemberArgs,
   CsnDbGroupMutationPortOptions,
   GroupMutationAuditEvent,

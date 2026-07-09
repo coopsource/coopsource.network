@@ -21,16 +21,16 @@ describe('oauthScopeForConfig', () => {
     });
     const scopes = scope.split(' ');
 
-    expect(
-      DRAFT_PERMISSIONED_SPACE_APPVIEW_READ_SCOPES.length,
-    ).toBeGreaterThan(0);
+    expect(DRAFT_PERMISSIONED_SPACE_APPVIEW_READ_SCOPES.length).toBeGreaterThan(
+      0,
+    );
     expect(DRAFT_PERMISSIONED_SPACE_WRITE_SCOPES.length).toBeGreaterThan(0);
     expect(scopes).toContain('rpc:network.coopsource.governance');
     expect(scopes.some((value) => value.startsWith('space:'))).toBe(true);
     expect(scopes.some((value) => value.includes('authority=*'))).toBe(true);
     expect(scopes.some((value) => value.includes('action=read'))).toBe(true);
     expect(scopes.some((value) => value.includes('action=create'))).toBe(true);
+    expect(scopes.some((value) => value.includes('action=update'))).toBe(true);
     expect(scopes.some((value) => value.includes('action=delete'))).toBe(true);
-    expect(scopes.some((value) => value.includes('action=update'))).toBe(false);
   });
 });

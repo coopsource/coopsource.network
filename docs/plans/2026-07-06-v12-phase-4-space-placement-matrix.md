@@ -130,7 +130,8 @@ Reference links:
    `SPACE_MANAGING_SESSION_DIDS` config list.
 2. Next: exercise `PERMISSIONED_RECORD_WRITER_MODE=draft-xrpc` against a
    space-enabled PDS or HappyView-compatible prototype with real OAuth consent,
-   space creation, member authorization, create/delete writes, and typed failure
-   mapping.
+   space creation, member authorization, create/update/delete writes, and typed
+   failure mapping. Initial executable runbook:
+   `docs/plans/2026-07-08-v12-phase-4-live-xrpc-pds-exercise.md`.
 3. Keep the optional public-anchor implementation disabled by default until
    Phase 5 governance-view policy decides what public evidence is appropriate.

@@ -46,7 +46,7 @@ export const BASE_OAUTH_SCOPES = [
 export const DRAFT_PERMISSIONED_SPACE_WRITE_SCOPES =
   formatCsnMemberWriteScopePlan({
     authority: '*',
-    actions: ['create', 'delete'],
+    actions: ['create', 'update', 'delete'],
   });
 export const DRAFT_PERMISSIONED_SPACE_APPVIEW_READ_SCOPES =
   formatCsnAppViewReadScopePlan({

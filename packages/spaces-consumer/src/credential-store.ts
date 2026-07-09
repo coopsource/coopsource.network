@@ -207,8 +207,19 @@ export class SpaceCredentialManager {
   }
 }
 
+export type SpaceCredentialErrorKind =
+  | 'auth'
+  | 'client-policy'
+  | 'invalid-space'
+  | 'not-member'
+  | 'protocol'
+  | 'unavailable';
+
 export class SpaceCredentialError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    public readonly kind: SpaceCredentialErrorKind = 'protocol',
+  ) {
     super(message);
     this.name = 'SpaceCredentialError';
   }
