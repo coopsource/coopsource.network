@@ -6,9 +6,11 @@ import {
 } from '@coopsource/arbiter-client';
 import type { GroupMutationPort } from '@coopsource/arbiter-client';
 import {
+  KyselySpaceCredentialStore,
   XrpcPermissionedRecordWritePort,
   type GroupDirectoryPort,
   type PermissionedRecordWritePort,
+  type SpaceCredentialStore,
 } from '@coopsource/spaces-consumer';
 import type { Kysely, Transaction } from 'kysely';
 import type { Database } from '@coopsource/db';
@@ -93,6 +95,7 @@ import {
 } from './services/oauth-managing-space-credential-session-selector.js';
 import { OAuthSpaceDelegationTokenClient } from './services/oauth-space-delegation-token-client.js';
 import { OAuthSpaceCredentialExchangeClient } from './services/oauth-space-credential-exchange-client.js';
+import { SpaceCredentialInvalidatingGroupMutationPort } from './services/space-credential-invalidating-group-mutation-port.js';
 import { MembershipReadModelActionPermissionReader } from './services/coop-view-action-authorizer-adapters.js';
 import {
   MembershipReadModelVoteWeightReader,
@@ -190,6 +193,7 @@ export interface Container {
   memberNoticeService: MemberNoticeService;
   fiscalPeriodService: FiscalPeriodService;
   privateRecordService: PrivateRecordService;
+  spaceCredentialStore: SpaceCredentialStore;
   permissionedRecordWriter: PermissionedRecordWritePort;
   permissionedRecordWriteSessionProvider:
     OAuthPermissionedRecordWriteSessionProvider;
@@ -347,12 +351,22 @@ export function createContainer(config: AppConfig): Container {
     pdsService,
     config.NODE_ENV,
   );
+  const spaceCredentialStoreForDb = (
+    credentialDb: Kysely<Database> | Transaction<Database>,
+  ) =>
+    new KyselySpaceCredentialStore(credentialDb, {
+      clock: () => clock.now(),
+    });
+  const spaceCredentialStore = spaceCredentialStoreForDb(db);
   const groupMutationsForDb = (
     authorityDb: Kysely<Database> | Transaction<Database>,
   ) =>
-    new CsnDbGroupMutationPort(authorityDb, {
-      now: () => clock.now(),
-    });
+    new SpaceCredentialInvalidatingGroupMutationPort(
+      new CsnDbGroupMutationPort(authorityDb, {
+        now: () => clock.now(),
+      }),
+      spaceCredentialStoreForDb(authorityDb),
+    );
   const groupDirectory = new CsnDbGroupDirectoryPort(db);
   const membershipReadModel = new MembershipReadModel(db, groupDirectory);
   const actionAuthorizer = createCoopActionAuthorizerPlugin(
@@ -675,6 +689,7 @@ export function createContainer(config: AppConfig): Container {
     memberNoticeService,
     fiscalPeriodService,
     privateRecordService,
+    spaceCredentialStore,
     permissionedRecordWriter,
     permissionedRecordWriteSessionProvider,
     managingSpaceCredentialSessionSelector,

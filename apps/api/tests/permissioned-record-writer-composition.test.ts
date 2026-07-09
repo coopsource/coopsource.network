@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { XrpcPermissionedRecordWritePort } from '@coopsource/spaces-consumer';
+import {
+  KyselySpaceCredentialStore,
+  XrpcPermissionedRecordWritePort,
+} from '@coopsource/spaces-consumer';
 import type { Container } from '../src/container.js';
 import { createContainer } from '../src/container.js';
 import { loadConfig } from '../src/config.js';
@@ -7,6 +10,7 @@ import { OAuthManagingSpaceCredentialSessionSelector } from '../src/services/oau
 import { OAuthSpaceCredentialExchangeClient } from '../src/services/oauth-space-credential-exchange-client.js';
 import { OAuthSpaceDelegationTokenClient } from '../src/services/oauth-space-delegation-token-client.js';
 import { PrivateRecordPermissionedWritePort } from '../src/services/private-record-permissioned-write-port.js';
+import { SpaceCredentialInvalidatingGroupMutationPort } from '../src/services/space-credential-invalidating-group-mutation-port.js';
 import { getTestConnectionString } from './helpers/test-db.js';
 
 describe('permissioned record writer composition', () => {
@@ -42,6 +46,12 @@ describe('permissioned record writer composition', () => {
     );
     expect(container.spaceCredentialExchangeClient).toBeInstanceOf(
       OAuthSpaceCredentialExchangeClient,
+    );
+    expect(container.spaceCredentialStore).toBeInstanceOf(
+      KyselySpaceCredentialStore,
+    );
+    expect(container.groupMutations).toBeInstanceOf(
+      SpaceCredentialInvalidatingGroupMutationPort,
     );
   });
 

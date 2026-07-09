@@ -50,8 +50,11 @@ from stale cached credentials after expiry.
   delegation token to a compatible space-credential exchange target.
 - Eligibility must be checked through the membership read seam and the group
   directory boundary before using a session.
-- Member-list changes must invalidate the affected space credential cache entry
-  before the next sync batch.
+- Member-list changes now invalidate live cached credentials through
+  `SpaceCredentialInvalidatingGroupMutationPort`, which decorates the API's
+  `GroupMutationPort` wiring. The invalidation is cooperative-wide rather than
+  role-specific because role replacement results do not expose the full removed
+  role-space set.
 
 ## Deferred Questions
 
