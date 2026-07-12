@@ -359,6 +359,13 @@ implementation and PDS/HappyView exercise.
 3. Container registrations `governanceView`/`coopView` (making the doc-described wiring real).
 4. Draft `community.lexicon.governance.*` lexicon JSON kept in-repo under `packages/lexicons/community-draft/` (clearly non-canonical) + **ecosystem track:** TSC-sponsorship outreach at the Lexicon Community (gated, slow — start early; Stage 6 does not wait on ratification).
 
+**Status (2026-07-11):** Deliverables 1-3 are implemented as incremental
+checkpoints. The non-canonical proposal, vote, deliberation, summary, log-head,
+and election drafts from deliverable 4 are checked in and validation-tested;
+TSC-sponsorship outreach remains an outward-facing follow-up requiring user
+review. Further generic proposal/vote lifecycle extraction and the HappyView
+AppView substrate spike remain open.
+
 - [ ] First task: expand into its own task-level plan (this one deserves the full brainstorm→design→plan pipeline; the plugin-set signatures come verbatim from ARCHITECTURE-V12 §6).
 
 ## Phase 6 — V9 surface retirement (Stage 8)
