@@ -81,6 +81,7 @@ import { CapitalAccountService } from '../../src/services/capital-account-servic
 import { Tax1099Service } from '../../src/services/tax-1099-service.js';
 import { OnboardingService } from '../../src/services/onboarding-service.js';
 import { DelegationVotingService } from '../../src/services/delegation-voting-service.js';
+import { DelegationCommandService } from '../../src/services/delegation-command-service.js';
 import { GovernanceFeedService } from '../../src/services/governance-feed-service.js';
 import { MemberClassService } from '../../src/services/member-class-service.js';
 import { SpaceCredentialInvalidatingGroupMutationPort } from '../../src/services/space-credential-invalidating-group-mutation-port.js';
@@ -239,11 +240,12 @@ export function createTestApp(options?: TestAppOptions): TestApp {
   const actionAuthorizer = createCoopActionAuthorizerPlugin(
     new MembershipReadModelActionPermissionReader(db, membershipReadModel),
   );
-  const delegationVotingService = new DelegationVotingService(
+  const delegationCommandService = new DelegationCommandService(
     db,
     clock,
     actionAuthorizer,
   );
+  const delegationVotingService = new DelegationVotingService(db);
   const membershipVoteWeightReader = new MembershipReadModelVoteWeightReader(
     membershipReadModel,
   );
@@ -489,6 +491,7 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     capitalAccountService,
     tax1099Service,
     onboardingService,
+    delegationCommandService,
     delegationVotingService,
     governanceFeedService,
     memberClassService,

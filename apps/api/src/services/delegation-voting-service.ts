@@ -1,14 +1,5 @@
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
-import type { IClock } from '@coopsource/federation';
-import { membersSpace } from '@coopsource/arbiter-client';
-import { NotFoundError, ValidationError, type DID } from '@coopsource/common';
-import type { ActionAuthorizerPlugin } from '@coopsource/governance-view';
-import {
-  validateCoopDelegationCommand,
-  type CoopVoteWeightDelegation,
-} from '@coopsource/coop-view';
-import type { CreateDelegationInput } from '@coopsource/common';
 import type { PageParams, Page } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
 
@@ -20,93 +11,7 @@ export interface ActiveVoteDelegationRow {
 }
 
 export class DelegationVotingService {
-  constructor(
-    private db: Kysely<Database>,
-    private clock: IClock,
-    private actionAuthorizer?: ActionAuthorizerPlugin,
-  ) {}
-
-  async createDelegation(
-    cooperativeDid: string,
-    delegatorDid: string,
-    data: CreateDelegationInput,
-  ) {
-    await this.assertDelegationCommandAllowed(cooperativeDid, {
-      delegatorDid,
-      delegateeDid: data.delegateeDid,
-      scope: data.scope,
-      proposalUri: data.proposalUri ?? null,
-    });
-
-    // Revoke any existing active delegation in the same scope
-    const existing = await this.getActiveDelegation(
-      cooperativeDid,
-      delegatorDid,
-      data.scope,
-      data.proposalUri,
-    );
-    if (existing) {
-      await this.db
-        .updateTable('delegation')
-        .set({ status: 'revoked', revoked_at: this.clock.now() })
-        .where('uri', '=', existing.uri)
-        .execute();
-    }
-
-    const now = this.clock.now();
-    const rkey = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    const uri = `at://${cooperativeDid}/network.coopsource.governance.delegation/${rkey}`;
-
-    const [row] = await this.db
-      .insertInto('delegation')
-      .values({
-        uri,
-        did: cooperativeDid,
-        rkey,
-        project_uri: cooperativeDid,
-        delegator_did: delegatorDid,
-        delegatee_did: data.delegateeDid,
-        scope: data.scope,
-        proposal_uri: data.proposalUri ?? null,
-        status: 'active',
-        created_at: now,
-        indexed_at: now,
-      })
-      .returningAll()
-      .execute();
-    return row!;
-  }
-
-  async revokeDelegation(
-    cooperativeDid: string,
-    delegatorDid: string,
-    delegationUri: string,
-  ) {
-    const delegation = await this.db
-      .selectFrom('delegation')
-      .where('uri', '=', delegationUri)
-      .where('did', '=', cooperativeDid)
-      .selectAll()
-      .executeTakeFirst();
-
-    if (!delegation) throw new NotFoundError('Delegation not found');
-    await this.authorizeDelegationRevocation({
-      cooperativeDid,
-      actorDid: delegatorDid,
-      delegationDelegatorDid: delegation.delegator_did,
-    });
-    if (delegation.status !== 'active') {
-      throw new ValidationError('Delegation is not active');
-    }
-
-    const [row] = await this.db
-      .updateTable('delegation')
-      .set({ status: 'revoked', revoked_at: this.clock.now() })
-      .where('uri', '=', delegationUri)
-      .returningAll()
-      .execute();
-    return row!;
-  }
+  constructor(private db: Kysely<Database>) {}
 
   async getActiveDelegation(
     cooperativeDid: string,
@@ -224,69 +129,4 @@ export class DelegationVotingService {
       .orderBy('uri', 'asc')
       .execute();
   }
-
-  private async assertDelegationCommandAllowed(
-    cooperativeDid: string,
-    candidate: CoopVoteWeightDelegation,
-  ): Promise<void> {
-    const activeDelegations =
-      await this.listActiveDelegationsForVoteWeight(cooperativeDid);
-    const decision = validateCoopDelegationCommand({
-      activeDelegations: activeDelegations.flatMap(toCoopDelegation),
-      candidate,
-    });
-
-    if (!decision.allowed) {
-      throw new ValidationError(decision.message);
-    }
-  }
-
-  private async authorizeDelegationRevocation(args: {
-    readonly cooperativeDid: string;
-    readonly actorDid: string;
-    readonly delegationDelegatorDid: string;
-  }): Promise<void> {
-    if (!this.actionAuthorizer) {
-      if (args.actorDid !== args.delegationDelegatorDid) {
-        throw new ValidationError('Only the delegator can revoke a delegation');
-      }
-      return;
-    }
-
-    const memberSpace = membersSpace(args.cooperativeDid as DID);
-    const decision = await this.actionAuthorizer.authorize({
-      actor: { did: args.actorDid },
-      cooperative: {
-        authorityDid: args.cooperativeDid,
-        spaceKey: memberSpace.spaceKey,
-        spaceType: memberSpace.expectedSpaceType,
-      },
-      action: 'delegation.revoke.own',
-      at: this.clock.now().toISOString(),
-      payload: {
-        delegationDelegatorDid: args.delegationDelegatorDid,
-      },
-    });
-
-    if (!decision.authorized) {
-      throw new ValidationError('Only the delegator can revoke a delegation');
-    }
-  }
-}
-
-function toCoopDelegation(
-  row: ActiveVoteDelegationRow,
-): readonly CoopVoteWeightDelegation[] {
-  if (row.scope !== 'project' && row.scope !== 'proposal') {
-    return [];
-  }
-
-  return [
-    {
-      delegatorDid: row.delegator_did,
-      delegateeDid: row.delegatee_did,
-      scope: row.scope,
-      proposalUri: row.proposal_uri,
-    },
-  ];
 }

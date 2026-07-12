@@ -115,6 +115,7 @@ import { CapitalAccountService } from './services/capital-account-service.js';
 import { Tax1099Service } from './services/tax-1099-service.js';
 import { OnboardingService } from './services/onboarding-service.js';
 import { DelegationVotingService } from './services/delegation-voting-service.js';
+import { DelegationCommandService } from './services/delegation-command-service.js';
 import { GovernanceFeedService } from './services/governance-feed-service.js';
 import { MemberClassService } from './services/member-class-service.js';
 import { CooperativeLinkService } from './services/cooperative-link-service.js';
@@ -207,6 +208,7 @@ export interface Container {
   capitalAccountService: CapitalAccountService;
   tax1099Service: Tax1099Service;
   onboardingService: OnboardingService;
+  delegationCommandService: DelegationCommandService;
   delegationVotingService: DelegationVotingService;
   governanceFeedService: GovernanceFeedService;
   memberClassService: MemberClassService;
@@ -372,11 +374,12 @@ export function createContainer(config: AppConfig): Container {
   const actionAuthorizer = createCoopActionAuthorizerPlugin(
     new MembershipReadModelActionPermissionReader(db, membershipReadModel),
   );
-  const delegationVotingService = new DelegationVotingService(
+  const delegationCommandService = new DelegationCommandService(
     db,
     clock,
     actionAuthorizer,
   );
+  const delegationVotingService = new DelegationVotingService(db);
   const membershipVoteWeightReader = new MembershipReadModelVoteWeightReader(
     membershipReadModel,
   );
@@ -702,6 +705,7 @@ export function createContainer(config: AppConfig): Container {
     capitalAccountService,
     tax1099Service,
     onboardingService,
+    delegationCommandService,
     delegationVotingService,
     governanceFeedService,
     memberClassService,

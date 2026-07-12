@@ -40,7 +40,7 @@ export function createDelegationRoutes(container: Container): Router {
     asyncHandler(async (req, res) => {
       const data = CreateDelegationSchema.parse(req.body);
       const delegation =
-        await container.delegationVotingService.createDelegation(
+        await container.delegationCommandService.createDelegation(
           req.actor!.cooperativeDid,
           req.actor!.did,
           data,
@@ -61,7 +61,7 @@ export function createDelegationRoutes(container: Container): Router {
     asyncHandler(async (req, res) => {
       const uri = decodeURIComponent(String(req.params.uri));
       const delegation =
-        await container.delegationVotingService.revokeDelegation(
+        await container.delegationCommandService.revokeDelegation(
           req.actor!.cooperativeDid,
           req.actor!.did,
           uri,
