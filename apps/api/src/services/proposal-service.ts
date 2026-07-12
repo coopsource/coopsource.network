@@ -45,7 +45,7 @@ import type { MembershipReadModel } from './membership-read-model.js';
 export interface ProposalWithVotes {
   proposal: ProposalRow;
   votes: VoteRow[];
-  voteSummary: Record<string, number>;
+  voteSummary: Readonly<Record<string, number>>;
 }
 
 export interface CreateProposalInput {
@@ -242,12 +242,11 @@ export class ProposalService {
       .selectAll()
       .execute();
 
-    const voteSummary: Record<string, number> = {};
-    for (const v of votes) {
-      voteSummary[v.choice] = (voteSummary[v.choice] ?? 0) + 1;
-    }
-
-    return { proposal, votes, voteSummary };
+    return {
+      proposal,
+      votes,
+      voteSummary: this.projectVoteSummary(votes),
+    };
   }
 
   async getProposalByUri(
@@ -275,12 +274,11 @@ export class ProposalService {
       .selectAll()
       .execute();
 
-    const voteSummary: Record<string, number> = {};
-    for (const v of votes) {
-      voteSummary[v.choice] = (voteSummary[v.choice] ?? 0) + 1;
-    }
-
-    return { proposal, votes, voteSummary };
+    return {
+      proposal,
+      votes,
+      voteSummary: this.projectVoteSummary(votes),
+    };
   }
 
   async createProposal(
@@ -805,6 +803,14 @@ export class ProposalService {
         );
       }
     }
+  }
+
+  private projectVoteSummary(
+    votes: ReadonlyArray<VoteRow>,
+  ): Readonly<Record<string, number>> {
+    return this.governanceView.reduceVoteTally(
+      votes.map((vote) => ({ choice: vote.choice })),
+    ).tally;
   }
 
   private assertProposalActionAllowed(

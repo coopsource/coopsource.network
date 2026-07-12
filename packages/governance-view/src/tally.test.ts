@@ -18,6 +18,16 @@ describe('governance vote tally reducers', () => {
     });
   });
 
+  it('keeps the unweighted tally independent of vote weight', () => {
+    expect(
+      reduceGovernanceVoteTally([
+        { choice: 'option-a', weight: 100 },
+        { choice: 'option-b', weight: 0 },
+        { choice: 'option-a', weight: 0.25 },
+      ]).tally,
+    ).toEqual({ 'option-a': 2, 'option-b': 1 });
+  });
+
   it('maps quorum failures to the existing unresolved outcomes', () => {
     expect(
       decideGovernanceProposalOutcome({

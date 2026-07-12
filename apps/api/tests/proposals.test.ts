@@ -92,6 +92,68 @@ describe('Proposals & Voting', () => {
     expect(res.body.authorDisplayName).toBe('Test Admin');
   });
 
+  it('projects the same unweighted active-vote summary by ID and URI', async () => {
+    const testApp = createTestApp();
+    const { adminDid } = await setupAndLogin(testApp);
+    const created = await createDraftProposal(testApp.agent);
+    const proposal = await testApp.container.db
+      .selectFrom('proposal')
+      .where('id', '=', created.id)
+      .selectAll()
+      .executeTakeFirstOrThrow();
+    const now = testApp.clock.now();
+
+    await testApp.container.db
+      .insertInto('vote')
+      .values([
+        {
+          uri: 'at://did:plc:voter/network.coopsource.governance.vote/active',
+          cid: 'cid-active-vote',
+          proposal_id: proposal.id,
+          proposal_uri: proposal.uri!,
+          proposal_cid: proposal.cid!,
+          voter_did: adminDid,
+          choice: 'option-a',
+          vote_weight: 7,
+          rationale: null,
+          created_at: now,
+          retracted_at: null,
+          retracted_by: null,
+          indexed_at: now,
+        },
+        {
+          uri: 'at://did:plc:voter/network.coopsource.governance.vote/retracted',
+          cid: 'cid-retracted-vote',
+          proposal_id: proposal.id,
+          proposal_uri: proposal.uri!,
+          proposal_cid: proposal.cid!,
+          voter_did: adminDid,
+          choice: 'option-b',
+          vote_weight: 1,
+          rationale: null,
+          created_at: now,
+          retracted_at: now,
+          retracted_by: adminDid,
+          indexed_at: now,
+        },
+      ])
+      .execute();
+
+    const byId = await testApp.container.proposalService.getProposal(
+      proposal.id,
+      proposal.cooperative_did,
+    );
+    const byUri = await testApp.container.proposalService.getProposalByUri(
+      proposal.uri!,
+      proposal.cooperative_did,
+    );
+
+    expect(byId?.voteSummary).toEqual({ 'option-a': 1 });
+    expect(byUri?.voteSummary).toEqual({ 'option-a': 1 });
+    expect(byId?.votes).toHaveLength(1);
+    expect(byUri?.votes).toHaveLength(1);
+  });
+
   it('does not operate on proposal IDs outside the actor cooperative', async () => {
     const testApp = createTestApp();
     const { adminDid } = await setupAndLogin(testApp);
