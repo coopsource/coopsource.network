@@ -4,38 +4,23 @@
   "defs": {
     "main": {
       "type": "record",
-      "description": "Draft generic election for filling a group position.",
+      "description": "Draft election metadata sidecar for a proposal whose choices fill a group position.",
       "key": "tid",
       "record": {
         "type": "object",
-        "required": [
-          "authorityDid",
-          "spaceKey",
-          "proposerDid",
-          "title",
-          "position",
-          "candidates",
-          "status",
-          "createdAt"
-        ],
+        "required": ["proposalUri", "position", "candidates", "createdAt"],
         "properties": {
-          "authorityDid": { "type": "string", "format": "did" },
-          "spaceKey": { "type": "string", "maxLength": 512 },
-          "proposerDid": { "type": "string", "format": "did" },
-          "title": { "type": "string", "maxLength": 256 },
-          "summary": { "type": "string", "maxLength": 2000 },
+          "proposalUri": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "Proposal that owns the election lifecycle and receives votes using candidate IDs as choices."
+          },
           "position": { "type": "string", "maxLength": 256 },
           "candidates": {
             "type": "array",
             "minLength": 1,
             "maxLength": 100,
             "items": { "type": "ref", "ref": "#candidate" }
-          },
-          "votingStartsAt": { "type": "string", "format": "datetime" },
-          "votingEndsAt": { "type": "string", "format": "datetime" },
-          "status": {
-            "type": "string",
-            "knownValues": ["draft", "open", "closed", "resolved", "withdrawn"]
           },
           "createdAt": { "type": "string", "format": "datetime" }
         }

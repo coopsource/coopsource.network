@@ -318,17 +318,22 @@ Reviewed against the current implementation on 2026-07-06:
 - No migration of existing proposal/vote storage.
 - No dependency on HappyView, Arbiter, or `@atproto/space`.
 
-## Review Questions
+## Review Decisions (2026-07-11)
 
-1. Should `historicalState.recordSnapshot` be part of the plugin set from day
-   one, or should GovernanceView own a separate snapshot port?
-2. Should `patronageAllocator` and `surplusDistributor` stay in
-   `GovernancePluginSet`, or should they be CoopView-only interfaces referenced
-   by CoopView services?
-3. Should `delegateChains.resolve` return the whole chain plus terminal actor,
-   or return a weighted expansion directly?
-4. Which generic value names should align with future
-   `community.lexicon.governance.*` terms before draft lexicons are written?
+1. Keep `historicalState.recordSnapshot` in the ten-plugin set. The canonical
+   architecture defines it as GovernanceView's only writable plugin boundary;
+   wiring remains deferred until a durable snapshot contract exists.
+2. Keep `patronageAllocator` and `surplusDistributor` in the plugin set. They
+   are cooperative implementations supplied by CoopView, while GovernanceView
+   owns only their plain-value extension contracts.
+3. Keep `delegateChains.resolve` focused on the ordered chain and terminal
+   actor. Cooperative weighted expansion remains behind `voteWeight`, avoiding
+   two competing sources of resolved voting weight.
+4. Use `authorityDid` and `spaceKey` for generic group identity,
+   role-specific actor names (`proposerDid`, `voterDid`, `authorDid`) at record
+   boundaries, and `proposalUri` for proposal relationships. Record weights use
+   integer numerator/denominator values because ATProto Lexicons do not support
+   floating-point fields; in-process plugin values remain numbers.
 
 ## Completed Command And Consumer Slices
 

@@ -11,26 +11,44 @@
         "required": [
           "authorityDid",
           "spaceKey",
+          "version",
           "treeSize",
           "rootHash",
           "hashAlgorithm",
           "signature",
+          "signatureAlgorithm",
           "signedAt"
         ],
         "properties": {
           "authorityDid": { "type": "string", "format": "did" },
           "spaceKey": { "type": "string", "maxLength": 512 },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1,
+            "description": "Version of the canonical signed tree-head payload."
+          },
           "treeSize": { "type": "integer", "minimum": 0 },
           "rootHash": {
-            "type": "string",
-            "maxLength": 512,
-            "description": "Multibase or application-agreed encoding of the tree root."
+            "type": "bytes",
+            "minLength": 1,
+            "maxLength": 128
           },
-          "hashAlgorithm": { "type": "string", "maxLength": 64 },
-          "signature": {
+          "hashAlgorithm": {
             "type": "string",
-            "maxLength": 2048,
-            "description": "Encoded signature over the tree-head payload."
+            "maxLength": 64,
+            "knownValues": ["sha256"]
+          },
+          "signature": {
+            "type": "bytes",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "Signature over the canonical DAG-CBOR map of every record field except signature."
+          },
+          "signatureAlgorithm": {
+            "type": "string",
+            "maxLength": 64,
+            "knownValues": ["ed25519", "p256", "secp256k1"]
           },
           "previousHead": { "type": "string", "format": "at-uri" },
           "signedAt": { "type": "string", "format": "datetime" }
