@@ -15,6 +15,7 @@ import type {
   GovernanceClassDenominator,
   GovernanceClassQuorumRule,
   GovernanceGroupRef,
+  GovernanceProposalLifecycleAction,
   GovernanceProposalRef,
   GovernanceQuorumConfig,
   GovernanceView,
@@ -366,9 +367,7 @@ export class ProposalService {
       .selectAll()
       .executeTakeFirst();
     if (!proposal) throw new NotFoundError('Proposal not found');
-    if (proposal.status !== 'draft') {
-      throw new ValidationError('Can only edit draft proposals');
-    }
+    this.assertProposalActionAllowed(proposal.status, 'edit');
 
     const closesAt =
       params.data.closesAt !== undefined
@@ -440,9 +439,7 @@ export class ProposalService {
     cooperativeDid?: string,
   ): Promise<ProposalRow> {
     const proposal = await this._getOwnedProposal(id, actorDid, cooperativeDid);
-    if (proposal.status !== 'draft') {
-      throw new ValidationError('Can only open a draft proposal');
-    }
+    this.assertProposalActionAllowed(proposal.status, 'open');
 
     const now = this.clock.now();
     const [updated] = await this.db
@@ -475,9 +472,7 @@ export class ProposalService {
     const proposal = await query.executeTakeFirst();
 
     if (!proposal) throw new NotFoundError('Proposal not found');
-    if (proposal.status !== 'open') {
-      throw new ValidationError('Can only close an open proposal');
-    }
+    this.assertProposalActionAllowed(proposal.status, 'close');
 
     const now = this.clock.now();
     const [updated] = await this.db
@@ -512,9 +507,7 @@ export class ProposalService {
     const proposal = await query.executeTakeFirst();
 
     if (!proposal) throw new NotFoundError('Proposal not found');
-    if (proposal.status !== 'open') {
-      throw new ValidationError('Proposal is not open for voting');
-    }
+    this.assertProposalActionAllowed(proposal.status, 'vote');
 
     const now = this.clock.now();
     const weight = await this.weightForVote({
@@ -675,9 +668,7 @@ export class ProposalService {
     const proposal = await proposalQuery.executeTakeFirst();
 
     if (!proposal) throw new NotFoundError('Proposal not found');
-    if (proposal.status !== 'closed') {
-      throw new ValidationError('Can only resolve a closed proposal');
-    }
+    this.assertProposalActionAllowed(proposal.status, 'resolve');
 
     // Tally votes
     const votes = await this.db
@@ -786,22 +777,44 @@ export class ProposalService {
 
     const expired = await this.db
       .selectFrom('proposal')
-      .where('status', '=', 'open')
+      .where('status', 'in', ['open', 'closed'])
       .where('closes_at', '<=', now)
       .where('invalidated_at', 'is', null)
-      .select('id')
+      .select(['id', 'status', 'cooperative_did'])
       .execute();
 
-    for (const { id } of expired) {
+    for (const proposal of expired) {
       try {
-        await this.resolveProposal(id);
+        for (const action of this.governanceView.planProposalExpiry(
+          proposal.status,
+        )) {
+          if (action === 'close') {
+            await this.closeProposal(
+              proposal.id,
+              proposal.cooperative_did,
+              proposal.cooperative_did,
+            );
+          } else {
+            await this.resolveProposal(proposal.id, proposal.cooperative_did);
+          }
+        }
       } catch (err) {
         logger.error(
-          { err, proposalId: id },
+          { err, proposalId: proposal.id },
           'Failed to resolve expired proposal',
         );
       }
     }
+  }
+
+  private assertProposalActionAllowed(
+    status: string,
+    action: GovernanceProposalLifecycleAction,
+  ): void {
+    const decision = this.governanceView.evaluateProposalAction(status, action);
+    if (decision.allowed) return;
+
+    throw new ValidationError(PROPOSAL_ACTION_ERROR_MESSAGES[action]);
   }
 
   private async writePermissionedRecordRef(args: {
@@ -1194,6 +1207,16 @@ export class ProposalService {
     return proposal;
   }
 }
+
+const PROPOSAL_ACTION_ERROR_MESSAGES: Readonly<
+  Record<GovernanceProposalLifecycleAction, string>
+> = {
+  edit: 'Can only edit draft proposals',
+  open: 'Can only open a draft proposal',
+  close: 'Can only close an open proposal',
+  vote: 'Proposal is not open for voting',
+  resolve: 'Can only resolve a closed proposal',
+};
 
 function permissionedRecordRef(
   write: PermissionedRecordWriteResult,
