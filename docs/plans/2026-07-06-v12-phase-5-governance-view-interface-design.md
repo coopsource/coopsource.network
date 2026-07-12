@@ -23,7 +23,10 @@ project-level delegations for the same proposal during weight expansion.
 the existing role-permission resolver; proposal update/delete author checks now
 also call the same plugin with a small proposal context payload. Do not move
 additional service logic until the adapter layer is tested against current API
-suites.
+suites. `GovernanceView` and `CoopView` are now concrete package and container
+registrations: CoopView composes the complete cooperative plugin set, while
+GovernanceView owns generic tally/outcome behavior and is consumed by
+`ProposalService`.
 
 ## Purpose
 

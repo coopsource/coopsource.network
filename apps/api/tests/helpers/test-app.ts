@@ -7,8 +7,9 @@ import {
   KyselySpaceCredentialStore,
   type PermissionedRecordWritePort,
 } from '@coopsource/spaces-consumer';
-import { createDefaultGovernancePluginSet } from '@coopsource/governance-view';
+import { GovernanceView } from '@coopsource/governance-view';
 import {
+  CoopView,
   CoopDelegatedVoteWeightReader,
   createCoopActionAuthorizerPlugin,
   createCoopDelegateChainsPlugin,
@@ -249,7 +250,7 @@ export function createTestApp(options?: TestAppOptions): TestApp {
   const membershipVoteWeightReader = new MembershipReadModelVoteWeightReader(
     membershipReadModel,
   );
-  const governanceCorePlugins = createDefaultGovernancePluginSet({
+  const coopView = new CoopView({
     voteWeight: createCoopVoteWeightPlugin(
       new CoopDelegatedVoteWeightReader({
         baseWeightReader: membershipVoteWeightReader,
@@ -265,7 +266,12 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     actionAuthorizer,
     patronageAllocator: createCoopPatronageAllocatorPlugin(),
     surplusDistributor: createCoopSurplusDistributorPlugin(),
+    delegateChains: createCoopDelegateChainsPlugin(
+      new DelegationVotingServiceDelegateChainReader(delegationVotingService),
+    ),
   });
+  const governanceView = new GovernanceView(coopView.plugins);
+  const governancePlugins = governanceView.plugins;
   const groupMutations = groupMutationsForDb(db);
   const operatorWriteProxy = new OperatorWriteProxy(
     pdsService,
@@ -319,14 +325,12 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     pdsService,
     clock,
     membershipReadModel,
-    governanceCorePlugins.voteWeight,
-    governanceCorePlugins.quorum,
+    governanceView,
     memberWriteProxy,
     governanceLabeler,
     visibilityRouter,
     permissionedRecordWriter,
     publicGovernanceAnchorService,
-    governanceCorePlugins.actionAuthorizer,
   );
   const agreementService = new AgreementService(
     db,
@@ -387,21 +391,15 @@ export function createTestApp(options?: TestAppOptions): TestApp {
   const patronageService = new PatronageService(
     db,
     clock,
-    governanceCorePlugins.patronageAllocator,
+    governancePlugins.patronageAllocator,
   );
   const capitalAccountService = new CapitalAccountService(
     db,
     clock,
-    governanceCorePlugins.surplusDistributor,
+    governancePlugins.surplusDistributor,
   );
   const tax1099Service = new Tax1099Service(db, clock);
   const onboardingService = new OnboardingService(db, clock);
-  const governancePlugins = {
-    ...governanceCorePlugins,
-    delegateChains: createCoopDelegateChainsPlugin(
-      new DelegationVotingServiceDelegateChainReader(delegationVotingService),
-    ),
-  };
   const governanceFeedService = new GovernanceFeedService(db, clock);
   const memberClassService = new MemberClassService(
     db,
@@ -448,6 +446,8 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     groupDirectory,
     groupMutations,
     groupMutationsForDb,
+    governanceView,
+    coopView,
     governancePlugins,
     membershipReadModel,
     authService,

@@ -85,3 +85,4 @@ export {
   CoopVoteWeightPlugin,
   createCoopVoteWeightPlugin,
 } from './vote-weight-plugin.js';
+export { CoopView } from './coop-view.js';

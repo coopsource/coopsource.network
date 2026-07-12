@@ -3,6 +3,8 @@ import {
   KyselySpaceCredentialStore,
   XrpcPermissionedRecordWritePort,
 } from '@coopsource/spaces-consumer';
+import { GovernanceView } from '@coopsource/governance-view';
+import { CoopView } from '@coopsource/coop-view';
 import type { Container } from '../src/container.js';
 import { createContainer } from '../src/container.js';
 import { loadConfig } from '../src/config.js';
@@ -53,6 +55,10 @@ describe('permissioned record writer composition', () => {
     expect(container.groupMutations).toBeInstanceOf(
       SpaceCredentialInvalidatingGroupMutationPort,
     );
+    expect(container.governanceView).toBeInstanceOf(GovernanceView);
+    expect(container.coopView).toBeInstanceOf(CoopView);
+    expect(container.governanceView.plugins).toBe(container.governancePlugins);
+    expect(container.coopView.plugins).toBe(container.governancePlugins);
   });
 
   it('uses the draft XRPC writer when configured', () => {

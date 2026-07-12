@@ -12,18 +12,12 @@ import type {
   SpaceRef,
 } from '@coopsource/spaces-consumer';
 import type {
-  ActionAuthorizerPlugin,
   GovernanceClassDenominator,
   GovernanceClassQuorumRule,
   GovernanceGroupRef,
   GovernanceProposalRef,
   GovernanceQuorumConfig,
-  QuorumPlugin,
-  VoteWeightPlugin,
-} from '@coopsource/governance-view';
-import {
-  decideGovernanceProposalOutcome,
-  reduceGovernanceVoteTally,
+  GovernanceView,
 } from '@coopsource/governance-view';
 import {
   formatPermissionedRecordLocationUri,
@@ -95,14 +89,12 @@ export class ProposalService {
     private pdsService: IPdsService,
     private clock: IClock,
     private membershipReadModel: MembershipReadModel,
-    private voteWeightPlugin: VoteWeightPlugin,
-    private quorumPlugin: QuorumPlugin,
+    private governanceView: GovernanceView,
     private memberWriteProxy?: IMemberRecordWriter,
     private labeler?: GovernanceLabeler,
     private visibilityRouter?: VisibilityRouter,
     private permissionedRecordWriter?: PermissionedRecordWritePort,
     private publicGovernanceAnchorService?: PublicGovernanceAnchorService,
-    private actionAuthorizer?: ActionAuthorizerPlugin,
   ) {}
 
   async listProposals(
@@ -701,7 +693,7 @@ export class ProposalService {
       ]);
     const totalMembers = memberCounts.get(proposal.cooperative_did) ?? 0;
 
-    const { weightedTally } = reduceGovernanceVoteTally(
+    const { weightedTally } = this.governanceView.reduceVoteTally(
       votes.map((vote) => ({
         choice: vote.choice,
         weight: vote.vote_weight ?? 1,
@@ -718,7 +710,7 @@ export class ProposalService {
           votes.map((v) => v.voter_did as DID),
         )
       : undefined;
-    const quorumResult = await this.quorumPlugin.evaluate({
+    const quorumResult = await this.governanceView.plugins.quorum.evaluate({
       proposal: this.proposalRef(proposal),
       cooperative: this.cooperativeRef(proposal.cooperative_did),
       votes: votes.map((vote) => ({
@@ -743,7 +735,7 @@ export class ProposalService {
         : {}),
     });
 
-    const outcome = decideGovernanceProposalOutcome({
+    const outcome = this.governanceView.decideProposalOutcome({
       votingType: proposal.voting_type,
       weightedTally,
       quorum: quorumResult,
@@ -998,7 +990,7 @@ export class ProposalService {
     readonly choice: string;
     readonly at: Date;
   }): Promise<number> {
-    const result = await this.voteWeightPlugin.weightForVote({
+    const result = await this.governanceView.plugins.voteWeight.weightForVote({
       voter: { did: params.voterDid },
       proposal: this.proposalRef(params.proposal),
       cooperative: this.cooperativeRef(params.proposal.cooperative_did),
@@ -1017,29 +1009,27 @@ export class ProposalService {
     readonly actorDid: string;
     readonly voteVoterDid: string;
   }): Promise<void> {
-    if (!this.actionAuthorizer) {
-      if (args.actorDid !== args.voteVoterDid) {
-        throw new UnauthorizedError('Not the vote owner');
-      }
-      return;
+    if (args.actorDid !== args.voteVoterDid) {
+      throw new UnauthorizedError('Not the vote owner');
     }
 
-    const decision = await this.actionAuthorizer.authorize({
-      actor: { did: args.actorDid },
-      cooperative: this.cooperativeRef(args.proposal.cooperative_did),
-      action: 'vote.retract.own',
-      at: this.clock.now().toISOString(),
-      ...(args.proposal.uri
-        ? {
-            proposal: {
-              uri: args.proposal.uri,
-              ...(args.proposal.cid ? { cid: args.proposal.cid } : {}),
-              collection: PROPOSAL_COLLECTION,
-            },
-          }
-        : {}),
-      payload: { voteVoterDid: args.voteVoterDid },
-    });
+    const decision =
+      await this.governanceView.plugins.actionAuthorizer.authorize({
+        actor: { did: args.actorDid },
+        cooperative: this.cooperativeRef(args.proposal.cooperative_did),
+        action: 'vote.retract.own',
+        at: this.clock.now().toISOString(),
+        ...(args.proposal.uri
+          ? {
+              proposal: {
+                uri: args.proposal.uri,
+                ...(args.proposal.cid ? { cid: args.proposal.cid } : {}),
+                collection: PROPOSAL_COLLECTION,
+              },
+            }
+          : {}),
+        payload: { voteVoterDid: args.voteVoterDid },
+      });
 
     if (!decision.authorized) {
       throw new UnauthorizedError('Not the vote owner');
