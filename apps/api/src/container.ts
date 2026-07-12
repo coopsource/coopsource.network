@@ -14,10 +14,7 @@ import {
 } from '@coopsource/spaces-consumer';
 import type { Kysely, Transaction } from 'kysely';
 import type { Database } from '@coopsource/db';
-import {
-  GovernanceView,
-  type GovernancePluginSet,
-} from '@coopsource/governance-view';
+import { GovernanceView } from '@coopsource/governance-view';
 import {
   CoopView,
   CoopDelegatedVoteWeightReader,
@@ -163,7 +160,6 @@ export interface Container {
   ) => GroupMutationPort;
   governanceView: GovernanceView;
   coopView: CoopView;
-  governancePlugins: GovernancePluginSet;
   membershipReadModel: MembershipReadModel;
   authService: AuthService;
   profileService: ProfileService;
@@ -661,7 +657,6 @@ export function createContainer(config: AppConfig): Container {
     groupMutationsForDb,
     governanceView,
     coopView,
-    governancePlugins,
     membershipReadModel,
     authService,
     profileService,

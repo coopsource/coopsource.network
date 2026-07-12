@@ -153,7 +153,9 @@ async function start(): Promise<void> {
   setDb(container.db);
   setMembershipReadModel(container.membershipReadModel);
   setPermissionsDb(container.db);
-  setPermissionAuthorizer(container.governancePlugins.actionAuthorizer);
+  setPermissionAuthorizer(
+    container.governanceView.plugins.actionAuthorizer,
+  );
   logger.info('Container created');
 
   // Health routes (always available, no auth required)

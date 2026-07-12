@@ -448,7 +448,6 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     groupMutationsForDb,
     governanceView,
     coopView,
-    governancePlugins,
     membershipReadModel,
     authService,
     profileService,

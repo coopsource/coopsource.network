@@ -202,7 +202,7 @@ describe('Delegation Voting API', () => {
     const memberSpace = membersSpace(coopDid);
 
     const result =
-      await testApp.container.governancePlugins.delegateChains.resolve({
+      await testApp.container.governanceView.plugins.delegateChains.resolve({
         voter: { did: adminDid },
         cooperative: {
           authorityDid: coopDid,

@@ -44,8 +44,8 @@ export async function handleInlayVoteWidget(
   // Eligibility check (reuse shared logic with getVoteEligibility XRPC handler)
   const eligibility = await checkVoteEligibility(
     ctx.container.db,
-    ctx.container.governancePlugins.eligibility,
-    ctx.container.governancePlugins.voteWeight,
+    ctx.container.governanceView.plugins.eligibility,
+    ctx.container.governanceView.plugins.voteWeight,
     proposal,
     viewerDid,
     ctx.container.clock.now(),
