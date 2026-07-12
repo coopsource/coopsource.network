@@ -1,0 +1,55 @@
+{
+  "lexicon": 1,
+  "id": "community.lexicon.governance.summary",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Draft non-identifying public summary of governance activity for a group.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["authorityDid", "spaceKey", "generatedAt"],
+        "properties": {
+          "authorityDid": { "type": "string", "format": "did" },
+          "spaceKey": { "type": "string", "maxLength": 512 },
+          "openProposalCount": { "type": "integer", "minimum": 0 },
+          "resolvedProposalCount": { "type": "integer", "minimum": 0 },
+          "memberCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Aggregate count only; summaries must not contain member identifiers."
+          },
+          "tallies": {
+            "type": "array",
+            "maxLength": 100,
+            "items": { "type": "ref", "ref": "#tally" }
+          },
+          "recentActivityAt": { "type": "string", "format": "datetime" },
+          "generatedAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    },
+    "tally": {
+      "type": "object",
+      "required": ["proposalKey", "choice", "count"],
+      "properties": {
+        "proposalKey": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Opaque summary-local proposal key; permissioned proposal URIs must not be published."
+        },
+        "choice": { "type": "string", "maxLength": 1000 },
+        "count": { "type": "integer", "minimum": 0 },
+        "weight": { "type": "ref", "ref": "#weight" }
+      }
+    },
+    "weight": {
+      "type": "object",
+      "required": ["numerator", "denominator"],
+      "properties": {
+        "numerator": { "type": "integer", "minimum": 0 },
+        "denominator": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

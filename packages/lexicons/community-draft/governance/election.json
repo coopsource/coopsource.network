@@ -1,0 +1,39 @@
+{
+  "lexicon": 1,
+  "id": "community.lexicon.governance.election",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Draft election metadata sidecar for a proposal whose choices fill a group position.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["proposalUri", "position", "candidates", "createdAt"],
+        "properties": {
+          "proposalUri": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "Proposal that owns the election lifecycle and receives votes using candidate IDs as choices."
+          },
+          "position": { "type": "string", "maxLength": 256 },
+          "candidates": {
+            "type": "array",
+            "minLength": 1,
+            "maxLength": 100,
+            "items": { "type": "ref", "ref": "#candidate" }
+          },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "required": ["id", "label"],
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "label": { "type": "string", "maxLength": 256 },
+        "actorDid": { "type": "string", "format": "did" }
+      }
+    }
+  }
+}

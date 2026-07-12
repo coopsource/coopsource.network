@@ -1,0 +1,105 @@
+{
+  "lexicon": 1,
+  "id": "community.lexicon.governance.proposal",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Draft generic proposal record for collective decisions in a group-controlled space.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": [
+          "authorityDid",
+          "spaceKey",
+          "proposerDid",
+          "title",
+          "summary",
+          "proposalType",
+          "votingMethod",
+          "status",
+          "createdAt"
+        ],
+        "properties": {
+          "authorityDid": {
+            "type": "string",
+            "format": "did",
+            "description": "DID of the authority controlling the proposal's group space."
+          },
+          "spaceKey": {
+            "type": "string",
+            "maxLength": 512,
+            "description": "Opaque key identifying the group space within the authority."
+          },
+          "proposerDid": {
+            "type": "string",
+            "format": "did"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "proposalType": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "Application-defined proposal category."
+          },
+          "votingMethod": {
+            "type": "string",
+            "knownValues": [
+              "binary",
+              "singleChoice",
+              "rankedChoice",
+              "consensus"
+            ]
+          },
+          "choices": {
+            "type": "array",
+            "maxLength": 100,
+            "items": {
+              "type": "string",
+              "maxLength": 256
+            }
+          },
+          "contentUri": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "Optional rich-content record for the full proposal text."
+          },
+          "eligibilityUri": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "Optional application-defined eligibility rule record."
+          },
+          "proposedActions": {
+            "type": "array",
+            "maxLength": 100,
+            "items": {
+              "type": "string",
+              "format": "at-uri"
+            }
+          },
+          "votingStartsAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "votingEndsAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "status": {
+            "type": "string",
+            "knownValues": ["draft", "open", "closed", "resolved", "withdrawn"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

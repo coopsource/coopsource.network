@@ -26,7 +26,12 @@ additional service logic until the adapter layer is tested against current API
 suites. `GovernanceView` and `CoopView` are now concrete package and container
 registrations: CoopView composes the complete cooperative plugin set, while
 GovernanceView owns generic tally/outcome behavior and is consumed by
-`ProposalService`.
+`ProposalService`. Production governance handlers now obtain the plugin set
+through `GovernanceView`; the former direct container alias has been removed.
+Draft generic proposal, vote, deliberation, summary, log-head, and election
+lexicons now live under `packages/lexicons/community-draft/` and remain
+deliberately outside generated/runtime canonical schemas pending community
+review.
 
 ## Purpose
 
@@ -313,21 +318,24 @@ Reviewed against the current implementation on 2026-07-06:
 - No migration of existing proposal/vote storage.
 - No dependency on HappyView, Arbiter, or `@atproto/space`.
 
-## Review Questions
+## Review Decisions (2026-07-11)
 
-1. Should `historicalState.recordSnapshot` be part of the plugin set from day
-   one, or should GovernanceView own a separate snapshot port?
-2. Should `patronageAllocator` and `surplusDistributor` stay in
-   `GovernancePluginSet`, or should they be CoopView-only interfaces referenced
-   by CoopView services?
-3. Should `delegateChains.resolve` return the whole chain plus terminal actor,
-   or return a weighted expansion directly?
-4. Which generic value names should align with future
-   `community.lexicon.governance.*` terms before draft lexicons are written?
+1. Keep `historicalState.recordSnapshot` in the ten-plugin set. The canonical
+   architecture defines it as GovernanceView's only writable plugin boundary;
+   wiring remains deferred until a durable snapshot contract exists.
+2. Keep `patronageAllocator` and `surplusDistributor` in the plugin set. They
+   are cooperative implementations supplied by CoopView, while GovernanceView
+   owns only their plain-value extension contracts.
+3. Keep `delegateChains.resolve` focused on the ordered chain and terminal
+   actor. Cooperative weighted expansion remains behind `voteWeight`, avoiding
+   two competing sources of resolved voting weight.
+4. Use `authorityDid` and `spaceKey` for generic group identity,
+   role-specific actor names (`proposerDid`, `voterDid`, `authorDid`) at record
+   boundaries, and `proposalUri` for proposal relationships. Record weights use
+   integer numerator/denominator values because ATProto Lexicons do not support
+   floating-point fields; in-process plugin values remain numbers.
 
-## Next Slice
-
-Continue `packages/coop-view` adapters without moving production service logic:
+## Completed Command And Consumer Slices
 
 1. Decide the next extraction boundary for `DelegationVotingService`: outgoing
    chain reads and weighted expansion are adapted, while delegation
@@ -353,7 +361,25 @@ Continue `packages/coop-view` adapters without moving production service logic:
    cooperative DID actor path remains an explicit system/authority bypass for
    bootstrap-style writes that are not active-member actions.**
 3. Keep delegation command extraction separate if circularity rules need to
-   become CoopView-owned policy.
+   become CoopView-owned policy. **Completed: the policy is CoopView-owned and
+   the transactional command boundary is API-owned.**
+
+All production route, middleware, XRPC, Inlay, and service consumers obtain the
+composed plugin set through `GovernanceView`. `CoopView` remains the composition
+owner and both views share the same plugin-set object.
+
+## Remaining Phase 5 Slices
+
+1. Continue extracting generic proposal/vote lifecycle logic from
+   `ProposalService` without moving transport, persistence, or CSN policy into
+   `packages/governance-view`.
+2. Revisit `anchorSummary`, `historicalState`, and `meetingMinutes` only after
+   their missing public-summary, durable-snapshot, and canonicalization
+   contracts exist.
+3. Run the one-day HappyView AppView substrate spike and record the build/use
+   decision.
+4. Prepare the draft governance lexicons for TSC-sponsorship review; no
+   outward-facing publication occurs without user review.
 
 When running package checks, avoid running a dependent package's tests while its
 dependency package is rebuilding: current package exports point at `dist`, and
