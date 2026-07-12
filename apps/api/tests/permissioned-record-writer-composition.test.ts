@@ -57,8 +57,7 @@ describe('permissioned record writer composition', () => {
     );
     expect(container.governanceView).toBeInstanceOf(GovernanceView);
     expect(container.coopView).toBeInstanceOf(CoopView);
-    expect(container.governanceView.plugins).toBe(container.governancePlugins);
-    expect(container.coopView.plugins).toBe(container.governancePlugins);
+    expect(container.governanceView.plugins).toBe(container.coopView.plugins);
   });
 
   it('uses the draft XRPC writer when configured', () => {

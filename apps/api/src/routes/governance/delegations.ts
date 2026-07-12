@@ -137,7 +137,7 @@ export function createDelegationRoutes(container: Container): Router {
 
       const memberSpace = membersSpace(req.actor!.cooperativeDid as DID);
       const weightResult =
-        await container.governancePlugins.voteWeight.weightForVote({
+        await container.governanceView.plugins.voteWeight.weightForVote({
           voter: { did: memberDid },
           proposal: {
             uri: result.proposal.uri,

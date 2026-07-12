@@ -27,8 +27,8 @@ export async function handleGetVoteEligibility(
 
   return checkVoteEligibility(
     ctx.container.db,
-    ctx.container.governancePlugins.eligibility,
-    ctx.container.governancePlugins.voteWeight,
+    ctx.container.governanceView.plugins.eligibility,
+    ctx.container.governanceView.plugins.voteWeight,
     proposal,
     viewerDid,
     ctx.container.clock.now(),

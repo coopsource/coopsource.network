@@ -351,7 +351,9 @@ async function authorizeProposalAction(
     readonly proposalCid: string | null;
     readonly proposalAuthorDid: string;
   },
-): ReturnType<Container['governancePlugins']['actionAuthorizer']['authorize']> {
+): ReturnType<
+  Container['governanceView']['plugins']['actionAuthorizer']['authorize']
+> {
   const memberSpace = membersSpace(input.cooperativeDid as DID);
   const proposal = input.proposalUri
     ? {
@@ -361,7 +363,7 @@ async function authorizeProposalAction(
       }
     : undefined;
 
-  return container.governancePlugins.actionAuthorizer.authorize({
+  return container.governanceView.plugins.actionAuthorizer.authorize({
     actor: { did: input.actorDid },
     cooperative: {
       authorityDid: input.cooperativeDid,
