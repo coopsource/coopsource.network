@@ -293,8 +293,13 @@ Reviewed against the current implementation on 2026-07-06:
 5. Move generic proposal/vote tally reducers out of `ProposalService` only after
    the adapter layer is tested against current proposal/vote/delegation suites.
    **Started 2026-07-06: `GovernanceView` now owns pure tally and outcome
-   reducers for stored vote choices/weights, while `ProposalService` still owns
-   vote queries, quorum plugin execution, persistence, anchors, and labels.**
+   reducers for stored vote choices/weights. Continued 2026-07-11:
+   `GovernanceView` now owns proposal lifecycle eligibility and expiry action
+   planning; the API service routes edit/open/close/vote/resolve checks through
+   that facade. `ProposalService` still owns vote queries, quorum plugin
+   execution, persistence, anchors, labels, and lifecycle side effects. The
+   background expiry pass now closes open proposals before resolution and
+   retries already-closed proposals after a failed prior resolution.**
 6. Add `anchorSummary`, `historicalState`, patronage/distribution, and
    meeting-minutes adapters in separate slices. **Started 2026-07-06:
    `anchorSummary` and `historicalState` were reviewed and deliberately left

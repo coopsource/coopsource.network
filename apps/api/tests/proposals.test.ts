@@ -450,6 +450,54 @@ describe('Proposals & Voting', () => {
     expect(res.body.id).toBe(created.id);
   });
 
+  it('closes and resolves expired open proposals in the background', async () => {
+    const testApp = createTestApp();
+    await setupAndLogin(testApp);
+    const closesAt = new Date(testApp.clock.now().getTime() + 1_000);
+    const created = await createDraftProposal(testApp.agent, {
+      closesAt: closesAt.toISOString(),
+    });
+
+    await testApp.agent
+      .post(`/api/v1/proposals/${created.id}/open`)
+      .expect(200);
+    testApp.clock.advance(1_001);
+
+    await testApp.container.proposalService.resolveExpiredProposals();
+
+    const resolved = await testApp.container.db
+      .selectFrom('proposal')
+      .where('id', '=', created.id)
+      .select(['status', 'outcome', 'resolved_at'])
+      .executeTakeFirstOrThrow();
+    expect(resolved.status).toBe('resolved');
+    expect(resolved.outcome).toBe('no_quorum');
+    expect(resolved.resolved_at).toEqual(testApp.clock.now());
+  });
+
+  it('retries resolution for an already-closed expired proposal', async () => {
+    const testApp = createTestApp();
+    const { adminDid } = await setupAndLogin(testApp);
+    const closesAt = new Date(testApp.clock.now().getTime() + 1_000);
+    const created = await createDraftProposal(testApp.agent, {
+      closesAt: closesAt.toISOString(),
+    });
+
+    await testApp.container.proposalService.openProposal(created.id, adminDid);
+    testApp.clock.advance(1_001);
+    await testApp.container.proposalService.closeProposal(created.id, adminDid);
+
+    await testApp.container.proposalService.resolveExpiredProposals();
+
+    const resolved = await testApp.container.db
+      .selectFrom('proposal')
+      .where('id', '=', created.id)
+      .select(['status', 'resolved_at'])
+      .executeTakeFirstOrThrow();
+    expect(resolved.status).toBe('resolved');
+    expect(resolved.resolved_at).toEqual(testApp.clock.now());
+  });
+
   // ---------------------------------------------------------------
   // 12. Delete proposal (soft delete, 204)
   // ---------------------------------------------------------------

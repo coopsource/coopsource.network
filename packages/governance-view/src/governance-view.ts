@@ -4,6 +4,15 @@ import {
   reduceGovernanceVoteTally,
 } from './tally.js';
 import type {
+  GovernanceProposalLifecycleAction,
+  GovernanceProposalLifecycleDecision,
+  GovernanceProposalExpiryAction,
+} from './proposal-lifecycle.js';
+import {
+  evaluateGovernanceProposalAction,
+  planGovernanceProposalExpiry,
+} from './proposal-lifecycle.js';
+import type {
   GovernanceProposalOutcomeInput,
   GovernanceVoteChoiceForTally,
   GovernanceVoteTally,
@@ -20,5 +29,18 @@ export class GovernanceView {
 
   decideProposalOutcome(input: GovernanceProposalOutcomeInput): string {
     return decideGovernanceProposalOutcome(input);
+  }
+
+  evaluateProposalAction(
+    status: string,
+    action: GovernanceProposalLifecycleAction,
+  ): GovernanceProposalLifecycleDecision {
+    return evaluateGovernanceProposalAction(status, action);
+  }
+
+  planProposalExpiry(
+    status: string,
+  ): ReadonlyArray<GovernanceProposalExpiryAction> {
+    return planGovernanceProposalExpiry(status);
   }
 }

@@ -55,4 +55,14 @@ export {
   reduceGovernanceVoteTally,
 } from './tally.js';
 
+export type {
+  GovernanceProposalExpiryAction,
+  GovernanceProposalLifecycleAction,
+  GovernanceProposalLifecycleDecision,
+} from './proposal-lifecycle.js';
+export {
+  evaluateGovernanceProposalAction,
+  planGovernanceProposalExpiry,
+} from './proposal-lifecycle.js';
+
 export { GovernanceView } from './governance-view.js';
