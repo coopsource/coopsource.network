@@ -359,10 +359,12 @@ implementation and PDS/HappyView exercise.
 3. Container registrations `governanceView`/`coopView` (making the doc-described wiring real).
 4. Draft `community.lexicon.governance.*` lexicon JSON kept in-repo under `packages/lexicons/community-draft/` (clearly non-canonical) + **ecosystem track:** TSC-sponsorship outreach at the Lexicon Community (gated, slow — start early; Stage 6 does not wait on ratification).
 
-**Status (2026-07-11):** The supported portions of deliverables 1-3 are
+**Status (2026-07-12):** The supported portions of deliverables 1-3 are
 implemented as incremental checkpoints, including generic tally/outcome and
 proposal-lifecycle policy plus vote, eligibility, quorum, authorization,
-delegation, patronage, and distribution adapters. `anchorSummary`,
+delegation, patronage, and distribution adapters. Proposal lookup by ID and URI
+now projects its unweighted active-vote summary through the generic tally
+reducer. `anchorSummary`,
 `historicalState`, and `meetingMinutes` remain deliberately unwired until their
 public-summary, durable-snapshot, and canonicalization contracts exist.
 The non-canonical proposal, vote, deliberation, summary, log-head, and election

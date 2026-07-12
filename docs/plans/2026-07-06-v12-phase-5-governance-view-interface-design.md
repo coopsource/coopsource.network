@@ -296,10 +296,13 @@ Reviewed against the current implementation on 2026-07-06:
    reducers for stored vote choices/weights. Continued 2026-07-11:
    `GovernanceView` now owns proposal lifecycle eligibility and expiry action
    planning; the API service routes edit/open/close/vote/resolve checks through
-   that facade. `ProposalService` still owns vote queries, quorum plugin
-   execution, persistence, anchors, labels, and lifecycle side effects. The
-   background expiry pass now closes open proposals before resolution and
-   retries already-closed proposals after a failed prior resolution.**
+   that facade. Continued 2026-07-12: proposal lookup by ID and URI now projects
+   the unweighted active-vote summary through `GovernanceView.reduceVoteTally`,
+   preserving existing response behavior independently of stored vote weight.
+   `ProposalService` still owns vote queries, quorum plugin execution,
+   persistence, anchors, labels, and lifecycle side effects. The background
+   expiry pass now closes open proposals before resolution and retries
+   already-closed proposals after a failed prior resolution.**
 6. Add `anchorSummary`, `historicalState`, patronage/distribution, and
    meeting-minutes adapters in separate slices. **Started 2026-07-06:
    `anchorSummary` and `historicalState` were reviewed and deliberately left
@@ -376,8 +379,9 @@ owner and both views share the same plugin-set object.
 ## Remaining Phase 5 Slices
 
 1. Continue extracting generic proposal/vote logic beyond the completed
-   lifecycle eligibility/expiry planner from `ProposalService`, without moving
-   transport, persistence, or CSN policy into `packages/governance-view`.
+   lifecycle eligibility/expiry planner and unweighted vote-summary projection
+   from `ProposalService`, without moving transport, persistence, or CSN policy
+   into `packages/governance-view`.
 2. Revisit `anchorSummary`, `historicalState`, and `meetingMinutes` only after
    their missing public-summary, durable-snapshot, and canonicalization
    contracts exist.
