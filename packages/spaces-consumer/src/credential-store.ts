@@ -1,6 +1,6 @@
 import type { DID } from '@coopsource/common';
 import type { Database } from '@coopsource/db';
-import type { Kysely } from 'kysely';
+import type { Kysely, Transaction } from 'kysely';
 import { spaceRefKey, type ClockedOptions, type SpaceRef } from './types.js';
 
 export interface SpaceCredential {
@@ -79,7 +79,7 @@ export class InMemorySpaceCredentialStore implements SpaceCredentialStore {
 
 export class KyselySpaceCredentialStore implements SpaceCredentialStore {
   constructor(
-    private readonly db: Kysely<Database>,
+    private readonly db: Kysely<Database> | Transaction<Database>,
     private readonly opts: ClockedOptions,
   ) {}
 
@@ -207,8 +207,19 @@ export class SpaceCredentialManager {
   }
 }
 
+export type SpaceCredentialErrorKind =
+  | 'auth'
+  | 'client-policy'
+  | 'invalid-space'
+  | 'not-member'
+  | 'protocol'
+  | 'unavailable';
+
 export class SpaceCredentialError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    public readonly kind: SpaceCredentialErrorKind = 'protocol',
+  ) {
     super(message);
     this.name = 'SpaceCredentialError';
   }

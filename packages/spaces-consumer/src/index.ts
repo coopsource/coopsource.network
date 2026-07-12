@@ -26,6 +26,7 @@ export type {
   SpaceCredentialManagerOptions,
   SpaceCredentialStore,
   SpaceCredentialRefreshReason,
+  SpaceCredentialErrorKind,
 } from './credential-store.js';
 export {
   InMemorySpaceCredentialStore,

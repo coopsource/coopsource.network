@@ -3,7 +3,10 @@ import session from 'express-session';
 import supertest from 'supertest';
 import type { Kysely, Transaction } from 'kysely';
 import type { Database } from '@coopsource/db';
-import type { PermissionedRecordWritePort } from '@coopsource/spaces-consumer';
+import {
+  KyselySpaceCredentialStore,
+  type PermissionedRecordWritePort,
+} from '@coopsource/spaces-consumer';
 import { createDefaultGovernancePluginSet } from '@coopsource/governance-view';
 import {
   CoopDelegatedVoteWeightReader,
@@ -80,6 +83,7 @@ import { OnboardingService } from '../../src/services/onboarding-service.js';
 import { DelegationVotingService } from '../../src/services/delegation-voting-service.js';
 import { GovernanceFeedService } from '../../src/services/governance-feed-service.js';
 import { MemberClassService } from '../../src/services/member-class-service.js';
+import { SpaceCredentialInvalidatingGroupMutationPort } from '../../src/services/space-credential-invalidating-group-mutation-port.js';
 import { CooperativeLinkService } from '../../src/services/cooperative-link-service.js';
 import { StarterPackService } from '../../src/services/starter-pack-service.js';
 import {
@@ -214,12 +218,22 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     FRONTEND_URL: 'http://localhost:5173',
   } as AppConfig;
 
+  const spaceCredentialStoreForDb = (
+    credentialDb: Kysely<Database> | Transaction<Database>,
+  ) =>
+    new KyselySpaceCredentialStore(credentialDb, {
+      clock: () => clock.now(),
+    });
+  const spaceCredentialStore = spaceCredentialStoreForDb(db);
   const groupMutationsForDb = (
     authorityDb: Kysely<Database> | Transaction<Database>,
   ) =>
-    new CsnDbGroupMutationPort(authorityDb, {
-      now: () => clock.now(),
-    });
+    new SpaceCredentialInvalidatingGroupMutationPort(
+      new CsnDbGroupMutationPort(authorityDb, {
+        now: () => clock.now(),
+      }),
+      spaceCredentialStoreForDb(authorityDb),
+    );
   const groupDirectory = new CsnDbGroupDirectoryPort(db);
   const membershipReadModel = new MembershipReadModel(db, groupDirectory);
   const actionAuthorizer = createCoopActionAuthorizerPlugin(
@@ -391,6 +405,7 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     db,
     clock,
     membershipReadModel,
+    spaceCredentialStore,
   );
   const cooperativeLinkService = new CooperativeLinkService(db, clock);
   const starterPackService = new StarterPackService(db, pdsService);
@@ -465,6 +480,7 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     memberNoticeService,
     fiscalPeriodService,
     privateRecordService,
+    spaceCredentialStore,
     permissionedRecordWriter,
     permissionedRecordWriteSessionProvider,
     visibilityRouter,

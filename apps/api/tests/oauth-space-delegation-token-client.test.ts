@@ -65,30 +65,55 @@ describe('OAuthSpaceDelegationTokenClient', () => {
 
     await expect(client.getDelegationToken(request)).rejects.toMatchObject({
       name: 'SpaceCredentialError',
+      kind: 'auth',
       message:
         'No eligible managing OAuth session available for did:plc:coop/members',
     });
   });
 
-  it('maps upstream XRPC errors to space credential errors', async () => {
-    const client = new OAuthSpaceDelegationTokenClient({
-      sessionSelector: new FakeManagingSessionSelector({
-        managerDid: 'did:plc:manager' as DID,
-        serviceUrl: 'https://pds.example',
-        async authenticatedFetch() {
-          await Promise.resolve();
-          return jsonResponse(
-            { error: 'NotAMember', message: 'Managing session is not a member' },
-            403,
-          );
+  it('maps upstream XRPC errors to typed space credential failures', async () => {
+    const cases = [
+      {
+        response: {
+          status: 403,
+          body: {
+            error: 'NotAMember',
+            message: 'Managing session is not a member',
+          },
         },
-      }),
-    });
+        kind: 'not-member',
+      },
+      {
+        response: { status: 404, body: { error: 'SpaceNotFound' } },
+        kind: 'invalid-space',
+      },
+      {
+        response: { status: 401, body: { error: 'NotAuthorized' } },
+        kind: 'auth',
+      },
+      {
+        response: { status: 503, body: { error: 'UpstreamTimeout' } },
+        kind: 'unavailable',
+      },
+    ] as const;
 
-    await expect(client.getDelegationToken(request)).rejects.toMatchObject({
-      name: 'SpaceCredentialError',
-      message: 'Managing session is not a member',
-    });
+    for (const testCase of cases) {
+      const client = new OAuthSpaceDelegationTokenClient({
+        sessionSelector: new FakeManagingSessionSelector({
+          managerDid: 'did:plc:manager' as DID,
+          serviceUrl: 'https://pds.example',
+          async authenticatedFetch() {
+            await Promise.resolve();
+            return jsonResponse(testCase.response.body, testCase.response.status);
+          },
+        }),
+      });
+
+      await expect(client.getDelegationToken(request)).rejects.toMatchObject({
+        name: 'SpaceCredentialError',
+        kind: testCase.kind,
+      });
+    }
   });
 
   it('rejects a successful response without a delegation token', async () => {
@@ -105,6 +130,7 @@ describe('OAuthSpaceDelegationTokenClient', () => {
 
     await expect(client.getDelegationToken(request)).rejects.toMatchObject({
       name: 'SpaceCredentialError',
+      kind: 'protocol',
       message:
         'com.atproto.space.getDelegationToken response must include delegationToken',
     });
@@ -124,6 +150,7 @@ describe('OAuthSpaceDelegationTokenClient', () => {
 
     await expect(client.getDelegationToken(request)).rejects.toMatchObject({
       name: 'SpaceCredentialError',
+      kind: 'unavailable',
       message:
         'Failed to call com.atproto.space.getDelegationToken: socket closed',
     });

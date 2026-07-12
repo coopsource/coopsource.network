@@ -27,6 +27,7 @@
   },
   "devDependencies": {
     "@coopsource/config": "workspace:*",
+    "@types/node": "^25.3.2",
     "typescript": "^5.9",
     "vitest": "^4.0"
   }

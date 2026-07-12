@@ -1,5 +1,6 @@
 import {
   SpaceCredentialError,
+  type SpaceCredentialErrorKind,
   type SpaceDelegationTokenClientPort,
   type SpaceDelegationTokenRequest,
   type SpaceDelegationTokenResponse,
@@ -36,6 +37,7 @@ export class OAuthSpaceDelegationTokenClient
     if (!session) {
       throw new SpaceCredentialError(
         `No eligible managing OAuth session available for ${request.ref.arbiterDid}/${request.ref.spaceKey}`,
+        'auth',
       );
     }
 
@@ -50,6 +52,7 @@ export class OAuthSpaceDelegationTokenClient
       if (err instanceof SpaceCredentialError) throw err;
       throw new SpaceCredentialError(
         `Failed to call ${GET_DELEGATION_TOKEN_NSID}: ${errorMessage(err)}`,
+        'unavailable',
       );
     }
 
@@ -58,6 +61,7 @@ export class OAuthSpaceDelegationTokenClient
       throw new SpaceCredentialError(
         responseErrorMessage(body) ??
           `${GET_DELEGATION_TOKEN_NSID} failed with HTTP ${response.status}`,
+        errorKindForResponse(response.status, body),
       );
     }
 
@@ -71,6 +75,7 @@ export class OAuthSpaceDelegationTokenClient
     if (!token) {
       throw new SpaceCredentialError(
         `${GET_DELEGATION_TOKEN_NSID} response must include delegationToken`,
+        'protocol',
       );
     }
 
@@ -83,6 +88,7 @@ function delegationTokenUrl(serviceUrl: string, space: string): string {
   if (!base) {
     throw new SpaceCredentialError(
       `No PDS service URL available for ${GET_DELEGATION_TOKEN_NSID}`,
+      'auth',
     );
   }
   const url = new URL(`${base}/xrpc/${GET_DELEGATION_TOKEN_NSID}`);
@@ -118,6 +124,33 @@ async function responseJson(response: {
 function responseErrorMessage(body: unknown): string | undefined {
   const object = asObject(body);
   return typeof object?.message === 'string' ? object.message : undefined;
+}
+
+function responseErrorName(body: unknown): string | undefined {
+  const object = asObject(body);
+  return typeof object?.error === 'string' ? object.error : undefined;
+}
+
+function errorKindForResponse(
+  status: number,
+  body: unknown,
+): SpaceCredentialErrorKind {
+  const error = responseErrorName(body);
+  if (error === 'SpaceNotFound' || error === 'SpaceDeleted') {
+    return 'invalid-space';
+  }
+  if (error === 'NotAMember' || error === 'UserNotAuthorized') {
+    return 'not-member';
+  }
+  if (error === 'AppNotAuthorized' || error === 'InvalidClientAttestation') {
+    return 'client-policy';
+  }
+  if (error === 'InvalidDelegationToken' || error === 'NotAuthorized') {
+    return 'auth';
+  }
+  if (status === 401 || status === 403) return 'auth';
+  if (status >= 500) return 'unavailable';
+  return 'protocol';
 }
 
 function asObject(value: unknown): JsonObject | null {
