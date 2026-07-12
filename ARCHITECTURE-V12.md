@@ -2,7 +2,7 @@
 
 **Status:** Active canonical specification. Supersedes ARCHITECTURE-V11.md + CLAUDE-CODE-PROMPT-V11.md (both archived in `docs/archive/`). When CLAUDE.md and this document disagree, **this document wins**.
 
-**Updated:** 2026-07-11. Grounded in `docs/plans/2026-07-04-atproto-shared-spaces-research.md` plus the July 5 code/proposal reconciliation in `docs/plans/2026-07-05-v12-replan-after-code-deep-dive.md`. Current code audit target: `feature/v12-phase-5-governance-command-boundaries` after the Phase 4 live-XRPC harness checkpoint.
+**Updated:** 2026-07-11. Grounded in `docs/plans/2026-07-04-atproto-shared-spaces-research.md` plus the July 5 code/proposal reconciliation in `docs/plans/2026-07-05-v12-replan-after-code-deep-dive.md`. Current code audit target: `main` at the Phase 5 proposal-lifecycle checkpoint after the Phase 4 live-XRPC harness checkpoint.
 
 V12 is a **documentation-and-alignment revision, not a design pivot.** The four-layer architecture, the ten-plugin contract, the authority axes, and the recursive cooperative model are all carried from V11 unchanged. What changed is the upstream reality V11 was betting on — and the bet aged well.
 
@@ -21,7 +21,7 @@ V12 is a **documentation-and-alignment revision, not a design pivot.** The four-
 | Arbiter                  | "two weeks old"                | **16 draft `town.muni.arbiter.*` lexicons** (`resolveSpaceMembers`, `createDid`, …) + Rego policy prototype + WASM simulator                | Wire contract to converge on; identity/authorization split                                                                         |
 | Community modeling       | (implicit)                     | Holmgren (June 2): **many typed spaces under one community DID**, against "universal spaces"                                                | Directly validates our role-space design                                                                                           |
 | OAuth scopes             | shipping                       | **Shipped + normative** (`repo:`/`rpc:`/`blob:`/`account:`/`identity:`/`include:`); permission sets are lexicons anyone can publish         | Axis 1 rests on documented protocol surface                                                                                        |
-| HappyView                | experimental behind flag       | **2.10 (June 30)**: `com.atproto.space.*`/`com.atproto.simplespace.*`, LtHash, `listRepoOps`, `registerNotify`/`notifyWrite`                | Candidate dev/test harness (build-vs-use §10)                                                                                      |
+| HappyView                | experimental behind flag       | **2.11.4 (July 9)**: `com.atproto.space.*`/`com.atproto.simplespace.*`, LtHash, `listRepoOps`, `registerNotify`/`notifyWrite`               | Use as dev/test harness; Phase 5 spike rejected it as CSN's AppView substrate (build-vs-use §10)                                   |
 
 **What did NOT change (carried from V11):** the four layers; the ten-plugin `GovernancePluginSet`; the five authority axes; the recursive cooperative model; the three data tiers; fail-closed cross-checking; DIDs authoritative + `did_rotation_history` aliasing; Tier 3 optional (Germ still iOS-only). The May addendum's own forecast scored 7/9 (see the research report §III).
 
@@ -172,20 +172,20 @@ Branch naming: `feature/v12-phase-N-<desc>`. Merges to `main`: `--no-ff`, green 
 
 ### Build-vs-use register
 
-| Capability                                                       | Default                                                                  | Decide at     |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------- |
-| AppView substrate (custom `apps/api` vs **HappyView 2.10+**)     | Build                                                                    | Phase 5 spike |
-| Spaces dev/test harness (fixtures vs **HappyView 2.10**)         | Use                                                                      | Phase 3       |
-| Spaces primitives (extend vs **`@atproto/space`** from PR #5187) | Use when published; as of 2026-07-05 it does not appear published on npm | each sweep    |
-| Arbiter server (CSN-DB vs **Muni Town arbiter**)                 | Build interim, use when real                                             | Phase 3       |
-| Axis-3 policy (TS plugin set vs Rego/OPA)                        | Build                                                                    | firm          |
-| Tier 3 E2EE (Germ/MLS)                                           | Use, optional-only                                                       | parity news   |
+| Capability                                                       | Default                                                                                                                                                                                                                                                                                            | Decide at   |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| AppView substrate (custom `apps/api` vs **HappyView 2.10+**)     | **Build confirmed.** The 2026-07-11 HappyView 2.11.4 spike loaded all 58 canonical/draft documents, but all 8 CSN queries need custom semantics; Lua/WASM cannot host the typed plugin and projection model without a rewrite. See `docs/plans/2026-07-11-v12-phase-5-happyview-appview-spike.md`. | decided     |
+| Spaces dev/test harness (fixtures vs **HappyView 2.10**)         | Use                                                                                                                                                                                                                                                                                                | Phase 3     |
+| Spaces primitives (extend vs **`@atproto/space`** from PR #5187) | Use when published; as of 2026-07-05 it does not appear published on npm                                                                                                                                                                                                                           | each sweep  |
+| Arbiter server (CSN-DB vs **Muni Town arbiter**)                 | Build interim, use when real                                                                                                                                                                                                                                                                       | Phase 3     |
+| Axis-3 policy (TS plugin set vs Rego/OPA)                        | Build                                                                                                                                                                                                                                                                                              | firm        |
+| Tier 3 E2EE (Germ/MLS)                                           | Use, optional-only                                                                                                                                                                                                                                                                                 | parity news |
 
 ---
 
 ## 11. Design commitments (committed)
 
-Per-(coop, member) personal spaces; both V9 membership lexicons retire; binary `governance_visibility` retires; governance labels via cooperative-controlled policy (no separate labeler service); RFC 9421 retires; single custom AppView (HappyView reference only unless the Phase 5 spike says otherwise); the `community.lexicon.governance.*` namespace; cooperatives own DIDs (rotation keys offline, CSN holds signing key only); `did_rotation_history` aliasing; ATProto-native records canonical for Subchapter T; historical-state snapshots at cadence boundaries.
+Per-(coop, member) personal spaces; both V9 membership lexicons retire; binary `governance_visibility` retires; governance labels via cooperative-controlled policy (no separate labeler service); RFC 9421 retires; single custom AppView (HappyView remains a spaces/reference harness per the completed Phase 5 spike); the `community.lexicon.governance.*` namespace; cooperatives own DIDs (rotation keys offline, CSN holds signing key only); `did_rotation_history` aliasing; ATProto-native records canonical for Subchapter T; historical-state snapshots at cadence boundaries.
 
 **Load-bearing (do not casually revisit):** the semantic distinction between permissioned and public URI resolution (the token is substrate); `(DID, read|write)` member-list minimality; cooperative DID distinct from any founder's personal DID. Everything else — URI scheme token, digest algorithm, sync wire format, exact permission-set spellings — is substrate behind ports and is _expected_ to drift.
 
@@ -214,7 +214,7 @@ The IETF ATP working group is chartered but its charter **excludes non-public da
 1. Don't use bilateral membership — the `members` space / `GroupMutationPort` is the write path; `memberConsent` is non-authoritative evidence.
 2. Don't six-tier ACL — per-space placement replaces it.
 3. Don't bake the URI scheme or digest algorithm as constants — helpers/ports only. (`at://…/space/…` and LtHash are current values; sync verification is surfaced through `PermissionedRepoPort`.)
-4. HappyView is a reference/harness — the build-vs-use decision (§10) defaults to _build_ our own AppView; re-evaluate at Phase 5, don't migrate onto its Lua/WASM model by default.
+4. HappyView is a reference/harness — the completed Phase 5 spike confirms building our own AppView. Use HappyView for spaces and lexicon compatibility exercises; do not migrate CSN's typed plugin/projection model onto trigger-scoped Lua or the external-auth WASM ABI.
 5. Don't run a separate labeler service — cooperative-controlled label policy.
 6. Don't use `@skyware/labeler` at runtime (archived; bootstrap-only).
 7. Don't put application logic in the protocol/arbiter layer — the plugin set is the seam.
