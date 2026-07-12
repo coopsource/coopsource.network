@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { roleSpace } from '@coopsource/arbiter-client';
+import type { DID } from '@coopsource/common';
 import { truncateAllTables } from './helpers/test-db.js';
 import { createTestApp, setupAndLogin } from './helpers/test-app.js';
 import { resetSetupCache } from '../src/auth/middleware.js';
@@ -170,6 +172,68 @@ describe('Member Class API', () => {
       .expect(200);
 
     expect(removeRes.body.className).toBeNull();
+  });
+
+  it('invalidates cooperative credentials when assigning a member class', async () => {
+    const testApp = createTestApp();
+    const { adminDid, coopDid } = await setupAndLogin(testApp);
+    const cooperativeDid = coopDid as DID;
+    const classSpace = roleSpace(cooperativeDid, 'classes/worker');
+    const otherSpace = roleSpace('did:plc:other' as DID, 'classes/worker');
+    const credential = {
+      token: 'live-token',
+      expiresAt: new Date('2027-01-01T00:00:00.000Z'),
+    };
+
+    await testApp.agent
+      .post('/api/v1/member-classes')
+      .send({ name: 'worker' })
+      .expect(201);
+    await testApp.container.spaceCredentialStore.put(classSpace, credential);
+    await testApp.container.spaceCredentialStore.put(otherSpace, credential);
+
+    await testApp.agent
+      .post('/api/v1/member-classes/assign')
+      .send({ memberDid: adminDid, className: 'worker' })
+      .expect(200);
+
+    await expect(
+      testApp.container.spaceCredentialStore.get(classSpace),
+    ).resolves.toBeUndefined();
+    await expect(
+      testApp.container.spaceCredentialStore.get(otherSpace),
+    ).resolves.toEqual(credential);
+  });
+
+  it('invalidates cooperative credentials when removing a member class', async () => {
+    const testApp = createTestApp();
+    const { adminDid, coopDid } = await setupAndLogin(testApp);
+    const cooperativeDid = coopDid as DID;
+    const classSpace = roleSpace(cooperativeDid, 'classes/worker');
+    const credential = {
+      token: 'live-token',
+      expiresAt: new Date('2027-01-01T00:00:00.000Z'),
+    };
+
+    await testApp.agent
+      .post('/api/v1/member-classes')
+      .send({ name: 'worker' })
+      .expect(201);
+    await testApp.agent
+      .post('/api/v1/member-classes/assign')
+      .send({ memberDid: adminDid, className: 'worker' })
+      .expect(200);
+    await testApp.container.spaceCredentialStore.put(classSpace, credential);
+
+    await testApp.agent
+      .delete(
+        `/api/v1/member-classes/assign/${encodeURIComponent(adminDid)}`,
+      )
+      .expect(200);
+
+    await expect(
+      testApp.container.spaceCredentialStore.get(classSpace),
+    ).resolves.toBeUndefined();
   });
 
   // ─── Vote weight snapshot ──────────────────────────────────────────

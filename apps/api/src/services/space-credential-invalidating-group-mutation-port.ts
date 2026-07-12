@@ -106,14 +106,22 @@ export class SpaceCredentialInvalidatingGroupMutationPort
 
   private async invalidateIfChanged(result: GroupMutationResult): Promise<void> {
     if (!result.changed) return;
-    const liveCredentials = await this.credentialStore.live();
-    const affectedRefs = liveCredentials
-      .map((entry) => entry.ref)
-      .filter((ref) => sameAuthority(ref, result.cooperativeDid));
-    await Promise.all(
-      affectedRefs.map((ref) => this.credentialStore.delete(ref)),
+    await invalidateSpaceCredentialsForAuthority(
+      this.credentialStore,
+      result.cooperativeDid,
     );
   }
+}
+
+export async function invalidateSpaceCredentialsForAuthority(
+  credentialStore: Pick<SpaceCredentialStore, 'delete' | 'live'>,
+  cooperativeDid: DID,
+): Promise<void> {
+  const liveCredentials = await credentialStore.live();
+  const affectedRefs = liveCredentials
+    .map((entry) => entry.ref)
+    .filter((ref) => sameAuthority(ref, cooperativeDid));
+  await Promise.all(affectedRefs.map((ref) => credentialStore.delete(ref)));
 }
 
 function sameAuthority(ref: SpaceRef, cooperativeDid: DID): boolean {

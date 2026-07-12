@@ -565,6 +565,7 @@ export function createContainer(config: AppConfig): Container {
     db,
     clock,
     membershipReadModel,
+    spaceCredentialStore,
   );
   const cooperativeLinkService = new CooperativeLinkService(db, clock);
   const taskService = new TaskService(

@@ -1,6 +1,7 @@
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
 import type { IClock } from '@coopsource/federation';
+import type { SpaceCredentialStore } from '@coopsource/spaces-consumer';
 import {
   NotFoundError,
   ValidationError,
@@ -11,12 +12,14 @@ import {
   membershipAuthorityAppError,
   type MembershipReadModel,
 } from './membership-read-model.js';
+import { invalidateSpaceCredentialsForAuthority } from './space-credential-invalidating-group-mutation-port.js';
 
 export class MemberClassService {
   constructor(
     private db: Kysely<Database>,
     private clock: IClock,
     private membershipReadModel: MembershipReadModel,
+    private credentialStore: Pick<SpaceCredentialStore, 'delete' | 'live'>,
   ) {}
 
   async createClass(
@@ -120,6 +123,10 @@ export class MemberClassService {
       .returningAll()
       .execute();
 
+    await invalidateSpaceCredentialsForAuthority(
+      this.credentialStore,
+      cooperativeDid as DID,
+    );
     return updated!;
   }
 
@@ -213,6 +220,10 @@ export class MemberClassService {
       .returningAll()
       .execute();
 
+    await invalidateSpaceCredentialsForAuthority(
+      this.credentialStore,
+      cooperativeDid as DID,
+    );
     return updated!;
   }
 
@@ -237,6 +248,10 @@ export class MemberClassService {
       .returningAll()
       .execute();
 
+    await invalidateSpaceCredentialsForAuthority(
+      this.credentialStore,
+      cooperativeDid as DID,
+    );
     return updated!;
   }
 
