@@ -375,14 +375,20 @@ owner and both views share the same plugin-set object.
 
 ## Remaining Phase 5 Slices
 
-1. Continue extracting generic proposal/vote lifecycle logic from
-   `ProposalService` without moving transport, persistence, or CSN policy into
-   `packages/governance-view`.
+1. Continue extracting generic proposal/vote logic beyond the completed
+   lifecycle eligibility/expiry planner from `ProposalService`, without moving
+   transport, persistence, or CSN policy into `packages/governance-view`.
 2. Revisit `anchorSummary`, `historicalState`, and `meetingMinutes` only after
    their missing public-summary, durable-snapshot, and canonicalization
    contracts exist.
 3. Run the one-day HappyView AppView substrate spike and record the build/use
-   decision.
+   decision. **Completed 2026-07-11 against HappyView 2.11.4: all 58
+   canonical/draft documents loaded, but generated query behavior, the
+   trigger-scoped Lua model, the external-auth WASM ABI, and fail-open record
+   script errors do not fit CSN's typed plugin/projection and fail-closed
+   requirements. Keep `apps/api`; retain HappyView as a spaces/reference
+   harness. See
+   `docs/plans/2026-07-11-v12-phase-5-happyview-appview-spike.md`.**
 4. Prepare the draft governance lexicons for TSC-sponsorship review; no
    outward-facing publication occurs without user review.
 
