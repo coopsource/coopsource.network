@@ -54,3 +54,5 @@ export {
   decideGovernanceProposalOutcome,
   reduceGovernanceVoteTally,
 } from './tally.js';
+
+export { GovernanceView } from './governance-view.js';

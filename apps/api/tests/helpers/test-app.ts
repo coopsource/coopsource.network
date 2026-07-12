@@ -7,8 +7,9 @@ import {
   KyselySpaceCredentialStore,
   type PermissionedRecordWritePort,
 } from '@coopsource/spaces-consumer';
-import { createDefaultGovernancePluginSet } from '@coopsource/governance-view';
+import { GovernanceView } from '@coopsource/governance-view';
 import {
+  CoopView,
   CoopDelegatedVoteWeightReader,
   createCoopActionAuthorizerPlugin,
   createCoopDelegateChainsPlugin,
@@ -81,6 +82,7 @@ import { CapitalAccountService } from '../../src/services/capital-account-servic
 import { Tax1099Service } from '../../src/services/tax-1099-service.js';
 import { OnboardingService } from '../../src/services/onboarding-service.js';
 import { DelegationVotingService } from '../../src/services/delegation-voting-service.js';
+import { DelegationCommandService } from '../../src/services/delegation-command-service.js';
 import { GovernanceFeedService } from '../../src/services/governance-feed-service.js';
 import { MemberClassService } from '../../src/services/member-class-service.js';
 import { SpaceCredentialInvalidatingGroupMutationPort } from '../../src/services/space-credential-invalidating-group-mutation-port.js';
@@ -239,15 +241,16 @@ export function createTestApp(options?: TestAppOptions): TestApp {
   const actionAuthorizer = createCoopActionAuthorizerPlugin(
     new MembershipReadModelActionPermissionReader(db, membershipReadModel),
   );
-  const delegationVotingService = new DelegationVotingService(
+  const delegationCommandService = new DelegationCommandService(
     db,
     clock,
     actionAuthorizer,
   );
+  const delegationVotingService = new DelegationVotingService(db);
   const membershipVoteWeightReader = new MembershipReadModelVoteWeightReader(
     membershipReadModel,
   );
-  const governanceCorePlugins = createDefaultGovernancePluginSet({
+  const coopView = new CoopView({
     voteWeight: createCoopVoteWeightPlugin(
       new CoopDelegatedVoteWeightReader({
         baseWeightReader: membershipVoteWeightReader,
@@ -263,7 +266,12 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     actionAuthorizer,
     patronageAllocator: createCoopPatronageAllocatorPlugin(),
     surplusDistributor: createCoopSurplusDistributorPlugin(),
+    delegateChains: createCoopDelegateChainsPlugin(
+      new DelegationVotingServiceDelegateChainReader(delegationVotingService),
+    ),
   });
+  const governanceView = new GovernanceView(coopView.plugins);
+  const governancePlugins = governanceView.plugins;
   const groupMutations = groupMutationsForDb(db);
   const operatorWriteProxy = new OperatorWriteProxy(
     pdsService,
@@ -317,14 +325,12 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     pdsService,
     clock,
     membershipReadModel,
-    governanceCorePlugins.voteWeight,
-    governanceCorePlugins.quorum,
+    governanceView,
     memberWriteProxy,
     governanceLabeler,
     visibilityRouter,
     permissionedRecordWriter,
     publicGovernanceAnchorService,
-    governanceCorePlugins.actionAuthorizer,
   );
   const agreementService = new AgreementService(
     db,
@@ -385,21 +391,15 @@ export function createTestApp(options?: TestAppOptions): TestApp {
   const patronageService = new PatronageService(
     db,
     clock,
-    governanceCorePlugins.patronageAllocator,
+    governancePlugins.patronageAllocator,
   );
   const capitalAccountService = new CapitalAccountService(
     db,
     clock,
-    governanceCorePlugins.surplusDistributor,
+    governancePlugins.surplusDistributor,
   );
   const tax1099Service = new Tax1099Service(db, clock);
   const onboardingService = new OnboardingService(db, clock);
-  const governancePlugins = {
-    ...governanceCorePlugins,
-    delegateChains: createCoopDelegateChainsPlugin(
-      new DelegationVotingServiceDelegateChainReader(delegationVotingService),
-    ),
-  };
   const governanceFeedService = new GovernanceFeedService(db, clock);
   const memberClassService = new MemberClassService(
     db,
@@ -446,6 +446,8 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     groupDirectory,
     groupMutations,
     groupMutationsForDb,
+    governanceView,
+    coopView,
     governancePlugins,
     membershipReadModel,
     authService,
@@ -489,6 +491,7 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     capitalAccountService,
     tax1099Service,
     onboardingService,
+    delegationCommandService,
     delegationVotingService,
     governanceFeedService,
     memberClassService,

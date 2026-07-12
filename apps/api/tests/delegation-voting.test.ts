@@ -3,6 +3,7 @@ import { membersSpace } from '@coopsource/arbiter-client';
 import { truncateAllTables } from './helpers/test-db.js';
 import { createTestApp, setupAndLogin } from './helpers/test-app.js';
 import { resetSetupCache } from '../src/auth/middleware.js';
+import { DelegationCommandService } from '../src/services/delegation-command-service.js';
 
 describe('Delegation Voting API', () => {
   beforeEach(async () => {
@@ -75,7 +76,7 @@ describe('Delegation Voting API', () => {
       .execute();
 
     await expect(
-      testApp.container.delegationVotingService.revokeDelegation(
+      testApp.container.delegationCommandService.revokeDelegation(
         coopDid,
         adminDid,
         delegationUri,
@@ -615,5 +616,115 @@ describe('Delegation Voting API', () => {
     expect(listRes.body.delegations[0].delegateeDid).toBe(
       'did:web:second.example.com',
     );
+  });
+
+  it('rolls back replacement when the new delegation cannot be inserted', async () => {
+    const testApp = createTestApp();
+    const { adminDid, coopDid } = await setupAndLogin(testApp);
+    const commands = new DelegationCommandService(
+      testApp.container.db,
+      testApp.clock,
+      undefined,
+      { rkey: () => 'fixed-transaction-test' },
+    );
+
+    const original = await commands.createDelegation(coopDid, adminDid, {
+      delegateeDid: 'did:web:first.example.com',
+      scope: 'project',
+    });
+
+    await expect(
+      commands.createDelegation(coopDid, adminDid, {
+        delegateeDid: 'did:web:second.example.com',
+        scope: 'project',
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      testApp.container.db
+        .selectFrom('delegation')
+        .where('uri', '=', original.uri)
+        .select(['status', 'revoked_at'])
+        .executeTakeFirstOrThrow(),
+    ).resolves.toEqual({ status: 'active', revoked_at: null });
+  });
+
+  it('serializes concurrent replacements for the same delegator and scope', async () => {
+    const testApp = createTestApp();
+    const { adminDid, coopDid } = await setupAndLogin(testApp);
+    let nextRkey = 0;
+    const commands = new DelegationCommandService(
+      testApp.container.db,
+      testApp.clock,
+      undefined,
+      { rkey: () => `concurrent-${++nextRkey}` },
+    );
+
+    await Promise.all([
+      commands.createDelegation(coopDid, adminDid, {
+        delegateeDid: 'did:web:first.example.com',
+        scope: 'project',
+      }),
+      commands.createDelegation(coopDid, adminDid, {
+        delegateeDid: 'did:web:second.example.com',
+        scope: 'project',
+      }),
+    ]);
+
+    const rows = await testApp.container.db
+      .selectFrom('delegation')
+      .where('did', '=', coopDid)
+      .where('delegator_did', '=', adminDid)
+      .select(['status', 'revoked_at'])
+      .execute();
+    expect(rows).toHaveLength(2);
+    expect(rows.filter((row) => row.status === 'active')).toHaveLength(1);
+    expect(rows.filter((row) => row.status === 'revoked')).toHaveLength(1);
+  });
+
+  it('serializes reciprocal commands before evaluating circularity', async () => {
+    const testApp = createTestApp();
+    const { coopDid } = await setupAndLogin(testApp);
+    let nextRkey = 0;
+    const commands = new DelegationCommandService(
+      testApp.container.db,
+      testApp.clock,
+      undefined,
+      { rkey: () => `reciprocal-${++nextRkey}` },
+    );
+
+    const results = await Promise.allSettled([
+      commands.createDelegation(coopDid, 'did:plc:alice', {
+        delegateeDid: 'did:plc:bob',
+        scope: 'project',
+      }),
+      commands.createDelegation(coopDid, 'did:plc:bob', {
+        delegateeDid: 'did:plc:alice',
+        scope: 'project',
+      }),
+    ]);
+
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(
+      1,
+    );
+    expect(results.filter((result) => result.status === 'rejected')).toHaveLength(
+      1,
+    );
+    if (results[0]!.status === 'rejected') {
+      expect(results[0].reason).toBeInstanceOf(Error);
+      expect(results[0].reason.message).toContain('Circular delegation');
+    }
+    if (results[1]!.status === 'rejected') {
+      expect(results[1].reason).toBeInstanceOf(Error);
+      expect(results[1].reason.message).toContain('Circular delegation');
+    }
+
+    const activeRows = await testApp.container.db
+      .selectFrom('delegation')
+      .where('did', '=', coopDid)
+      .where('status', '=', 'active')
+      .select('uri')
+      .execute();
+    expect(activeRows).toHaveLength(1);
   });
 });

@@ -15,10 +15,11 @@ import {
 import type { Kysely, Transaction } from 'kysely';
 import type { Database } from '@coopsource/db';
 import {
-  createDefaultGovernancePluginSet,
+  GovernanceView,
   type GovernancePluginSet,
 } from '@coopsource/governance-view';
 import {
+  CoopView,
   CoopDelegatedVoteWeightReader,
   createCoopActionAuthorizerPlugin,
   createCoopDelegateChainsPlugin,
@@ -115,6 +116,7 @@ import { CapitalAccountService } from './services/capital-account-service.js';
 import { Tax1099Service } from './services/tax-1099-service.js';
 import { OnboardingService } from './services/onboarding-service.js';
 import { DelegationVotingService } from './services/delegation-voting-service.js';
+import { DelegationCommandService } from './services/delegation-command-service.js';
 import { GovernanceFeedService } from './services/governance-feed-service.js';
 import { MemberClassService } from './services/member-class-service.js';
 import { CooperativeLinkService } from './services/cooperative-link-service.js';
@@ -159,6 +161,8 @@ export interface Container {
   groupMutationsForDb: (
     db: Kysely<Database> | Transaction<Database>,
   ) => GroupMutationPort;
+  governanceView: GovernanceView;
+  coopView: CoopView;
   governancePlugins: GovernancePluginSet;
   membershipReadModel: MembershipReadModel;
   authService: AuthService;
@@ -207,6 +211,7 @@ export interface Container {
   capitalAccountService: CapitalAccountService;
   tax1099Service: Tax1099Service;
   onboardingService: OnboardingService;
+  delegationCommandService: DelegationCommandService;
   delegationVotingService: DelegationVotingService;
   governanceFeedService: GovernanceFeedService;
   memberClassService: MemberClassService;
@@ -372,15 +377,16 @@ export function createContainer(config: AppConfig): Container {
   const actionAuthorizer = createCoopActionAuthorizerPlugin(
     new MembershipReadModelActionPermissionReader(db, membershipReadModel),
   );
-  const delegationVotingService = new DelegationVotingService(
+  const delegationCommandService = new DelegationCommandService(
     db,
     clock,
     actionAuthorizer,
   );
+  const delegationVotingService = new DelegationVotingService(db);
   const membershipVoteWeightReader = new MembershipReadModelVoteWeightReader(
     membershipReadModel,
   );
-  const governanceCorePlugins = createDefaultGovernancePluginSet({
+  const coopView = new CoopView({
     voteWeight: createCoopVoteWeightPlugin(
       new CoopDelegatedVoteWeightReader({
         baseWeightReader: membershipVoteWeightReader,
@@ -396,7 +402,12 @@ export function createContainer(config: AppConfig): Container {
     actionAuthorizer,
     patronageAllocator: createCoopPatronageAllocatorPlugin(),
     surplusDistributor: createCoopSurplusDistributorPlugin(),
+    delegateChains: createCoopDelegateChainsPlugin(
+      new DelegationVotingServiceDelegateChainReader(delegationVotingService),
+    ),
   });
+  const governanceView = new GovernanceView(coopView.plugins);
+  const governancePlugins = governanceView.plugins;
   const groupMutations = groupMutationsForDb(db);
   const operatorWriteProxy = new OperatorWriteProxy(
     pdsService,
@@ -475,14 +486,12 @@ export function createContainer(config: AppConfig): Container {
     pdsService,
     clock,
     membershipReadModel,
-    governanceCorePlugins.voteWeight,
-    governanceCorePlugins.quorum,
+    governanceView,
     memberWriteProxy,
     governanceLabeler,
     visibilityRouter,
     permissionedRecordWriter,
     publicGovernanceAnchorService,
-    governanceCorePlugins.actionAuthorizer,
   );
   const agreementService = new AgreementService(
     db,
@@ -545,21 +554,15 @@ export function createContainer(config: AppConfig): Container {
   const patronageService = new PatronageService(
     db,
     clock,
-    governanceCorePlugins.patronageAllocator,
+    governancePlugins.patronageAllocator,
   );
   const capitalAccountService = new CapitalAccountService(
     db,
     clock,
-    governanceCorePlugins.surplusDistributor,
+    governancePlugins.surplusDistributor,
   );
   const tax1099Service = new Tax1099Service(db, clock);
   const onboardingService = new OnboardingService(db, clock);
-  const governancePlugins: GovernancePluginSet = {
-    ...governanceCorePlugins,
-    delegateChains: createCoopDelegateChainsPlugin(
-      new DelegationVotingServiceDelegateChainReader(delegationVotingService),
-    ),
-  };
   const governanceFeedService = new GovernanceFeedService(db, clock);
   const memberClassService = new MemberClassService(
     db,
@@ -656,6 +659,8 @@ export function createContainer(config: AppConfig): Container {
     groupDirectory,
     groupMutations,
     groupMutationsForDb,
+    governanceView,
+    coopView,
     governancePlugins,
     membershipReadModel,
     authService,
@@ -702,6 +707,7 @@ export function createContainer(config: AppConfig): Container {
     capitalAccountService,
     tax1099Service,
     onboardingService,
+    delegationCommandService,
     delegationVotingService,
     governanceFeedService,
     memberClassService,

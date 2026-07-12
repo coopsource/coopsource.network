@@ -23,7 +23,10 @@ project-level delegations for the same proposal during weight expansion.
 the existing role-permission resolver; proposal update/delete author checks now
 also call the same plugin with a small proposal context payload. Do not move
 additional service logic until the adapter layer is tested against current API
-suites.
+suites. `GovernanceView` and `CoopView` are now concrete package and container
+registrations: CoopView composes the complete cooperative plugin set, while
+GovernanceView owns generic tally/outcome behavior and is consumed by
+`ProposalService`.
 
 ## Purpose
 
@@ -333,7 +336,13 @@ Continue `packages/coop-view` adapters without moving production service logic:
    **Started 2026-07-06: CoopView now owns pure delegation command policy for
    self-delegation, proposal URI scope rules, project/proposal replacement, and
    effective circularity checks. The API service still owns DB reads/writes and
-   maps policy denials to existing validation errors.**
+   maps policy denials to existing validation errors. Completed 2026-07-11:
+   `DelegationCommandService` now owns transactional create/revoke commands,
+   while `DelegationVotingService` is read-only for chain and vote-weight
+   adapters. Replacement rollback and concurrent replacement serialization
+   are covered against the real Postgres boundary; cooperative-scoped command
+   serialization also prevents concurrent reciprocal commands from bypassing
+   circularity policy.**
 2. Continue `actionAuthorizer` into remaining service-internal checks that are
    not currently represented by `requirePermission`, prioritizing vote
    retraction ownership and any member-management owner checks. **Continued
