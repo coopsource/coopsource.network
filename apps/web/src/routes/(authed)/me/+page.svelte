@@ -89,7 +89,7 @@
       <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {#each networks as network}
           <a
-            href="/coop/{network.handle}"
+            href="/net/{network.handle}"
             class="cs-card p-5 hover:border-[var(--cs-primary)] cs-transition block"
           >
             <div class="flex items-start gap-3">

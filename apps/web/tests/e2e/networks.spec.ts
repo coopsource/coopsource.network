@@ -72,6 +72,14 @@ test.describe('Networks', () => {
     expect(joinRes.status()).toBe(201);
 
     await page.goto('/me');
+    const networkCard = page
+      .locator('main')
+      .getByRole('link', { name: /Navigation Network/ });
+    await expect(networkCard).toHaveAttribute('href', '/net/navigation-network');
+    await networkCard.click();
+    await page.waitForURL('/net/navigation-network/cooperatives');
+
+    await page.goto('/me');
     await page.getByRole('button', { name: 'Switch workspace' }).click();
     await page.getByRole('menuitem', { name: 'Navigation Network' }).click();
     await page.waitForURL('/net/navigation-network/cooperatives');
