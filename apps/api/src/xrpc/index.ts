@@ -1,3 +1,4 @@
+import { SIMPLESPACE_XRPC_METHODS } from '@coopsource/lexicons';
 import type { XrpcQueryHandler } from './dispatcher.js';
 import type { Container } from '../container.js';
 import { handleGetCooperative } from './handlers/get-cooperative.js';
@@ -13,6 +14,7 @@ import { handleInlayMembershipStatus } from './handlers/inlay-membership-status.
 import { handleInlayOfficerList } from './handlers/inlay-officer-list.js';
 import { handleInlayGovernanceFeed } from './handlers/inlay-governance-feed.js';
 import { handleInlayVoteWidget } from './handlers/inlay-vote-widget.js';
+import { handleCheckSpaceUserAccess } from './handlers/check-space-user-access.js';
 
 const FIFTEEN_MINUTES = 15 * 60 * 1000;
 
@@ -112,6 +114,14 @@ export function buildXrpcHandlers(
     rateLimit: { windowMs: FIFTEEN_MINUTES, limit: 60 },
     handler: handleQueryLabels(container.db),
   });
+
+  if (container.managingAppAccessPolicy) {
+    handlers.set(SIMPLESPACE_XRPC_METHODS.checkUserAccess, {
+      auth: 'service',
+      rateLimit: { windowMs: FIFTEEN_MINUTES, limit: 200 },
+      handler: handleCheckSpaceUserAccess(container.managingAppAccessPolicy),
+    });
+  }
 
   return handlers;
 }

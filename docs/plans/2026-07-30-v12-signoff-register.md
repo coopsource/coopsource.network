@@ -30,6 +30,7 @@ legitimate cooperative purpose.
 | V12-S07 | Generic governance vocabulary | Rename cooperative-shaped inputs to group-neutral vocabulary before any external package or Lexicon publication. Internal refactoring may proceed when coherent. | Package contract review; external publication remains separately gated |
 | V12-S08 | External publication and ecosystem outreach | Draft material may be prepared in-repo. Do not publish TSC proposals, forum feedback, protocol claims, or organizational announcements. | Explicit user approval of the exact outward-facing text and venue |
 | V12-S09 | Inbound permissioned notification identity and audience | Keep periodic reconciliation as the correctness path. Do not register or expose an inbound notification endpoint while the pinned URL-derived service identity conflicts with CSN's DID-audience service-auth verifier. Do not invent a weaker hybrid. | Upstream contract convergence or explicit user approval of a pinned temporary target plus security review |
+| V12-S10 | Managing-app callback activation | Keep `checkUserAccess` unregistered by default. The disabled CSN adapter authorizes only fresh, complete, strictly resolved members of the requested CSN space, binds the verified caller to that space's authority DID, and fails closed. | User signoff on the exact service identifier, trusted authority set, operator/availability posture, authority-key lifecycle, membership correction/appeal handling, and alignment with V12-S02 |
 
 ## Implemented But Not Activated
 
@@ -50,6 +51,9 @@ legitimate cooperative purpose.
 - Named governance record placement port for public repositories and
   permissioned spaces. The CSN adapter preserves existing open/mixed/closed
   behavior, and `private-record` remains the default physical writer.
+- Generic managing-app access policy port and a disabled-by-default
+  service-authenticated `checkUserAccess` route. The CSN adapter uses strict
+  group-directory membership and exposes only the draft boolean response.
 
 These are engineering checkpoints, not approval of the production authority,
 custody, retention, moderation, or migration model.

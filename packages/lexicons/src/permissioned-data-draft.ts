@@ -1,5 +1,5 @@
 /**
- * Pinned executable baseline for the Proposal 0016 methods CSN calls.
+ * Pinned executable baseline for the Proposal 0016 methods CSN uses.
  *
  * This is deliberately named as a draft rather than a protocol version. The
  * upstream proposal and implementation are not stable, so changes must update
@@ -228,6 +228,16 @@ export const PERMISSIONED_DATA_DRAFT_BASELINE = {
       outputRequired: ['members'],
       errors: ['SpaceNotFound', 'NotSpaceOwner'],
     },
+    checkUserAccess: {
+      nsid: 'com.atproto.simplespace.checkUserAccess',
+      kind: 'query',
+      auth: 'service-auth',
+      parametersRequired: ['space', 'user'],
+      parametersOptional: ['clientId'],
+      inputRequired: [],
+      outputRequired: ['authorized'],
+      errors: [],
+    },
   },
 } as const;
 
@@ -258,6 +268,8 @@ export const SIMPLESPACE_XRPC_METHODS = {
   addMember: PERMISSIONED_DATA_DRAFT_BASELINE.methods.addMember.nsid,
   removeMember: PERMISSIONED_DATA_DRAFT_BASELINE.methods.removeMember.nsid,
   listMembers: PERMISSIONED_DATA_DRAFT_BASELINE.methods.listMembers.nsid,
+  checkUserAccess:
+    PERMISSIONED_DATA_DRAFT_BASELINE.methods.checkUserAccess.nsid,
 } as const;
 
 export const ATPROTO_SPACE_HOST_SERVICE_ID =

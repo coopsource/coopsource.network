@@ -22,6 +22,7 @@ import {
 import {
   CsnDbGroupDirectoryPort,
   CsnDbGroupMutationPort,
+  type ManagingAppAccessPolicyPort,
 } from '@coopsource/arbiter-client';
 import { MockClock, AtprotoPdsService } from '@coopsource/federation';
 import { LocalPdsService, LocalBlobStore } from '@coopsource/federation/local';
@@ -180,6 +181,7 @@ export interface TestAppOptions {
   xrpcRouteOptions?: XrpcRouteOptions;
   permissionedRecordWriter?: PermissionedRecordWritePort;
   governanceRecordPlacement?: GovernanceRecordPlacementPort;
+  managingAppAccessPolicy?: ManagingAppAccessPolicyPort;
 }
 
 export function createTestApp(options?: TestAppOptions): TestApp {
@@ -450,6 +452,7 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     clock,
     emailService,
     groupDirectory,
+    managingAppAccessPolicy: options?.managingAppAccessPolicy,
     groupMutations,
     groupMutationsForDb,
     governanceView,
