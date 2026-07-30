@@ -106,12 +106,11 @@ Final focused verification on 2026-07-30:
   existing shared setup/session race in different inlay files; both failures
   passed in isolation, and the serialized full run passed. Treat this as test
   harness nondeterminism, not a substitute for the required repository gate.
-- `pnpm test`: 15/17 tasks completed before the federation global setup failed
-  because Docker Desktop was not running. Starting Docker Desktop reached a
-  macOS administrator prompt for its privileged networking helper, which
-  cannot be approved unattended. This is an environment gate, not a test
-  assertion. Do not merge this checkpoint to `main` until Docker is authorized
-  and the full command passes.
+- The initial `pnpm test` attempt reached 15/17 tasks before Docker Desktop
+  required an update and administrator approval for its networking helper.
+- After that update, the exact `pnpm test` command passed all 17 tasks,
+  including 100 API files/981 tests and 17 federation files/120 tests. The
+  environment gate is closed.
 
 ## Parked Activation Decisions
 
