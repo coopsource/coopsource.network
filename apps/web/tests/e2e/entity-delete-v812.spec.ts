@@ -102,9 +102,7 @@ test.describe('Commerce Listing Archive', () => {
     await loginAs(page, ADMIN.email, ADMIN.password);
   });
 
-  test.fixme('archive listing via confirm dialog', async ({ page, request }) => {
-    // V8.13 investigation: SvelteKit returns 500 for /coop/.../commerce/listings.
-    // Reproduced on main — pre-existing backend rendering bug, not hydration.
+  test('archive listing via confirm dialog', async ({ page, request }) => {
     await post(request, cookie, '/commerce/listings', {
       title: 'Listing To Archive',
       description: 'Will be archived',

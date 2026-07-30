@@ -139,7 +139,7 @@ This affects every authenticated page, not only table views.
 - add 390 px, 768 px, and 1280 px Playwright projects with screenshots for
   each core journey.
 
-### P0-02: Commerce listings always render a 500
+### P0-02: Commerce collection pages render a 500
 
 `apps/api/src/routes/commerce/listings.ts` returns:
 
@@ -157,14 +157,25 @@ The page load assigns `result.items` to `data.listings`, then
 `+page.svelte` reads `data.listings.length`. Runtime result: an internal error
 on `/coop/:handle/commerce/listings`, including the empty state.
 
-Search listings has the same response-name mismatch. The two commerce
-edit/archive fixmes are live manifestations of this defect.
+Implementation review found the same mismatch for the named `needs`,
+`agreements`, `projects`, and `resources` collections. Their pages fail the
+same way, while the Commerce overview catches the mismatches and reports
+plausible zero counts. Public listing search also sends `query` while the API
+accepts `q`. The two commerce edit/archive fixmes are live manifestations of
+the listing defect.
 
 **Required response**
 
 - normalize the API/client contract in one place;
 - add empty, populated, filtered, and search route tests; and
 - re-enable the commerce edit and archive tests.
+
+**Resolved 2026-07-30:** the typed client and all collection loaders now use
+the API's named response keys, marketplace search sends `q`, collection
+failures are no longer converted to false empty states, and archived listings
+are excluded by default but remain available through an explicit filter.
+Focused client, API, empty-page, search, edit, and archive regressions cover
+the repaired boundary.
 
 ### P0-03: Network workspace navigation targets nonexistent routes
 
@@ -475,7 +486,7 @@ actions distinct:
 
 ### Wave 0: Baseline integrity
 
-1. Fix commerce list/search contracts.
+1. [x] Fix commerce list/search contracts.
 2. Correct network workspace navigation.
 3. Preserve or remove registration handle input.
 4. Align proposal detail metadata.

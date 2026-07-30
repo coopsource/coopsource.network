@@ -1426,6 +1426,11 @@ export interface CommerceListing {
   updatedAt: string;
 }
 
+export interface CommerceListingsResponse {
+  listings: CommerceListing[];
+  cursor: string | null;
+}
+
 export interface CommerceNeed {
   id: string;
   cooperativeDid: string;
@@ -1441,6 +1446,11 @@ export interface CommerceNeed {
   updatedAt: string;
 }
 
+export interface CommerceNeedsResponse {
+  needs: CommerceNeed[];
+  cursor: string | null;
+}
+
 export interface IntercoopAgreement {
   id: string;
   initiatorDid: string;
@@ -1452,6 +1462,11 @@ export interface IntercoopAgreement {
   terms: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface IntercoopAgreementsResponse {
+  agreements: IntercoopAgreement[];
+  cursor: string | null;
 }
 
 export interface CollaborativeProject {
@@ -1466,6 +1481,11 @@ export interface CollaborativeProject {
   createdAt: string;
 }
 
+export interface CollaborativeProjectsResponse {
+  projects: CollaborativeProject[];
+  cursor: string | null;
+}
+
 export interface SharedResource {
   id: string;
   cooperativeDid: string;
@@ -1478,6 +1498,11 @@ export interface SharedResource {
   status: string;
   createdBy: string;
   createdAt: string;
+}
+
+export interface SharedResourcesResponse {
+  resources: SharedResource[];
+  cursor: string | null;
 }
 
 export interface ResourceBooking {

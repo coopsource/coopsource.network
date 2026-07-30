@@ -31,7 +31,7 @@
     { value: '', label: 'All' },
     { value: 'active', label: 'Active' },
     { value: 'paused', label: 'Paused' },
-    { value: 'closed', label: 'Closed' },
+    { value: 'archived', label: 'Archived' },
   ];
 
   function availabilityVariant(availability: string): 'success' | 'warning' | 'danger' | 'default' {

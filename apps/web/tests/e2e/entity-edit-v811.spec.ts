@@ -16,9 +16,7 @@ test.describe('Commerce Listing Edit', () => {
     await loginAs(page, ADMIN.email, ADMIN.password);
   });
 
-  test.fixme('edit active listing title via modal', async ({ page, request }) => {
-    // V8.13 investigation: SvelteKit returns 500 for /coop/.../commerce/listings.
-    // Reproduced on main — pre-existing backend rendering bug, not hydration.
+  test('edit active listing title via modal', async ({ page, request }) => {
     await post(request, cookie, '/commerce/listings', {
       title: 'Original Listing',
       description: 'A test listing',

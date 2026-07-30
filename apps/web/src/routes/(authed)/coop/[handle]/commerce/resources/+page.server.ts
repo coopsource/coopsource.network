@@ -11,7 +11,7 @@ export const load: PageServerLoad = async ({ fetch, request, url }) => {
   try {
     const result = await api.getSharedResources({ resourceType, status, limit: 50 });
     return {
-      resources: result.items,
+      resources: result.resources,
       cursor: result.cursor,
       filterResourceType: resourceType ?? '',
       filterStatus: status ?? '',

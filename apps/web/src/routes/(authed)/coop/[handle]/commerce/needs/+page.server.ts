@@ -11,7 +11,7 @@ export const load: PageServerLoad = async ({ fetch, request, url }) => {
   try {
     const result = await api.getCommerceNeeds({ category, status, limit: 50 });
     return {
-      needs: result.items,
+      needs: result.needs,
       cursor: result.cursor,
       filterCategory: category ?? '',
       filterStatus: status ?? '',

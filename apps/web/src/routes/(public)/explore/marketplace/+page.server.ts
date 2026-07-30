@@ -1,4 +1,5 @@
-import { createApiClient } from '$lib/api/client.js';
+import { error } from '@sveltejs/kit';
+import { createApiClient, ApiError } from '$lib/api/client.js';
 import type { PageServerLoad } from './$types.js';
 
 export const load: PageServerLoad = async ({ fetch, url }) => {
@@ -8,19 +9,26 @@ export const load: PageServerLoad = async ({ fetch, url }) => {
   const query = url.searchParams.get('q') ?? undefined;
   const cursor = url.searchParams.get('cursor') ?? undefined;
 
-  const results = await api.searchCommerceListings({
-    category,
-    location,
-    query,
-    limit: 24,
-    cursor,
-  }).catch(() => ({ items: [], cursor: null }));
+  try {
+    const results = await api.searchCommerceListings({
+      category,
+      location,
+      query,
+      limit: 24,
+      cursor,
+    });
 
-  return {
-    listings: results.items,
-    cursor: results.cursor,
-    filterCategory: category ?? '',
-    filterLocation: location ?? '',
-    filterQuery: query ?? '',
-  };
+    return {
+      listings: results.listings,
+      cursor: results.cursor,
+      filterCategory: category ?? '',
+      filterLocation: location ?? '',
+      filterQuery: query ?? '',
+    };
+  } catch (err) {
+    if (err instanceof ApiError) {
+      error(err.status >= 500 ? 500 : err.status, 'Failed to load marketplace listings.');
+    }
+    error(500, 'Failed to load marketplace listings.');
+  }
 };

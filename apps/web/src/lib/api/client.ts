@@ -123,10 +123,15 @@ import type {
   RevenueEntry,
   RevenueEntriesResponse,
   CommerceListing,
+  CommerceListingsResponse,
   CommerceNeed,
+  CommerceNeedsResponse,
   IntercoopAgreement,
+  IntercoopAgreementsResponse,
   CollaborativeProject,
+  CollaborativeProjectsResponse,
   SharedResource,
+  SharedResourcesResponse,
   ReportTemplate,
   ReportSnapshot,
   MemberEngagement,
@@ -2297,7 +2302,7 @@ export function createApiClient(
       if (params?.status) qs.set('status', params.status);
       if (params?.limit) qs.set('limit', String(params.limit));
       if (params?.cursor) qs.set('cursor', params.cursor);
-      return request<{ items: CommerceListing[]; cursor: string | null }>(
+      return request<CommerceListingsResponse>(
         `/commerce/listings${qs.size ? `?${qs}` : ''}`,
       );
     },
@@ -2311,10 +2316,10 @@ export function createApiClient(
       const qs = new URLSearchParams();
       if (params?.category) qs.set('category', params.category);
       if (params?.location) qs.set('location', params.location);
-      if (params?.query) qs.set('query', params.query);
+      if (params?.query) qs.set('q', params.query);
       if (params?.limit) qs.set('limit', String(params.limit));
       if (params?.cursor) qs.set('cursor', params.cursor);
-      return request<{ items: CommerceListing[]; cursor: string | null }>(
+      return request<CommerceListingsResponse>(
         `/commerce/listings/search${qs.size ? `?${qs}` : ''}`,
       );
     },
@@ -2351,7 +2356,7 @@ export function createApiClient(
       if (params?.status) qs.set('status', params.status);
       if (params?.limit) qs.set('limit', String(params.limit));
       if (params?.cursor) qs.set('cursor', params.cursor);
-      return request<{ items: CommerceNeed[]; cursor: string | null }>(
+      return request<CommerceNeedsResponse>(
         `/commerce/needs${qs.size ? `?${qs}` : ''}`,
       );
     },
@@ -2366,7 +2371,7 @@ export function createApiClient(
       if (params?.urgency) qs.set('urgency', params.urgency);
       if (params?.limit) qs.set('limit', String(params.limit));
       if (params?.cursor) qs.set('cursor', params.cursor);
-      return request<{ items: CommerceNeed[]; cursor: string | null }>(
+      return request<CommerceNeedsResponse>(
         `/commerce/needs/search${qs.size ? `?${qs}` : ''}`,
       );
     },
@@ -2409,7 +2414,7 @@ export function createApiClient(
       if (params?.status) qs.set('status', params.status);
       if (params?.limit) qs.set('limit', String(params.limit));
       if (params?.cursor) qs.set('cursor', params.cursor);
-      return request<{ items: IntercoopAgreement[]; cursor: string | null }>(
+      return request<IntercoopAgreementsResponse>(
         `/commerce/agreements${qs.size ? `?${qs}` : ''}`,
       );
     },
@@ -2441,7 +2446,7 @@ export function createApiClient(
       if (params?.status) qs.set('status', params.status);
       if (params?.limit) qs.set('limit', String(params.limit));
       if (params?.cursor) qs.set('cursor', params.cursor);
-      return request<{ items: CollaborativeProject[]; cursor: string | null }>(
+      return request<CollaborativeProjectsResponse>(
         `/commerce/projects${qs.size ? `?${qs}` : ''}`,
       );
     },
@@ -2472,7 +2477,7 @@ export function createApiClient(
       if (params?.status) qs.set('status', params.status);
       if (params?.limit) qs.set('limit', String(params.limit));
       if (params?.cursor) qs.set('cursor', params.cursor);
-      return request<{ items: SharedResource[]; cursor: string | null }>(
+      return request<SharedResourcesResponse>(
         `/commerce/resources${qs.size ? `?${qs}` : ''}`,
       );
     },
