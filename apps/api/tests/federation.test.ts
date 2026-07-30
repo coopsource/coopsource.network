@@ -689,8 +689,6 @@ describe('Federation endpoints', () => {
       await freshApp.agent.get('/api/v1/me/signature-requests').expect(401);
     });
   });
-
-  // Outbox tests removed — OutboxProcessor and enqueueOutboxMessage retired in V6 Phase F4
 });
 
 async function writeConsentRecord(

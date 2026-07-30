@@ -41,7 +41,7 @@ not count as runtime consumers.
 | `governanceLabeler`                                          | Mounted label XRPC, WebSocket subscription, admin UI, public proposal outcome labels, and tests remain                                             | Retain pending a `$labeler`/anchor contract                              |
 | `cooperative-link-service` and table                         | Container and cooperative-link governance routes still expose the user workflow                                                                    | Retain pending a recursive-space/network replacement                     |
 | local PDS/PLC/blob/provisioning classes                      | Configured dev/test fallback, setup, provisioning scripts, and real-PDS tests still use portions                                                   | Retain until Docker/real-PDS development is the only supported posture   |
-| federation outbox                                            | Processor and enqueue path are already gone; only historical migration/archive and retirement comments remain                                      | Clean current-code residue separately                                    |
+| federation outbox                                            | Table, processor, enqueue path, schema type, and runtime wiring were removed in V7; only two stale current-code comments remained                    | Complete; comments removed in checkpoint 2                               |
 
 ## Checkpoint 1: Dormant Outbound Federation Client
 
@@ -94,6 +94,28 @@ the same current PLC and encrypted key material used by local development.
 - focused `PlcClient` tests: 1 file, 11 tests
 - isolated three-instance federation suite: 1 file, 8 tests
 - federation package tests: 16 files, 118 tests
+- `pnpm lint`: 4 tasks passed
+- `pnpm build`: 10 tasks passed
+- `pnpm test`: 17 tasks passed, including API (107 files, 1,015 tests)
+
+## Checkpoint 2: Federation Outbox Residue
+
+The V7 cleanup already removed the federation outbox table, processor, enqueue
+path, schema type, reset wiring, and tests. Phase 6 found no remaining runtime
+or schema consumer. This checkpoint removes the final current-code retirement
+comments and records the subsystem as complete.
+
+The event delivery log in `EventBusService` is unrelated and remains active. It
+serves as the outbox for internal asynchronous event delivery and is not part
+of the retired V9 cross-instance federation queue.
+
+Historical design, implementation-plan, and migration documents retain their
+outbox references as evidence of the earlier removal.
+
+### Checkpoint 2 Verification
+
+- current source/schema usage audit found no federation outbox consumer
+- focused federation API tests: 1 file, 35 tests
 - `pnpm lint`: 4 tasks passed
 - `pnpm build`: 10 tasks passed
 - `pnpm test`: 17 tasks passed, including API (107 files, 1,015 tests)

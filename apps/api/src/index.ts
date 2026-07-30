@@ -475,8 +475,6 @@ async function start(): Promise<void> {
     logger.error(err, 'Failed to load cooperative scripts');
   });
 
-  // Outbox processor retired — public data flows through ATProto relay firehose
-
   // Background: resolve expired proposals every 60s
   const proposalResolverHandle = setInterval(() => {
     container.proposalService.resolveExpiredProposals().catch((err) => {
