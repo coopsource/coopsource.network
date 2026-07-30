@@ -3,21 +3,12 @@
  * matching the SvelteKit web frontend's expectations.
  */
 
-export interface ProposalResponse {
-  id: string;
-  title: string;
-  body: string;
-  status: string;
-  outcome: string | null;
-  votingType: string;
-  quorumType: string;
-  quorumBasis: string | null;
-  closesAt: string | null;
-  authorDid: string;
-  authorDisplayName: string | null;
-  authorHandle: string | null;
-  createdAt: string;
-}
+import {
+  ProposalResponseSchema,
+  type ProposalResponse,
+} from '@coopsource/common';
+
+export type { ProposalResponse } from '@coopsource/common';
 
 export interface VoteResponse {
   id: string;
@@ -84,7 +75,7 @@ export function formatProposal(
   },
   enrichment: { displayName?: string | null; handle?: string | null } = {},
 ): ProposalResponse {
-  return {
+  return ProposalResponseSchema.parse({
     id: row.id,
     title: row.title,
     body: row.body,
@@ -98,7 +89,7 @@ export function formatProposal(
     authorDisplayName: enrichment.displayName ?? null,
     authorHandle: enrichment.handle ?? null,
     createdAt: row.created_at.toISOString(),
-  };
+  });
 }
 
 export function formatVote(

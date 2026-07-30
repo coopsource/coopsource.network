@@ -1,9 +1,9 @@
 # V12 Phase 7.1 UX Overhaul Audit
 
 - **Date:** 2026-07-30
-- **Status:** Complete; Wave 0 remediation in progress (items 1-2 complete)
+- **Status:** Complete; Wave 0 remediation in progress (items 1-4 complete)
 - **Code baseline:** `main` at `88b9eb2`
-- **Latest remediation baseline:** `main` at `b88ed06`
+- **Latest remediation baseline:** `main` at `632008f`
 - **Scope:** all current web routes, the six program journeys, shared shell
   and UI components, and the Playwright regression suite
 
@@ -252,6 +252,11 @@ save.
 - re-enable the E2E test with a post-registration `/auth/me` handle
   assertion.
 
+**Resolved 2026-07-30:** registration now validates and preserves the chosen
+handle through the auth route, service, entity persistence, response, and
+`/auth/me`. Duplicate handles fail before identity artifacts are created, and
+focused schema, API, web, and Playwright tests cover the repaired contract.
+
 ### P1-03: Cooperative operations are deep-link-only
 
 The following implemented hubs or tools have no inbound application link:
@@ -295,6 +300,12 @@ listing, and lifecycle controls otherwise render.
   boundary;
 - render explicit labels for every supported voting/quorum mode; and
 - add API-to-page contract tests, not only isolated API tests.
+
+**Resolved 2026-07-30:** API formatters and the web client now share one
+strict proposal response schema using `votingType`, `quorumType`, and
+`closesAt`. Proposal-returning client calls validate that schema, list and
+detail pages render explicit supported-mode labels, and the browser contract
+test exercises non-default metadata from creation through the detail page.
 
 ### P1-05: Responsive and journey coverage are absent
 
@@ -501,8 +512,8 @@ actions distinct:
 
 1. [x] Fix commerce list/search contracts.
 2. [x] Correct network workspace navigation.
-3. Preserve or remove registration handle input.
-4. Align proposal detail metadata.
+3. [x] Preserve or remove registration handle input.
+4. [x] Align proposal detail metadata.
 5. Repair all six fixmes and obsolete fixtures.
 6. Add API-to-web response contract tests.
 7. Remove all Svelte stale-state warnings in core journeys.

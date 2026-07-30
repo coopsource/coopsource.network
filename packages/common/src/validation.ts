@@ -801,6 +801,51 @@ export const UpdateProposalBodySchema = z.object({
   tags: z.array(z.string()).max(20).optional(),
 });
 
+export const ProposalVotingTypeSchema = z.enum([
+  'binary',
+  'approval',
+  'ranked',
+]);
+
+export const ProposalQuorumTypeSchema = z.enum([
+  'simpleMajority',
+  'superMajority',
+  'unanimous',
+  'custom',
+]);
+
+export const ProposalResponseSchema = z
+  .object({
+    id: z.string().min(1),
+    title: z.string(),
+    body: z.string(),
+    status: z.enum(['draft', 'open', 'closed', 'resolved', 'withdrawn']),
+    outcome: z
+      .enum(['passed', 'failed', 'no_quorum', 'class_quorum_not_met'])
+      .nullable(),
+    votingType: ProposalVotingTypeSchema,
+    quorumType: ProposalQuorumTypeSchema,
+    quorumBasis: z.enum(['votesCast', 'totalMembers']).nullable(),
+    closesAt: z.string().nullable(),
+    authorDid: DidSchema,
+    authorDisplayName: z.string().nullable(),
+    authorHandle: z.string().nullable(),
+    createdAt: z.string().min(1),
+  })
+  .strict();
+
+export const ProposalsResponseSchema = z
+  .object({
+    proposals: z.array(ProposalResponseSchema),
+    cursor: z.string().nullable(),
+  })
+  .strict();
+
+export type ProposalVotingType = z.infer<typeof ProposalVotingTypeSchema>;
+export type ProposalQuorumType = z.infer<typeof ProposalQuorumTypeSchema>;
+export type ProposalResponse = z.infer<typeof ProposalResponseSchema>;
+export type ProposalsResponse = z.infer<typeof ProposalsResponseSchema>;
+
 export const CreateAgreementBodySchema = z.object({
   title: z.string().min(1).max(255),
   body: z.string().min(1).max(50000),

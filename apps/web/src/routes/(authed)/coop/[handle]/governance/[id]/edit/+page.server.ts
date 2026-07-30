@@ -20,8 +20,6 @@ export const actions: Actions = {
     const data = await request.formData();
     const title = String(data.get('title') ?? '').trim();
     const body = String(data.get('body') ?? '').trim();
-    const votingType = String(data.get('votingType') ?? 'binary').trim();
-    const quorumType = String(data.get('quorumType') ?? 'simpleMajority').trim();
     const closesAt = String(data.get('closesAt') ?? '').trim();
 
     if (!title || !body) {
@@ -34,9 +32,7 @@ export const actions: Actions = {
       await api.updateProposal(params.id, {
         title,
         body,
-        votingMethod: votingType,
-        quorumType,
-        votingEndsAt: closesAt || undefined,
+        closesAt: closesAt || undefined,
       });
     } catch (err) {
       if (err instanceof ApiError) {

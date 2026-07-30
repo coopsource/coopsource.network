@@ -10,9 +10,7 @@
   const initialValues = $derived({
     title: data.proposal.title,
     body: data.proposal.body,
-    votingType: data.proposal.votingMethod,
-    quorumType: data.proposal.quorumType,
-    closesAt: data.proposal.votingEndsAt?.slice(0, 16) ?? '',
+    closesAt: data.proposal.closesAt?.slice(0, 16) ?? '',
   });
 </script>
 
@@ -42,7 +40,7 @@
     class="space-y-5 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-6"
   >
     <div class="space-y-5">
-      <ProposalForm {initialValues} />
+      <ProposalForm {initialValues} showVotingSettings={false} />
     </div>
 
     <div class="flex justify-end gap-3 pt-2">

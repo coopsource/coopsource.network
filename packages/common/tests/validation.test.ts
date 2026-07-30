@@ -3,6 +3,8 @@ import {
   AcceptInvitationSchema,
   MoneySchema,
   PaginationSchema,
+  ProposalResponseSchema,
+  ProposalsResponseSchema,
   RegisterSchema,
 } from '../src/validation.js';
 
@@ -59,6 +61,46 @@ describe('PaginationSchema', () => {
   it('rejects limit below 1', () => {
     const result = PaginationSchema.safeParse({ limit: 0 });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('proposal response schemas', () => {
+  const proposal = {
+    id: 'proposal-1',
+    title: 'Adopt open source policy',
+    body: 'Release internal tools under an open source license.',
+    status: 'draft',
+    outcome: null,
+    votingType: 'approval',
+    quorumType: 'superMajority',
+    quorumBasis: 'votesCast',
+    closesAt: '2030-06-15T19:30:00.000Z',
+    authorDid: 'did:plc:proposal-author',
+    authorDisplayName: 'Proposal Author',
+    authorHandle: 'proposal-author',
+    createdAt: '2026-07-30T12:00:00.000Z',
+  };
+
+  it('accepts the canonical item and collection response shapes', () => {
+    expect(ProposalResponseSchema.safeParse(proposal).success).toBe(true);
+    expect(
+      ProposalsResponseSchema.safeParse({
+        proposals: [proposal],
+        cursor: null,
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects legacy proposal metadata fields', () => {
+    const { votingType: _votingType, ...withoutVotingType } = proposal;
+
+    expect(
+      ProposalResponseSchema.safeParse({
+        ...withoutVotingType,
+        proposalType: 'policy',
+        votingMethod: 'approval',
+      }).success,
+    ).toBe(false);
   });
 });
 
