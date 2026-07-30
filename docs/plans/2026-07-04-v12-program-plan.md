@@ -406,6 +406,15 @@ authorities, operator availability, and appeal policy require V12-S10 signoff.
 See
 `docs/plans/2026-07-30-v12-phase-4-managing-app-access-policy.md`.
 
+**Progress 2026-07-30, Tier 2 migration-readiness checkpoint:** A read-only
+audit now reconciles active permissioned governance projections against their
+physical `private_record` sources in both directions. It reports missing,
+invalid, mismatched, and orphaned records without exposing Tier 2 payloads and
+has no mutation flag. The writer default and source authority remain
+unchanged. A later copy/rollback checkpoint must use a durable ledger and
+preserve private sources; V12-S01/V12-S05 remain open. See
+`docs/plans/2026-07-30-v12-phase-4-tier2-migration-readiness.md`.
+
 - [x] First task expanded through the July 29 gap analysis and July 30
   conformance-baseline note.
 
