@@ -9,12 +9,16 @@
  * Each instance has its own database and INSTANCE_ROLE configuration.
  * Tests exercise both public GET endpoints and signed POST endpoints.
  */
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import pg from 'pg';
 import { Kysely, PostgresDialect } from 'kysely';
 import type { Database } from '@coopsource/db';
-import { SigningKeyResolver, signRequest } from '@coopsource/federation/http';
-import { calculateCid } from '@coopsource/federation/local';
+import { signRequest } from '@coopsource/federation/http';
+import {
+  calculateCid,
+  decryptKey,
+  type JwkKey,
+} from '@coopsource/federation/local';
 
 const MEMBER_CONSENT_COLLECTION = 'network.coopsource.org.memberConsent';
 
@@ -23,19 +27,21 @@ const MEMBER_CONSENT_COLLECTION = 'network.coopsource.org.memberConsent';
 const INSTANCES = {
   hub: {
     url: 'http://localhost:3001',
-    dbUrl: 'postgresql://coopsource:dev_password@localhost:5432/coopsource_hub',
+    dbUrl: 'postgresql://coopsource:dev_password@localhost:55432/coopsource_hub',
     keyEncKey: 'SZ2Y6jswJawz0b4ZNil0gQhZZ1SRNPFXgDGn6/MlOIk=',
     role: 'hub',
   },
   coopA: {
     url: 'http://localhost:3002',
-    dbUrl: 'postgresql://coopsource:dev_password@localhost:5432/coopsource_coop_a',
+    dbUrl:
+      'postgresql://coopsource:dev_password@localhost:55432/coopsource_coop_a',
     keyEncKey: 'CpdEFK7O9eH6xNv6F6Y90HvssdPGeLkzUKENgR4EBF8=',
     role: 'coop',
   },
   coopB: {
     url: 'http://localhost:3003',
-    dbUrl: 'postgresql://coopsource:dev_password@localhost:5432/coopsource_coop_b',
+    dbUrl:
+      'postgresql://coopsource:dev_password@localhost:55432/coopsource_coop_b',
     keyEncKey: 'KpkXbpKPhezRK5E0onAhVCL7ayL8oNuEdPtTOUsgC4k=',
     role: 'coop',
   },
@@ -49,6 +55,31 @@ function createDb(connectionString: string): Kysely<Database> {
       pool: new pg.Pool({ connectionString, max: 2 }),
     }),
   });
+}
+
+async function resolveSigningKey(
+  db: Kysely<Database>,
+  entityDid: string,
+  keyEncKey: string,
+): Promise<{ privateKey: CryptoKey; keyId: string }> {
+  const row = await db
+    .selectFrom('entity_key')
+    .where('entity_did', '=', entityDid)
+    .where('key_purpose', '=', 'signing')
+    .where('invalidated_at', 'is', null)
+    .select('private_key_enc')
+    .executeTakeFirstOrThrow();
+  const privateJwk = JSON.parse(
+    await decryptKey(row.private_key_enc, keyEncKey),
+  ) as JwkKey;
+  const privateKey = await crypto.subtle.importKey(
+    'jwk',
+    privateJwk as JsonWebKey,
+    { name: 'ECDSA', namedCurve: 'P-256' },
+    false,
+    ['sign'],
+  );
+  return { privateKey, keyId: `${entityDid}#atproto` };
 }
 
 async function setupInstance(
@@ -85,8 +116,19 @@ async function signedFetch(
     headers['content-type'] = 'application/json';
   }
 
-  const sigHeaders = await signRequest(method, url, headers, bodyStr, signingKey, keyId);
-  Object.assign(headers, sigHeaders);
+  const sigHeaders = await signRequest(
+    method,
+    url,
+    headers,
+    bodyStr,
+    signingKey,
+    keyId,
+  );
+  headers['signature-input'] = sigHeaders['Signature-Input'];
+  headers.signature = sigHeaders.Signature;
+  if (sigHeaders['Content-Digest']) {
+    headers['content-digest'] = sigHeaders['Content-Digest'];
+  }
 
   return fetch(url, { method, headers, body: bodyStr ?? undefined });
 }
@@ -136,6 +178,49 @@ async function writeReplicatedConsentRecord(
   return { uri, cid };
 }
 
+async function writeReplicatedEntityProjection(
+  sourceDb: Kysely<Database>,
+  targetDb: Kysely<Database>,
+  did: string,
+): Promise<void> {
+  const entity = await sourceDb
+    .selectFrom('entity')
+    .where('did', '=', did)
+    .select([
+      'did',
+      'type',
+      'handle',
+      'display_name',
+      'description',
+      'avatar_cid',
+      'status',
+      'created_at',
+      'created_by',
+      'invalidated_at',
+      'invalidated_by',
+      'indexed_at',
+    ])
+    .executeTakeFirstOrThrow();
+
+  await targetDb
+    .insertInto('entity')
+    .values(entity)
+    .onConflict((oc) =>
+      oc.column('did').doUpdateSet({
+        type: entity.type,
+        handle: entity.handle,
+        display_name: entity.display_name,
+        description: entity.description,
+        avatar_cid: entity.avatar_cid,
+        status: entity.status,
+        invalidated_at: entity.invalidated_at,
+        invalidated_by: entity.invalidated_by,
+        indexed_at: entity.indexed_at,
+      }),
+    )
+    .execute();
+}
+
 // ── Tests ──
 
 describe('Cross-Instance Federation', () => {
@@ -151,7 +236,7 @@ describe('Cross-Instance Federation', () => {
       if (!res.ok) {
         throw new Error(
           `Instance ${name} at ${inst.url} is not healthy (${res.status}). ` +
-          'Run `make dev-federation` first.',
+            'Run `make dev-federation` first.',
         );
       }
     }
@@ -182,6 +267,10 @@ describe('Cross-Instance Federation', () => {
     coopBCoopDid = coopBResult.coopDid;
   });
 
+  afterAll(async () => {
+    await Promise.all(dbs.splice(0).map((db) => db.destroy()));
+  });
+
   // ─── 1. Health checks ────────────────────────────────────────────
 
   it('all instances respond to health check', async () => {
@@ -200,7 +289,7 @@ describe('Cross-Instance Federation', () => {
     for (const [_name, inst] of Object.entries(INSTANCES)) {
       const res = await fetch(`${inst.url}/.well-known/did.json`);
       expect(res.status).toBe(200);
-      const doc = await res.json() as Record<string, unknown>;
+      const doc = (await res.json()) as Record<string, unknown>;
       expect(doc).toHaveProperty('id');
       expect(doc).toHaveProperty('verificationMethod');
       expect(doc).toHaveProperty('service');
@@ -215,7 +304,7 @@ describe('Cross-Instance Federation', () => {
       `${INSTANCES.coopA.url}/api/v1/federation/entity/${encodedDid}`,
     );
     expect(res.status).toBe(200);
-    const body = await res.json() as Record<string, unknown>;
+    const body = (await res.json()) as Record<string, unknown>;
     expect(body).toHaveProperty('did', coopACoopDid);
     expect(body).toHaveProperty('displayName', 'Alpha Co-op');
     expect(body).toHaveProperty('type', 'cooperative');
@@ -227,7 +316,7 @@ describe('Cross-Instance Federation', () => {
       `${INSTANCES.coopB.url}/api/v1/federation/coop/${encodedDid}/profile`,
     );
     expect(res.status).toBe(200);
-    const body = await res.json() as Record<string, unknown>;
+    const body = (await res.json()) as Record<string, unknown>;
     expect(body).toHaveProperty('did', coopBCoopDid);
     expect(body).toHaveProperty('displayName', 'Beta Co-op');
     expect(body).toHaveProperty('cooperativeType', 'worker');
@@ -239,8 +328,11 @@ describe('Cross-Instance Federation', () => {
   it('hub registration returns 501 NotImplemented (V3 deprecated)', async () => {
     const db = createDb(INSTANCES.coopA.dbUrl);
     dbs.push(db);
-    const resolver = new SigningKeyResolver(db as Kysely<Database>, INSTANCES.coopA.keyEncKey);
-    const { privateKey, keyId } = await resolver.resolve(coopACoopDid);
+    const { privateKey, keyId } = await resolveSigningKey(
+      db,
+      coopACoopDid,
+      INSTANCES.coopA.keyEncKey,
+    );
 
     const url = `${INSTANCES.hub.url}/api/v1/federation/hub/register`;
     const body = {
@@ -255,7 +347,7 @@ describe('Cross-Instance Federation', () => {
 
     const res = await signedFetch(url, 'POST', body, privateKey, keyId);
     expect(res.status).toBe(501);
-    const result = await res.json() as Record<string, unknown>;
+    const result = (await res.json()) as Record<string, unknown>;
     expect(result).toHaveProperty('error', 'NotImplemented');
 
     await db.destroy();
@@ -269,8 +361,12 @@ describe('Cross-Instance Federation', () => {
     const targetDb = createDb(INSTANCES.coopB.dbUrl);
     dbs.push(db);
     dbs.push(targetDb);
-    const resolver = new SigningKeyResolver(db as Kysely<Database>, INSTANCES.coopA.keyEncKey);
-    const { privateKey, keyId } = await resolver.resolve(coopACoopDid);
+    const { privateKey, keyId } = await resolveSigningKey(
+      db,
+      coopACoopDid,
+      INSTANCES.coopA.keyEncKey,
+    );
+    await writeReplicatedEntityProjection(db, targetDb, coopACoopDid);
     const consent = await writeReplicatedConsentRecord(targetDb, {
       authorDid: coopACoopDid,
       cooperativeDid: coopBCoopDid,
@@ -289,7 +385,7 @@ describe('Cross-Instance Federation', () => {
 
     const res = await signedFetch(url, 'POST', body, privateKey, keyId);
     expect(res.status).toBe(201);
-    const result = await res.json() as Record<string, unknown>;
+    const result = (await res.json()) as Record<string, unknown>;
     expect(result).toHaveProperty('consentRecordUri', body.consentRecordUri);
     expect(result).toHaveProperty('consentRecordCid', body.consentRecordCid);
 
@@ -301,9 +397,15 @@ describe('Cross-Instance Federation', () => {
 
   it('coop-b can approve membership for coop-a via signed federation call', async () => {
     const db = createDb(INSTANCES.coopB.dbUrl);
+    const sourceDb = createDb(INSTANCES.coopA.dbUrl);
     dbs.push(db);
-    const resolver = new SigningKeyResolver(db as Kysely<Database>, INSTANCES.coopB.keyEncKey);
-    const { privateKey, keyId } = await resolver.resolve(coopBCoopDid);
+    dbs.push(sourceDb);
+    const { privateKey, keyId } = await resolveSigningKey(
+      db,
+      coopBCoopDid,
+      INSTANCES.coopB.keyEncKey,
+    );
+    await writeReplicatedEntityProjection(sourceDb, db, coopACoopDid);
     const consent = await writeReplicatedConsentRecord(db, {
       authorDid: coopACoopDid,
       cooperativeDid: coopBCoopDid,
@@ -323,12 +425,14 @@ describe('Cross-Instance Federation', () => {
 
     const res = await signedFetch(url, 'POST', body, privateKey, keyId);
     expect(res.status).toBe(201);
-    const result = await res.json() as Record<string, unknown>;
+    const result = (await res.json()) as Record<string, unknown>;
     expect(result).toHaveProperty('ok', true);
     expect(result).toHaveProperty('changed');
     expect(result).toHaveProperty('auditEventId');
 
     await db.destroy();
+    await sourceDb.destroy();
+    dbs.pop();
     dbs.pop();
   });
 

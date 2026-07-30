@@ -500,7 +500,7 @@ The API's retry-once wrapper (`withAuthForCoop`) handles the in-flight case: if 
 
 V9.1 deliberately does not:
 
-- **Register CSN-owned signing keys in the cooperative's PLC document.** The normal `createAccount` flow lets the PDS generate the `verificationMethods.atproto` key. Deferred — the `ServiceAuthClient` / `SigningKeyResolver.resolveRawBytes` / `resolvePdsServiceDid` infrastructure is in the codebase ready for the day this work resumes (blocked today on `@atproto/pds` 0.4 upstream gates around account imports).
+- **Register CSN-owned signing keys in the cooperative's PLC document.** The normal `createAccount` flow lets the PDS generate the `verificationMethods.atproto` key. This remains deferred; the dormant database signing-key resolver was retired in V12 Phase 6. Reintroduce key custody only behind an explicit production signer port when account-import and rotation operations are actually usable.
 - **Add a `#coopsource` service entry to the cooperative's PLC document.** Deferred to V9.2 (Governance AppView API) where the service entry first becomes load-bearing for other ATProto apps discovering CSN as the cooperative's governance service. V9.2 will revisit the PLC update flow (`requestPlcOperationSignature` → email token → `signPlcOperation` → `submitPlcOperation`).
 
 See `ARCHITECTURE-V9.md` §2 for the full rationale.

@@ -18,13 +18,6 @@ export type {
 
 // Interfaces
 export type {
-  IFederationClient,
-  EntityInfo,
-  CoopProfile,
-  CoopMetadata,
-  FederationEvent,
-} from './interfaces/federation-client.js';
-export type {
   IPdsService,
   CreateDidOptions,
   UpdateDidOptions,
@@ -40,11 +33,9 @@ export type {
   NotificationEmailParams,
 } from './interfaces/email-service.js';
 
-// HTTP / did:web / Federation
-export { HttpFederationClient } from './http/http-federation-client.js';
+// HTTP / did:web
 export { DidWebResolver } from './http/did-web-resolver.js';
 export type { DidWebResolverOptions } from './http/did-web-resolver.js';
-export { SigningKeyResolver } from './http/signing-key-resolver.js';
 export { signRequest, verifyRequest } from './http/signing.js';
 
 // Clocks

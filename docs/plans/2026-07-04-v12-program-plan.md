@@ -467,7 +467,15 @@ contracts.
 
 **Checklist (updated 2026-07-30):** `privateRecordService` + `private-record-service.ts` + `private_record` table + `routes/private/records.ts`; `governanceLabeler` (and its `ProposalService` injection); `IFederationClient` + `HttpFederationClient` + `http/signing.ts` (RFC 9421) + `signing-key-resolver.ts`; `cooperative-link-service.ts` + `cooperative_link` table; `local/` PDS/PLC classes (`LocalPdsService`, `LocalPlcClient`, `LocalBlobStore`, local `firehose.ts`, `cooperative-provisioning.ts`); outbox remnants. The legacy `VisibilityRouter` was removed in Phase 4 and replaced by the named `GovernanceRecordPlacementPort`; the default adapter still reads the existing CSN visibility policy. Each remaining removal: delete code + container wiring + schema table + tests in one commit per subsystem; `pnpm build && pnpm test` between commits.
 
-- [ ] First task: expand into a task-level plan (mostly mechanical; the risk is hidden consumers — each subsystem task starts with a `grep -rn` usage sweep).
+**Progress 2026-07-30:** The task-level usage audit is in
+`docs/plans/2026-07-30-v12-phase-6-v9-surface-retirement.md`. The dormant
+outbound `IFederationClient`/`HttpFederationClient` pair and unused production
+signing-key resolver are the first removal. RFC 9421 verification still
+protects mounted inbound federation routes, while the other listed systems
+retain runtime consumers or explicit migration/signoff gates; they are not safe
+mechanical deletions.
+
+- [x] First task: expand into a task-level plan with a hidden-consumer sweep.
 
 ## Phase 7 — Full UX overhaul
 

@@ -28,8 +28,8 @@ export const ATPROTO_APP_PASSWORD_CREDENTIAL_TYPE = 'atproto-app-password';
  * predates this use case). Decryption uses the same `KEY_ENC_KEY` the rest
  * of the federation package uses for encrypted-at-rest secrets.
  *
- * Throws when no matching non-invalidated row exists — same fallback
- * signal as `SigningKeyResolver.resolveRawBytes`.
+ * Throws when no matching non-invalidated row exists so callers can fall
+ * through to their next authentication path.
  */
 export class AuthCredentialResolver {
   constructor(
@@ -62,7 +62,9 @@ export class AuthCredentialResolver {
       .executeTakeFirst();
 
     if (!row || !row.secret_hash) {
-      throw new Error(`No atproto-app-password credential found for ${entityDid}`);
+      throw new Error(
+        `No atproto-app-password credential found for ${entityDid}`,
+      );
     }
 
     const plaintext = await decryptKey(row.secret_hash, this.keyEncKey);

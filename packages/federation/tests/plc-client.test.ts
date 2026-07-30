@@ -45,7 +45,7 @@ describe('PlcClient', () => {
       expect(body.type).toBe('plc_operation');
       expect(body.prev).toBeNull();
       expect(body.verificationMethods.atproto).toBe(
-        'zDnaerDaTF5BXEavCrfRZEk316dpbLsfPDZ3WJ5hRTPFU2169',
+        'did:key:zDnaerDaTF5BXEavCrfRZEk316dpbLsfPDZ3WJ5hRTPFU2169',
       );
       expect(body.alsoKnownAs).toEqual(['at://mycoop.coop']);
       expect(body.services.atproto_pds).toEqual({
@@ -81,7 +81,7 @@ describe('PlcClient', () => {
       });
 
       const body = JSON.parse(mockFetch.mock.calls[0]![1].body as string);
-      expect(body.rotationKeys).toEqual(['zSigningKey123']);
+      expect(body.rotationKeys).toEqual(['did:key:zSigningKey123']);
     });
 
     it('should use custom rotation keys when provided', async () => {
@@ -97,7 +97,29 @@ describe('PlcClient', () => {
       });
 
       const body = JSON.parse(mockFetch.mock.calls[0]![1].body as string);
-      expect(body.rotationKeys).toEqual(['zRotation1', 'zRotation2']);
+      expect(body.rotationKeys).toEqual([
+        'did:key:zRotation1',
+        'did:key:zRotation2',
+      ]);
+    });
+
+    it('should preserve did:key values without adding a second prefix', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({ ok: true });
+      vi.stubGlobal('fetch', mockFetch);
+
+      const client = new PlcClient('https://plc.directory');
+      await client.create({
+        signingKey: 'did:key:zSigningKey123',
+        handle: 'test.coop',
+        pdsUrl: 'https://pds.test.coop',
+        rotationKeys: ['did:key:zRotation1'],
+      });
+
+      const body = JSON.parse(mockFetch.mock.calls[0]![1].body as string);
+      expect(body.verificationMethods.atproto).toBe(
+        'did:key:zSigningKey123',
+      );
+      expect(body.rotationKeys).toEqual(['did:key:zRotation1']);
     });
 
     it('should throw on HTTP error with details', async () => {

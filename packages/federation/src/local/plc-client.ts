@@ -43,8 +43,12 @@ function servicesArrayToPlcMap(
   );
 }
 
+function toDidKey(key: string): string {
+  return key.startsWith('did:key:') ? key : `did:key:${key}`;
+}
+
 export interface PlcCreateParams {
-  signingKey: string; // multibase-encoded public key
+  signingKey: string; // did:key or multibase-encoded public key
   handle: string; // e.g. alice.acme.example.com
   pdsUrl: string; // e.g. https://acme.example.com
   rotationKeys?: string[];
@@ -79,7 +83,10 @@ export class PlcClient {
     params: PlcCreateParams,
     signingKey?: PlcSigningKey,
   ): Promise<string> {
-    const rotationKeys = params.rotationKeys ?? [params.signingKey];
+    const verificationKey = toDidKey(params.signingKey);
+    const rotationKeys = (params.rotationKeys ?? [params.signingKey]).map(
+      toDidKey,
+    );
 
     const services: Record<string, { type: string; endpoint: string }> = {
       atproto_pds: {
@@ -99,7 +106,7 @@ export class PlcClient {
       type: 'plc_operation',
       rotationKeys,
       verificationMethods: {
-        atproto: params.signingKey,
+        atproto: verificationKey,
       },
       alsoKnownAs: [`at://${params.handle}`],
       services,

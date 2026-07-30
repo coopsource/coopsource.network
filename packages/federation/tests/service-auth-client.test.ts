@@ -12,8 +12,8 @@ describe('ServiceAuthClient', () => {
 
   beforeAll(async () => {
     client = new ServiceAuthClient();
-    // Generate an exportable keypair so we can pull the raw 32-byte scalar —
-    // the same shape `resolveRawBytes()` will hand us in production.
+    // Generate an exportable keypair so the test exercises the raw 32-byte
+    // scalar expected from any future production signer port.
     keypair = await P256Keypair.create({ exportable: true });
     signingKey = await keypair.export();
   });
