@@ -1,4 +1,5 @@
 import type { CID, DID } from '@coopsource/common';
+import { SPACE_XRPC_METHODS } from '@coopsource/lexicons';
 import type {
   PermissionedRecordCreateRequest,
   PermissionedRecordDeleteRequest,
@@ -14,9 +15,9 @@ import {
 } from './space-uri.js';
 import type { PermissionedRecordLocation, SpaceRef } from './types.js';
 
-const CREATE_RECORD_NSID = 'com.atproto.space.createRecord';
-const PUT_RECORD_NSID = 'com.atproto.space.putRecord';
-const DELETE_RECORD_NSID = 'com.atproto.space.deleteRecord';
+const CREATE_RECORD_NSID = SPACE_XRPC_METHODS.createRecord;
+const PUT_RECORD_NSID = SPACE_XRPC_METHODS.putRecord;
+const DELETE_RECORD_NSID = SPACE_XRPC_METHODS.deleteRecord;
 
 type JsonObject = { readonly [key: string]: unknown };
 
@@ -416,9 +417,6 @@ function errorForResponse(
 
   if (error === 'SpaceNotFound') {
     return new PermissionedRecordWriteError('invalid-space', message);
-  }
-  if (error === 'NotAMember') {
-    return new PermissionedRecordWriteError('not-member', message);
   }
   if (error === 'RecordNotFound') {
     return new PermissionedRecordWriteError('not-found', message);

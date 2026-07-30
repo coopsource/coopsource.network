@@ -1,6 +1,7 @@
 # @coopsource/spaces-consumer
 
-Stage 1 V11 consumer for ATProto permissioned-space data. The public package boundary is intentionally capability-shaped:
+V12 consumer boundary for draft ATProto permissioned-space data. The package
+remains disabled by default and is intentionally capability-shaped:
 
 - `GroupDirectoryPort` answers direct and resolved membership questions.
 - `SpaceCredentialStore` and `SpaceCredentialManager` shape short-lived
@@ -10,6 +11,11 @@ Stage 1 V11 consumer for ATProto permissioned-space data. The public package bou
 - `TwoStepSpaceCredentialIssuer` models the draft upstream grant exchange
   (`getDelegationToken` -> `getSpaceCredential`) behind transport-level client
   ports.
+- `DidSpaceAuthorityResolver` resolves the authority's
+  `#atproto_space_host` and `#atproto_space` entries with the specified
+  `#atproto_pds` and `#atproto` fallbacks.
+- `ClientAttestationProvider` separates short-lived attestation construction
+  from production signing-key custody.
 - `CredentialedPermissionedRepoPort` acquires a space credential before each
   sync batch and delegates record verification/checkpointing to the wrapped
   repo adapter.
@@ -21,7 +27,8 @@ Stage 1 V11 consumer for ATProto permissioned-space data. The public package bou
   XRPC write surface and is tested as real HTTP client code, but it is not the
   default until CSN has a real author OAuth session provider for `space:`
   scopes.
-- `SpacesConsumer` cross-checks each verified record author before emitting it.
+- `SpacesConsumer` applies the current CSN membership acceptance policy after
+  its repo port returns a protocol-verified batch.
 
 The old mechanism sketches (`NotificationSubscriber`, `RepoPuller`, `EcmhVerifier`, `ArbiterMemberList`) remain source-level scaffolding for tests and future adapters, but they are not exported from the package root.
 
@@ -40,6 +47,9 @@ The executable sketches now live at the stable-port level:
   credential expiry from either response metadata or JWT `exp`, and keeps
   unstable XRPC details behind `SpaceDelegationTokenClientPort` and
   `SpaceCredentialExchangeClientPort`.
+- `Proposal0016ClientAttestationProvider` creates the pinned ES256 JWT
+  header/claims and delegates signing to `ClientAttestationJwtSigner`.
+  Production JWKS publication and key custody remain intentionally unwired.
 - `CredentialedPermissionedRepoPort` is the local Phase 4 harness wrapper. It
   proves the credential manager gates sync batches before the repo port returns
   verified records; the first covered collection is
@@ -51,11 +61,16 @@ The executable sketches now live at the stable-port level:
   posts `createRecord`, `putRecord`, and `deleteRecord` to the authoring user's
   PDS, requires an OAuth authorization header, validates returned permissioned
   record URIs against the requested space/repo/collection, and maps draft XRPC
-  errors such as `SpaceNotFound` and `NotAMember` to typed write failures.
+  errors from the pinned Lexicons to typed write failures. Membership is not a
+  record-write protocol error in the pinned baseline.
 - `KyselyPermissionedCheckpointStore` sketches durable space-level checkpoint storage against the current PoC table.
 - `@coopsource/arbiter-client` provides the Stage 2A CSN-backed `CsnDbGroupDirectoryPort`.
 
-Mechanism-specific code is still useful, but it belongs behind these ports. A real notification client, repo puller, verifier, Arbiter client, or permissioned-data sync implementation should be documented as a `PermissionedRepoPort` or `GroupDirectoryPort` adapter, not as a new application-facing dependency.
+Mechanism-specific code is still useful, but it belongs behind these ports. A
+real notification client, repo puller, verifier, authority client, or
+permissioned-data sync implementation should be documented as a
+`PermissionedRepoPort` or `GroupDirectoryPort` adapter, not as a new
+application-facing dependency.
 
 See `docs/plans/2026-05-17-v11-spaces-consumer-adapter-architecture.md` for the adapter families and documentation rule.
 
@@ -68,19 +83,29 @@ See `docs/plans/2026-05-17-v11-spaces-consumer-adapter-architecture.md` for the 
 | Verified records             | `VerifiedPermissionedRecord`, `VerifiedPermissionedChanges`                                                      |
 | Group Directory              | `GroupDirectoryPort`, `DenyAllGroupDirectoryPort`, `StaticGroupDirectoryPort`                                    |
 | Space credentials            | `SpaceCredentialStore`, `InMemorySpaceCredentialStore`, `KyselySpaceCredentialStore`, `SpaceCredentialManager`, `TwoStepSpaceCredentialIssuer` |
+| Authority discovery          | `DidSpaceAuthorityResolver`, `SpaceAuthorityResolutionError`                                             |
+| Client attestation           | `ClientAttestationProvider`, `Proposal0016ClientAttestationProvider`, `ClientAttestationJwtSigner`       |
 | Permissioned sync            | `PermissionedRepoPort`, `InMemoryPermissionedRepoPort`, `FailClosedPermissionedRepoPort`                         |
 | Credentialed sync            | `CredentialedPermissionedRepoPort`                                                                               |
 | Permissioned writes          | `PermissionedRecordWritePort`, `InMemoryPermissionedRecordWritePort`, `XrpcPermissionedRecordWritePort`          |
 | Checkpoints                  | `PermissionedCheckpointStore`, `KyselyPermissionedCheckpointStore`                                               |
 | Orchestration                | `SpacesConsumer`                                                                                                 |
 
-Permissioned records use structured locations, not `AtUri`. The permissioned URI scheme is still unsettled upstream, so no public Stage 1 type requires `at://` for permissioned-space data.
+Permissioned records use structured locations, not `AtUri`. The pinned
+Proposal 0016 draft currently serializes them under
+`at://{authority}/space/...`; parsing and formatting stay behind helpers
+because the proposal is not final.
 
 ## Security Boundaries
 
-- `SpacesConsumer` accepts a record only when strict resolved membership returns `ok: true`, `partial: false`, `stale: false`, no `missingSpaces`, and the author DID is present in `members`.
-- Verified records from non-members are rejected or quarantined, then checkpointed after the batch is fully handled.
-- Verification failures, indeterminate membership, and handler errors do not commit checkpoints.
+- Protocol sync and CSN acceptance are separate gates. A real repo adapter must
+  verify the pinned commit format, LtHash, CIDs/CAR, author identity, and
+  schema before returning records.
+- `SpacesConsumer` then accepts a record only when strict CSN group resolution
+  returns `ok: true`, `partial: false`, `stale: false`, no `missingSpaces`,
+  and the author DID is present in `members`.
+- Verification failures, indeterminate group policy, and handler errors do not
+  commit checkpoints.
 - API wiring defaults disabled. When explicitly enabled, membership checks use `CsnDbGroupDirectoryPort` and permissioned repo verification remains fail-closed.
 - `UNSAFE_ACCEPT_UNVERIFIED_PERMISSIONED_DATA=true` enables local unverified dev mode, is rejected in production, and logs a warning.
 
@@ -112,4 +137,8 @@ await startSpacesConsumer({
 });
 ```
 
-Stage 1 remains log-only and subscribes to no real spaces by default. Stage 2A wires a CSN-backed Group Directory adapter; real upstream permissioned-data and Arbiter adapters land after those protocol details stabilize.
+The runtime remains log-only and subscribes to no real spaces by default.
+CSN-backed group policy is wired, but no concrete notification,
+`listRepos`/`listRepoOps`, LtHash, or CAR-recovery adapter exists yet. The next
+Phase 4 slice implements that read/recovery path for proposal and vote records
+without changing the runtime default.

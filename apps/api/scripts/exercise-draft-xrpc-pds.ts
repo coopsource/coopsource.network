@@ -8,6 +8,7 @@ import {
   type XrpcSimpleSpaceManagementFetch,
 } from '@coopsource/arbiter-client';
 import {
+  DidSpaceAuthorityResolver,
   PermissionedRecordWriteError,
   SpaceCredentialError,
   TwoStepSpaceCredentialIssuer,
@@ -41,14 +42,6 @@ async function main(): Promise<void> {
   const cooperativeDid = didFromEnv('LIVE_XRPC_COOP_DID', config.COOP_DID);
   const authorDid = didFromEnv('LIVE_XRPC_AUTHOR_DID');
   const ownerDid = didFromEnv('LIVE_XRPC_OWNER_DID', cooperativeDid);
-  const authorityPdsUrl =
-    process.env.LIVE_XRPC_PDS_URL ?? config.COOP_PDS_URL ?? config.PDS_URL;
-  if (!authorityPdsUrl) {
-    throw new ExerciseConfigError(
-      'Set LIVE_XRPC_PDS_URL, COOP_PDS_URL, or PDS_URL to the space-authority PDS URL.',
-    );
-  }
-
   const managingDids = parseDidList(config.SPACE_MANAGING_SESSION_DIDS);
   if (managingDids.length === 0) {
     throw new ExerciseConfigError(
@@ -64,6 +57,12 @@ async function main(): Promise<void> {
   const clientId = `${config.PUBLIC_API_URL}${CLIENT_METADATA_PATH}`;
   const container = createContainer(config);
   try {
+    const authorityResolver = new DidSpaceAuthorityResolver({
+      resolveDid: (did) => container.didResolver.resolve(did),
+    });
+    const resolvedAuthority = await authorityResolver.resolve(space);
+    const authorityServiceUrl =
+      process.env.LIVE_XRPC_PDS_URL ?? resolvedAuthority.serviceUrl;
     const oauthScope = oauthScopeForConfig(config);
     const oauthClient = createOAuthClient({
       publicUrl: config.PUBLIC_API_URL,
@@ -85,7 +84,10 @@ async function main(): Promise<void> {
     console.log(`author DID: ${authorDid}`);
     console.log(`owner DID: ${ownerDid}`);
     console.log(`managing DIDs: ${managingDids.join(', ')}`);
-    console.log(`authority PDS: ${authorityPdsUrl}`);
+    console.log(`authority service: ${authorityServiceUrl}`);
+    console.log(
+      `authority verification method: ${resolvedAuthority.verificationMethodId}`,
+    );
     console.log(`OAuth client ID: ${clientId}`);
 
     const ownerTransport = await sessionTransportForDid(oauthClient, ownerDid);
@@ -102,12 +104,17 @@ async function main(): Promise<void> {
     const issuer = new TwoStepSpaceCredentialIssuer(
       container.spaceDelegationTokenClient,
       new OAuthSpaceCredentialExchangeClient({
-        serviceUrlForSpaceAuthority: () => authorityPdsUrl,
+        serviceUrlForSpaceAuthority: () => authorityServiceUrl,
       }),
       {
         clientId,
         ...(process.env.LIVE_XRPC_CLIENT_ATTESTATION
-          ? { clientAttestation: process.env.LIVE_XRPC_CLIENT_ATTESTATION }
+          ? {
+              clientAttestationProvider: {
+                getClientAttestation: async () =>
+                  process.env.LIVE_XRPC_CLIENT_ATTESTATION,
+              },
+            }
           : {}),
       },
     );

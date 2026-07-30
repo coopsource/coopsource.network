@@ -1,4 +1,8 @@
 import type { DID } from '@coopsource/common';
+import {
+  SIMPLESPACE_XRPC_METHODS,
+  SPACE_XRPC_METHODS,
+} from '@coopsource/lexicons';
 import type {
   DirectSpaceMember,
   GroupDirectoryPort,
@@ -110,7 +114,7 @@ export class XrpcGroupDirectoryPort implements GroupDirectoryPort {
     readonly cursor?: MembershipCursor;
     readonly consistency: MembershipConsistency;
   }): Promise<SpaceListPage> {
-    const result = await this.getJson('com.atproto.space.listSpaces', {
+    const result = await this.getJson(SPACE_XRPC_METHODS.listSpaces, {
       did: args.arbiterDid,
       cursor: args.cursor,
       limit: this.pageSize(),
@@ -159,7 +163,7 @@ export class XrpcGroupDirectoryPort implements GroupDirectoryPort {
       return { ok: false, space: args, reason: 'invalid-space', stale: true };
     }
 
-    const result = await this.getJson('com.atproto.space.getSpace', {
+    const result = await this.getJson(SPACE_XRPC_METHODS.getSpace, {
       space: spaceUri,
     });
     if (!result.ok) {
@@ -259,7 +263,7 @@ export class XrpcGroupDirectoryPort implements GroupDirectoryPort {
     let sourceRevision: string | undefined;
 
     for (let page = 0; page < this.maxPages(); page += 1) {
-      const result = await this.getJson('com.atproto.simplespace.listMembers', {
+      const result = await this.getJson(SIMPLESPACE_XRPC_METHODS.listMembers, {
         space: spaceUri,
         limit: this.pageSize(),
         cursor,

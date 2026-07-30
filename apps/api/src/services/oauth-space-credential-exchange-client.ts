@@ -1,13 +1,15 @@
 import {
   SpaceCredentialError,
+  SpaceAuthorityResolutionError,
   type SpaceCredentialExchangeClientPort,
   type SpaceCredentialExchangeRequest,
   type SpaceCredentialExchangeResponse,
   type SpaceRef,
   type XrpcPermissionedRecordWriteFetch,
 } from '@coopsource/spaces-consumer';
+import { SPACE_XRPC_METHODS } from '@coopsource/lexicons';
 
-const GET_SPACE_CREDENTIAL_NSID = 'com.atproto.space.getSpaceCredential';
+const GET_SPACE_CREDENTIAL_NSID = SPACE_XRPC_METHODS.getSpaceCredential;
 
 type JsonObject = { readonly [key: string]: unknown };
 type CredentialFailureKind =
@@ -47,7 +49,22 @@ export class OAuthSpaceCredentialExchangeClient implements SpaceCredentialExchan
   async getSpaceCredential(
     request: SpaceCredentialExchangeRequest,
   ): Promise<SpaceCredentialExchangeResponse> {
-    const serviceUrl = await this.opts.serviceUrlForSpaceAuthority(request.ref);
+    let serviceUrl: string | undefined;
+    try {
+      serviceUrl = await this.opts.serviceUrlForSpaceAuthority(request.ref);
+    } catch (err) {
+      if (err instanceof SpaceCredentialError) throw err;
+      if (err instanceof SpaceAuthorityResolutionError) {
+        throw spaceCredentialError(
+          err.message,
+          err.kind === 'unavailable' ? 'unavailable' : 'invalid-space',
+        );
+      }
+      throw spaceCredentialError(
+        `Failed to resolve space authority ${request.ref.arbiterDid}: ${errorMessage(err)}`,
+        'unavailable',
+      );
+    }
     if (!serviceUrl) {
       throw spaceCredentialError(
         `No space-authority PDS URL configured for ${request.ref.arbiterDid}/${request.ref.spaceKey}`,

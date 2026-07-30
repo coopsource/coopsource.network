@@ -6,6 +6,7 @@ import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
 import {
   formatCsnAppViewReadScopePlan,
+  formatCsnMembersSpaceManageScope,
   formatCsnMemberWriteScopePlan,
 } from '@coopsource/lexicons';
 import type { AppConfig } from '../config.js';
@@ -52,6 +53,12 @@ export const DRAFT_PERMISSIONED_SPACE_APPVIEW_READ_SCOPES =
   formatCsnAppViewReadScopePlan({
     authority: '*',
   });
+export const DRAFT_PERMISSIONED_SPACE_MANAGEMENT_SCOPES = [
+  formatCsnMembersSpaceManageScope({
+    authority: '*',
+    manages: ['create', 'update'],
+  }),
+] as const;
 
 export const OAUTH_SCOPE = BASE_OAUTH_SCOPES.join(' ');
 
@@ -64,6 +71,7 @@ export function oauthScopeForConfig(
       ? [
           ...DRAFT_PERMISSIONED_SPACE_APPVIEW_READ_SCOPES,
           ...DRAFT_PERMISSIONED_SPACE_WRITE_SCOPES,
+          ...DRAFT_PERMISSIONED_SPACE_MANAGEMENT_SCOPES,
         ]
       : []),
   ].join(' ');

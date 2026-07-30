@@ -346,7 +346,18 @@ as a cooperative-designated managing session pool in
 Remaining credential-seam work is the live issuer/session-selection
 implementation and PDS/HappyView exercise.
 
-- [ ] First task: expand into its own task-level plan.
+**Progress 2026-07-30:** The July 29 ecosystem sweep replaced the stale
+membership-in-protocol assumptions with a pinned Proposal 0016 conformance
+baseline. The code now centralizes every draft XRPC method CSN calls, requests
+the narrow SimpleSpace `manage=create,update` grants, resolves authority
+service/key entries from the DID document, and provides a deterministic
+client-attestation signing port. Runtime storage defaults remain unchanged.
+The next critical deliverable is one real notification/sweep/oplog/LtHash/CAR
+proposal-and-vote read/recovery slice with cooperative membership applied as a
+separate post-verification acceptance policy.
+
+- [x] First task expanded through the July 29 gap analysis and July 30
+  conformance-baseline note.
 
 ## Phase 5 — GovernanceView + CoopView (Stages 6/7) — _may run in parallel with Phases 3–4_
 
@@ -359,7 +370,7 @@ implementation and PDS/HappyView exercise.
 3. Container registrations `governanceView`/`coopView` (making the doc-described wiring real).
 4. Draft `community.lexicon.governance.*` lexicon JSON kept in-repo under `packages/lexicons/community-draft/` (clearly non-canonical) + **ecosystem track:** TSC-sponsorship outreach at the Lexicon Community (gated, slow — start early; Stage 6 does not wait on ratification).
 
-**Status (2026-07-12):** The supported portions of deliverables 1-3 are
+**Status (2026-07-30):** The supported portions of deliverables 1-3 are
 implemented as incremental checkpoints, including generic tally/outcome and
 proposal-lifecycle policy plus vote, eligibility, quorum, authorization,
 delegation, patronage, and distribution adapters. Proposal lookup by ID and URI
@@ -371,7 +382,12 @@ The non-canonical proposal, vote, deliberation, summary, log-head, and election
 drafts from deliverable 4 are checked in and validation-tested;
 TSC-sponsorship outreach remains an outward-facing follow-up requiring user
 review. The HappyView 2.11.4 AppView substrate spike is complete and confirms
-the build decision; HappyView remains the separate spaces/reference harness.
+the build decision; later HappyView 2.11.8/2.12-dev changes strengthen its role
+as a differential spaces harness rather than an AppView replacement. Treat
+Phase 5 as stable for sequencing. Continue extraction only for plainly pure,
+persistence-independent logic with focused contracts; do not start
+`anchorSummary`, `historicalState`, or `meetingMinutes` without those
+contracts.
 
 - [x] First task: expand into its own task-level plan (completed in `docs/plans/2026-07-06-v12-phase-5-governance-view-interface-design.md`).
 
@@ -401,9 +417,15 @@ the build decision; HappyView remains the separate spaces/reference harness.
 
 ## Ongoing track — Ecosystem cadence (parallel to all phases)
 
-- [ ] Reinstate the two-week watchlist sweep; **next due 2026-07-18** (IETF 126 week, Vienna — check for ATP WG non-public-data signals even though the charter excludes them). Endpoints per ARCHITECTURE-V12 §12 + `bluesky-social/proposals` + PR #5187.
+- [x] Deep ecosystem sweep completed 2026-07-29 across Proposal 0016,
+  atproto PR #5187, Diary 7, HappyView, Roomy/Arbiter, Atmospheric Groups,
+  Blacksky, Northsky, Habitat, Colibri, and atproto-crates.
+- [ ] Continue the two-week watchlist cadence; **next due 2026-08-12**.
 - [ ] Post `resolveSpaceMembers` semantics feedback (depth/partial/staleness — where CSN has real implementation experience) to WG thread t/750. _Outward-facing: draft for user review before posting._
-- [ ] Watch for Diary 7 (sync protocol / "what an app does with a space credential" — promised in Diary 6); it directly feeds Phase 4's gate.
+- [x] Diary 7 reviewed. It confirms direct pull, best-effort notifications,
+  periodic reconciliation, and no core member roster; its HMAC-only prose
+  currently differs from Proposal 0016/PR #5187's signed-context-plus-HMAC
+  shape.
 - [ ] Lexicon Community TSC-sponsorship inquiry for `community.lexicon.governance.*` (feeds Phase 5.4). _Outward-facing: draft for user review._
 
 ---

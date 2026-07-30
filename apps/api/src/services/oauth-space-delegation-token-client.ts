@@ -5,9 +5,10 @@ import {
   type SpaceDelegationTokenRequest,
   type SpaceDelegationTokenResponse,
 } from '@coopsource/spaces-consumer';
+import { SPACE_XRPC_METHODS } from '@coopsource/lexicons';
 import type { OAuthManagingSpaceCredentialSessionSelector } from './oauth-managing-space-credential-session-selector.js';
 
-const GET_DELEGATION_TOKEN_NSID = 'com.atproto.space.getDelegationToken';
+const GET_DELEGATION_TOKEN_NSID = SPACE_XRPC_METHODS.getDelegationToken;
 
 type JsonObject = { readonly [key: string]: unknown };
 
@@ -61,20 +62,15 @@ export class OAuthSpaceDelegationTokenClient
       throw new SpaceCredentialError(
         responseErrorMessage(body) ??
           `${GET_DELEGATION_TOKEN_NSID} failed with HTTP ${response.status}`,
-        errorKindForResponse(response.status, body),
+        errorKindForResponse(response.status),
       );
     }
 
     const output = asObject(body);
-    const token =
-      typeof output?.delegationToken === 'string'
-        ? output.delegationToken
-        : typeof output?.token === 'string'
-          ? output.token
-          : null;
+    const token = typeof output?.token === 'string' ? output.token : null;
     if (!token) {
       throw new SpaceCredentialError(
-        `${GET_DELEGATION_TOKEN_NSID} response must include delegationToken`,
+        `${GET_DELEGATION_TOKEN_NSID} response must include token`,
         'protocol',
       );
     }
@@ -126,28 +122,7 @@ function responseErrorMessage(body: unknown): string | undefined {
   return typeof object?.message === 'string' ? object.message : undefined;
 }
 
-function responseErrorName(body: unknown): string | undefined {
-  const object = asObject(body);
-  return typeof object?.error === 'string' ? object.error : undefined;
-}
-
-function errorKindForResponse(
-  status: number,
-  body: unknown,
-): SpaceCredentialErrorKind {
-  const error = responseErrorName(body);
-  if (error === 'SpaceNotFound' || error === 'SpaceDeleted') {
-    return 'invalid-space';
-  }
-  if (error === 'NotAMember' || error === 'UserNotAuthorized') {
-    return 'not-member';
-  }
-  if (error === 'AppNotAuthorized' || error === 'InvalidClientAttestation') {
-    return 'client-policy';
-  }
-  if (error === 'InvalidDelegationToken' || error === 'NotAuthorized') {
-    return 'auth';
-  }
+function errorKindForResponse(status: number): SpaceCredentialErrorKind {
   if (status === 401 || status === 403) return 'auth';
   if (status >= 500) return 'unavailable';
   return 'protocol';

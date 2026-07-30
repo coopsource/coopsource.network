@@ -97,6 +97,15 @@ export type {
   SpaceScopeOptions,
 } from './space-scopes.js';
 export {
+  ATPROTO_ACCOUNT_VERIFICATION_METHOD_ID,
+  ATPROTO_PDS_SERVICE_ID,
+  ATPROTO_SPACE_HOST_SERVICE_ID,
+  ATPROTO_SPACE_VERIFICATION_METHOD_ID,
+  PERMISSIONED_DATA_DRAFT_BASELINE,
+  SIMPLESPACE_XRPC_METHODS,
+  SPACE_XRPC_METHODS,
+} from './permissioned-data-draft.js';
+export {
   CSN_SPACE_PLACEMENT_MATRIX,
   findCsnSpacePlacement,
   formatPlacementAppViewReadScope,
@@ -111,11 +120,13 @@ export type {
 } from './space-placement.js';
 export {
   formatCsnAppViewReadScopePlan,
+  formatCsnMembersSpaceManageScope,
   formatCsnMemberSelfReadScopePlan,
   formatCsnMemberWriteScopePlan,
 } from './space-oauth-plan.js';
 export type {
   CsnScopePlanSkeyMode,
+  CsnSpaceManageScopeOptions,
   CsnSpaceScopePlanOptions,
   CsnSpaceWriteAction,
   CsnSpaceWriteScopePlanOptions,

@@ -375,8 +375,8 @@ describe('XrpcPermissionedRecordWritePort', () => {
         kind: 'invalid-space',
       },
       {
-        response: { status: 403, body: { error: 'NotAMember' } },
-        kind: 'not-member',
+        response: { status: 403, body: { error: 'InsufficientScope' } },
+        kind: 'auth',
       },
       {
         response: { status: 409, body: { error: 'RecordAlreadyExists' } },

@@ -31,7 +31,7 @@ describe('OAuthSpaceDelegationTokenClient', () => {
         calls.push({ url, init });
         await Promise.resolve();
         return jsonResponse({
-          delegationToken: 'delegation-token',
+          token: 'delegation-token',
           expiresAt: '2026-07-07T12:01:00Z',
         });
       },
@@ -71,21 +71,21 @@ describe('OAuthSpaceDelegationTokenClient', () => {
     });
   });
 
-  it('maps upstream XRPC errors to typed space credential failures', async () => {
+  it('maps HTTP failures without inventing undeclared Lexicon errors', async () => {
     const cases = [
       {
         response: {
           status: 403,
           body: {
-            error: 'NotAMember',
-            message: 'Managing session is not a member',
+            error: 'InsufficientScope',
+            message: 'Managing session lacks a covering read grant',
           },
         },
-        kind: 'not-member',
+        kind: 'auth',
       },
       {
         response: { status: 404, body: { error: 'SpaceNotFound' } },
-        kind: 'invalid-space',
+        kind: 'protocol',
       },
       {
         response: { status: 401, body: { error: 'NotAuthorized' } },
@@ -132,7 +132,7 @@ describe('OAuthSpaceDelegationTokenClient', () => {
       name: 'SpaceCredentialError',
       kind: 'protocol',
       message:
-        'com.atproto.space.getDelegationToken response must include delegationToken',
+        'com.atproto.space.getDelegationToken response must include token',
     });
   });
 

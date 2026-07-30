@@ -141,7 +141,18 @@ describe('TwoStepSpaceCredentialIssuer', () => {
       exchangeClient,
       {
         clientId: 'https://app.example/oauth/client.json',
-        clientAttestation: 'attestation-jwt',
+        clientAttestationProvider: {
+          async getClientAttestation(input) {
+            expect(input).toMatchObject({
+              ref,
+              clientId: 'https://app.example/oauth/client.json',
+              audience: 'did:plc:coop#atproto_space_host',
+              reason: 'missing',
+              now,
+            });
+            return 'attestation-jwt';
+          },
+        },
       },
     );
 

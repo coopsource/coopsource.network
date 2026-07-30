@@ -1,7 +1,9 @@
 import type { DID } from '@coopsource/common';
+import { ATPROTO_SPACE_HOST_SERVICE_ID } from '@coopsource/lexicons';
 
-export const SPACE_HOST_SERVICE_ID = '#space_host';
-export const SPACE_HOST_SERVICE_TYPE = 'CoopSourceSpaceHost';
+export const SPACE_HOST_SERVICE_ID = ATPROTO_SPACE_HOST_SERVICE_ID;
+// Proposal 0016 fixes the service id but does not yet normatively fix a type.
+export const SPACE_HOST_SERVICE_TYPE = 'AtprotoSpaceHost';
 
 export interface DidServiceEntry {
   readonly id: string;
@@ -50,7 +52,11 @@ export class PdsDidProvisioningPort implements DidProvisioningPort {
       type: SPACE_HOST_SERVICE_TYPE,
       serviceEndpoint: args.serviceEndpoint,
     };
-    const existing = current.service?.find((entry) => entry.id === SPACE_HOST_SERVICE_ID);
+    const existing = current.service?.find(
+      (entry) =>
+        entry.id === SPACE_HOST_SERVICE_ID ||
+        entry.id === `${args.did}${SPACE_HOST_SERVICE_ID}`,
+    );
     if (
       existing?.type === service.type &&
       existing.serviceEndpoint === service.serviceEndpoint
@@ -59,13 +65,25 @@ export class PdsDidProvisioningPort implements DidProvisioningPort {
     }
 
     const services = [
-      ...(current.service ?? []).filter((entry) => entry.id !== SPACE_HOST_SERVICE_ID),
+      ...(current.service ?? []).filter(
+        (entry) =>
+          entry.id !== SPACE_HOST_SERVICE_ID &&
+          entry.id !== `${args.did}${SPACE_HOST_SERVICE_ID}`,
+      ),
       service,
     ];
-    const updated = await this.didDocumentService.updateDidDocument(args.did, { services });
-    const bound = updated.service?.find((entry) => entry.id === SPACE_HOST_SERVICE_ID);
+    const updated = await this.didDocumentService.updateDidDocument(args.did, {
+      services,
+    });
+    const bound = updated.service?.find(
+      (entry) =>
+        entry.id === SPACE_HOST_SERVICE_ID ||
+        entry.id === `${args.did}${SPACE_HOST_SERVICE_ID}`,
+    );
     return {
-      ok: bound?.type === service.type && bound.serviceEndpoint === service.serviceEndpoint,
+      ok:
+        bound?.type === service.type &&
+        bound.serviceEndpoint === service.serviceEndpoint,
       did: args.did,
       service,
       changed: true,

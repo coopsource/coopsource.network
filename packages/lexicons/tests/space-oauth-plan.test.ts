@@ -2,11 +2,23 @@ import { describe, expect, it } from 'vitest';
 import {
   CSN_SPACE_PLACEMENT_MATRIX,
   formatCsnAppViewReadScopePlan,
+  formatCsnMembersSpaceManageScope,
   formatCsnMemberSelfReadScopePlan,
   formatCsnMemberWriteScopePlan,
 } from '../src/index.js';
 
 describe('CSN space OAuth scope plan', () => {
+  it('formats the narrow SimpleSpace management grant used by the live harness', () => {
+    expect(
+      formatCsnMembersSpaceManageScope({
+        authority: '*',
+        manages: ['create', 'update'],
+      }),
+    ).toBe(
+      'space:network.coopsource.org.spaceType.members?authority=*&skey=members&manage=create&manage=update',
+    );
+  });
+
   it('formats one AppView read scope per placement with canonical or wildcard skeys', () => {
     const scopes = formatCsnAppViewReadScopePlan({
       authority: 'did:plc:coop',

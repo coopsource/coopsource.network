@@ -28,6 +28,27 @@ export type {
   SpaceCredentialRefreshReason,
   SpaceCredentialErrorKind,
 } from './credential-store.js';
+export type {
+  ClientAttestationClaims,
+  ClientAttestationJwtSigner,
+  ClientAttestationProtectedHeader,
+  ClientAttestationProvider,
+  ClientAttestationRequest,
+  Proposal0016ClientAttestationProviderOptions,
+} from './client-attestation.js';
+export { Proposal0016ClientAttestationProvider } from './client-attestation.js';
+export type {
+  ResolvedSpaceAuthority,
+  SpaceAuthorityDidDocument,
+  SpaceAuthorityDidResolver,
+  SpaceAuthorityResolutionErrorKind,
+  SpaceAuthorityServiceEntry,
+  SpaceAuthorityVerificationMethod,
+} from './space-authority-resolver.js';
+export {
+  DidSpaceAuthorityResolver,
+  SpaceAuthorityResolutionError,
+} from './space-authority-resolver.js';
 export {
   InMemorySpaceCredentialStore,
   KyselySpaceCredentialStore,
