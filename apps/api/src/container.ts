@@ -104,7 +104,10 @@ import {
   DelegationVotingServiceDelegateChainReader,
   DelegationVotingServiceVoteWeightDelegationReader,
 } from './services/coop-view-delegation-adapters.js';
-import { VisibilityRouter } from './services/visibility-router.js';
+import {
+  CsnDbGovernanceRecordPlacementPort,
+  type GovernanceRecordPlacementPort,
+} from './services/governance-record-placement-port.js';
 import {
   PdsPublicGovernanceAnchorWritePort,
   PublicGovernanceAnchorService,
@@ -202,7 +205,7 @@ export interface Container {
     OAuthManagingSpaceCredentialSessionSelector;
   spaceDelegationTokenClient: OAuthSpaceDelegationTokenClient;
   spaceCredentialExchangeClient: OAuthSpaceCredentialExchangeClient;
-  visibilityRouter: VisibilityRouter;
+  governanceRecordPlacement: GovernanceRecordPlacementPort;
   publicGovernanceAnchorService: PublicGovernanceAnchorService;
   patronageService: PatronageService;
   capitalAccountService: CapitalAccountService;
@@ -461,7 +464,7 @@ export function createContainer(config: AppConfig): Container {
             permissionedRecordWriteSessionProvider.sessionProvider,
         })
       : new PrivateRecordPermissionedWritePort(privateRecordService);
-  const visibilityRouter = new VisibilityRouter(db);
+  const governanceRecordPlacement = new CsnDbGovernanceRecordPlacementPort(db);
   const publicGovernanceAnchorService = new PublicGovernanceAnchorService(
     new PdsPublicGovernanceAnchorWritePort(pdsService),
     () => clock.now(),
@@ -488,9 +491,9 @@ export function createContainer(config: AppConfig): Container {
     clock,
     membershipReadModel,
     governanceView,
+    governanceRecordPlacement,
     memberWriteProxy,
     governanceLabeler,
-    visibilityRouter,
     permissionedRecordWriter,
     publicGovernanceAnchorService,
   );
@@ -701,7 +704,7 @@ export function createContainer(config: AppConfig): Container {
     managingSpaceCredentialSessionSelector,
     spaceDelegationTokenClient,
     spaceCredentialExchangeClient,
-    visibilityRouter,
+    governanceRecordPlacement,
     publicGovernanceAnchorService,
     patronageService,
     capitalAccountService,

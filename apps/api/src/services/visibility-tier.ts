@@ -22,9 +22,9 @@ import type { Actor } from '../auth/middleware.js';
  * grant slightly more access (e.g., a coop may share data with other coops'
  * members but not with anonymous users).
  *
- * NAMING NOTE: This file is distinct from `visibility-router.ts` which handles
- * record storage routing (Tier 1 public vs Tier 2 private data tiers). This file
- * handles request-time access tier resolution.
+ * NAMING NOTE: This file handles request-time access tier resolution.
+ * Governance write placement is owned by
+ * `governance-record-placement-port.ts`.
  */
 
 export type VisibilityTier =

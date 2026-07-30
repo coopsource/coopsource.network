@@ -335,7 +335,7 @@ From `docs/plans/2026-07-04-v11-merge-review-findings.md` (verified low-severity
 
 **Entry gate:** Phase 3 exit + upstream credential flow usable in _some_ form — either `@atproto/space` from PR #5187 becomes consumable, HappyView 2.10 is sufficient as a harness, or we sketch the three-token flow (delegation token → client attestation → space credential) behind `SpaceCredentialStore` per proposal 0016. Surface to user if the gate is still ambiguous at start. Phase 4 must also resolve the `space:` OAuth scope split (`read` vs `read_self`) and the background-sync credential posture.
 
-**Deliverables:** real `SpaceCredentialStore` implementation (short-lived credentials, refresh-per-batch, rotation on member-list change); proposals/votes/deliberations written via per-space placement (write path stops calling `visibilityRouter.routeWrite` — `proposal-service.ts:209`); `private_record` demoted to projection-only; personal spaces (per-(coop,member)) for Stage 5; axis-named errors across the seam (the three failure modes: scope not granted / not in space / app not authorized for space).
+**Deliverables:** real `SpaceCredentialStore` implementation (short-lived credentials, refresh-per-batch, rotation on member-list change); proposals/votes/deliberations written via `GovernanceRecordPlacementPort`; `private_record` demoted to projection-only; personal spaces (per-(coop,member)) for Stage 5; axis-named errors across the seam (the three failure modes: scope not granted / not in space / app not authorized for space).
 
 **Progress 2026-07-07:** `KyselySpaceCredentialStore` now backs
 `SpaceCredentialStore` with the `space_credential` table and integration tests;
@@ -387,6 +387,15 @@ commits and divergent credential/notification envelopes. Runtime defaults
 remain unchanged. See
 `docs/plans/2026-07-30-v12-phase-4-permissioned-conformance-differential.md`.
 
+**Progress 2026-07-30, placement-port checkpoint:** Proposal and vote creation
+now ask `GovernanceRecordPlacementPort` for a named public-repository or
+permissioned-space destination. The old numeric `VisibilityRouter` and its
+unused record/actor inputs are removed. `CsnDbGovernanceRecordPlacementPort`
+preserves the existing open/mixed/closed policy, and `private-record` remains
+the default writer. Managing-app, custody, retention, migration, and default
+activation decisions remain open. See
+`docs/plans/2026-07-30-v12-phase-4-governance-record-placement-port.md`.
+
 - [x] First task expanded through the July 29 gap analysis and July 30
   conformance-baseline note.
 
@@ -426,7 +435,7 @@ contracts.
 
 **Entry gate:** Phases 3–5 stable on main.
 
-**Checklist (exact, from the July 4 code audit — every item verified still-live):** `visibilityRouter` + `visibility-router.ts`; `privateRecordService` + `private-record-service.ts` + `private_record` table + `routes/private/records.ts`; `governanceLabeler` (and its `ProposalService` injection, `container.ts:294`); `IFederationClient` + `HttpFederationClient` + `http/signing.ts` (RFC 9421) + `signing-key-resolver.ts`; `cooperative-link-service.ts` + `cooperative_link` table; `local/` PDS/PLC classes (`LocalPdsService`, `LocalPlcClient`, `LocalBlobStore`, local `firehose.ts`, `cooperative-provisioning.ts`); outbox remnants (`index.ts:357` note). Each removal: delete code + container wiring + schema table + tests in one commit per subsystem; `pnpm build && pnpm test` between commits.
+**Checklist (updated 2026-07-30):** `privateRecordService` + `private-record-service.ts` + `private_record` table + `routes/private/records.ts`; `governanceLabeler` (and its `ProposalService` injection); `IFederationClient` + `HttpFederationClient` + `http/signing.ts` (RFC 9421) + `signing-key-resolver.ts`; `cooperative-link-service.ts` + `cooperative_link` table; `local/` PDS/PLC classes (`LocalPdsService`, `LocalPlcClient`, `LocalBlobStore`, local `firehose.ts`, `cooperative-provisioning.ts`); outbox remnants. The legacy `VisibilityRouter` was removed in Phase 4 and replaced by the named `GovernanceRecordPlacementPort`; the default adapter still reads the existing CSN visibility policy. Each remaining removal: delete code + container wiring + schema table + tests in one commit per subsystem; `pnpm build && pnpm test` between commits.
 
 - [ ] First task: expand into a task-level plan (mostly mechanical; the risk is hidden consumers — each subsystem task starts with a `grep -rn` usage sweep).
 
