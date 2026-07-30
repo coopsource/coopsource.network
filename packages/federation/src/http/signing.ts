@@ -4,10 +4,12 @@
  * Signs outbound requests and verifies inbound requests using ECDSA P-256
  * with SHA-256 (algorithm identifier: ecdsa-p256-sha256).
  *
- * Uses Node.js built-in crypto.subtle for all cryptographic operations.
+ * Uses Node.js crypto.subtle for JWK operations and @atproto/crypto for
+ * DID Multikey verification.
  * Uses structured-headers for RFC 8941/9651 serialization.
  */
 
+import { verifySignature as verifyAtprotoSignature } from '@atproto/crypto';
 import type { DidWebResolver } from './did-web-resolver.js';
 
 const COVERED_COMPONENTS_WITH_BODY = [
@@ -171,41 +173,48 @@ export async function verifyRequest(
 
   // 6. Extract public key from DID document
   const vm = doc.verificationMethod.find((v) => v.id === keyid);
-  if (!vm?.publicKeyJwk) return fail;
+  if (!vm) return fail;
 
-  // 7. Import public key
-  let publicKey: CryptoKey;
-  try {
-    publicKey = await crypto.subtle.importKey(
-      'jwk',
-      vm.publicKeyJwk as Record<string, unknown>,
-      { name: 'ECDSA', namedCurve: 'P-256' },
-      false,
-      ['verify'],
-    );
-  } catch {
-    return fail;
-  }
-
-  // 8. Reconstruct signature base
+  // 7. Reconstruct signature base
   const signatureParams = `${formatComponentList(components)};keyid="${keyid}";alg="${alg}";created=${created}`;
   const base =
     buildSignatureBase(method, targetUri, headers, components) +
     `"@signature-params": ${signatureParams}`;
 
-  // 9. Extract and decode signature
+  // 8. Extract and decode signature
   const sigMatch = sigRaw.match(/^sig=:([A-Za-z0-9+/=]+):$/);
   if (!sigMatch) return fail;
   const signatureBytes = Buffer.from(sigMatch[1]!, 'base64');
 
-  // 10. Verify
+  // 9. Verify either DID Core key representation used by CSN.
   const baseBytes = new TextEncoder().encode(base);
-  const verified = await crypto.subtle.verify(
-    { name: 'ECDSA', hash: 'SHA-256' },
-    publicKey,
-    signatureBytes,
-    baseBytes,
-  );
+  let verified = false;
+  try {
+    if (vm.publicKeyJwk) {
+      const publicKey = await crypto.subtle.importKey(
+        'jwk',
+        vm.publicKeyJwk as Record<string, unknown>,
+        { name: 'ECDSA', namedCurve: 'P-256' },
+        false,
+        ['verify'],
+      );
+      verified = await crypto.subtle.verify(
+        { name: 'ECDSA', hash: 'SHA-256' },
+        publicKey,
+        signatureBytes,
+        baseBytes,
+      );
+    } else if (vm.publicKeyMultibase) {
+      verified = await verifyAtprotoSignature(
+        `did:key:${vm.publicKeyMultibase}`,
+        baseBytes,
+        new Uint8Array(signatureBytes),
+        { allowMalleableSig: true },
+      );
+    }
+  } catch {
+    return fail;
+  }
 
   return { verified, signerDid };
 }

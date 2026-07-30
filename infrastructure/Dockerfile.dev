@@ -7,8 +7,10 @@ COPY apps/web/package.json apps/web/
 COPY packages/arbiter-client/package.json packages/arbiter-client/
 COPY packages/common/package.json packages/common/
 COPY packages/config/package.json packages/config/
+COPY packages/coop-view/package.json packages/coop-view/
 COPY packages/db/package.json packages/db/
 COPY packages/federation/package.json packages/federation/
+COPY packages/governance-view/package.json packages/governance-view/
 COPY packages/lexicons/package.json packages/lexicons/
 COPY packages/spaces-consumer/package.json packages/spaces-consumer/
 RUN pnpm install --frozen-lockfile

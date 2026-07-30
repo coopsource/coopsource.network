@@ -4,6 +4,7 @@ import { signRequest, verifyRequest, createContentDigest, verifyContentDigest } 
 import type { DidDocument } from '../src/types.js';
 import type { DID } from '@coopsource/common';
 import { DidWebResolver } from '../src/http/did-web-resolver.js';
+import { publicJwkToMultibase } from '../src/local/did-manager.js';
 
 describe('HTTP Message Signatures', () => {
   let privateKey: CryptoKey;
@@ -114,6 +115,55 @@ describe('HTTP Message Signatures', () => {
 
       expect(result.verified).toBe(true);
       expect(result.signerDid).toBe(signerDid);
+    });
+
+    it('verifies a PLC Multikey signing method', async () => {
+      const plcDid = 'did:plc:testsigner';
+      const plcKeyId = `${plcDid}#atproto`;
+      const method = 'POST';
+      const targetUri = 'https://coop-b.example.com/api/v1/federation/membership/request';
+      const body = JSON.stringify({ memberDid: plcDid });
+      const headers: Record<string, string> = {
+        'content-type': 'application/json',
+      };
+      const sigHeaders = await signRequest(
+        method,
+        targetUri,
+        headers,
+        body,
+        privateKey,
+        plcKeyId,
+      );
+      Object.assign(headers, {
+        'signature-input': sigHeaders['Signature-Input'],
+        signature: sigHeaders.Signature,
+        'content-digest': sigHeaders['Content-Digest'],
+      });
+
+      const resolver = new DidWebResolver();
+      vi.spyOn(resolver, 'resolve').mockResolvedValue({
+        '@context': ['https://www.w3.org/ns/did/v1'],
+        id: plcDid as DID,
+        verificationMethod: [
+          {
+            id: plcKeyId,
+            type: 'Multikey',
+            controller: plcDid,
+            publicKeyMultibase: publicJwkToMultibase(publicJwk),
+          },
+        ],
+        service: [],
+      });
+
+      const result = await verifyRequest(
+        method,
+        targetUri,
+        headers,
+        body,
+        resolver,
+      );
+
+      expect(result).toEqual({ verified: true, signerDid: plcDid });
     });
 
     it('fails verification with tampered body', async () => {

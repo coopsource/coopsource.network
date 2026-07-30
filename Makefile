@@ -6,7 +6,7 @@ SHELL := /bin/bash
 
 SCRIPTS := ./scripts/dev-services.sh
 
-.PHONY: help setup dev dev-clean start stop status ports install db-migrate db-reset clean test\:e2e test\:e2e-clean test\:e2e\:real test\:e2e\:mocked pds-up pds-reset pds-status pds-logs pds-down pds-dev provision-coop test\:pds test\:all dev-federation stop-federation migrate-all test-federation deploy-build deploy-up deploy-down deploy-logs deploy-migrate private-build private-up private-down private-logs private-migrate
+.PHONY: help setup dev dev-clean start stop status ports install db-migrate db-reset clean test\:e2e test\:e2e-clean test\:e2e\:real test\:e2e\:mocked pds-up pds-reset pds-status pds-logs pds-down pds-dev provision-coop test\:pds test\:all dev-federation stop-federation migrate-federation migrate-all test-federation deploy-build deploy-up deploy-down deploy-logs deploy-migrate private-build private-up private-down private-logs private-migrate
 
 help: ## Show all targets
 	@echo ""
@@ -102,21 +102,46 @@ clean: stop ## Stop services + clean build artifacts
 
 # ─── Federation (multi-instance) ─────────────────────────────────────
 
+FEDERATION_COMPOSE := docker compose -p coopsource-federation -f infrastructure/docker-compose.federation.yml
+FEDERATION_TEST_COMPOSE := docker compose -p coopsource-federation-test -f infrastructure/docker-compose.federation.yml
+
 dev-federation: ## Start federation stack (hub + coop-a + coop-b)
-	cd infrastructure && docker compose -f docker-compose.federation.yml up --build
+	pnpm turbo build --filter=@coopsource/api --filter=@coopsource/web
+	$(FEDERATION_COMPOSE) up -d --wait --build postgres redis plc mailpit
+	$(MAKE) migrate-federation
+	$(FEDERATION_COMPOSE) up --build
 
 stop-federation: ## Stop federation stack
-	cd infrastructure && docker compose -f docker-compose.federation.yml down
+	$(FEDERATION_COMPOSE) down
+
+migrate-federation: ## Run migrations inside the federation Compose network
+	$(FEDERATION_COMPOSE) run --rm --no-deps --build -e DATABASE_URL=postgresql://coopsource:dev_password@postgres:5432/coopsource_hub hub pnpm --filter @coopsource/db migrate
+	$(FEDERATION_COMPOSE) run --rm --no-deps -e DATABASE_URL=postgresql://coopsource:dev_password@postgres:5432/coopsource_coop_a hub pnpm --filter @coopsource/db migrate
+	$(FEDERATION_COMPOSE) run --rm --no-deps -e DATABASE_URL=postgresql://coopsource:dev_password@postgres:5432/coopsource_coop_b hub pnpm --filter @coopsource/db migrate
 
 migrate-all: ## Run migrations on all federation databases
-	DATABASE_URL=postgresql://coopsource:dev_password@localhost:5432/coopsource_hub pnpm --filter @coopsource/db migrate
-	DATABASE_URL=postgresql://coopsource:dev_password@localhost:5432/coopsource_coop_a pnpm --filter @coopsource/db migrate
-	DATABASE_URL=postgresql://coopsource:dev_password@localhost:5432/coopsource_coop_b pnpm --filter @coopsource/db migrate
+	DATABASE_URL=postgresql://coopsource:dev_password@localhost:55432/coopsource_hub pnpm --filter @coopsource/db migrate
+	DATABASE_URL=postgresql://coopsource:dev_password@localhost:55432/coopsource_coop_a pnpm --filter @coopsource/db migrate
+	DATABASE_URL=postgresql://coopsource:dev_password@localhost:55432/coopsource_coop_b pnpm --filter @coopsource/db migrate
 
-test-federation: ## Run federation integration tests (requires running stack)
-	cd infrastructure && docker compose -f docker-compose.federation.yml up -d --wait
-	pnpm --filter @coopsource/api test:federation
-	cd infrastructure && docker compose -f docker-compose.federation.yml down
+test-federation: ## Run federation integration tests in an isolated stack
+	pnpm turbo build --filter=@coopsource/api
+	@set -e; \
+		cleanup() { \
+			result=$$?; \
+			trap - EXIT; \
+			if [ $$result -ne 0 ]; then \
+				$(FEDERATION_TEST_COMPOSE) logs --no-color --tail=200 hub coop-a coop-b plc; \
+			fi; \
+			$(FEDERATION_TEST_COMPOSE) down -v --remove-orphans; \
+			exit $$result; \
+		}; \
+		trap cleanup EXIT; \
+		$(FEDERATION_TEST_COMPOSE) down -v --remove-orphans; \
+		$(FEDERATION_TEST_COMPOSE) up -d --wait --build postgres redis plc mailpit; \
+		$(MAKE) migrate-federation FEDERATION_COMPOSE='$(FEDERATION_TEST_COMPOSE)'; \
+		$(FEDERATION_TEST_COMPOSE) up -d --wait --build; \
+		pnpm --filter @coopsource/api test:federation
 
 # ─── Production deployment ──────────────────────────────────────────
 
