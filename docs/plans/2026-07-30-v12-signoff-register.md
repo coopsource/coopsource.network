@@ -41,6 +41,9 @@ legitimate cooperative purpose.
 - Draft XRPC proposal/vote reader, LtHash/commit verification, CAR and blob
   verification, durable replica/checkpoint state, and idempotent API
   projection.
+- Public identity/account event ingestion with host-scoped durable account
+  state, immediate replica invalidation, and non-destructive unattributed
+  event handling.
 
 These are engineering checkpoints, not approval of the production authority,
 custody, retention, moderation, or migration model.

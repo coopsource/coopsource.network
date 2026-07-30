@@ -115,4 +115,6 @@ conformance task rather than a condition for this baseline.
 **Completed 2026-07-30:** See
 `2026-07-30-v12-phase-4-permissioned-proposal-vote-consumer.md`. Runtime
 defaults remain unchanged; notification endpoint activation, live upstream
-`getRepo`, and public identity/account events remain parked.
+`getRepo` remains parked. Public identity/account events were implemented in
+the follow-on
+`2026-07-30-v12-phase-4-public-repo-lifecycle-events.md` checkpoint.

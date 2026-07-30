@@ -363,9 +363,19 @@ registration/replica state, writer removal, credential refresh, and
 post-projection checkpoints. The API projects verified proposal/vote records
 idempotently while preserving its query shape and keeping strict CSN
 membership as a separate acceptance gate. Runtime reader/writer defaults are
-unchanged. Inbound notification endpoint activation, public identity/account
-events, and a live upstream `getRepo` exercise remain parked; see
+unchanged. Inbound notification endpoint activation and a live upstream
+`getRepo` exercise remain parked; see
 `docs/plans/2026-07-30-v12-phase-4-permissioned-proposal-vote-consumer.md`.
+
+**Progress 2026-07-30, P1 lifecycle checkpoint:** Raw
+`subscribeRepos` identity/account frames and Tap identity state now feed the
+spaces consumer after it starts. DID changes force endpoint reconciliation;
+host-matched inactive account events persist independently of replica state,
+project immediate tombstones, and suppress later sweeps until a newer active
+event or host move. Events from another host and unattributed Tap events remain
+non-destructive. Runtime defaults are unchanged; production source topology
+remains parked. See
+`docs/plans/2026-07-30-v12-phase-4-public-repo-lifecycle-events.md`.
 
 - [x] First task expanded through the July 29 gap analysis and July 30
   conformance-baseline note.

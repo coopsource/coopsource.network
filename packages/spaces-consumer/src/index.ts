@@ -8,6 +8,7 @@ export type {
   PermissionedCursor,
   PermissionedRecordLocation,
   PermissionedVerificationStatus,
+  PublicRepoLifecycleEvent,
   DirectSpaceMember,
   MissingSpace,
   ResolvedMembers,
@@ -129,6 +130,8 @@ export type {
   PermissionedNotificationRegistration,
   PermissionedNotificationRegistrationStore,
   PermissionedNotificationSourcePort,
+  PermissionedRepoAccountState,
+  PermissionedRepoAccountStateStore,
   PermissionedRecoveredRepo,
   PermissionedRegisterNotifyRequest,
   PermissionedRepoRecoveryPort,
@@ -142,12 +145,14 @@ export type {
 export {
   FailClosedPermissionedRepoRecoveryPort,
   InMemoryPermissionedNotificationRegistrationStore,
+  InMemoryPermissionedRepoAccountStateStore,
   spaceRefFromPermissionedNotification,
   XrpcPermissionedRepoPort,
   XrpcPermissionedSyncClient,
 } from './xrpc-permissioned-repo-port.js';
 export {
   KyselyPermissionedNotificationRegistrationStore,
+  KyselyPermissionedRepoAccountStateStore,
   KyselyPermissionedReplicaStore,
 } from './kysely-permissioned-sync-store.js';
 export type {

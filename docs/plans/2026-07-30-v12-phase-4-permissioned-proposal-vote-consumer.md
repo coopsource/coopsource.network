@@ -52,6 +52,8 @@ cooperative member or reader roster.
 - `permissioned_repo_cursor` and `permissioned_repo_record` persist verified
   per-writer replica state.
 - `permissioned_notification_registration` persists registration expiry.
+- `permissioned_repo_account_state` persists the newest host-scoped public
+  account event; replica cursors retain their DID-resolved writer host.
 - Replica state is staged behind an opaque checkpoint. It is committed only
   after all acceptance and projection handlers succeed.
 - A process restart after projection but before checkpoint replays the batch;
@@ -135,10 +137,12 @@ remains in place.
 
 ### Public identity/account events
 
-Writer DID documents are resolved on each relevant reconciliation, but public
-identity/account event subscription is not implemented. Periodic sweeps cover
-event loss, not immediate account takedown or DID endpoint/key change. Add this
-as the next narrow protocol-hardening slice before production activation.
+Implemented in the follow-on
+`2026-07-30-v12-phase-4-public-repo-lifecycle-events.md` checkpoint. Raw
+identity/account frames and Tap identity events now trigger serialized
+reconciliation. Host-matched inactive states are durable and immediately
+tombstone cached replicas; unattributed Tap events and events from another host
+remain non-destructive. Production lifecycle-source selection remains parked.
 
 ### Canonical storage migration
 
@@ -149,12 +153,10 @@ of a production custody or retention model.
 
 ## Next Work
 
-1. Add public DID/account event reconciliation and explicit account-state
-   invalidation.
-2. Build differential runners against the pinned atproto branch and HappyView
+1. Build differential runners against the pinned atproto branch and HappyView
    dev release; record commit/CAR/notification deviations.
-3. Exercise live full recovery when a pinned implementation serves `getRepo`.
-4. Resolve V12-S09 before exposing or registering an inbound notification
+2. Exercise live full recovery when a pinned implementation serves `getRepo`.
+3. Resolve V12-S09 before exposing or registering an inbound notification
    endpoint.
-5. Proceed to managing-app, cooperative custody, retention, and migration
+4. Proceed to managing-app, cooperative custody, retention, and migration
    decisions without changing runtime defaults.

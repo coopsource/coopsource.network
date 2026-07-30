@@ -1,9 +1,14 @@
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
-import type { IPdsService, FirehoseEvent } from '@coopsource/federation';
+import type {
+  IPdsService,
+  FirehoseEvent,
+  RepoLifecycleEvent,
+  RepositoryStreamEvent,
+} from '@coopsource/federation';
 import type { DID, AtUri, CID } from '@coopsource/common';
 import { Tap, SimpleIndexer } from '@atproto/tap';
-import type { RecordEvent } from '@atproto/tap';
+import type { IdentityEvent, RecordEvent } from '@atproto/tap';
 import { logger } from '../middleware/logger.js';
 import type { HookRegistry } from './hooks/registry.js';
 import { processFirehoseEvent } from './hooks/pipeline.js';
@@ -12,6 +17,7 @@ import { getValidationWarnings } from './hooks/pipeline.js';
 export interface AppViewConfig {
   tapUrl?: string;
   hookRegistry: HookRegistry;
+  onRepoLifecycleEvent?: (event: RepoLifecycleEvent) => Promise<void> | void;
 }
 
 // ─── Firehose health state (exported for health endpoint) ──────────────────
@@ -121,9 +127,30 @@ async function runTapLoop(
     } catch (err) {
       healthState.errorCount++;
       logger.error(
-        { err, event: { id: evt.id, collection: evt.collection, did: evt.did } },
+        {
+          err,
+          event: { id: evt.id, collection: evt.collection, did: evt.did },
+        },
         'AppView indexer error (tap)',
       );
+    }
+  });
+
+  indexer.identity(async (evt) => {
+    const time = new Date().toISOString();
+    try {
+      for (const event of tapIdentityToRepoLifecycleEvents(evt, time)) {
+        await config.onRepoLifecycleEvent?.(event);
+      }
+      healthState.lastSeq = evt.id;
+      healthState.lastEventAt = time;
+    } catch (err) {
+      healthState.errorCount++;
+      logger.error(
+        { err, event: { id: evt.id, did: evt.did, status: evt.status } },
+        'AppView identity handler error (tap)',
+      );
+      throw err;
     }
   });
 
@@ -156,7 +183,11 @@ async function runLocalLoop(
 
       for await (const event of stream) {
         try {
-          await processFirehoseEvent(db, config.hookRegistry, event);
+          if (isRepoLifecycleEvent(event)) {
+            await config.onRepoLifecycleEvent?.(event);
+          } else {
+            await processFirehoseEvent(db, config.hookRegistry, event);
+          }
 
           // Update cursor
           await db
@@ -176,9 +207,19 @@ async function runLocalLoop(
         } catch (err) {
           healthState.errorCount++;
           logger.error(
-            { err, event: { seq: event.seq, uri: event.uri } },
+            {
+              err,
+              event: {
+                seq: event.seq,
+                did: event.did,
+                ...(isRepoLifecycleEvent(event)
+                  ? { kind: event.kind }
+                  : { uri: event.uri }),
+              },
+            },
             'AppView indexer error (local)',
           );
+          if (isRepoLifecycleEvent(event)) throw err;
         }
       }
     } catch (err) {
@@ -187,4 +228,36 @@ async function runLocalLoop(
       backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
     }
   }
+}
+
+export function tapIdentityToRepoLifecycleEvents(
+  event: IdentityEvent,
+  time: string,
+): readonly [RepoLifecycleEvent, RepoLifecycleEvent] {
+  const inactiveStatus =
+    !event.isActive && event.status !== 'active' ? event.status : undefined;
+
+  return [
+    {
+      kind: 'identity',
+      seq: event.id,
+      did: event.did as DID,
+      time,
+      handle: event.handle,
+    },
+    {
+      kind: 'account',
+      seq: event.id,
+      did: event.did as DID,
+      time,
+      active: event.isActive,
+      ...(inactiveStatus ? { status: inactiveStatus } : {}),
+    },
+  ];
+}
+
+function isRepoLifecycleEvent(
+  event: RepositoryStreamEvent,
+): event is RepoLifecycleEvent {
+  return 'kind' in event;
 }

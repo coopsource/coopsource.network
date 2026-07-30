@@ -17,6 +17,7 @@ import type {
   ListRecordsOptions,
   PdsRecord,
   RecordRef,
+  RepositoryStreamEvent,
 } from '../types.js';
 import type { FederationDatabase } from './db-tables.js';
 import { PlcClient } from './plc-client.js';
@@ -238,7 +239,7 @@ export class LocalPdsService implements IPdsService {
     }));
   }
 
-  async *subscribeRepos(cursor = 0): AsyncIterable<FirehoseEvent> {
+  async *subscribeRepos(cursor = 0): AsyncIterable<RepositoryStreamEvent> {
     // Replay backlog from pds_commit (dropped in migration 056 — returns empty after that).
     type CommitRow = {
       global_seq: number;

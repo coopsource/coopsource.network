@@ -58,7 +58,12 @@ export interface ResolvedSpaceMember {
 
 export interface MissingSpace {
   readonly space: SpaceRef;
-  readonly reason: 'not-found' | 'unavailable' | 'invalid-space' | 'depth-limit' | 'cycle';
+  readonly reason:
+    | 'not-found'
+    | 'unavailable'
+    | 'invalid-space'
+    | 'depth-limit'
+    | 'cycle';
 }
 
 export interface ResolvedMembers {
@@ -143,6 +148,25 @@ export type PermissionedVerificationStatus =
   | 'failed-closed'
   | 'unverified-dev-mode';
 
+export type PublicRepoLifecycleEvent =
+  | {
+      readonly kind: 'identity';
+      readonly sequence: number;
+      readonly did: DID;
+      readonly occurredAt: Date;
+      readonly handle?: string;
+      readonly sourceHost?: string;
+    }
+  | {
+      readonly kind: 'account';
+      readonly sequence: number;
+      readonly did: DID;
+      readonly occurredAt: Date;
+      readonly active: boolean;
+      readonly status?: string;
+      readonly sourceHost?: string;
+    };
+
 export interface PermissionedChangeHint {
   readonly space: SpaceRef;
   readonly receivedAt?: Date;
@@ -150,6 +174,7 @@ export interface PermissionedChangeHint {
   readonly sourceRevision?: string;
   readonly sourceHash?: Uint8Array;
   readonly checkpointHint?: PermissionedCheckpoint;
+  readonly repoLifecycle?: PublicRepoLifecycleEvent;
 }
 
 export interface VerifiedPermissionedChanges {
@@ -179,7 +204,12 @@ export interface ConsumerHealth {
  */
 export class SpacesConsumerError extends Error {
   constructor(
-    public readonly kind: 'credential' | 'verification' | 'member-list' | 'protocol' | 'schema',
+    public readonly kind:
+      | 'credential'
+      | 'verification'
+      | 'member-list'
+      | 'protocol'
+      | 'schema',
     message: string,
   ) {
     super(message);

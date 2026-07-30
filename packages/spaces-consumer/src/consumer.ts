@@ -13,6 +13,7 @@ import {
   type ClockedOptions,
   type ConsumerHealth,
   type PermissionedChangeHint,
+  type PublicRepoLifecycleEvent,
   type ResolvedMembers,
   type SpaceRef,
   type VerifiedPermissionedChanges,
@@ -45,6 +46,7 @@ export class SpacesConsumer {
   private readonly startedAt: string;
   private watchHandle: PermissionedWatchHandle | null = null;
   private readonly spaceQueues = new Map<string, Promise<void>>();
+  private activeSpaces: ReadonlyArray<SpaceRef> = [];
   private subscribedSpaces = 0;
   private lastPullAt: string | null = null;
   private recordsAccepted = 0;
@@ -64,6 +66,7 @@ export class SpacesConsumer {
       spaces,
       onChange: (hint) => this.enqueueChange(hint),
     });
+    this.activeSpaces = [...spaces];
     this.subscribedSpaces = spaces.length;
   }
 
@@ -71,15 +74,37 @@ export class SpacesConsumer {
     await this.watchHandle?.close();
     await Promise.allSettled(this.spaceQueues.values());
     this.watchHandle = null;
+    this.activeSpaces = [];
     this.subscribedSpaces = 0;
   }
 
-  private enqueueChange(hint: PermissionedChangeHint): Promise<void> {
+  async handleRepoLifecycleEvent(
+    event: PublicRepoLifecycleEvent,
+  ): Promise<void> {
+    await Promise.all(
+      this.activeSpaces.map((space) =>
+        this.enqueueChange(
+          {
+            space,
+            repoDid: event.did,
+            receivedAt: event.occurredAt,
+            repoLifecycle: event,
+          },
+          true,
+        ),
+      ),
+    );
+  }
+
+  private enqueueChange(
+    hint: PermissionedChangeHint,
+    propagateErrors = false,
+  ): Promise<void> {
     const key = `${hint.space.arbiterDid}|${hint.space.spaceKey}|${hint.space.expectedSpaceType ?? ''}`;
     const prior = this.spaceQueues.get(key) ?? Promise.resolve();
     const queued = prior
       .catch(() => undefined)
-      .then(() => this.handleChange(hint));
+      .then(() => this.handleChange(hint, propagateErrors));
     this.spaceQueues.set(key, queued);
     return queued.finally(() => {
       if (this.spaceQueues.get(key) === queued) {
@@ -102,7 +127,10 @@ export class SpacesConsumer {
     };
   }
 
-  private async handleChange(hint: PermissionedChangeHint): Promise<void> {
+  private async handleChange(
+    hint: PermissionedChangeHint,
+    propagateErrors: boolean,
+  ): Promise<void> {
     let changes: VerifiedPermissionedChanges;
     try {
       changes = await this.opts.permissionedRepo.sync({
@@ -111,6 +139,7 @@ export class SpacesConsumer {
       });
     } catch (err) {
       await this.recordError(err, { space: hint.space });
+      if (propagateErrors) throw err;
       return;
     }
 
@@ -127,7 +156,7 @@ export class SpacesConsumer {
 
     let canCommitCheckpoint = true;
     for (const record of changes.records) {
-      const handled = await this.handleRecord(record);
+      const handled = await this.handleRecord(record, propagateErrors);
       if (!handled) canCommitCheckpoint = false;
     }
 
@@ -139,12 +168,14 @@ export class SpacesConsumer {
         });
       } catch (err) {
         await this.recordError(err, { space: changes.space });
+        if (propagateErrors) throw err;
       }
     }
   }
 
   private async handleRecord(
     record: VerifiedPermissionedRecord,
+    propagateErrors: boolean,
   ): Promise<boolean> {
     if (record.operation === 'delete') {
       // The authority inventory or a verified writer commit may remove records
@@ -159,6 +190,7 @@ export class SpacesConsumer {
           space: record.location.space,
           authorDid: record.location.authorDid,
         });
+        if (propagateErrors) throw err;
         return false;
       }
     }
@@ -176,6 +208,7 @@ export class SpacesConsumer {
         space: record.location.space,
         authorDid: record.location.authorDid,
       });
+      if (propagateErrors) throw err;
       return false;
     }
 
@@ -187,16 +220,15 @@ export class SpacesConsumer {
     ) {
       this.recordsRejected += 1;
       this.memberCrossCheckFailures += 1;
-      await this.recordError(
-        new SpacesConsumerError(
-          'member-list',
-          'strict resolved membership was indeterminate',
-        ),
-        {
-          space: record.location.space,
-          authorDid: record.location.authorDid,
-        },
+      const error = new SpacesConsumerError(
+        'member-list',
+        'strict resolved membership was indeterminate',
       );
+      await this.recordError(error, {
+        space: record.location.space,
+        authorDid: record.location.authorDid,
+      });
+      if (propagateErrors) throw error;
       return false;
     }
 
@@ -220,6 +252,7 @@ export class SpacesConsumer {
         space: record.location.space,
         authorDid: record.location.authorDid,
       });
+      if (propagateErrors) throw err;
       return false;
     }
 
@@ -237,6 +270,7 @@ export class SpacesConsumer {
           space: record.location.space,
           authorDid: record.location.authorDid,
         });
+        if (propagateErrors) throw err;
         return false;
       }
     }
@@ -250,6 +284,7 @@ export class SpacesConsumer {
         space: record.location.space,
         authorDid: record.location.authorDid,
       });
+      if (propagateErrors) throw err;
       return false;
     }
   }

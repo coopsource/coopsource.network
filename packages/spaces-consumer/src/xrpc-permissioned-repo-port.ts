@@ -126,6 +126,44 @@ export interface PermissionedNotificationRegistrationStore {
   put(registration: PermissionedNotificationRegistration): Promise<void>;
 }
 
+export interface PermissionedRepoAccountState {
+  readonly repoDid: DID;
+  readonly sourceHost: string;
+  readonly active: boolean;
+  readonly status?: string;
+  readonly eventSequence: number;
+  readonly eventTime: Date;
+}
+
+export interface PermissionedRepoAccountStateStore {
+  get(
+    repoDid: DID,
+    sourceHost: string,
+  ): Promise<PermissionedRepoAccountState | undefined>;
+  put(state: PermissionedRepoAccountState): Promise<void>;
+}
+
+export class InMemoryPermissionedRepoAccountStateStore implements PermissionedRepoAccountStateStore {
+  private readonly states = new Map<string, PermissionedRepoAccountState>();
+
+  async get(
+    repoDid: DID,
+    sourceHost: string,
+  ): Promise<PermissionedRepoAccountState | undefined> {
+    const state = this.states.get(accountStateKey(repoDid, sourceHost));
+    return state
+      ? { ...state, eventTime: new Date(state.eventTime) }
+      : undefined;
+  }
+
+  async put(state: PermissionedRepoAccountState): Promise<void> {
+    const key = accountStateKey(state.repoDid, state.sourceHost);
+    const current = this.states.get(key);
+    if (current && current.eventSequence >= state.eventSequence) return;
+    this.states.set(key, { ...state, eventTime: new Date(state.eventTime) });
+  }
+}
+
 export class InMemoryPermissionedNotificationRegistrationStore implements PermissionedNotificationRegistrationStore {
   private readonly registrations = new Map<
     string,
@@ -184,6 +222,7 @@ export interface XrpcPermissionedRepoPortOptions extends ClockedOptions {
   readonly notifications?: PermissionedNotificationSourcePort;
   readonly notificationEndpoint?: string;
   readonly registrations?: PermissionedNotificationRegistrationStore;
+  readonly accountStates?: PermissionedRepoAccountStateStore;
   readonly sweepIntervalMs?: number;
   readonly setInterval?: (
     callback: () => void,
@@ -209,6 +248,7 @@ export class XrpcPermissionedRepoPort implements PermissionedRepoPort {
   private readonly recovery: PermissionedRepoRecoveryPort;
   private readonly blobs: PermissionedBlobVerifierPort;
   private readonly registrations: PermissionedNotificationRegistrationStore;
+  private readonly accountStates: PermissionedRepoAccountStateStore;
   private readonly pending = new Map<
     PermissionedCheckpoint,
     ReadonlyArray<PermissionedReplicaState>
@@ -225,6 +265,8 @@ export class XrpcPermissionedRepoPort implements PermissionedRepoPort {
     this.registrations =
       options.registrations ??
       new InMemoryPermissionedNotificationRegistrationStore();
+    this.accountStates =
+      options.accountStates ?? new InMemoryPermissionedRepoAccountStateStore();
   }
 
   async watch(args: {
@@ -307,12 +349,13 @@ export class XrpcPermissionedRepoPort implements PermissionedRepoPort {
       args.credential,
     );
 
-    const writers = await this.listWriters({
+    const inventory = await this.listWriters({
       space: args.space,
       spaceHost,
       credential: args.credential,
     });
-    const writerDids = new Set(writers.map((writer) => writer.did));
+    const writers = await this.resolveActiveWriters(inventory, args.hint);
+    const writerDids = new Set(writers.map(({ writer }) => writer.did));
     const stagedStates: PermissionedReplicaState[] = [];
     const records: VerifiedPermissionedRecord[] = [];
     let resynced = false;
@@ -328,10 +371,11 @@ export class XrpcPermissionedRepoPort implements PermissionedRepoPort {
       records.push(...diffPermissionedReplica(previous, removed));
     }
 
-    for (const writer of writers) {
+    for (const { writer, repoHost } of writers) {
       const result = await this.syncWriter({
         space: args.space,
         writer,
+        repoHost,
         credential: args.credential,
         hintedRevision:
           args.hint?.repoDid === writer.did
@@ -339,6 +383,9 @@ export class XrpcPermissionedRepoPort implements PermissionedRepoPort {
             : undefined,
         hintedHash:
           args.hint?.repoDid === writer.did ? args.hint.sourceHash : undefined,
+        forceReconcile:
+          args.hint?.repoDid === writer.did &&
+          args.hint.repoLifecycle !== undefined,
       });
       if (!result) continue;
       stagedStates.push(result.state);
@@ -423,9 +470,11 @@ export class XrpcPermissionedRepoPort implements PermissionedRepoPort {
   private async syncWriter(args: {
     readonly space: SpaceRef;
     readonly writer: PermissionedWriterSummary;
+    readonly repoHost: string;
     readonly credential: SpaceCredential;
     readonly hintedRevision?: string;
     readonly hintedHash?: Uint8Array;
+    readonly forceReconcile?: boolean;
   }): Promise<{
     readonly state: PermissionedReplicaState;
     readonly changes: ReadonlyArray<VerifiedPermissionedRecord>;
@@ -444,41 +493,39 @@ export class XrpcPermissionedRepoPort implements PermissionedRepoPort {
           : args.writer.hash;
 
     if (
+      !args.forceReconcile &&
       previous.revision &&
+      previous.repoHost === args.repoHost &&
       targetRevision === previous.revision &&
       targetHash &&
       equalBytes(previousHash, targetHash)
     ) {
       return null;
     }
-
-    const repoHost = normalizeServiceUrl(
-      await this.options.endpoints.resolveRepoHost(args.writer.did),
-    );
     try {
       const state = await this.incrementalSync({
         previous,
-        repoHost,
+        repoHost: args.repoHost,
         credential: args.credential,
         expectedRevision: targetRevision,
         expectedHash: targetHash,
       });
       await this.blobs.verify({
-        serviceUrl: repoHost,
+        serviceUrl: args.repoHost,
         space: args.space,
         repoDid: args.writer.did,
         credential: args.credential,
         records: state.records,
       });
       return {
-        state,
+        state: { ...state, repoHost: args.repoHost },
         changes: diffPermissionedReplica(previous, state),
         resynced: false,
       };
     } catch (cause) {
       if (!isRecoveryCause(cause)) throw cause;
       const recovered = await this.recovery.recover({
-        serviceUrl: repoHost,
+        serviceUrl: args.repoHost,
         space: args.space,
         repoDid: args.writer.did,
         credential: args.credential,
@@ -486,7 +533,7 @@ export class XrpcPermissionedRepoPort implements PermissionedRepoPort {
       });
       await this.verifyRecoveredRepo(recovered, args.space, args.writer.did);
       await this.blobs.verify({
-        serviceUrl: repoHost,
+        serviceUrl: args.repoHost,
         space: args.space,
         repoDid: args.writer.did,
         credential: args.credential,
@@ -507,8 +554,11 @@ export class XrpcPermissionedRepoPort implements PermissionedRepoPort {
         );
       }
       return {
-        state: recovered.state,
-        changes: diffPermissionedReplica(previous, recovered.state),
+        state: { ...recovered.state, repoHost: args.repoHost },
+        changes: diffPermissionedReplica(previous, {
+          ...recovered.state,
+          repoHost: args.repoHost,
+        }),
         resynced: true,
       };
     }
@@ -588,6 +638,7 @@ export class XrpcPermissionedRepoPort implements PermissionedRepoPort {
         return {
           space: args.previous.space,
           repoDid: args.previous.repoDid,
+          repoHost: args.repoHost,
           revision: page.commit.rev,
           records: finalized,
         };
@@ -664,6 +715,40 @@ export class XrpcPermissionedRepoPort implements PermissionedRepoPort {
     } catch (error) {
       await this.options.onBackgroundError?.(error, { space });
     }
+  }
+
+  private async resolveActiveWriters(
+    writers: ReadonlyArray<PermissionedWriterSummary>,
+    hint: PermissionedChangeHint | undefined,
+  ): Promise<
+    ReadonlyArray<{
+      readonly writer: PermissionedWriterSummary;
+      readonly repoHost: string;
+    }>
+  > {
+    const event = hint?.repoLifecycle;
+    if (event?.kind === 'account' && event.sourceHost) {
+      const sourceHost = normalizeServiceUrl(event.sourceHost);
+      await this.accountStates.put({
+        repoDid: event.did,
+        sourceHost,
+        active: event.active,
+        ...(event.status ? { status: event.status } : {}),
+        eventSequence: event.sequence,
+        eventTime: event.occurredAt,
+      });
+    }
+
+    const activeWriters = [];
+    for (const writer of writers) {
+      const repoHost = normalizeServiceUrl(
+        await this.options.endpoints.resolveRepoHost(writer.did),
+      );
+      const accountState = await this.accountStates.get(writer.did, repoHost);
+      if (accountState?.active === false) continue;
+      activeWriters.push({ writer, repoHost });
+    }
+    return activeWriters;
   }
 
   private discardPendingForSpace(space: SpaceRef): void {
@@ -808,6 +893,10 @@ function verificationError(message: string): PermissionedSyncError {
 
 function registrationKey(space: SpaceRef, endpoint: string): string {
   return `${spaceRefKey(space)}|${endpoint}`;
+}
+
+function accountStateKey(repoDid: DID, sourceHost: string): string {
+  return `${repoDid}|${sourceHost}`;
 }
 
 function formatSpaceRef(space: SpaceRef): string {

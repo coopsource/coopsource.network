@@ -1,6 +1,7 @@
 import type { CID, DID } from '@coopsource/common';
 import {
   KyselyPermissionedNotificationRegistrationStore,
+  KyselyPermissionedRepoAccountStateStore,
   KyselyPermissionedReplicaStore,
   type PermissionedReplicaState,
   type SpaceRef,
@@ -28,6 +29,7 @@ describe('permissioned sync persistence', () => {
     const initial: PermissionedReplicaState = {
       space,
       repoDid,
+      repoHost: 'https://alice.example',
       revision: '2',
       records: [
         {
@@ -51,6 +53,7 @@ describe('permissioned sync persistence', () => {
     const replacement: PermissionedReplicaState = {
       space,
       repoDid,
+      repoHost: 'https://alice-moved.example',
       revision: '3',
       records: [
         {
@@ -65,6 +68,12 @@ describe('permissioned sync persistence', () => {
     await store.commit([replacement]);
 
     await expect(store.load(space, repoDid)).resolves.toEqual(replacement);
+    await expect(
+      getTestDb()
+        .selectFrom('permissioned_repo_cursor')
+        .select('repo_host')
+        .executeTakeFirstOrThrow(),
+    ).resolves.toEqual({ repo_host: 'https://alice-moved.example' });
     await expect(
       getTestDb()
         .selectFrom('permissioned_repo_record')
@@ -98,6 +107,44 @@ describe('permissioned sync persistence', () => {
       space,
       endpoint,
       expiresAt: new Date('2026-08-01T12:00:00Z'),
+    });
+  });
+
+  it('persists the newest host-scoped repository account state', async () => {
+    const store = new KyselyPermissionedRepoAccountStateStore(getTestDb(), {
+      clock: () => now,
+    });
+    const sourceHost = 'https://alice.example';
+    await store.put({
+      repoDid,
+      sourceHost,
+      active: false,
+      status: 'deactivated',
+      eventSequence: 42,
+      eventTime: new Date('2026-07-30T11:59:00Z'),
+    });
+    await store.put({
+      repoDid,
+      sourceHost,
+      active: true,
+      eventSequence: 43,
+      eventTime: now,
+    });
+    await store.put({
+      repoDid,
+      sourceHost,
+      active: false,
+      status: 'deactivated',
+      eventSequence: 42,
+      eventTime: new Date('2026-07-30T12:01:00Z'),
+    });
+
+    await expect(store.get(repoDid, sourceHost)).resolves.toEqual({
+      repoDid,
+      sourceHost,
+      active: true,
+      eventSequence: 43,
+      eventTime: now,
     });
   });
 });

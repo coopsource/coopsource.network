@@ -100,6 +100,7 @@ import {
 import {
   CredentialedPermissionedRepoPort,
   DidPermissionedSyncResolver,
+  KyselyPermissionedRepoAccountStateStore,
   KyselyPermissionedReplicaStore,
   Proposal0016CommitVerifier,
   SpaceCredentialManager,
@@ -369,14 +370,6 @@ async function start(): Promise<void> {
   // Error handling (must be last)
   app.use(errorHandler);
 
-  // Start AppView subscription loop
-  startAppViewLoop(container.pdsService, container.db, {
-    tapUrl: config.TAP_URL,
-    hookRegistry: container.hookRegistry,
-  }).catch((err) => {
-    logger.error(err, 'AppView loop failed to start');
-  });
-
   const spacesConsumerRefs = parseSpacesConsumerRefs(
     config.SPACES_CONSUMER_SPACES,
   );
@@ -410,6 +403,10 @@ async function start(): Promise<void> {
         replicas: new KyselyPermissionedReplicaStore(container.db, {
           clock: () => container.clock.now(),
         }),
+        accountStates: new KyselyPermissionedRepoAccountStateStore(
+          container.db,
+          { clock: () => container.clock.now() },
+        ),
         clock: () => container.clock.now(),
         onBackgroundError: (err, context) => {
           logger.warn(
@@ -422,7 +419,7 @@ async function start(): Promise<void> {
   }
 
   // V12 Phase 4: pull-based permissioned repository consumer.
-  startSpacesConsumer({
+  const spacesConsumer = await startSpacesConsumer({
     enabled: config.SPACES_CONSUMER_ENABLED,
     unsafeAcceptUnverifiedPermissionedData:
       config.UNSAFE_ACCEPT_UNVERIFIED_PERMISSIONED_DATA,
@@ -431,6 +428,42 @@ async function start(): Promise<void> {
     permissionedRepo,
   }).catch((err) => {
     logger.error(err, 'Spaces consumer failed to start');
+    return null;
+  });
+
+  // Start record and public repo-lifecycle ingestion only after its sinks exist.
+  startAppViewLoop(container.pdsService, container.db, {
+    tapUrl: config.TAP_URL,
+    hookRegistry: container.hookRegistry,
+    onRepoLifecycleEvent: async (event) => {
+      if (!spacesConsumer) return;
+      const occurredAt = new Date(event.time);
+      const eventTime = Number.isFinite(occurredAt.getTime())
+        ? occurredAt
+        : container.clock.now();
+      if (event.kind === 'identity') {
+        await spacesConsumer.handleRepoLifecycleEvent({
+          kind: 'identity',
+          sequence: event.seq,
+          did: event.did,
+          occurredAt: eventTime,
+          ...(event.handle ? { handle: event.handle } : {}),
+          ...(event.sourceHost ? { sourceHost: event.sourceHost } : {}),
+        });
+      } else {
+        await spacesConsumer.handleRepoLifecycleEvent({
+          kind: 'account',
+          sequence: event.seq,
+          did: event.did,
+          occurredAt: eventTime,
+          active: event.active,
+          ...(event.status ? { status: event.status } : {}),
+          ...(event.sourceHost ? { sourceHost: event.sourceHost } : {}),
+        });
+      }
+    },
+  }).catch((err) => {
+    logger.error(err, 'AppView loop failed to start');
   });
 
   // Start event dispatcher for agent triggers
