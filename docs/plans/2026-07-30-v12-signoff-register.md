@@ -29,6 +29,7 @@ legitimate cooperative purpose.
 | V12-S06 | Private moderation and abuse signals | Keep labels and reports inside the permissioned boundary; minimize metadata and provide operator review and appeal paths. Do not emit public labels that reveal private records or membership. | Moderation policy, legal review where required, and user signoff before production |
 | V12-S07 | Generic governance vocabulary | Rename cooperative-shaped inputs to group-neutral vocabulary before any external package or Lexicon publication. Internal refactoring may proceed when coherent. | Package contract review; external publication remains separately gated |
 | V12-S08 | External publication and ecosystem outreach | Draft material may be prepared in-repo. Do not publish TSC proposals, forum feedback, protocol claims, or organizational announcements. | Explicit user approval of the exact outward-facing text and venue |
+| V12-S09 | Inbound permissioned notification identity and audience | Keep periodic reconciliation as the correctness path. Do not register or expose an inbound notification endpoint while the pinned URL-derived service identity conflicts with CSN's DID-audience service-auth verifier. Do not invent a weaker hybrid. | Upstream contract convergence or explicit user approval of a pinned temporary target plus security review |
 
 ## Implemented But Not Activated
 
@@ -37,6 +38,9 @@ legitimate cooperative purpose.
 - Client-attestation provider and deterministic signer boundary.
 - Narrow SimpleSpace manager scopes.
 - Draft XRPC record writer and live exercise.
+- Draft XRPC proposal/vote reader, LtHash/commit verification, CAR and blob
+  verification, durable replica/checkpoint state, and idempotent API
+  projection.
 
 These are engineering checkpoints, not approval of the production authority,
 custody, retention, moderation, or migration model.

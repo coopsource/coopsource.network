@@ -8,16 +8,19 @@ import {
   SpacesConsumer,
   type ConsumerHealth,
   type PermissionedVerificationStatus,
+  type PermissionedRepoPort,
   type SpaceRef,
   type VerifiedPermissionedRecord,
 } from '@coopsource/spaces-consumer';
 import { logger } from '../middleware/logger.js';
+import { projectPermissionedGovernanceChange } from './permissioned-governance-projector.js';
 
 export interface SpacesConsumerDispatchConfig {
   readonly enabled: boolean;
   readonly unsafeAcceptUnverifiedPermissionedData: boolean;
   readonly db: Kysely<Database>;
   readonly spaces: ReadonlyArray<SpaceRef>;
+  readonly permissionedRepo?: PermissionedRepoPort;
 }
 
 let activeConsumer: SpacesConsumer | null = null;
@@ -63,22 +66,39 @@ export async function startSpacesConsumer(
   const consumer = new SpacesConsumer({
     groupDirectory: new CsnDbGroupDirectoryPort(cfg.db),
     didEquivalence: new KyselyDidEquivalencePort(cfg.db),
-    permissionedRepo: new InMemoryPermissionedRepoPort({
-      records: [],
-      verification,
-      checkpoints: new KyselyPermissionedCheckpointStore(cfg.db),
-      clock: () => new Date(),
-    }),
+    permissionedRepo:
+      cfg.permissionedRepo ??
+      new InMemoryPermissionedRepoPort({
+        records: [],
+        verification,
+        checkpoints: new KyselyPermissionedCheckpointStore(cfg.db),
+        clock: () => new Date(),
+      }),
     onAccepted: async (record: VerifiedPermissionedRecord) => {
+      const projection = await projectPermissionedGovernanceChange(
+        cfg.db,
+        record,
+        new Date(),
+      );
       logger.info(
-        { location: record.location, cid: record.cid },
-        'spaces-consumer: accepted record (stage 1: log-only)',
+        {
+          location: record.location,
+          operation: record.operation,
+          cid: record.operation === 'delete' ? undefined : record.cid,
+          projection,
+        },
+        'spaces-consumer: accepted record',
       );
     },
     onRejected: async ({ record, reason }) => {
       logger.warn(
-        { location: record.location, cid: record.cid, reason },
-        'spaces-consumer: rejected verified record (stage 1: log-only)',
+        {
+          location: record.location,
+          operation: record.operation,
+          cid: record.operation === 'delete' ? undefined : record.cid,
+          reason,
+        },
+        'spaces-consumer: rejected verified record',
       );
     },
     onError: async (err, ctx) => {
@@ -94,10 +114,48 @@ export async function startSpacesConsumer(
       spaces: cfg.spaces.length,
       verification,
       groupDirectory: 'CsnDbGroupDirectoryPort',
+      permissionedRepo: cfg.permissionedRepo
+        ? cfg.permissionedRepo.constructor.name
+        : 'InMemoryPermissionedRepoPort',
     },
-    'Spaces consumer started (stage 2A: CSN DB group-directory adapter, log-only record handling)',
+    'Spaces consumer started (CSN membership acceptance and governance projection enabled)',
   );
   return consumer;
+}
+
+export function parseSpacesConsumerRefs(value: string): SpaceRef[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw new Error('SPACES_CONSUMER_SPACES must be valid JSON');
+  }
+  if (!Array.isArray(parsed)) {
+    throw new Error('SPACES_CONSUMER_SPACES must be a JSON array');
+  }
+  return parsed.map((item, index) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      throw new Error(`SPACES_CONSUMER_SPACES[${index}] must be an object`);
+    }
+    const value = item as Record<string, unknown>;
+    if (
+      typeof value.arbiterDid !== 'string' ||
+      !value.arbiterDid.startsWith('did:') ||
+      typeof value.spaceKey !== 'string' ||
+      !value.spaceKey ||
+      typeof value.expectedSpaceType !== 'string' ||
+      !value.expectedSpaceType
+    ) {
+      throw new Error(
+        `SPACES_CONSUMER_SPACES[${index}] requires arbiterDid, spaceKey, and expectedSpaceType`,
+      );
+    }
+    return {
+      arbiterDid: value.arbiterDid as SpaceRef['arbiterDid'],
+      spaceKey: value.spaceKey,
+      expectedSpaceType: value.expectedSpaceType,
+    };
+  });
 }
 
 export async function stopSpacesConsumer(): Promise<void> {

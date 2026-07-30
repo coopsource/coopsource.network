@@ -1084,6 +1084,9 @@ export interface Database {
   did_rotation_history: DidRotationHistoryTable;
   spaces_consumer_cursor: SpacesConsumerCursorTable;
   space_credential: SpaceCredentialTable;
+  permissioned_notification_registration: PermissionedNotificationRegistrationTable;
+  permissioned_repo_cursor: PermissionedRepoCursorTable;
+  permissioned_repo_record: PermissionedRepoRecordTable;
 }
 
 // ──────────────────────────────────────────────
@@ -1767,6 +1770,37 @@ export interface SpacesConsumerCursorTable {
   expected_space_type: string | null;
   member_did: string;
   cursor: string;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface PermissionedNotificationRegistrationTable {
+  space_ref_key: string;
+  arbiter_did: string;
+  space_key: string;
+  expected_space_type: string | null;
+  endpoint: string;
+  expires_at: ColumnType<Date, Date | string, Date | string>;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface PermissionedRepoCursorTable {
+  space_ref_key: string;
+  arbiter_did: string;
+  space_key: string;
+  expected_space_type: string | null;
+  repo_did: string;
+  revision: string;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface PermissionedRepoRecordTable {
+  space_ref_key: string;
+  repo_did: string;
+  collection: string;
+  rkey: string;
+  cid: string;
+  record: ColumnType<unknown, unknown, unknown>;
+  source_revision: string | null;
   updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }
 

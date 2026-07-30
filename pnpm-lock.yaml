@@ -433,6 +433,12 @@ importers:
 
   packages/spaces-consumer:
     dependencies:
+      '@atproto/crypto':
+        specifier: ^0.4.5
+        version: 0.4.5
+      '@atproto/lex-cbor':
+        specifier: ^0.0.15
+        version: 0.0.15
       '@coopsource/common':
         specifier: workspace:*
         version: link:../common
@@ -442,9 +448,21 @@ importers:
       '@coopsource/lexicons':
         specifier: workspace:*
         version: link:../lexicons
+      '@ipld/car':
+        specifier: ^5.4.2
+        version: 5.4.2
+      '@ipld/dag-cbor':
+        specifier: ^9.2.5
+        version: 9.2.5
+      '@noble/hashes':
+        specifier: ^1.8.0
+        version: 1.8.0
       kysely:
         specifier: ^0.28.14
         version: 0.28.14
+      multiformats:
+        specifier: ^13.4.2
+        version: 13.4.2
     devDependencies:
       '@coopsource/config':
         specifier: workspace:*

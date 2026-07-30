@@ -16,6 +16,7 @@ import {
   type SpaceDelegationTokenClientPort,
   type SpaceDelegationTokenRequest,
   type SpaceDelegationTokenResponse,
+  PermissionedSyncError,
 } from '../index.js';
 import type { SpaceRef } from '../types.js';
 import { buildVerifiedRecord, fakeDid } from './helpers/factories.js';
@@ -157,6 +158,56 @@ describe('Phase 4 governance vote credential harness', () => {
       errorCount: 1,
     });
   });
+
+  it('refreshes once when a credential expires during the sync batch', async () => {
+    const delegationClient = new RecordingDelegationTokenClient({
+      token: 'delegation-token',
+    });
+    const exchangeClient = new SequencedExchangeClient([
+      {
+        credential: 'expired-during-batch',
+        expiresAt: new Date('2026-07-06T13:00:00Z'),
+      },
+      {
+        credential: 'replacement',
+        expiresAt: new Date('2026-07-06T13:00:00Z'),
+      },
+    ]);
+    const credentials = new SpaceCredentialManager(
+      new InMemorySpaceCredentialStore({ clock: () => now }),
+      new TwoStepSpaceCredentialIssuer(delegationClient, exchangeClient, {
+        clientId: 'https://app.example/oauth/client.json',
+      }),
+      { clock: () => now },
+    );
+    const repo = new ExpiringPermissionedRepoPort({
+      records: [governanceVote],
+      verification: 'verified',
+      clock: () => now,
+    });
+    const consumer = new SpacesConsumer({
+      groupDirectory: new StaticGroupDirectoryPort([
+        { space: coopMembersSpace, members: [aliceDid] },
+      ]),
+      permissionedRepo: new CredentialedPermissionedRepoPort({
+        credentials,
+        inner: repo,
+      }),
+      onAccepted: vi.fn(),
+      onError: vi.fn(),
+      clock: () => now,
+    });
+
+    await consumer.start([coopMembersSpace]);
+    await repo.emit(coopMembersSpace);
+
+    expect(repo.credentialsSeen.map((item) => item.token)).toEqual([
+      'expired-during-batch',
+      'replacement',
+    ]);
+    expect(exchangeClient.requests).toHaveLength(2);
+    expect(await repo.committedCheckpoint(coopMembersSpace)).toBe('7');
+  });
 });
 
 class RecordingDelegationTokenClient implements SpaceDelegationTokenClientPort {
@@ -212,5 +263,35 @@ class RecordingExchangeClient implements SpaceCredentialExchangeClientPort {
     await Promise.resolve();
     this.events.push('exchange-resolved');
     return this.response;
+  }
+}
+
+class SequencedExchangeClient implements SpaceCredentialExchangeClientPort {
+  readonly requests: SpaceCredentialExchangeRequest[] = [];
+
+  constructor(private readonly responses: SpaceCredentialExchangeResponse[]) {}
+
+  async getSpaceCredential(
+    request: SpaceCredentialExchangeRequest,
+  ): Promise<SpaceCredentialExchangeResponse> {
+    this.requests.push(request);
+    const response = this.responses.shift();
+    if (!response) throw new Error('no exchange response');
+    return response;
+  }
+}
+
+class ExpiringPermissionedRepoPort extends RecordingPermissionedRepoPort {
+  private attempts = 0;
+
+  override async sync(
+    args: Parameters<PermissionedRepoPort['sync']>[0],
+  ): ReturnType<PermissionedRepoPort['sync']> {
+    this.attempts += 1;
+    if (args.credential) this.credentialsSeen.push(args.credential);
+    if (this.attempts === 1) {
+      throw new PermissionedSyncError('auth', 'credential expired');
+    }
+    return InMemoryPermissionedRepoPort.prototype.sync.call(this, args);
   }
 }

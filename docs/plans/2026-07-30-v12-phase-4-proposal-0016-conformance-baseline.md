@@ -34,6 +34,14 @@ and management verb for every draft method currently called by CSN:
 - `com.atproto.space.createRecord`
 - `com.atproto.space.putRecord`
 - `com.atproto.space.deleteRecord`
+- `com.atproto.space.listRepos`
+- `com.atproto.space.listRepoOps`
+- `com.atproto.space.getRepo`
+- `com.atproto.space.getLatestCommit`
+- `com.atproto.space.getBlob`
+- `com.atproto.space.registerNotify`
+- `com.atproto.space.notifyWrite`
+- `com.atproto.space.notifySpaceDeleted`
 - `com.atproto.simplespace.createSpace`
 - `com.atproto.simplespace.addMember`
 - `com.atproto.simplespace.removeMember`
@@ -103,3 +111,8 @@ incremental `listRepoOps`, a replaceable pinned commit verifier, LtHash
 comparison, CAR recovery, idempotent projection, and post-verification CSN
 membership acceptance. Differential HappyView/PR #5187 runners remain a later
 conformance task rather than a condition for this baseline.
+
+**Completed 2026-07-30:** See
+`2026-07-30-v12-phase-4-permissioned-proposal-vote-consumer.md`. Runtime
+defaults remain unchanged; notification endpoint activation, live upstream
+`getRepo`, and public identity/account events remain parked.

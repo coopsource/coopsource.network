@@ -356,6 +356,17 @@ The next critical deliverable is one real notification/sweep/oplog/LtHash/CAR
 proposal-and-vote read/recovery slice with cooperative membership applied as a
 separate post-verification acceptance policy.
 
+**Progress 2026-07-30, P1 checkpoint:** The concrete draft XRPC reader now
+implements `listRepos`/`listRepoOps`, periodic reconciliation, pinned
+LtHash/commit verification, CAR recovery, blob verification, persisted
+registration/replica state, writer removal, credential refresh, and
+post-projection checkpoints. The API projects verified proposal/vote records
+idempotently while preserving its query shape and keeping strict CSN
+membership as a separate acceptance gate. Runtime reader/writer defaults are
+unchanged. Inbound notification endpoint activation, public identity/account
+events, and a live upstream `getRepo` exercise remain parked; see
+`docs/plans/2026-07-30-v12-phase-4-permissioned-proposal-vote-consumer.md`.
+
 - [x] First task expanded through the July 29 gap analysis and July 30
   conformance-baseline note.
 

@@ -14,7 +14,11 @@ import type {
   SpaceRef,
   VerifiedPermissionedRecord,
 } from '../types.js';
-import { buildVerifiedRecord, fakeDid } from './helpers/factories.js';
+import {
+  buildVerifiedRecord,
+  fakeCid,
+  fakeDid,
+} from './helpers/factories.js';
 
 const ref: SpaceRef = {
   arbiterDid: fakeDid('did:plc:coop'),
@@ -108,6 +112,40 @@ describe('SpacesConsumer', () => {
     // A non-member record is an expected, successful cross-check outcome — it is
     // rejected but is NOT a cross-check *failure*, so this counter stays 0.
     expect(consumer.health().memberCrossCheckFailures).toBe(0);
+  });
+
+  it('applies verified tombstones after the author leaves the space', async () => {
+    const tombstone = buildVerifiedRecord({
+      space: ref,
+      authorDid: eveDid,
+      rkey: 'former-member-vote',
+      sourceRevision: '3',
+      operation: 'delete',
+      previousCid: fakeCid('cid-2'),
+    });
+    const repo = new InMemoryPermissionedRepoPort({
+      records: [tombstone],
+      verification: 'verified',
+      clock: () => new Date('2026-05-11T12:00:00Z'),
+    });
+    const consumer = new SpacesConsumer({
+      groupDirectory: new StaticGroupDirectoryPort([
+        { space: ref, members: [aliceDid] },
+      ]),
+      permissionedRepo: repo,
+      onAccepted,
+      onRejected,
+      onError: vi.fn(),
+      clock: () => new Date('2026-05-11T12:00:00Z'),
+    });
+
+    await consumer.start([ref]);
+    await repo.emit(ref);
+
+    expect(onAccepted).toHaveBeenCalledWith(tombstone);
+    expect(onRejected).not.toHaveBeenCalled();
+    expect(await repo.committedCheckpoint(ref)).toBe('3');
+    expect(consumer.health().recordsAccepted).toBe(1);
   });
 
   it('accepts records from a prior DID when the equivalence port maps it to a current member DID', async () => {
@@ -287,5 +325,52 @@ describe('SpacesConsumer', () => {
     );
     expect(await repo.committedCheckpoint(ref)).toBeUndefined();
     expect(consumer.health().errorCount).toBe(1);
+  });
+
+  it('serializes duplicate signals for the same space', async () => {
+    const repo = new InMemoryPermissionedRepoPort({
+      records: [aliceRecord],
+      verification: 'verified',
+      clock: () => new Date('2026-05-11T12:00:00Z'),
+    });
+    let releaseFirst: (() => void) | undefined;
+    const firstProjection = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    let activeProjections = 0;
+    let maximumConcurrency = 0;
+    const serializedAccepted = vi.fn(async () => {
+      activeProjections += 1;
+      maximumConcurrency = Math.max(maximumConcurrency, activeProjections);
+      if (serializedAccepted.mock.calls.length === 1) {
+        await firstProjection;
+      }
+      activeProjections -= 1;
+    });
+    const consumer = new SpacesConsumer({
+      groupDirectory: new StaticGroupDirectoryPort([
+        { space: ref, members: [aliceDid] },
+      ]),
+      permissionedRepo: repo,
+      onAccepted: serializedAccepted,
+      onRejected,
+      onError: vi.fn(),
+      clock: () => new Date('2026-05-11T12:00:00Z'),
+    });
+    await consumer.start([ref]);
+
+    const first = repo.emit(ref);
+    await vi.waitFor(() => {
+      expect(serializedAccepted).toHaveBeenCalledTimes(1);
+    });
+    const duplicate = repo.emit(ref);
+    await Promise.resolve();
+    expect(serializedAccepted).toHaveBeenCalledTimes(1);
+
+    releaseFirst?.();
+    await Promise.all([first, duplicate]);
+
+    expect(serializedAccepted).toHaveBeenCalledTimes(2);
+    expect(maximumConcurrency).toBe(1);
   });
 });

@@ -184,7 +184,7 @@ export class SpaceCredentialManager {
     return credential;
   }
 
-  async invalidateForMemberListChange(ref: SpaceRef): Promise<void> {
+  async invalidate(ref: SpaceRef): Promise<void> {
     await this.store.delete(ref);
   }
 

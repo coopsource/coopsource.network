@@ -107,12 +107,24 @@ export interface PermissionedRecordLocation {
   readonly rkey: string;
 }
 
-export interface VerifiedPermissionedRecord {
+export interface VerifiedPermissionedRecordUpsert {
+  readonly operation: 'create' | 'update';
   readonly location: PermissionedRecordLocation;
   readonly cid: CID;
   readonly record: unknown;
   readonly sourceRevision?: string;
 }
+
+export interface VerifiedPermissionedRecordDelete {
+  readonly operation: 'delete';
+  readonly location: PermissionedRecordLocation;
+  readonly previousCid?: CID;
+  readonly sourceRevision?: string;
+}
+
+export type VerifiedPermissionedRecord =
+  | VerifiedPermissionedRecordUpsert
+  | VerifiedPermissionedRecordDelete;
 
 /**
  * Internal Stage 1 sketch record. Stable application code should depend on
@@ -120,7 +132,7 @@ export interface VerifiedPermissionedRecord {
  *
  * @internal
  */
-export interface PulledRecord extends VerifiedPermissionedRecord {
+export interface PulledRecord extends VerifiedPermissionedRecordUpsert {
   readonly sourceRevision: string;
   readonly commitSignature: string;
 }
@@ -134,7 +146,9 @@ export type PermissionedVerificationStatus =
 export interface PermissionedChangeHint {
   readonly space: SpaceRef;
   readonly receivedAt?: Date;
+  readonly repoDid?: DID;
   readonly sourceRevision?: string;
+  readonly sourceHash?: Uint8Array;
   readonly checkpointHint?: PermissionedCheckpoint;
 }
 

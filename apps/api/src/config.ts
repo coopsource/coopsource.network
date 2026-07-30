@@ -57,6 +57,10 @@ const envSchema = z
     // V11 Stage 1: Spaces consumer (pull-based permissioned-data consumer)
     SPACES_CONSUMER_ENABLED: envBoolean,
     UNSAFE_ACCEPT_UNVERIFIED_PERMISSIONED_DATA: envBoolean,
+    PERMISSIONED_REPO_READER_MODE: z
+      .enum(['fail-closed', 'draft-xrpc'])
+      .default('fail-closed'),
+    SPACES_CONSUMER_SPACES: z.string().default('[]'),
     PERMISSIONED_RECORD_WRITER_MODE: z
       .enum(['private-record', 'draft-xrpc'])
       .default('private-record'),

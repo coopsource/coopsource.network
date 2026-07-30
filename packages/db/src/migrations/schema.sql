@@ -1420,6 +1420,52 @@ CREATE TABLE public.private_record (
 
 
 --
+-- Name: permissioned_notification_registration; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.permissioned_notification_registration (
+    space_ref_key text NOT NULL,
+    arbiter_did text NOT NULL,
+    space_key text NOT NULL,
+    expected_space_type text,
+    endpoint text NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: permissioned_repo_cursor; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.permissioned_repo_cursor (
+    space_ref_key text NOT NULL,
+    arbiter_did text NOT NULL,
+    space_key text NOT NULL,
+    expected_space_type text,
+    repo_did text NOT NULL,
+    revision text NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: permissioned_repo_record; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.permissioned_repo_record (
+    space_ref_key text NOT NULL,
+    repo_did text NOT NULL,
+    collection text NOT NULL,
+    rkey text NOT NULL,
+    cid text NOT NULL,
+    record jsonb NOT NULL,
+    source_revision text,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: procurement_demand; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2676,6 +2722,30 @@ ALTER TABLE ONLY public.pds_record
 
 ALTER TABLE ONLY public.pds_record
     ADD CONSTRAINT pds_record_pkey PRIMARY KEY (uri);
+
+
+--
+-- Name: permissioned_notification_registration permissioned_notification_registration_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.permissioned_notification_registration
+    ADD CONSTRAINT permissioned_notification_registration_pkey PRIMARY KEY (space_ref_key, endpoint);
+
+
+--
+-- Name: permissioned_repo_cursor permissioned_repo_cursor_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.permissioned_repo_cursor
+    ADD CONSTRAINT permissioned_repo_cursor_pkey PRIMARY KEY (space_ref_key, repo_did);
+
+
+--
+-- Name: permissioned_repo_record permissioned_repo_record_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.permissioned_repo_record
+    ADD CONSTRAINT permissioned_repo_record_pkey PRIMARY KEY (space_ref_key, repo_did, collection, rkey);
 
 
 --
