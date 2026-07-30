@@ -9,13 +9,63 @@ describe('firehose-decoder', () => {
     expect(events).toEqual([]);
   });
 
-  it('should return empty array for non-commit frames', () => {
+  it('should return empty array for unknown frames', () => {
     const data = concatCbor(
-      { op: 1, t: '#identity' },
+      { op: 1, t: '#unknown' },
       { seq: 1, did: 'did:plc:test' },
     );
     const events = decodeFirehoseMessage(data);
     expect(events).toEqual([]);
+  });
+
+  it('decodes identity changes without inventing account state', () => {
+    const events = decodeFirehoseMessage(
+      concatCbor(
+        { op: 1, t: '#identity' },
+        {
+          seq: 7,
+          did: 'did:plc:alice',
+          time: '2026-07-30T12:00:00Z',
+          handle: 'alice.example',
+        },
+      ),
+    );
+
+    expect(events).toEqual([
+      {
+        kind: 'identity',
+        seq: 7,
+        did: 'did:plc:alice',
+        time: '2026-07-30T12:00:00Z',
+        handle: 'alice.example',
+      },
+    ]);
+  });
+
+  it('decodes host-scoped inactive account state', () => {
+    const events = decodeFirehoseMessage(
+      concatCbor(
+        { op: 1, t: '#account' },
+        {
+          seq: 8,
+          did: 'did:plc:alice',
+          time: '2026-07-30T12:01:00Z',
+          active: false,
+          status: 'deactivated',
+        },
+      ),
+    );
+
+    expect(events).toEqual([
+      {
+        kind: 'account',
+        seq: 8,
+        did: 'did:plc:alice',
+        time: '2026-07-30T12:01:00Z',
+        active: false,
+        status: 'deactivated',
+      },
+    ]);
   });
 
   it('should decode a commit frame with ops', () => {

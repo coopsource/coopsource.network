@@ -1,6 +1,6 @@
 import type { CID, DID } from '@coopsource/common';
 import type { Database } from '@coopsource/db';
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import type {
   PermissionedReplicaState,
   PermissionedReplicaStore,
@@ -9,6 +9,8 @@ import { PermissionedSyncError } from './permissioned-sync.js';
 import type {
   PermissionedNotificationRegistration,
   PermissionedNotificationRegistrationStore,
+  PermissionedRepoAccountState,
+  PermissionedRepoAccountStateStore,
 } from './xrpc-permissioned-repo-port.js';
 import { spaceRefKey, type ClockedOptions, type SpaceRef } from './types.js';
 
@@ -48,7 +50,7 @@ export class KyselyPermissionedReplicaStore implements PermissionedReplicaStore 
     const key = spaceRefKey(space);
     const cursor = await this.db
       .selectFrom('permissioned_repo_cursor')
-      .select('revision')
+      .select(['revision', 'repo_host'])
       .where('space_ref_key', '=', key)
       .where('repo_did', '=', repoDid)
       .executeTakeFirst();
@@ -66,6 +68,7 @@ export class KyselyPermissionedReplicaStore implements PermissionedReplicaStore 
     return {
       space,
       repoDid,
+      ...(cursor.repo_host ? { repoHost: cursor.repo_host } : {}),
       revision: cursor.revision,
       records: records.map((record) => ({
         collection: record.collection,
@@ -111,6 +114,7 @@ export class KyselyPermissionedReplicaStore implements PermissionedReplicaStore 
             space_key: state.space.spaceKey,
             expected_space_type: state.space.expectedSpaceType ?? null,
             repo_did: state.repoDid,
+            repo_host: state.repoHost ?? null,
             revision: state.revision,
             updated_at: now,
           })
@@ -119,6 +123,7 @@ export class KyselyPermissionedReplicaStore implements PermissionedReplicaStore 
               arbiter_did: state.space.arbiterDid,
               space_key: state.space.spaceKey,
               expected_space_type: state.space.expectedSpaceType ?? null,
+              repo_host: state.repoHost ?? null,
               revision: state.revision!,
               updated_at: now,
             }),
@@ -196,4 +201,65 @@ export class KyselyPermissionedNotificationRegistrationStore implements Permissi
       )
       .execute();
   }
+}
+
+export class KyselyPermissionedRepoAccountStateStore implements PermissionedRepoAccountStateStore {
+  constructor(
+    private readonly db: Kysely<Database>,
+    private readonly options: ClockedOptions,
+  ) {}
+
+  async get(
+    repoDid: DID,
+    sourceHost: string,
+  ): Promise<PermissionedRepoAccountState | undefined> {
+    const row = await this.db
+      .selectFrom('permissioned_repo_account_state')
+      .select(['active', 'status', 'event_sequence', 'event_time'])
+      .where('repo_did', '=', repoDid)
+      .where('source_host', '=', sourceHost)
+      .executeTakeFirst();
+    if (!row) return undefined;
+    return {
+      repoDid,
+      sourceHost,
+      active: row.active,
+      ...(row.status ? { status: row.status } : {}),
+      eventSequence: row.event_sequence,
+      eventTime: row.event_time,
+    };
+  }
+
+  async put(state: PermissionedRepoAccountState): Promise<void> {
+    const now = this.options.clock();
+    await this.db
+      .insertInto('permissioned_repo_account_state')
+      .values({
+        repo_did: state.repoDid,
+        source_host: state.sourceHost,
+        active: state.active,
+        status: state.status ?? null,
+        event_sequence: state.eventSequence,
+        event_time: state.eventTime,
+        updated_at: now,
+      })
+      .onConflict((conflict) =>
+        conflict.columns(['repo_did', 'source_host']).doUpdateSet({
+          active: newerAccountEvent<boolean>('active'),
+          status: newerAccountEvent<string | null>('status'),
+          event_sequence: newerAccountEvent<number>('event_sequence'),
+          event_time: newerAccountEvent<Date>('event_time'),
+          updated_at: newerAccountEvent<Date>('updated_at'),
+        }),
+      )
+      .execute();
+  }
+}
+
+function newerAccountEvent<T>(column: string) {
+  return sql<T>`CASE
+    WHEN excluded.event_sequence > permissioned_repo_account_state.event_sequence
+    THEN ${sql.ref(`excluded.${column}`)}
+    ELSE ${sql.ref(`permissioned_repo_account_state.${column}`)}
+  END`;
 }

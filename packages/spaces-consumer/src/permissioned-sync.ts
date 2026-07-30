@@ -57,6 +57,7 @@ export interface PermissionedReplicaRecord {
 export interface PermissionedReplicaState {
   readonly space: SpaceRef;
   readonly repoDid: DID;
+  readonly repoHost?: string;
   readonly revision?: string;
   readonly records: ReadonlyArray<PermissionedReplicaRecord>;
   readonly removed?: boolean;

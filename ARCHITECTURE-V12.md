@@ -4,8 +4,8 @@
 
 **Updated:** 2026-07-30. Grounded in the July 29 ecosystem research and gap
 analysis plus the Phase 4 Proposal 0016 conformance baseline and first
-permissioned proposal/vote consumer checkpoint. Current code audit target:
-`main` after that checkpoint.
+permissioned proposal/vote consumer and public repository lifecycle
+checkpoints. Current code audit target: `main` after those checkpoints.
 
 V12 is a **documentation-and-alignment revision, not a design pivot.** The four-layer architecture, the ten-plugin contract, the authority axes, and the recursive cooperative model are all carried from V11 unchanged. What changed is the upstream reality V11 was betting on — and the bet aged well.
 
@@ -102,9 +102,10 @@ eligibility, retention, or legal policy into generic host Rego.
   `PERMISSIONED_REPO_READER_MODE=fail-closed`) with `spaces:[]`. The draft
   reader implements periodic/notification-driven inventory and oplog pulls,
   pinned LtHash/commit/CID verification, CAR/blob recovery, durable replica
-  checkpoints, writer removal, and idempotent proposal/vote projection.
-  Inbound notification endpoint activation, public DID/account events, and a
-  live upstream `getRepo` server exercise remain parked.
+  checkpoints, writer removal, public identity/account reconciliation with
+  host-scoped durable invalidation, and idempotent proposal/vote projection.
+  Inbound notification endpoint activation, production lifecycle-source
+  selection, and a live upstream `getRepo` server exercise remain parked.
 
 ---
 
@@ -176,7 +177,7 @@ Digest algorithm is LtHash per proposal 0016; current public code exposes the ve
 
 | Layer            | Package                    | State                                                                                                                                                                                                                                                                                                                      |
 | ---------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1 Spaces         | `packages/spaces-consumer` | Flag-gated concrete draft reader/writer: DID-resolved authority and writer hosts/keys, credential refresh, `listRepos`/`listRepoOps`, periodic sweeps, pinned LtHash/signed-commit/CID verification, CAR/blob recovery, persisted replica/registration state, writer removal, and post-projection checkpoints. Inbound notification activation and public account-event ingestion remain parked. |
+| 1 Spaces         | `packages/spaces-consumer` | Flag-gated concrete draft reader/writer: DID-resolved authority and writer hosts/keys, credential refresh, `listRepos`/`listRepoOps`, periodic sweeps, pinned LtHash/signed-commit/CID verification, CAR/blob recovery, persisted replica/registration/account state, writer removal, public lifecycle reconciliation, and post-projection checkpoints. Inbound notification activation and production lifecycle-source selection remain parked. |
 | 2 Group policy   | `packages/arbiter-client`  | CSN-Postgres remains the runtime authority. Mock-tested SimpleSpace directory/management clients and Proposal 0016 DID service provisioning are draft adapters; Roomy/Rego remains a possible future host adapter. |
 | 3 GovernanceView | `packages/governance-view` | Concrete `GovernanceView` registration owns generic tally/outcome and proposal-lifecycle policy plus the complete ten-plugin set; production governance consumers use it. Non-canonical community governance draft lexicons live outside the runtime schema set. Phase 5 still owns further generic service extraction.    |
 | 4 CoopView       | `packages/coop-view`       | Concrete `CoopView` registration composes CSN vote, eligibility, quorum, authorization, delegation, patronage, and distribution plugins with defaults for the remaining interfaces. Broad service rewrites remain Phase 5 work.                                                                                            |
@@ -244,7 +245,9 @@ ports and are expected to drift.
 9. Inbound notification service identity/audience: the pinned implementation's
    URL-derived audience does not match CSN's DID-audience verifier. Periodic
    reconciliation remains authoritative until V12-S09 is resolved.
-10. Public DID/account event ingestion and immediate account invalidation.
+10. Production public lifecycle-source topology and source-switch procedure.
+    Raw host-attributed invalidation is implemented; unattributed Tap events
+    remain intentionally non-destructive.
 
 **Watchlist (two-week cadence; last deep sweep 2026-07-29, next due
 2026-08-12):** Proposal 0016 and `atproto#5187`; Holmgren's permissioned-data

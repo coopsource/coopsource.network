@@ -1435,6 +1435,21 @@ CREATE TABLE public.permissioned_notification_registration (
 
 
 --
+-- Name: permissioned_repo_account_state; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.permissioned_repo_account_state (
+    repo_did text NOT NULL,
+    source_host text NOT NULL,
+    active boolean NOT NULL,
+    status text,
+    event_sequence double precision NOT NULL,
+    event_time timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: permissioned_repo_cursor; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1444,6 +1459,7 @@ CREATE TABLE public.permissioned_repo_cursor (
     space_key text NOT NULL,
     expected_space_type text,
     repo_did text NOT NULL,
+    repo_host text,
     revision text NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -2730,6 +2746,14 @@ ALTER TABLE ONLY public.pds_record
 
 ALTER TABLE ONLY public.permissioned_notification_registration
     ADD CONSTRAINT permissioned_notification_registration_pkey PRIMARY KEY (space_ref_key, endpoint);
+
+
+--
+-- Name: permissioned_repo_account_state permissioned_repo_account_state_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.permissioned_repo_account_state
+    ADD CONSTRAINT permissioned_repo_account_state_pkey PRIMARY KEY (repo_did, source_host);
 
 
 --

@@ -9,10 +9,11 @@ import type {
 } from '../interfaces/pds-service.js';
 import type {
   DidDocument,
-  FirehoseEvent,
   ListRecordsOptions,
   PdsRecord,
   RecordRef,
+  RepoLifecycleEvent,
+  RepositoryStreamEvent,
 } from '../types.js';
 import { AtpAgent } from '@atproto/api';
 import { decodeFirehoseMessage } from './firehose-decoder.js';
@@ -291,7 +292,9 @@ export class AtprotoPdsService implements IPdsService {
 
   // ─── Firehose ────────────────────────────────────────────────────────────
 
-  async *subscribeRepos(cursor?: number): AsyncIterable<FirehoseEvent> {
+  async *subscribeRepos(
+    cursor?: number,
+  ): AsyncIterable<RepositoryStreamEvent> {
     const wsUrl = this.pdsUrl.replace(/^http/, 'ws');
     const endpoint = `${wsUrl}/xrpc/com.atproto.sync.subscribeRepos${
       cursor != null ? `?cursor=${cursor}` : ''
@@ -304,7 +307,9 @@ export class AtprotoPdsService implements IPdsService {
       try {
         const events = connectFirehoseWebSocket(endpoint);
         for await (const event of events) {
-          yield event;
+          yield isRepoLifecycleEvent(event)
+            ? { ...event, sourceHost: normalizeServiceUrl(this.pdsUrl) }
+            : event;
           backoff = 1000; // reset on success
         }
       } catch {
@@ -487,10 +492,10 @@ function parseAtUri(uri: string): {
 
 async function* connectFirehoseWebSocket(
   endpoint: string,
-): AsyncIterable<FirehoseEvent> {
+): AsyncIterable<RepositoryStreamEvent> {
   const ws = new WebSocket(endpoint);
 
-  const queue: FirehoseEvent[] = [];
+  const queue: RepositoryStreamEvent[] = [];
   let resolve: (() => void) | null = null;
   let closed = false;
   let error: Error | null = null;
@@ -549,4 +554,14 @@ async function* connectFirehoseWebSocket(
       ws.close();
     }
   }
+}
+
+function isRepoLifecycleEvent(
+  event: RepositoryStreamEvent,
+): event is RepoLifecycleEvent {
+  return 'kind' in event;
+}
+
+function normalizeServiceUrl(value: string): string {
+  return new URL(value).toString().replace(/\/+$/, '');
 }

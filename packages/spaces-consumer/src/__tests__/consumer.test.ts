@@ -14,11 +14,7 @@ import type {
   SpaceRef,
   VerifiedPermissionedRecord,
 } from '../types.js';
-import {
-  buildVerifiedRecord,
-  fakeCid,
-  fakeDid,
-} from './helpers/factories.js';
+import { buildVerifiedRecord, fakeCid, fakeDid } from './helpers/factories.js';
 
 const ref: SpaceRef = {
   arbiterDid: fakeDid('did:plc:coop'),
@@ -372,5 +368,115 @@ describe('SpacesConsumer', () => {
 
     expect(serializedAccepted).toHaveBeenCalledTimes(2);
     expect(maximumConcurrency).toBe(1);
+  });
+
+  it('routes public repo lifecycle events through the per-space queue', async () => {
+    const repo = new InMemoryPermissionedRepoPort({
+      records: [],
+      verification: 'verified',
+      clock: () => new Date('2026-05-11T12:00:00Z'),
+    });
+    const sync = vi.spyOn(repo, 'sync');
+    const consumer = new SpacesConsumer({
+      groupDirectory: new StaticGroupDirectoryPort([
+        { space: ref, members: [aliceDid] },
+      ]),
+      permissionedRepo: repo,
+      onAccepted,
+      onRejected,
+      onError: vi.fn(),
+      clock: () => new Date('2026-05-11T12:00:00Z'),
+    });
+    await consumer.start([ref]);
+
+    await consumer.handleRepoLifecycleEvent({
+      kind: 'identity',
+      sequence: 42,
+      did: aliceDid,
+      occurredAt: new Date('2026-05-11T12:01:00Z'),
+      handle: 'alice.example',
+    });
+
+    expect(sync).toHaveBeenCalledWith({
+      space: ref,
+      hint: {
+        space: ref,
+        repoDid: aliceDid,
+        receivedAt: new Date('2026-05-11T12:01:00Z'),
+        repoLifecycle: {
+          kind: 'identity',
+          sequence: 42,
+          did: aliceDid,
+          occurredAt: new Date('2026-05-11T12:01:00Z'),
+          handle: 'alice.example',
+        },
+      },
+    });
+  });
+
+  it('propagates lifecycle sync failures after recording them', async () => {
+    const repo = new InMemoryPermissionedRepoPort({
+      records: [],
+      verification: 'verified',
+      clock: () => new Date('2026-05-11T12:00:00Z'),
+    });
+    vi.spyOn(repo, 'sync').mockRejectedValueOnce(new Error('sync-failed'));
+    const onError = vi.fn();
+    const consumer = new SpacesConsumer({
+      groupDirectory: new StaticGroupDirectoryPort([
+        { space: ref, members: [aliceDid] },
+      ]),
+      permissionedRepo: repo,
+      onAccepted,
+      onRejected,
+      onError,
+      clock: () => new Date('2026-05-11T12:00:00Z'),
+    });
+    await consumer.start([ref]);
+
+    await expect(
+      consumer.handleRepoLifecycleEvent({
+        kind: 'identity',
+        sequence: 43,
+        did: aliceDid,
+        occurredAt: new Date('2026-05-11T12:02:00Z'),
+      }),
+    ).rejects.toThrow('sync-failed');
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'sync-failed' }),
+      { space: ref },
+    );
+  });
+
+  it('propagates lifecycle projection failures without checkpointing', async () => {
+    const repo = new InMemoryPermissionedRepoPort({
+      records: [aliceRecord],
+      verification: 'verified',
+      clock: () => new Date('2026-05-11T12:00:00Z'),
+    });
+    const consumer = new SpacesConsumer({
+      groupDirectory: new StaticGroupDirectoryPort([
+        { space: ref, members: [aliceDid] },
+      ]),
+      permissionedRepo: repo,
+      onAccepted: async () => {
+        throw new Error('projection-failed');
+      },
+      onRejected,
+      onError: vi.fn(),
+      clock: () => new Date('2026-05-11T12:00:00Z'),
+    });
+    await consumer.start([ref]);
+
+    await expect(
+      consumer.handleRepoLifecycleEvent({
+        kind: 'account',
+        sequence: 44,
+        did: aliceDid,
+        occurredAt: new Date('2026-05-11T12:03:00Z'),
+        active: true,
+      }),
+    ).rejects.toThrow('projection-failed');
+    await expect(repo.committedCheckpoint(ref)).resolves.toBeUndefined();
   });
 });

@@ -121,9 +121,7 @@ describe('XrpcPermissionedRepoPort', () => {
     const record = { $type: 'app.example.record', value: 'one' };
     const cid = await cidForPermissionedRecord(record);
     const port = buildPort(
-      new RepoClient([
-        repoFixture(alice, '2', [op('2', 'one', cid, record)]),
-      ]),
+      new RepoClient([repoFixture(alice, '2', [op('2', 'one', cid, record)])]),
     );
     const first = await port.sync({ space, credential });
     const retry = await port.sync({ space, credential });
@@ -256,6 +254,191 @@ describe('XrpcPermissionedRepoPort', () => {
     const nextSweep = await port.sync({ space, credential });
     expect(nextSweep.records).toEqual([]);
     expect(nextSweep.checkpoint).toBeUndefined();
+  });
+
+  it('tombstones a writer when its verified repo host reports it inactive', async () => {
+    const record = { $type: 'app.example.record', value: 'one' };
+    const cid = await cidForPermissionedRecord(record);
+    const client = new RepoClient([
+      repoFixture(alice, '2', [op('2', 'one', cid, record)]),
+    ]);
+    const replicas = new InMemoryPermissionedReplicaStore();
+    const port = buildPort(client, replicas);
+    const initial = await port.sync({ space, credential });
+    await port.commitCheckpoint({ space, checkpoint: initial.checkpoint! });
+
+    const invalidated = await port.sync({
+      space,
+      credential,
+      hint: {
+        space,
+        repoDid: alice,
+        receivedAt: now,
+        repoLifecycle: {
+          kind: 'account',
+          sequence: 42,
+          did: alice,
+          occurredAt: now,
+          active: false,
+          status: 'deactivated',
+          sourceHost: 'https://alice.example/',
+        },
+      },
+    });
+
+    expect(invalidated.records).toEqual([
+      expect.objectContaining({
+        operation: 'delete',
+        previousCid: cid,
+        location: expect.objectContaining({ authorDid: alice, rkey: 'one' }),
+      }),
+    ]);
+    await port.commitCheckpoint({
+      space,
+      checkpoint: invalidated.checkpoint!,
+    });
+    await expect(replicas.load(space, alice)).resolves.toBeUndefined();
+
+    const suppressedSweep = await port.sync({ space, credential });
+    expect(suppressedSweep.records).toEqual([]);
+    expect(suppressedSweep.checkpoint).toBeUndefined();
+    await expect(replicas.load(space, alice)).resolves.toBeUndefined();
+
+    const reactivated = await port.sync({
+      space,
+      credential,
+      hint: {
+        space,
+        repoDid: alice,
+        receivedAt: now,
+        repoLifecycle: {
+          kind: 'account',
+          sequence: 43,
+          did: alice,
+          occurredAt: now,
+          active: true,
+          sourceHost: 'https://alice.example',
+        },
+      },
+    });
+    expect(reactivated.records).toEqual([
+      expect.objectContaining({
+        operation: 'create',
+        cid,
+        location: expect.objectContaining({ authorDid: alice, rkey: 'one' }),
+      }),
+    ]);
+    await port.commitCheckpoint({
+      space,
+      checkpoint: reactivated.checkpoint!,
+    });
+
+    const staleInactiveReplay = await port.sync({
+      space,
+      credential,
+      hint: {
+        space,
+        repoDid: alice,
+        receivedAt: now,
+        repoLifecycle: {
+          kind: 'account',
+          sequence: 42,
+          did: alice,
+          occurredAt: now,
+          active: false,
+          status: 'deactivated',
+          sourceHost: 'https://alice.example',
+        },
+      },
+    });
+    expect(staleInactiveReplay.records).toEqual([]);
+    await expect(replicas.load(space, alice)).resolves.toMatchObject({
+      records: [expect.objectContaining({ cid })],
+    });
+  });
+
+  it('does not tombstone from an inactive event emitted by another host', async () => {
+    const record = { $type: 'app.example.record', value: 'one' };
+    const cid = await cidForPermissionedRecord(record);
+    const client = new RepoClient([
+      repoFixture(alice, '2', [op('2', 'one', cid, record)]),
+    ]);
+    const replicas = new InMemoryPermissionedReplicaStore();
+    const port = buildPort(client, replicas);
+    const initial = await port.sync({ space, credential });
+    await port.commitCheckpoint({ space, checkpoint: initial.checkpoint! });
+
+    const reconciled = await port.sync({
+      space,
+      credential,
+      hint: {
+        space,
+        repoDid: alice,
+        receivedAt: now,
+        repoLifecycle: {
+          kind: 'account',
+          sequence: 42,
+          did: alice,
+          occurredAt: now,
+          active: false,
+          status: 'takendown',
+          sourceHost: 'https://relay.example',
+        },
+      },
+    });
+
+    expect(reconciled.records).toEqual([]);
+    expect(reconciled.checkpoint).toBeDefined();
+    await expect(replicas.load(space, alice)).resolves.toMatchObject({
+      repoHost: 'https://alice.example',
+      records: [expect.objectContaining({ cid })],
+    });
+  });
+
+  it('refreshes the stored writer endpoint on an identity event', async () => {
+    const record = { $type: 'app.example.record', value: 'one' };
+    const cid = await cidForPermissionedRecord(record);
+    const client = new RepoClient([
+      repoFixture(alice, '2', [op('2', 'one', cid, record)]),
+    ]);
+    const replicas = new InMemoryPermissionedReplicaStore();
+    let repoHost = 'https://alice.example';
+    const port = buildPort(client, replicas, undefined, {
+      endpoints: {
+        resolveSpaceHost: async () => 'https://space.example',
+        resolveRepoHost: async () => repoHost,
+      },
+    });
+    const initial = await port.sync({ space, credential });
+    await port.commitCheckpoint({ space, checkpoint: initial.checkpoint! });
+    repoHost = 'https://alice-moved.example';
+
+    const reconciled = await port.sync({
+      space,
+      credential,
+      hint: {
+        space,
+        repoDid: alice,
+        receivedAt: now,
+        repoLifecycle: {
+          kind: 'identity',
+          sequence: 43,
+          did: alice,
+          occurredAt: now,
+          handle: 'alice.example',
+        },
+      },
+    });
+    await port.commitCheckpoint({
+      space,
+      checkpoint: reconciled.checkpoint!,
+    });
+
+    expect(reconciled.records).toEqual([]);
+    await expect(replicas.load(space, alice)).resolves.toMatchObject({
+      repoHost: 'https://alice-moved.example',
+      revision: '2',
+    });
   });
 
   it('syncs concurrent writer repositories in stable order', async () => {

@@ -8,7 +8,13 @@
 import { decode as cborDecode, decodeFirst as cborDecodeFirst } from 'cborg';
 import * as dagCbor from '@ipld/dag-cbor';
 import { CarReader } from '@ipld/car';
-import type { FirehoseEvent, FirehoseOperation } from '../types.js';
+import type {
+  FirehoseEvent,
+  FirehoseOperation,
+  RepoAccountEvent,
+  RepoIdentityEvent,
+  RepositoryStreamEvent,
+} from '../types.js';
 import type { AtUri, CID, DID } from '@coopsource/common';
 
 interface FrameHeader {
@@ -34,26 +40,43 @@ interface CommitOp {
   cid: { '/': string } | null; // CID link (null for deletes)
 }
 
+interface IdentityBody {
+  seq: number;
+  did: string;
+  time: string;
+  handle?: string;
+}
+
+interface AccountBody {
+  seq: number;
+  did: string;
+  time: string;
+  active: boolean;
+  status?: string;
+}
+
 /**
  * Decode a single firehose WebSocket message into FirehoseEvents.
  * Each message is two concatenated CBOR values: header + body.
  */
-export function decodeFirehoseMessage(data: Uint8Array): FirehoseEvent[] {
+export function decodeFirehoseMessage(
+  data: Uint8Array,
+): RepositoryStreamEvent[] {
   // Use cborg.decodeFirst to parse the header and get remaining bytes
-  const [header, remainder] = cborDecodeFirst(data) as [FrameHeader, Uint8Array];
+  const [header, remainder] = cborDecodeFirst(data) as [
+    FrameHeader,
+    Uint8Array,
+  ];
 
   if (header.op === -1) {
     return [];
   }
 
-  if (header.t !== '#commit') {
-    return [];
-  }
-
-  // Decode the body from the remaining bytes
-  const body = cborDecode(remainder) as CommitBody;
-
-  return decodeCommit(body);
+  const body = cborDecode(remainder);
+  if (header.t === '#identity') return [decodeIdentity(body)];
+  if (header.t === '#account') return [decodeAccount(body)];
+  if (header.t === '#commit') return decodeCommit(body as CommitBody);
+  return [];
 }
 
 function decodeCommit(body: CommitBody): FirehoseEvent[] {
@@ -93,20 +116,25 @@ function decodeCommit(body: CommitBody): FirehoseEvent[] {
  */
 export async function decodeFirehoseMessageWithRecords(
   data: Uint8Array,
-): Promise<FirehoseEvent[]> {
-  const [header, remainder] = cborDecodeFirst(data) as [FrameHeader, Uint8Array];
+): Promise<RepositoryStreamEvent[]> {
+  const [header, remainder] = cborDecodeFirst(data) as [
+    FrameHeader,
+    Uint8Array,
+  ];
 
-  if (header.op === -1 || header.t !== '#commit') {
+  if (header.op === -1) {
     return [];
   }
 
-  const body = cborDecode(remainder) as CommitBody;
+  const decodedBody = cborDecode(remainder);
+  if (header.t === '#identity') return [decodeIdentity(decodedBody)];
+  if (header.t === '#account') return [decodeAccount(decodedBody)];
+  if (header.t !== '#commit') return [];
+  const body = decodedBody as CommitBody;
 
   // Decode CAR blocks to get actual record content + commit signature
-  const { records, commitSig, commitSignedBytes } = await readCarRecordsAndCommit(
-    body.blocks,
-    body.commit,
-  );
+  const { records, commitSig, commitSignedBytes } =
+    await readCarRecordsAndCommit(body.blocks, body.commit);
   const events: FirehoseEvent[] = [];
 
   for (const op of body.ops) {
@@ -144,6 +172,54 @@ export async function decodeFirehoseMessageWithRecords(
   return events;
 }
 
+function decodeIdentity(value: unknown): RepoIdentityEvent {
+  const body = value as IdentityBody;
+  requireLifecycleBase(body, '#identity');
+  if (body.handle !== undefined && typeof body.handle !== 'string') {
+    throw new Error('Invalid #identity handle');
+  }
+  return {
+    kind: 'identity',
+    seq: body.seq,
+    did: body.did as DID,
+    time: body.time,
+    ...(body.handle !== undefined ? { handle: body.handle } : {}),
+  };
+}
+
+function decodeAccount(value: unknown): RepoAccountEvent {
+  const body = value as AccountBody;
+  requireLifecycleBase(body, '#account');
+  if (typeof body.active !== 'boolean') {
+    throw new Error('Invalid #account active flag');
+  }
+  if (body.status !== undefined && typeof body.status !== 'string') {
+    throw new Error('Invalid #account status');
+  }
+  return {
+    kind: 'account',
+    seq: body.seq,
+    did: body.did as DID,
+    time: body.time,
+    active: body.active,
+    ...(body.status !== undefined ? { status: body.status } : {}),
+  };
+}
+
+function requireLifecycleBase(
+  body: Partial<IdentityBody | AccountBody>,
+  type: '#identity' | '#account',
+): void {
+  if (
+    !Number.isSafeInteger(body.seq) ||
+    typeof body.did !== 'string' ||
+    !body.did.startsWith('did:') ||
+    typeof body.time !== 'string'
+  ) {
+    throw new Error(`Invalid ${type} event`);
+  }
+}
+
 interface CarDecodeResult {
   records: Map<string, Record<string, unknown>>;
   commitSig?: Uint8Array;
@@ -168,7 +244,10 @@ async function readCarRecordsAndCommit(
         records.set(block.cid.toString(), decoded);
 
         // Extract commit signature if this is the commit node
-        if (block.cid.toString() === commitCidStr && decoded.sig instanceof Uint8Array) {
+        if (
+          block.cid.toString() === commitCidStr &&
+          decoded.sig instanceof Uint8Array
+        ) {
           result.commitSig = decoded.sig;
           // Re-encode without sig to get signedBytes
           const { sig: _sig, ...commitWithoutSig } = decoded;

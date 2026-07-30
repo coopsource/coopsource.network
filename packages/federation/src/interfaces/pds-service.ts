@@ -1,10 +1,10 @@
 import type { DID } from '@coopsource/common';
 import type {
   DidDocument,
-  FirehoseEvent,
   ListRecordsOptions,
   PdsRecord,
   RecordRef,
+  RepositoryStreamEvent,
 } from '../types.js';
 
 export interface CreateDidOptions {
@@ -57,5 +57,5 @@ export interface IPdsService {
     collection: string,
     options?: ListRecordsOptions,
   ): Promise<PdsRecord[]>;
-  subscribeRepos(cursor?: number): AsyncIterable<FirehoseEvent>;
+  subscribeRepos(cursor?: number): AsyncIterable<RepositoryStreamEvent>;
 }

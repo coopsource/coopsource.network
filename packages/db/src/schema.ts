@@ -1085,6 +1085,7 @@ export interface Database {
   spaces_consumer_cursor: SpacesConsumerCursorTable;
   space_credential: SpaceCredentialTable;
   permissioned_notification_registration: PermissionedNotificationRegistrationTable;
+  permissioned_repo_account_state: PermissionedRepoAccountStateTable;
   permissioned_repo_cursor: PermissionedRepoCursorTable;
   permissioned_repo_record: PermissionedRepoRecordTable;
 }
@@ -1789,7 +1790,18 @@ export interface PermissionedRepoCursorTable {
   space_key: string;
   expected_space_type: string | null;
   repo_did: string;
+  repo_host: string | null;
   revision: string;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface PermissionedRepoAccountStateTable {
+  repo_did: string;
+  source_host: string;
+  active: boolean;
+  status: string | null;
+  event_sequence: number;
+  event_time: ColumnType<Date, Date | string, Date | string>;
   updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }
 
