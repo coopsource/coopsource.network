@@ -66,7 +66,9 @@ services:
       INSTANCE_URL: https://${DOMAIN:-coopsource.network}
       FRONTEND_URL: https://${DOMAIN:-coopsource.network}
       PUBLIC_API_URL: https://${DOMAIN:-coopsource.network}
-      PLC_URL: ${PLC_URL:-local}
+      PLC_URL: ${PLC_URL:?Set PLC_URL to a real PLC directory}
+      PDS_URL: ${PDS_URL:?Set PDS_URL to a real ATProto PDS}
+      PDS_ADMIN_PASSWORD: ${PDS_ADMIN_PASSWORD:?Set PDS_ADMIN_PASSWORD}
       BLOB_DIR: /app/data/blobs
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -98,7 +100,7 @@ services:
     restart: unless-stopped
     environment:
       TAP_RELAY_URL: ${RELAY_URL:-https://relay1.us-east.bsky.network}
-      TAP_PLC_URL: ${PLC_URL:-https://plc.directory}
+      TAP_PLC_URL: ${PLC_URL:?Set PLC_URL to a real PLC directory}
       TAP_COLLECTION_FILTERS: network.coopsource.*,community.lexicon.calendar.*,fyi.unravel.frontpage.*
       TAP_DATABASE_URL: sqlite:///data/tap.db
       TAP_BIND: :2480

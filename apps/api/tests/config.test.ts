@@ -95,4 +95,83 @@ describe('loadConfig', () => {
 
     expect(loadConfig().SPACE_MANAGING_APP_ACCESS_MODE).toBe('group-directory');
   });
+
+  it('rejects the local PLC fallback in production', () => {
+    process.env = {
+      NODE_ENV: 'production',
+      SESSION_SECRET: 's'.repeat(32),
+      KEY_ENC_KEY: 'k'.repeat(44),
+      PDS_URL: 'https://pds.example.com',
+      PDS_ADMIN_PASSWORD: 'production-pds-password',
+    };
+
+    expect(() => loadConfig()).toThrow(
+      'PLC_URL must be a real URL in production',
+    );
+
+    process.env.PLC_URL = 'file:///tmp/plc';
+
+    expect(() => loadConfig()).toThrow(
+      'PLC_URL must be a valid HTTP(S) URL in production',
+    );
+  });
+
+  it('requires a real PDS endpoint and admin credential in production', () => {
+    process.env = {
+      NODE_ENV: 'production',
+      SESSION_SECRET: 's'.repeat(32),
+      KEY_ENC_KEY: 'k'.repeat(44),
+      PLC_URL: 'https://plc.directory',
+    };
+
+    expect(() => loadConfig()).toThrow(
+      'PDS_URL or COOP_PDS_URL is required in production',
+    );
+
+    process.env.PDS_URL = 'https://pds.example.com';
+
+    expect(() => loadConfig()).toThrow(
+      'PDS admin password must be set to a real value in production',
+    );
+
+    process.env.PDS_ADMIN_PASSWORD = '';
+
+    expect(() => loadConfig()).toThrow(
+      'PDS admin password must be set to a real value in production',
+    );
+  });
+
+  it('accepts a real PDS and PLC configuration in production', () => {
+    process.env = {
+      NODE_ENV: 'production',
+      SESSION_SECRET: 's'.repeat(32),
+      KEY_ENC_KEY: 'k'.repeat(44),
+      PLC_URL: 'https://plc.directory',
+      PDS_URL: 'https://pds.example.com',
+      PDS_ADMIN_PASSWORD: 'production-pds-password',
+    };
+
+    const config = loadConfig();
+
+    expect(config.PLC_URL).toBe('https://plc.directory');
+    expect(config.PDS_URL).toBe('https://pds.example.com');
+  });
+
+  it('accepts the cooperative PDS override in production', () => {
+    process.env = {
+      NODE_ENV: 'production',
+      SESSION_SECRET: 's'.repeat(32),
+      KEY_ENC_KEY: 'k'.repeat(44),
+      PLC_URL: 'https://plc.directory',
+      COOP_PDS_URL: 'https://coop-pds.example.com',
+      COOP_PDS_ADMIN_PASSWORD: 'cooperative-pds-password',
+    };
+
+    const config = loadConfig();
+
+    expect(config.COOP_PDS_URL).toBe('https://coop-pds.example.com');
+    expect(config.COOP_PDS_ADMIN_PASSWORD).toBe(
+      'cooperative-pds-password',
+    );
+  });
 });

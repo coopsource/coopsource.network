@@ -479,6 +479,12 @@ The federation outbox residue and the deprecated hub register/notify 501 stubs
 are also retired. The remaining inbound federation routes still expose live
 entity discovery, membership, and agreement workflows.
 
+The component-level local substrate audit found every PDS, PLC, blob,
+firehose, or provisioning adapter still has a development, test, or integration
+caller. They remain in place, but checkpoint 4 makes production fail closed
+unless a real PDS, PLC directory, and non-default PDS admin credential are
+configured.
+
 - [x] First task: expand into a task-level plan with a hidden-consumer sweep.
 
 ## Phase 7 — Full UX overhaul

@@ -1,6 +1,13 @@
 import { z } from 'zod';
 
 const envBoolean = z.stringbool().default(false);
+const httpUrl = z.string().url().refine((value) => {
+  try {
+    return ['http:', 'https:'].includes(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+});
 
 const envSchema = z
   .object({
@@ -10,12 +17,12 @@ const envSchema = z
     REDIS_URL: z.string().url().optional(),
     SESSION_SECRET: z.string().default('change-me-in-production'),
     PUBLIC_API_URL: z.string().url().default('http://localhost:3001'),
-    // Federation / Local PDS
-    PLC_URL: z.string().default('local'), // 'local' = DB-backed (Stage 0-1), URL = real PLC directory (Stage 2+)
+    // Federation / local development substrate
+    PLC_URL: z.string().default('local'),
     INSTANCE_URL: z.string().url().default('http://localhost:3001'),
     KEY_ENC_KEY: z.string().min(44).default('CHANGEME-generate-with-openssl-rand-base64-32=='),
     BLOB_DIR: z.string().default('./data/blobs'),
-    // Stage 2: Real ATProto PDS (when set, AtprotoPdsService is used instead of LocalPdsService)
+    // Real ATProto PDS (when set, AtprotoPdsService is used instead of LocalPdsService)
     PDS_URL: z.string().url().optional(),
     PDS_ADMIN_PASSWORD: z.string().default('admin'),
     // V6: Cooperative's own PDS and identity
@@ -87,6 +94,43 @@ const envSchema = z
           code: 'custom',
           path: ['KEY_ENC_KEY'],
           message: 'KEY_ENC_KEY must be set to a real value in production',
+        });
+      }
+      if (data.PLC_URL === 'local') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['PLC_URL'],
+          message: 'PLC_URL must be a real URL in production',
+        });
+      } else if (!httpUrl.safeParse(data.PLC_URL).success) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['PLC_URL'],
+          message: 'PLC_URL must be a valid HTTP(S) URL in production',
+        });
+      }
+      if (!data.PDS_URL && !data.COOP_PDS_URL) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['PDS_URL'],
+          message: 'PDS_URL or COOP_PDS_URL is required in production',
+        });
+      }
+      const pdsAdminPassword =
+        data.COOP_PDS_ADMIN_PASSWORD ?? data.PDS_ADMIN_PASSWORD;
+      if (
+        pdsAdminPassword.trim().length === 0 ||
+        pdsAdminPassword === 'admin'
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [
+            data.COOP_PDS_ADMIN_PASSWORD !== undefined
+              ? 'COOP_PDS_ADMIN_PASSWORD'
+              : 'PDS_ADMIN_PASSWORD',
+          ],
+          message:
+            'PDS admin password must be set to a real value in production',
         });
       }
     }
