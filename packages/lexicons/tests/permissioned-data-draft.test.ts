@@ -34,7 +34,7 @@ describe('Proposal 0016 executable draft baseline', () => {
     expect(ATPROTO_ACCOUNT_VERIFICATION_METHOD_ID).toBe('#atproto');
   });
 
-  it('describes every draft XRPC method currently called by CSN', () => {
+  it('describes every draft XRPC method currently used by CSN', () => {
     expect(SPACE_XRPC_METHODS).toEqual({
       getSpace: 'com.atproto.space.getSpace',
       listSpaces: 'com.atproto.space.listSpaces',
@@ -57,6 +57,7 @@ describe('Proposal 0016 executable draft baseline', () => {
       addMember: 'com.atproto.simplespace.addMember',
       removeMember: 'com.atproto.simplespace.removeMember',
       listMembers: 'com.atproto.simplespace.listMembers',
+      checkUserAccess: 'com.atproto.simplespace.checkUserAccess',
     });
   });
 
@@ -75,6 +76,9 @@ describe('Proposal 0016 executable draft baseline', () => {
     );
     expect(PERMISSIONED_DATA_DRAFT_BASELINE.methods.listMembers.manage).toBe(
       'update',
+    );
+    expect(PERMISSIONED_DATA_DRAFT_BASELINE.methods.checkUserAccess.auth).toBe(
+      'service-auth',
     );
   });
 });

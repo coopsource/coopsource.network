@@ -48,6 +48,12 @@ identity, production lifecycle-source selection, the pinned atproto server's
 unimplemented `getRepo`, live differential evidence, and the
 custody/retention/migration decisions.
 
+The first P2 managing-app checkpoint is also implemented behind a disabled
+default. A service-authenticated `checkUserAccess` route delegates to a generic
+policy port; the first CSN adapter authorizes only fresh, complete, strictly
+resolved members of the requested CSN space and otherwise fails closed.
+Production activation, Rego/host selection, and custody remain open.
+
 ## Severity Scale
 
 | Severity | Meaning                                                                                   |
@@ -72,7 +78,7 @@ custody/retention/migration decisions.
 | DID service discovery   | `DidProvisioningPort` uses `#space_host` and `CoopSourceSpaceHost`; live exercise accepts a configured URL                               | Current proposal uses optional `#atproto_space_host` and `#atproto_space`, with PDS fallbacks                                     | High                                            | Add DID-resolved endpoint selection and update service identifiers                          |
 | OAuth scopes            | Scope formatter supports read/write and generic `manage`; advertised plan requests read/write only                                       | Current PDS branch requires `manage=create` for create and `manage=update` for member operations                                  | High                                            | Add a narrowly scoped management plan for the live harness/manager                          |
 | Live XRPC exercise      | Creates/reuses a SimpleSpace, adds members, obtains a credential, and performs vote CRUD                                                 | Current branch separates management grants and does not define `NotAMember` on record writes                                      | High                                            | Update scopes/error mapping; run against pinned implementations                             |
-| SimpleSpace client      | Supports create, add member, and remove member                                                                                           | Draft surface also has update/delete/list members and service-authenticated `checkUserAccess`                                     | Medium                                          | Add only methods needed by the first managing-app policy slice                              |
+| SimpleSpace client      | Supports create/add/remove/list members plus a disabled managing-app `checkUserAccess` policy endpoint                                    | Draft surface also has update/delete space management and service-authenticated `checkUserAccess`                                  | Medium                                          | Add more methods only for a coherent management use case                                    |
 | Record writes           | XRPC writer supports create/put/delete behind author OAuth plus space credential                                                         | Draft also has `applyWrites`, blob operations, and evolving error contracts                                                       | Medium                                          | Keep CRUD for one-record slice; add atomic writes/blobs when a use case requires them       |
 | Default Tier 2 storage  | `PERMISSIONED_RECORD_WRITER_MODE` defaults to `private-record`                                                                           | Proposal 0016 storage is not production-ready, but local DB is still canonical in practice                                        | Critical for migration; safe as current default | Do not flip default until real sync/recovery passes; label DB authority honestly            |
 | Placement routing       | `ProposalService` asks `GovernanceRecordPlacementPort` for a public repository or permissioned `SpaceRef`, then delegates physical writes | V12 calls for space-native placement policy separated from storage transport                                                     | Low                                             | Keep the port; evolve the CSN policy adapter only after managing-app and custody decisions  |
@@ -322,8 +328,11 @@ notification.
 
 After the vertical slice:
 
-1. Implement only the SimpleSpace `checkUserAccess`/management methods required
-   by the selected CSN managing-app model.
+1. **Completed 2026-07-30:** implement the service-authenticated SimpleSpace
+   `checkUserAccess` callback behind `ManagingAppAccessPolicyPort`. The first
+   CSN adapter uses strict group-directory membership and fails closed; the
+   route remains unregistered unless explicitly enabled. See
+   `docs/plans/2026-07-30-v12-phase-4-managing-app-access-policy.md`.
 2. Decide cooperative custody, retention, re-homing, and deletion policy.
 3. Decide whether CSN runs a simple authority, integrates a Roomy-style Rego
    proxy, or supports both behind ports.

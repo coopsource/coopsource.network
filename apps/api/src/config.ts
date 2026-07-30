@@ -66,9 +66,12 @@ const envSchema = z
       .default('private-record'),
     // V12 Phase 4: comma-separated DIDs eligible to renew space credentials.
     SPACE_MANAGING_SESSION_DIDS: z.string().optional(),
+    SPACE_MANAGING_APP_ACCESS_MODE: z
+      .enum(['disabled', 'group-directory'])
+      .default('disabled'),
     // V9.2.5: Service-auth JWT verification for external ATProto apps
-    SERVICE_AUTH_AUDIENCE_DID: z.string().optional(),         // DID external apps use as `aud` (defaults to INSTANCE_DID)
-    SERVICE_AUTH_TRUSTED_ISSUERS: z.string().optional(),      // Comma-separated DIDs of trusted service-auth issuers
+    SERVICE_AUTH_AUDIENCE_DID: z.string().optional(), // DID or service identifier external services use as `aud` (defaults to INSTANCE_DID)
+    SERVICE_AUTH_TRUSTED_ISSUERS: z.string().optional(), // Comma-separated DIDs of trusted service-auth issuers
   })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV === 'production') {
@@ -84,6 +87,28 @@ const envSchema = z
           code: 'custom',
           path: ['KEY_ENC_KEY'],
           message: 'KEY_ENC_KEY must be set to a real value in production',
+        });
+      }
+    }
+    if (data.SPACE_MANAGING_APP_ACCESS_MODE === 'group-directory') {
+      if (!data.SERVICE_AUTH_AUDIENCE_DID) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['SERVICE_AUTH_AUDIENCE_DID'],
+          message:
+            'SERVICE_AUTH_AUDIENCE_DID is required when managing-app access is enabled',
+        });
+      }
+      if (
+        !(data.SERVICE_AUTH_TRUSTED_ISSUERS ?? '')
+          .split(',')
+          .some((issuer) => issuer.trim().length > 0)
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['SERVICE_AUTH_TRUSTED_ISSUERS'],
+          message:
+            'SERVICE_AUTH_TRUSTED_ISSUERS is required when managing-app access is enabled',
         });
       }
     }

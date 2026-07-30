@@ -396,6 +396,16 @@ the default writer. Managing-app, custody, retention, migration, and default
 activation decisions remain open. See
 `docs/plans/2026-07-30-v12-phase-4-governance-record-placement-port.md`.
 
+**Progress 2026-07-30, managing-app access checkpoint:** The pinned
+service-authenticated `com.atproto.simplespace.checkUserAccess` callback now
+routes through a generic Layer 2 policy port. The first CSN adapter authorizes
+only fresh, complete, strictly resolved members of the requested CSN space,
+binds the verified issuer to the space authority, and otherwise fails closed.
+The route is absent by default; production service identity, trusted
+authorities, operator availability, and appeal policy require V12-S10 signoff.
+See
+`docs/plans/2026-07-30-v12-phase-4-managing-app-access-policy.md`.
+
 - [x] First task expanded through the July 29 gap analysis and July 30
   conformance-baseline note.
 

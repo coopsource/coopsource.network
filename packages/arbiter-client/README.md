@@ -19,6 +19,10 @@ useful prior art, not a stable wire contract CSN should bind to.
 - `XrpcGroupDirectoryPort`: experimental mock-tested adapter for current draft `com.atproto.space.*` + `com.atproto.simplespace.*` endpoints. It is not wired as the default because the upstream implementation is still draft and only exposes direct simplespace membership.
 - `GroupMutationPort`: write-side boundary for cooperative provisioning, member changes, role changes, and audit reads.
 - `CsnDbGroupMutationPort`: writes the current CSN tables behind that boundary until Arbiter XRPC semantics are available.
+- `ManagingAppAccessPolicyPort`: application-policy boundary for the draft
+  SimpleSpace `checkUserAccess` callback.
+- `CsnGroupDirectoryManagingAppAccessPolicy`: fail-closed CSN adapter that
+  authorizes only strict resolved members of the requested CSN space.
 - `DidProvisioningPort`: binds the pinned Proposal 0016
   `#atproto_space_host` DID service entry. The current service `type` is a CSN
   convention because the proposal fixes the id but not a normative type.
@@ -63,6 +67,8 @@ permissioned-data protocol. CSN-DB remains the runtime default.
 The draft XRPC clients take method names from
 `@coopsource/lexicons`' pinned Proposal 0016 baseline. SimpleSpace creation
 uses `manage=create`; member add/remove/list operations use `manage=update`.
+The service-authenticated `checkUserAccess` callback is a separate
+authority-to-managing-app direction and does not use an OAuth `manage` grant.
 
 Unknown space shapes fail closed as partial/stale resolved membership.
 

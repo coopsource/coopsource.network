@@ -63,3 +63,13 @@ export type {
   DidProvisioningResult,
   DidServiceEntry,
 } from './did-provisioning-port.js';
+export {
+  CsnGroupDirectoryManagingAppAccessPolicy,
+  DenyAllManagingAppAccessPolicy,
+} from './managing-app-access-policy.js';
+export type {
+  ManagingAppAccessDecision,
+  ManagingAppAccessDenialReason,
+  ManagingAppAccessPolicyPort,
+  ManagingAppAccessRequest,
+} from './managing-app-access-policy.js';

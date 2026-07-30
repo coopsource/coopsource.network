@@ -1,10 +1,14 @@
 import { createDb } from '@coopsource/db';
 import type { DID } from '@coopsource/common';
 import {
+  CsnGroupDirectoryManagingAppAccessPolicy,
   CsnDbGroupDirectoryPort,
   CsnDbGroupMutationPort,
 } from '@coopsource/arbiter-client';
-import type { GroupMutationPort } from '@coopsource/arbiter-client';
+import type {
+  GroupMutationPort,
+  ManagingAppAccessPolicyPort,
+} from '@coopsource/arbiter-client';
 import {
   DidSpaceAuthorityResolver,
   KyselySpaceCredentialStore,
@@ -158,6 +162,7 @@ export interface Container {
   clock: SystemClock;
   emailService: IEmailService;
   groupDirectory: GroupDirectoryPort;
+  managingAppAccessPolicy?: ManagingAppAccessPolicyPort;
   groupMutations: GroupMutationPort;
   groupMutationsForDb: (
     db: Kysely<Database> | Transaction<Database>,
@@ -376,6 +381,10 @@ export function createContainer(config: AppConfig): Container {
       spaceCredentialStoreForDb(authorityDb),
     );
   const groupDirectory = new CsnDbGroupDirectoryPort(db);
+  const managingAppAccessPolicy =
+    config.SPACE_MANAGING_APP_ACCESS_MODE === 'group-directory'
+      ? new CsnGroupDirectoryManagingAppAccessPolicy(groupDirectory)
+      : undefined;
   const membershipReadModel = new MembershipReadModel(db, groupDirectory);
   const actionAuthorizer = createCoopActionAuthorizerPlugin(
     new MembershipReadModelActionPermissionReader(db, membershipReadModel),
@@ -661,6 +670,7 @@ export function createContainer(config: AppConfig): Container {
     clock,
     emailService,
     groupDirectory,
+    managingAppAccessPolicy,
     groupMutations,
     groupMutationsForDb,
     governanceView,

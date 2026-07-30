@@ -2,23 +2,40 @@ import { Router, type Request, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import { lexicons } from '@coopsource/lexicons';
 import { AppError } from '@coopsource/common';
-import type { ServiceAuthVerifier, InlayAuthVerifier } from '@coopsource/federation/atproto';
+import type {
+  InlayAuthVerifier,
+  ServiceAuthResult,
+  ServiceAuthVerifier,
+} from '@coopsource/federation/atproto';
 import { requireViewer } from '../auth/middleware.js';
 import { asyncHandler } from '../lib/async-handler.js';
 import { logger } from '../middleware/logger.js';
 import type { Container } from '../container.js';
 
-export interface XrpcQueryHandler {
-  /** 'query' = GET (default), 'procedure' = POST (Inlay external components). */
-  method?: 'query' | 'procedure';
-  auth: 'none' | 'viewer' | 'optional' | 'inlay-viewer';
+interface XrpcHandlerDefinition {
   rateLimit: { windowMs: number; limit: number };
   handler: (ctx: XrpcContext) => Promise<unknown>;
 }
 
+export type XrpcQueryHandler =
+  | (XrpcHandlerDefinition & {
+      /** Query handlers use GET. */
+      method?: 'query';
+      auth: 'none' | 'viewer' | 'optional' | 'service';
+    })
+  | (XrpcHandlerDefinition & {
+      /** Procedure handlers use POST for Inlay external components. */
+      method: 'procedure';
+      auth: 'none' | 'inlay-viewer';
+    });
+
 export interface XrpcContext {
   params: Record<string, unknown>;
   viewer?: { did: string; displayName: string };
+  serviceAuth?: {
+    readonly issuerDid: string;
+    readonly subjectDid?: string;
+  };
   container: Container;
 }
 
@@ -97,11 +114,21 @@ export function createXrpcRoutes(
       // If a valid Bearer token is present, set req.viewer from the JWT claims
       // and skip session-based auth entirely. Note: this sets req.viewer even
       // for auth:'none' handlers — those handlers simply ignore it.
-      const serviceAuthResolved = await resolveServiceAuth(
-        req, options?.serviceAuthVerifier, methodId,
+      const serviceAuth = await resolveServiceAuth(
+        req,
+        options?.serviceAuthVerifier,
+        methodId,
       );
 
-      if (!serviceAuthResolved) {
+      if (handler.auth === 'service' && !serviceAuth) {
+        throw new AppError(
+          'Service authentication is required',
+          401,
+          'AuthenticationRequired',
+        );
+      }
+
+      if (!serviceAuth) {
         // No service-auth token — fall through to session-based auth
 
         // Auth: run requireViewer if needed
@@ -165,6 +192,14 @@ export function createXrpcRoutes(
       const ctx: XrpcContext = {
         params,
         viewer: req.viewer,
+        ...(serviceAuth
+          ? {
+              serviceAuth: {
+                issuerDid: serviceAuth.iss,
+                ...(serviceAuth.sub ? { subjectDid: serviceAuth.sub } : {}),
+              },
+            }
+          : {}),
         container,
       };
 
@@ -313,10 +348,10 @@ async function resolveServiceAuth(
   req: Request,
   verifier: ServiceAuthVerifier | undefined,
   methodId: string,
-): Promise<boolean> {
+): Promise<ServiceAuthResult | undefined> {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return false;
+    return undefined;
   }
 
   if (!verifier) {
@@ -332,7 +367,7 @@ async function resolveServiceAuth(
       did: result.sub ?? result.iss,
       displayName: '',
     };
-    return true;
+    return result;
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Service auth verification failed';
     logger.warn({ err, methodId }, 'Service-auth JWT rejected');
