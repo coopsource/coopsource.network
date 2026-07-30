@@ -72,17 +72,23 @@ The first full test attempt had one transient 404 during invitation setup in
 the existing permissions suite. That file passed 16/16 in isolation, and the
 complete repository test command then passed on rerun.
 
-## Next Mutation Checkpoint
+## Copy-Ledger Checkpoint
 
-A future copy/rollback command must consume a clean manifest and:
+The next checkpoint implemented a disabled copy and replica-verification
+command that consumes a clean manifest and:
 
 - preserve `private_record` as the source of rollback;
 - use an explicit, durable migration ledger;
 - preserve semantic space location and record key;
 - verify the copied CID and read/recovery path before projection changes;
-- compensate partial copy failures;
+- record partial copy failures durably and make retry idempotent;
 - never delete private sources in the same checkpoint; and
 - remain disabled until V12-S01/V12-S05 signoff.
+
+Remote rollback deletion remains unimplemented. The pinned delete contract has
+no expected-CID precondition, so a read-then-delete sequence could race with and
+delete a newer member update. See
+`docs/plans/2026-07-30-v12-phase-4-tier2-copy-ledger.md`.
 
 Production custody, retention, correction, deletion, host selection, and
 default activation remain unresolved. This readiness report supplies evidence

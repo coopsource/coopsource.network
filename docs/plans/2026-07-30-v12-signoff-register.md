@@ -25,7 +25,7 @@ legitimate cooperative purpose.
 | V12-S02 | Production space authority and host | The cooperative controls its own DID and offline rotation authority. A host may be operated by CSN or an accountable provider, but not controlled solely by a founder/member or an unaccountable application dependency. Keep host choice behind ports. | User signoff on operator, key custody, recovery, portability, and exit plan |
 | V12-S03 | Client-attestation signing key and JWKS | Complete claims/signing ports and tests. Do not ship a static secret or filesystem production key. Prefer a rotatable HSM/KMS-backed ES256 signer with published JWKS and audited access. | Security/operations design plus user signoff before app-gated spaces are enabled |
 | V12-S04 | Permissioned commit format | Target pinned Proposal 0016/PR #5187 behind a replaceable verifier. The executable differential confirms HappyView `2.12.0-dev.2` omits `sig`; keep it diagnostic and do not create a CSN hybrid. | Upstream convergence or explicit user approval of a temporary interoperability target |
-| V12-S05 | Tier 2 writer migration | Keep `private-record` as the runtime default while draft XRPC writes and real reads are incomplete. The read-only governance readiness audit is implemented; copy/verification ledger and rollback tooling remain next. Do not flip the default. | Read/recovery/deletion/rollback evidence plus user signoff |
+| V12-S05 | Tier 2 writer migration | Keep `private-record` as the runtime default while draft XRPC writes and real reads are incomplete. The read-only governance audit and disabled copy/verification ledger are implemented. Remote rollback remains blocked because the pinned delete input has no conditional-CID precondition. Do not run a live copy or flip the default. | Read/recovery/deletion/rollback evidence plus user signoff |
 | V12-S06 | Private moderation and abuse signals | Keep labels and reports inside the permissioned boundary; minimize metadata and provide operator review and appeal paths. Do not emit public labels that reveal private records or membership. | Moderation policy, legal review where required, and user signoff before production |
 | V12-S07 | Generic governance vocabulary | Rename cooperative-shaped inputs to group-neutral vocabulary before any external package or Lexicon publication. Internal refactoring may proceed when coherent. | Package contract review; external publication remains separately gated |
 | V12-S08 | External publication and ecosystem outreach | Draft material may be prepared in-repo. Do not publish TSC proposals, forum feedback, protocol claims, or organizational announcements. | Explicit user approval of the exact outward-facing text and venue |
@@ -57,6 +57,9 @@ legitimate cooperative purpose.
 - Read-only Tier 2 governance migration-readiness audit. It reconciles
   permissioned projection references and private sources without payload
   output, remote writes, local deletion, or a writer-default change.
+- Disabled Tier 2 governance copy/verification command and payload-free
+  durable ledger. No live copy, projection change, source deletion, remote
+  rollback, or writer-default change is approved.
 
 These are engineering checkpoints, not approval of the production authority,
 custody, retention, moderation, or migration model.

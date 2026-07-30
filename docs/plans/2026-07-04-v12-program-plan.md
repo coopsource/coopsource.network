@@ -415,6 +415,17 @@ unchanged. A later copy/rollback checkpoint must use a durable ledger and
 preserve private sources; V12-S01/V12-S05 remain open. See
 `docs/plans/2026-07-30-v12-phase-4-tier2-migration-readiness.md`.
 
+**Progress 2026-07-30, Tier 2 copy-ledger checkpoint:** A dedicated,
+disabled-by-default command can now copy one cooperative's clean governance
+manifest to the draft XRPC writer with deterministic keys and durable,
+payload-free state, then verify CID and canonical payload digest through the
+verified permissioned replica. It preserves private sources and projection
+authority. Automated remote rollback is intentionally absent because the
+pinned delete contract has no conditional-CID precondition; a read-then-delete
+sequence could remove an author's concurrent update. No live copy, cutover,
+writer-default change, or signoff is claimed. See
+`docs/plans/2026-07-30-v12-phase-4-tier2-copy-ledger.md`.
+
 - [x] First task expanded through the July 29 gap analysis and July 30
   conformance-baseline note.
 
