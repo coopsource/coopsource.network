@@ -128,8 +128,10 @@ notification, or writer-migration decisions in the V12 signoff register.
 
 ## Next Work
 
-1. Build differential runners against the pinned atproto branch and HappyView
-   dev release, including lifecycle event and sequence behavior.
+1. Run the implemented differential runner against deployed atproto and
+   HappyView fixtures once disposable authenticated sessions are available;
+   see
+   `2026-07-30-v12-phase-4-permissioned-conformance-differential.md`.
 2. Exercise live full CAR recovery when a pinned implementation serves
    `getRepo`.
 3. Resolve V12-S09 before exposing an inbound permissioned notification

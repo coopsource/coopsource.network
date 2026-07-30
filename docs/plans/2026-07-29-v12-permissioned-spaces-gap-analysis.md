@@ -236,8 +236,8 @@ draft method CSN currently calls are executable constants with tests. The
 manager scope is narrowed to `manage=create,update`; authority endpoints and
 verification methods resolve from DID documents; client attestation has a
 deterministic signer port; draft error mapping matches the pin. Production
-signer/key custody and differential HappyView/PR runners remain parked or P3
-work. See
+signer/key custody remains parked. The differential HappyView/PR runner was
+implemented in the follow-on conformance checkpoint. See
 `docs/plans/2026-07-30-v12-phase-4-proposal-0016-conformance-baseline.md`.
 
 1. Update `ARCHITECTURE-V12.md`, the V12 program plan, spaces-consumer README,
@@ -346,6 +346,15 @@ After the vertical slice:
    recursive group policy, and retention.
 6. Keep governance Lexicon outreach gated on user review and current
    Atmospheric Group work.
+
+**Progress 2026-07-30:** Items 1-2 are complete for the pinned atproto and
+HappyView targets. Machine-readable profiles and an abort-aware HTTP probe now
+record repo-selector, oplog-cursor, commit, CAR, credential, registration, and
+notification deviations. The checked-out HappyView suites passed 10 tests and
+the atproto PDS spaces suite passed 23 tests. A deployed cross-service run
+still needs disposable OAuth/DPoP sessions; atproto-crates remains future
+work. See
+`docs/plans/2026-07-30-v12-phase-4-permissioned-conformance-differential.md`.
 
 ## Phase 5 Recommendation
 

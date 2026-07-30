@@ -205,6 +205,23 @@ export {
 export type { CredentialedPermissionedRepoPortOptions } from './credentialed-permissioned-repo-port.js';
 export { CredentialedPermissionedRepoPort } from './credentialed-permissioned-repo-port.js';
 export type {
+  PermissionedConformanceCheck,
+  PermissionedConformanceCheckId,
+  PermissionedConformanceDeviation,
+  PermissionedConformanceFetch,
+  PermissionedConformanceFetchInit,
+  PermissionedConformanceFetchResponse,
+  PermissionedConformanceOutcome,
+  PermissionedConformanceProbeOptions,
+  PermissionedConformanceReport,
+  PermissionedConformanceTarget,
+  PermissionedConformanceTargetId,
+} from './permissioned-conformance.js';
+export {
+  PERMISSIONED_CONFORMANCE_TARGETS,
+  runPermissionedConformanceProbe,
+} from './permissioned-conformance.js';
+export type {
   RejectedPermissionedRecord,
   SpacesConsumerOptions,
 } from './consumer.js';

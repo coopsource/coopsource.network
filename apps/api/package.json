@@ -13,6 +13,7 @@
     "test:federation": "vitest run --config vitest.federation.config.ts",
     "typecheck": "tsc --noEmit",
     "exercise:draft-xrpc-pds": "tsx scripts/exercise-draft-xrpc-pds.ts",
+    "probe:permissioned-conformance": "tsx scripts/probe-permissioned-conformance.ts",
     "clean": "rm -rf dist"
   },
   "dependencies": {
