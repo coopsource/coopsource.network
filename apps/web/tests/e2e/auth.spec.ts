@@ -113,11 +113,7 @@ test.describe('Login Page Navigation', () => {
 });
 
 test.describe('Registration Flow', () => {
-  test.fixme('register with valid credentials redirects to /me', async ({ page, request }) => {
-    // V8.13 investigation: the form submits but the API returns 500
-    // "Internal server error". Page stays on /register showing the error.
-    // This is a backend bug in the registration endpoint, not a hydration
-    // issue. Needs API-level debugging.
+  test('register with valid credentials redirects to /me and preserves the handle', async ({ page, request }) => {
     await setupCooperative(request);
     await registerAs(page, {
       displayName: 'New User',
@@ -127,6 +123,11 @@ test.describe('Registration Flow', () => {
     });
     await expect(page).toHaveURL('/me');
     await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
+
+    await page.goto('/me/settings');
+    await expect(
+      page.locator('#main-content').getByText('@new-user', { exact: true }),
+    ).toBeVisible();
   });
 
   test('register with duplicate email shows error', async ({ page, request }) => {

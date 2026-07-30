@@ -728,10 +728,13 @@ export const SetupInitializeSchema = z.object({
   adminPassword: z.string().min(8).max(256),
 });
 
+const AccountHandleSchema = z.string().trim().min(1).max(255);
+
 export const RegisterSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8).max(256),
   displayName: z.string().min(1).max(255),
+  handle: AccountHandleSchema,
   invitationToken: z.string().optional(),
 });
 
@@ -767,7 +770,7 @@ export const CreateInvitationSchema = z.object({
 export const AcceptInvitationSchema = z.object({
   email: z.string().email(),
   displayName: z.string().min(1).max(255),
-  handle: z.string().max(255).optional(),
+  handle: AccountHandleSchema.optional(),
   password: z.string().min(8).max(256),
 });
 
