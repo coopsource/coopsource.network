@@ -110,7 +110,9 @@ export async function truncateAllTables(): Promise<void> {
       hook_dead_letter,
       registered_lexicon,
       script_execution_log, cooperative_script,
-      did_rotation_history, spaces_consumer_cursor, space_credential
+      did_rotation_history, spaces_consumer_cursor, space_credential,
+      permissioned_notification_registration, permissioned_repo_cursor,
+      permissioned_repo_record
     CASCADE
   `.execute(db);
 }

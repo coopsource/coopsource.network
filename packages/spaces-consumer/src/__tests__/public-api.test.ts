@@ -16,6 +16,15 @@ describe('public API', () => {
     expect(publicApi).toHaveProperty('RawDidEquivalencePort');
     expect(publicApi).toHaveProperty('InMemoryPermissionedRepoPort');
     expect(publicApi).toHaveProperty('KyselyPermissionedCheckpointStore');
+    expect(publicApi).toHaveProperty('XrpcPermissionedRepoPort');
+    expect(publicApi).toHaveProperty('XrpcPermissionedSyncClient');
+    expect(publicApi).toHaveProperty('Proposal0016CommitVerifier');
+    expect(publicApi).toHaveProperty('KyselyPermissionedReplicaStore');
+    expect(publicApi).toHaveProperty('XrpcCarPermissionedRepoRecoveryPort');
+    expect(publicApi).toHaveProperty('XrpcPermissionedBlobVerifier');
+    expect(publicApi).toHaveProperty(
+      'KyselyPermissionedNotificationRegistrationStore',
+    );
 
     expect(publicApi).not.toHaveProperty('DenyAllGroupAuthorityPort');
     expect(publicApi).not.toHaveProperty('DenyAllArbiterMemberList');

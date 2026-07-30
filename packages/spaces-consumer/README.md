@@ -20,6 +20,9 @@ remains disabled by default and is intentionally capability-shaped:
   sync batch and delegates record verification/checkpointing to the wrapped
   repo adapter.
 - `PermissionedRepoPort` watches and syncs verified permissioned records.
+- `XrpcPermissionedRepoPort` implements the pinned draft read path with
+  `listRepos`, `listRepoOps`, periodic sweeps, staged checkpoints, writer
+  removal, and replaceable commit/CAR/blob verification.
 - `PermissionedRecordWritePort` creates records in a permissioned space behind
   a replaceable adapter. The current API uses a legacy `private_record` adapter
   behind this port for runtime writes. `XrpcPermissionedRecordWritePort` targets
@@ -64,6 +67,9 @@ The executable sketches now live at the stable-port level:
   errors from the pinned Lexicons to typed write failures. Membership is not a
   record-write protocol error in the pinned baseline.
 - `KyselyPermissionedCheckpointStore` sketches durable space-level checkpoint storage against the current PoC table.
+- `KyselyPermissionedReplicaStore` persists per-writer revisions and verified
+  records atomically. `KyselyPermissionedNotificationRegistrationStore`
+  persists registration expiry.
 - `@coopsource/arbiter-client` provides the Stage 2A CSN-backed `CsnDbGroupDirectoryPort`.
 
 Mechanism-specific code is still useful, but it belongs behind these ports. A
@@ -85,7 +91,9 @@ See `docs/plans/2026-05-17-v11-spaces-consumer-adapter-architecture.md` for the 
 | Space credentials            | `SpaceCredentialStore`, `InMemorySpaceCredentialStore`, `KyselySpaceCredentialStore`, `SpaceCredentialManager`, `TwoStepSpaceCredentialIssuer` |
 | Authority discovery          | `DidSpaceAuthorityResolver`, `SpaceAuthorityResolutionError`                                             |
 | Client attestation           | `ClientAttestationProvider`, `Proposal0016ClientAttestationProvider`, `ClientAttestationJwtSigner`       |
-| Permissioned sync            | `PermissionedRepoPort`, `InMemoryPermissionedRepoPort`, `FailClosedPermissionedRepoPort`                         |
+| Permissioned sync            | `PermissionedRepoPort`, `XrpcPermissionedRepoPort`, `XrpcPermissionedSyncClient`, `InMemoryPermissionedRepoPort`, `FailClosedPermissionedRepoPort` |
+| Commit/recovery/blob verification | `Proposal0016CommitVerifier`, `XrpcCarPermissionedRepoRecoveryPort`, `XrpcPermissionedBlobVerifier` |
+| Replica/registration state   | `KyselyPermissionedReplicaStore`, `KyselyPermissionedNotificationRegistrationStore` |
 | Credentialed sync            | `CredentialedPermissionedRepoPort`                                                                               |
 | Permissioned writes          | `PermissionedRecordWritePort`, `InMemoryPermissionedRecordWritePort`, `XrpcPermissionedRecordWritePort`          |
 | Checkpoints                  | `PermissionedCheckpointStore`, `KyselyPermissionedCheckpointStore`                                               |
@@ -133,12 +141,18 @@ await startSpacesConsumer({
   unsafeAcceptUnverifiedPermissionedData:
     config.UNSAFE_ACCEPT_UNVERIFIED_PERMISSIONED_DATA,
   db: container.db,
-  spaces: [],
+  spaces: parseSpacesConsumerRefs(config.SPACES_CONSUMER_SPACES),
+  permissionedRepo,
 });
 ```
 
-The runtime remains log-only and subscribes to no real spaces by default.
-CSN-backed group policy is wired, but no concrete notification,
-`listRepos`/`listRepoOps`, LtHash, or CAR-recovery adapter exists yet. The next
-Phase 4 slice implements that read/recovery path for proposal and vote records
-without changing the runtime default.
+The runtime projects verified proposal/vote records into the existing API read
+model, but remains disabled and subscribes to no spaces by default. Select
+`PERMISSIONED_REPO_READER_MODE=draft-xrpc` and configure
+`SPACES_CONSUMER_SPACES` only in an explicit draft exercise.
+
+The API does not yet expose/register an inbound notification endpoint because
+the pinned URL-derived service-auth audience conflicts with CSN's DID-audience
+verifier. Periodic sweeps provide correctness. Public DID/account event
+ingestion and a live upstream `getRepo` server exercise also remain open; the
+reader fails closed when those missing capabilities are required.

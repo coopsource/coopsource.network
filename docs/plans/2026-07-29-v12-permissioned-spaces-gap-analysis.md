@@ -36,6 +36,16 @@ The highest-risk gaps are:
 5. DID service discovery, client attestation, revocation, deletion, and
    organizational retention are incomplete.
 
+**Implementation update, 2026-07-30:** P0 and the first P1 consumer checkpoint
+are complete. The concrete adapter now covers inventory/oplog pulls, periodic
+reconciliation, Proposal 0016 LtHash/commit verification, CAR and blob
+verification, durable replicas/registrations, writer removal, credential
+refresh, CSN membership acceptance, and idempotent proposal/vote projection.
+The matrix below records the July 29 baseline that motivated the work. The
+remaining critical activation gaps are inbound notification service identity,
+public DID/account events, the pinned atproto server's unimplemented `getRepo`,
+live differential evidence, and the custody/retention/migration decisions.
+
 ## Severity Scale
 
 | Severity | Meaning                                                                                   |
@@ -253,6 +263,21 @@ work. See
 ### P1: One Real Read/Recovery Vertical Slice
 
 Create `feature/v12-phase-4-permissioned-proposal-vote-consumer`.
+
+**Progress 2026-07-30:** Implemented as a disabled-by-default checkpoint.
+Items 1-7 and 9-11 are implemented, including persisted registrations even
+though the API does not activate an inbound endpoint. Item 8 remains open:
+writer DIDs are re-resolved during reconciliation, but public identity/account
+event subscription and immediate invalidation are not wired. The CAR recovery
+client is complete, but the pinned atproto `getRepo` server handler is still
+`MethodNotImplemented`. See
+`docs/plans/2026-07-30-v12-phase-4-permissioned-proposal-vote-consumer.md`.
+
+The focused suite covers the required timing/retry cases with two explicit
+limitations: live writer deletion/recovery cannot be demonstrated against the
+pinned server until it serves `getRepo`, and push notification registration
+cannot be activated until V12-S09 resolves the service identity/audience
+contract. Periodic sweep recovery is tested and remains the correctness path.
 
 Implement one concrete `XrpcPermissionedRepoPort`:
 

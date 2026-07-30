@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { DID } from '@coopsource/common';
 import {
   getSpacesConsumerHealth,
+  parseSpacesConsumerRefs,
   startSpacesConsumer,
   stopSpacesConsumer,
 } from '../src/appview/spaces-consumer-dispatch.js';
@@ -83,5 +84,24 @@ describe('spaces consumer dispatch', () => {
     await stopSpacesConsumer();
 
     expect(getSpacesConsumerHealth()).toBeNull();
+  });
+
+  it('parses configured space subscriptions and rejects incomplete entries', () => {
+    expect(
+      parseSpacesConsumerRefs(
+        JSON.stringify([
+          {
+            arbiterDid: space.arbiterDid,
+            spaceKey: space.spaceKey,
+            expectedSpaceType: space.expectedSpaceType,
+          },
+        ]),
+      ),
+    ).toEqual([space]);
+    expect(() =>
+      parseSpacesConsumerRefs(
+        JSON.stringify([{ arbiterDid: space.arbiterDid }]),
+      ),
+    ).toThrow('requires arbiterDid, spaceKey, and expectedSpaceType');
   });
 });

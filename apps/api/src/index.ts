@@ -93,9 +93,23 @@ import { createMentionRoutes } from './routes/notifications/mentions.js';
 import { createAdminScriptRoutes } from './routes/admin-scripts.js';
 import { startAppViewLoop } from './appview/loop.js';
 import {
+  parseSpacesConsumerRefs,
   startSpacesConsumer,
   stopSpacesConsumer,
 } from './appview/spaces-consumer-dispatch.js';
+import {
+  CredentialedPermissionedRepoPort,
+  DidPermissionedSyncResolver,
+  KyselyPermissionedReplicaStore,
+  Proposal0016CommitVerifier,
+  SpaceCredentialManager,
+  TwoStepSpaceCredentialIssuer,
+  XrpcPermissionedRepoPort,
+  XrpcPermissionedSyncClient,
+  XrpcCarPermissionedRepoRecoveryPort,
+  XrpcPermissionedBlobVerifier,
+  type PermissionedRepoPort,
+} from '@coopsource/spaces-consumer';
 import { createOAuthClient, oauthScopeForConfig } from './auth/oauth-client.js';
 import { setupLabelWebSocket } from './routes/xrpc-labels.js';
 import { createXrpcRoutes } from './xrpc/dispatcher.js';
@@ -200,7 +214,9 @@ async function start(): Promise<void> {
 
   // ATProto OAuth client (V6 member writes; V12 draft permissioned-space writes)
   const needsOAuthClient =
-    config.PDS_URL || config.PERMISSIONED_RECORD_WRITER_MODE === 'draft-xrpc';
+    config.PDS_URL ||
+    config.PERMISSIONED_RECORD_WRITER_MODE === 'draft-xrpc' ||
+    config.PERMISSIONED_REPO_READER_MODE === 'draft-xrpc';
   const oauthClient = needsOAuthClient
     ? createOAuthClient({
         publicUrl: config.PUBLIC_API_URL,
@@ -361,13 +377,58 @@ async function start(): Promise<void> {
     logger.error(err, 'AppView loop failed to start');
   });
 
-  // V11 Stage 1: Pull-based spaces consumer (sketch-only; gated off by default).
+  const spacesConsumerRefs = parseSpacesConsumerRefs(
+    config.SPACES_CONSUMER_SPACES,
+  );
+  let permissionedRepo: PermissionedRepoPort | undefined;
+  if (config.PERMISSIONED_REPO_READER_MODE === 'draft-xrpc') {
+    const resolver = new DidPermissionedSyncResolver({
+      resolveDid: (did) => container.didResolver.resolve(did),
+    });
+    const credentials = new SpaceCredentialManager(
+      container.spaceCredentialStore,
+      new TwoStepSpaceCredentialIssuer(
+        container.spaceDelegationTokenClient,
+        container.spaceCredentialExchangeClient,
+        {
+          clientId: `${config.PUBLIC_API_URL}/api/v1/auth/oauth/client-metadata.json`,
+        },
+      ),
+      {
+        clock: () => container.clock.now(),
+        refreshBeforeMs: 60_000,
+      },
+    );
+    permissionedRepo = new CredentialedPermissionedRepoPort({
+      credentials,
+      inner: new XrpcPermissionedRepoPort({
+        client: new XrpcPermissionedSyncClient(),
+        endpoints: resolver,
+        verifier: new Proposal0016CommitVerifier(resolver),
+        recovery: new XrpcCarPermissionedRepoRecoveryPort(),
+        blobs: new XrpcPermissionedBlobVerifier(),
+        replicas: new KyselyPermissionedReplicaStore(container.db, {
+          clock: () => container.clock.now(),
+        }),
+        clock: () => container.clock.now(),
+        onBackgroundError: (err, context) => {
+          logger.warn(
+            { err, context },
+            'Permissioned repository background sync error',
+          );
+        },
+      }),
+    });
+  }
+
+  // V12 Phase 4: pull-based permissioned repository consumer.
   startSpacesConsumer({
     enabled: config.SPACES_CONSUMER_ENABLED,
     unsafeAcceptUnverifiedPermissionedData:
       config.UNSAFE_ACCEPT_UNVERIFIED_PERMISSIONED_DATA,
     db: container.db,
-    spaces: [], // Stage 1: empty by design; real subscriptions land with Stage 2.
+    spaces: spacesConsumerRefs,
+    permissionedRepo,
   }).catch((err) => {
     logger.error(err, 'Spaces consumer failed to start');
   });

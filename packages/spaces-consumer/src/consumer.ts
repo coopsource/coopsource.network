@@ -44,6 +44,7 @@ export class SpacesConsumer {
   private readonly didEquivalence: DidEquivalencePort;
   private readonly startedAt: string;
   private watchHandle: PermissionedWatchHandle | null = null;
+  private readonly spaceQueues = new Map<string, Promise<void>>();
   private subscribedSpaces = 0;
   private lastPullAt: string | null = null;
   private recordsAccepted = 0;
@@ -61,15 +62,30 @@ export class SpacesConsumer {
   async start(spaces: ReadonlyArray<SpaceRef>): Promise<void> {
     this.watchHandle = await this.opts.permissionedRepo.watch({
       spaces,
-      onChange: (hint) => this.handleChange(hint),
+      onChange: (hint) => this.enqueueChange(hint),
     });
     this.subscribedSpaces = spaces.length;
   }
 
   async stop(): Promise<void> {
     await this.watchHandle?.close();
+    await Promise.allSettled(this.spaceQueues.values());
     this.watchHandle = null;
     this.subscribedSpaces = 0;
+  }
+
+  private enqueueChange(hint: PermissionedChangeHint): Promise<void> {
+    const key = `${hint.space.arbiterDid}|${hint.space.spaceKey}|${hint.space.expectedSpaceType ?? ''}`;
+    const prior = this.spaceQueues.get(key) ?? Promise.resolve();
+    const queued = prior
+      .catch(() => undefined)
+      .then(() => this.handleChange(hint));
+    this.spaceQueues.set(key, queued);
+    return queued.finally(() => {
+      if (this.spaceQueues.get(key) === queued) {
+        this.spaceQueues.delete(key);
+      }
+    });
   }
 
   health(): ConsumerHealth {
@@ -130,6 +146,23 @@ export class SpacesConsumer {
   private async handleRecord(
     record: VerifiedPermissionedRecord,
   ): Promise<boolean> {
+    if (record.operation === 'delete') {
+      // The authority inventory or a verified writer commit may remove records
+      // after the author leaves the space. Applying the tombstone prevents
+      // formerly authorized data from remaining projected indefinitely.
+      try {
+        await this.opts.onAccepted(record);
+        this.recordsAccepted += 1;
+        return true;
+      } catch (err) {
+        await this.recordError(err, {
+          space: record.location.space,
+          authorDid: record.location.authorDid,
+        });
+        return false;
+      }
+    }
+
     let resolvedMembers: ResolvedMembers;
     try {
       resolvedMembers = await this.opts.groupDirectory.resolveSpaceMembers({

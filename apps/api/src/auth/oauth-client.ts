@@ -63,13 +63,19 @@ export const DRAFT_PERMISSIONED_SPACE_MANAGEMENT_SCOPES = [
 export const OAUTH_SCOPE = BASE_OAUTH_SCOPES.join(' ');
 
 export function oauthScopeForConfig(
-  config: Pick<AppConfig, 'PERMISSIONED_RECORD_WRITER_MODE'>,
+  config: Pick<
+    AppConfig,
+    'PERMISSIONED_RECORD_WRITER_MODE' | 'PERMISSIONED_REPO_READER_MODE'
+  >,
 ): string {
   return [
     ...BASE_OAUTH_SCOPES,
+    ...(config.PERMISSIONED_RECORD_WRITER_MODE === 'draft-xrpc' ||
+    config.PERMISSIONED_REPO_READER_MODE === 'draft-xrpc'
+      ? DRAFT_PERMISSIONED_SPACE_APPVIEW_READ_SCOPES
+      : []),
     ...(config.PERMISSIONED_RECORD_WRITER_MODE === 'draft-xrpc'
       ? [
-          ...DRAFT_PERMISSIONED_SPACE_APPVIEW_READ_SCOPES,
           ...DRAFT_PERMISSIONED_SPACE_WRITE_SCOPES,
           ...DRAFT_PERMISSIONED_SPACE_MANAGEMENT_SCOPES,
         ]

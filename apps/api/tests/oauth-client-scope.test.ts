@@ -10,6 +10,7 @@ describe('oauthScopeForConfig', () => {
   it('keeps existing OAuth scopes for the private-record writer', () => {
     const scope = oauthScopeForConfig({
       PERMISSIONED_RECORD_WRITER_MODE: 'private-record',
+      PERMISSIONED_REPO_READER_MODE: 'fail-closed',
     });
 
     expect(scope).toContain('rpc:network.coopsource.governance');
@@ -19,6 +20,7 @@ describe('oauthScopeForConfig', () => {
   it('adds draft space read and write scopes for the draft XRPC writer', () => {
     const scope = oauthScopeForConfig({
       PERMISSIONED_RECORD_WRITER_MODE: 'draft-xrpc',
+      PERMISSIONED_REPO_READER_MODE: 'fail-closed',
     });
     const scopes = scope.split(' ');
 
@@ -39,5 +41,16 @@ describe('oauthScopeForConfig', () => {
     expect(scopes.some((value) => value.includes('manage=create'))).toBe(true);
     expect(scopes.some((value) => value.includes('manage=update'))).toBe(true);
     expect(scopes.some((value) => value.includes('manage=delete'))).toBe(false);
+  });
+
+  it('adds draft space scopes for a reader with the legacy writer disabled', () => {
+    const scope = oauthScopeForConfig({
+      PERMISSIONED_RECORD_WRITER_MODE: 'private-record',
+      PERMISSIONED_REPO_READER_MODE: 'draft-xrpc',
+    });
+
+    expect(scope).toContain('action=read');
+    expect(scope).not.toContain('action=create');
+    expect(scope).not.toContain('manage=update');
   });
 });

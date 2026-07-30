@@ -9,6 +9,7 @@ import type {
   SpaceRef,
   VerifiedPermissionedChanges,
 } from './types.js';
+import { PermissionedSyncError } from './permissioned-sync.js';
 
 export interface CredentialedPermissionedRepoPortOptions {
   readonly credentials: SpaceCredentialManager;
@@ -35,7 +36,16 @@ export class CredentialedPermissionedRepoPort implements PermissionedRepoPort {
     readonly hint?: PermissionedChangeHint;
   }): Promise<VerifiedPermissionedChanges> {
     const credential = await this.opts.credentials.getForBatch(args.space);
-    return this.opts.inner.sync({ ...args, credential });
+    try {
+      return await this.opts.inner.sync({ ...args, credential });
+    } catch (error) {
+      if (!(error instanceof PermissionedSyncError) || error.kind !== 'auth') {
+        throw error;
+      }
+      await this.opts.credentials.invalidate(args.space);
+      const refreshed = await this.opts.credentials.getForBatch(args.space);
+      return this.opts.inner.sync({ ...args, credential: refreshed });
+    }
   }
 
   commitCheckpoint(args: {

@@ -3,9 +3,9 @@
 **Status:** Active canonical specification. Supersedes ARCHITECTURE-V11.md + CLAUDE-CODE-PROMPT-V11.md (both archived in `docs/archive/`). When CLAUDE.md and this document disagree, **this document wins**.
 
 **Updated:** 2026-07-30. Grounded in the July 29 ecosystem research and gap
-analysis plus the Phase 4 Proposal 0016 conformance baseline. Current code
-audit target: `main` after the Phase 5 generic vote-summary checkpoint and the
-July 29 permissioned-spaces research checkpoint.
+analysis plus the Phase 4 Proposal 0016 conformance baseline and first
+permissioned proposal/vote consumer checkpoint. Current code audit target:
+`main` after that checkpoint.
 
 V12 is a **documentation-and-alignment revision, not a design pivot.** The four-layer architecture, the ten-plugin contract, the authority axes, and the recursive cooperative model are all carried from V11 unchanged. What changed is the upstream reality V11 was betting on — and the bet aged well.
 
@@ -97,7 +97,14 @@ eligibility, retention, or legal policy into generic host Rego.
 - **Digest and sync verification:** Proposal 0016 currently combines a signed context, HMAC, and LtHash. Diary 7 and HappyView's dev branch use a different HMAC-only shape. `PermissionedRepoPort.sync(...)` exposes verification status; the concrete adapter must select a verifier by pinned conformance target rather than inventing a local hybrid.
 - **Sync:** repo hosts send best-effort `notifyWrite` events to the authority, which forwards them to registered syncers. Correctness comes from periodic authority `listRepos` sweeps, per-repo `listRepoOps`, commit/LtHash comparison, and `getRepo` CAR recovery when history is missing or state diverges. Public DID/account events are another reconciliation input.
 - **Application acceptance:** only after protocol verification does CSN resolve cooperative policy and decide whether to project a writer's record. A partial or stale group result fails the CSN acceptance step closed. `listRepos` is a writer-discovery list, never a membership or reader list.
-- **Current state:** flag-gated off (`SPACES_CONSUMER_ENABLED=false`), starts with `spaces:[]`, and has no real notification/pull/verify adapter. Phase 4 P1 owns the first proposal/vote read and recovery slice.
+- **Current state:** flag-gated off by default
+  (`SPACES_CONSUMER_ENABLED=false`,
+  `PERMISSIONED_REPO_READER_MODE=fail-closed`) with `spaces:[]`. The draft
+  reader implements periodic/notification-driven inventory and oplog pulls,
+  pinned LtHash/commit/CID verification, CAR/blob recovery, durable replica
+  checkpoints, writer removal, and idempotent proposal/vote projection.
+  Inbound notification endpoint activation, public DID/account events, and a
+  live upstream `getRepo` server exercise remain parked.
 
 ---
 
@@ -165,16 +172,16 @@ Digest algorithm is LtHash per proposal 0016; current public code exposes the ve
 
 ## 10. Implementation playbook
 
-### Current code state (audit of the Phase 4 conformance branch, 2026-07-30)
+### Current code state (audit of the Phase 4 P1 checkpoint, 2026-07-30)
 
 | Layer            | Package                    | State                                                                                                                                                                                                                                                                                                                      |
 | ---------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1 Spaces         | `packages/spaces-consumer` | Flag-gated skeleton with persistent credentials/checkpoints, draft write XRPC, pinned authority DID resolution, and a client-attestation signing port. In-memory/fail-closed sync adapters remain sketches; no real repo ingestion exists yet. |
+| 1 Spaces         | `packages/spaces-consumer` | Flag-gated concrete draft reader/writer: DID-resolved authority and writer hosts/keys, credential refresh, `listRepos`/`listRepoOps`, periodic sweeps, pinned LtHash/signed-commit/CID verification, CAR/blob recovery, persisted replica/registration state, writer removal, and post-projection checkpoints. Inbound notification activation and public account-event ingestion remain parked. |
 | 2 Group policy   | `packages/arbiter-client`  | CSN-Postgres remains the runtime authority. Mock-tested SimpleSpace directory/management clients and Proposal 0016 DID service provisioning are draft adapters; Roomy/Rego remains a possible future host adapter. |
 | 3 GovernanceView | `packages/governance-view` | Concrete `GovernanceView` registration owns generic tally/outcome and proposal-lifecycle policy plus the complete ten-plugin set; production governance consumers use it. Non-canonical community governance draft lexicons live outside the runtime schema set. Phase 5 still owns further generic service extraction.    |
 | 4 CoopView       | `packages/coop-view`       | Concrete `CoopView` registration composes CSN vote, eligibility, quorum, authorization, delegation, patronage, and distribution plugins with defaults for the remaining interfaces. Broad service rewrites remain Phase 5 work.                                                                                            |
 
-Membership: bilateral lexicons retired; `memberConsent` is non-authoritative evidence; **writes** route through `GroupMutationPort`; **reads** route through the API-layer `MembershipReadModel`, which composes strict `GroupDirectoryPort` authority checks with local projection data. Direct `membership`/`membership_role` access is limited to the read seam, mutation/projection writers, admin reset SQL, and low-level tests/helpers. Container exposes `groupMutations`, `groupDirectory`, `membershipReadModel`, consent evidence verification, and Phase 5 governance/coop-view adapters where already extracted; the consumer starts via `startSpacesConsumer` behind the flag.
+Membership: bilateral lexicons retired; `memberConsent` is non-authoritative evidence; **writes** route through `GroupMutationPort`; **reads** route through the API-layer `MembershipReadModel`, which composes strict `GroupDirectoryPort` authority checks with local projection data. Direct `membership`/`membership_role` access is limited to the read seam, mutation/projection writers, admin reset SQL, and low-level tests/helpers. Container exposes `groupMutations`, `groupDirectory`, `membershipReadModel`, consent evidence verification, and Phase 5 governance/coop-view adapters where already extracted; the consumer starts via `startSpacesConsumer` behind the flag and can select the concrete reader with `PERMISSIONED_REPO_READER_MODE=draft-xrpc`.
 
 DB: `packages/db/src/migrations/0001_v11_baseline.ts` + `schema.sql` is the **permanent bootstrap** (a `pg_dump` of the 63-migration archive chain + V11 tables). Schema changes edit `schema.ts` **and** regenerate `schema.sql`; no new migration files. Archived incrementals live in `.archive/` (not executed).
 
@@ -234,6 +241,10 @@ ports and are expected to drift.
 7. Signed-context-plus-HMAC versus Diary 7/HappyView HMAC-only commit format.
 8. Cooperative retention, re-homing, deletion, and private moderation policy;
    see the July 30 signoff register.
+9. Inbound notification service identity/audience: the pinned implementation's
+   URL-derived audience does not match CSN's DID-audience verifier. Periodic
+   reconciliation remains authoritative until V12-S09 is resolved.
+10. Public DID/account event ingestion and immediate account invalidation.
 
 **Watchlist (two-week cadence; last deep sweep 2026-07-29, next due
 2026-08-12):** Proposal 0016 and `atproto#5187`; Holmgren's permissioned-data

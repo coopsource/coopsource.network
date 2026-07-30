@@ -176,7 +176,7 @@ describe('SpaceCredentialManager', () => {
       clock: () => now,
     });
 
-    await manager.invalidateForMemberListChange(ref);
+    await manager.invalidate(ref);
     await expect(manager.getForBatch(ref)).resolves.toMatchObject({
       token: 'rotated',
     });

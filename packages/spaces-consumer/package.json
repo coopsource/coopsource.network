@@ -20,10 +20,16 @@
     "lint": "eslint src --ext .ts"
   },
   "dependencies": {
+    "@atproto/crypto": "^0.4.5",
+    "@atproto/lex-cbor": "^0.0.15",
     "@coopsource/common": "workspace:*",
     "@coopsource/db": "workspace:*",
     "@coopsource/lexicons": "workspace:*",
-    "kysely": "^0.28"
+    "@ipld/car": "^5.4.2",
+    "@ipld/dag-cbor": "^9.2.5",
+    "@noble/hashes": "^1.8.0",
+    "kysely": "^0.28",
+    "multiformats": "^13.4.2"
   },
   "devDependencies": {
     "@coopsource/config": "workspace:*",

@@ -17,6 +17,8 @@ export type {
   UnknownLexiconObject,
   VerifiedPermissionedChanges,
   VerifiedPermissionedRecord,
+  VerifiedPermissionedRecordDelete,
+  VerifiedPermissionedRecordUpsert,
 } from './types.js';
 export { spaceRefKey, SpacesConsumerError } from './types.js';
 export type {
@@ -49,6 +51,7 @@ export {
   DidSpaceAuthorityResolver,
   SpaceAuthorityResolutionError,
 } from './space-authority-resolver.js';
+export { DidPermissionedSyncResolver } from './did-permissioned-sync-resolver.js';
 export {
   InMemorySpaceCredentialStore,
   KyselySpaceCredentialStore,
@@ -94,6 +97,74 @@ export {
   InMemoryPermissionedRepoPort,
   KyselyPermissionedCheckpointStore,
 } from './permissioned-repo-port.js';
+export type {
+  PermissionedCommitContext,
+  PermissionedCommitVerificationRequest,
+  PermissionedCommitVerifierPort,
+  PermissionedReplicaRecord,
+  PermissionedReplicaState,
+  PermissionedReplicaStore,
+  PermissionedRepoOperation,
+  PermissionedRepoSigningKeyResolver,
+  PermissionedSignedCommit,
+  PermissionedSyncErrorKind,
+  PermissionedWriterSummary,
+} from './permissioned-sync.js';
+export {
+  cidForPermissionedRecord,
+  diffPermissionedReplica,
+  encodePermissionedCommitContext,
+  InMemoryPermissionedReplicaStore,
+  ltHashForReplica,
+  PermissionedSyncError,
+  Proposal0016CommitVerifier,
+  Proposal0016LtHash,
+} from './permissioned-sync.js';
+export type {
+  PermissionedListRepoOpsRequest,
+  PermissionedListRepoOpsResponse,
+  PermissionedListReposRequest,
+  PermissionedListReposResponse,
+  PermissionedNotification,
+  PermissionedNotificationRegistration,
+  PermissionedNotificationRegistrationStore,
+  PermissionedNotificationSourcePort,
+  PermissionedRecoveredRepo,
+  PermissionedRegisterNotifyRequest,
+  PermissionedRepoRecoveryPort,
+  PermissionedSyncEndpointResolver,
+  PermissionedSyncXrpcClientPort,
+  XrpcPermissionedRepoPortOptions,
+  XrpcPermissionedSyncFetch,
+  XrpcPermissionedSyncFetchInit,
+  XrpcPermissionedSyncFetchResponse,
+} from './xrpc-permissioned-repo-port.js';
+export {
+  FailClosedPermissionedRepoRecoveryPort,
+  InMemoryPermissionedNotificationRegistrationStore,
+  spaceRefFromPermissionedNotification,
+  XrpcPermissionedRepoPort,
+  XrpcPermissionedSyncClient,
+} from './xrpc-permissioned-repo-port.js';
+export {
+  KyselyPermissionedNotificationRegistrationStore,
+  KyselyPermissionedReplicaStore,
+} from './kysely-permissioned-sync-store.js';
+export type {
+  PermissionedCarFetch,
+  PermissionedCarFetchResponse,
+} from './car-permissioned-repo-recovery.js';
+export { XrpcCarPermissionedRepoRecoveryPort } from './car-permissioned-repo-recovery.js';
+export type {
+  PermissionedBlobFetch,
+  PermissionedBlobFetchResponse,
+  PermissionedBlobVerificationRequest,
+  PermissionedBlobVerifierPort,
+} from './permissioned-blob-verifier.js';
+export {
+  FailClosedPermissionedBlobVerifier,
+  XrpcPermissionedBlobVerifier,
+} from './permissioned-blob-verifier.js';
 export type {
   InMemoryPermissionedRecordWritePortOptions,
   PermissionedRecordCreateRequest,

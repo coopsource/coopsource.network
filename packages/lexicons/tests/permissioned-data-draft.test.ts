@@ -43,6 +43,14 @@ describe('Proposal 0016 executable draft baseline', () => {
       createRecord: 'com.atproto.space.createRecord',
       putRecord: 'com.atproto.space.putRecord',
       deleteRecord: 'com.atproto.space.deleteRecord',
+      listRepos: 'com.atproto.space.listRepos',
+      listRepoOps: 'com.atproto.space.listRepoOps',
+      getRepo: 'com.atproto.space.getRepo',
+      getLatestCommit: 'com.atproto.space.getLatestCommit',
+      getBlob: 'com.atproto.space.getBlob',
+      registerNotify: 'com.atproto.space.registerNotify',
+      notifyWrite: 'com.atproto.space.notifyWrite',
+      notifySpaceDeleted: 'com.atproto.space.notifySpaceDeleted',
     });
     expect(SIMPLESPACE_XRPC_METHODS).toEqual({
       createSpace: 'com.atproto.simplespace.createSpace',

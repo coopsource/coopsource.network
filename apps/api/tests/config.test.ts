@@ -17,6 +17,8 @@ describe('loadConfig', () => {
 
     expect(config.SPACES_CONSUMER_ENABLED).toBe(false);
     expect(config.UNSAFE_ACCEPT_UNVERIFIED_PERMISSIONED_DATA).toBe(false);
+    expect(config.PERMISSIONED_REPO_READER_MODE).toBe('fail-closed');
+    expect(config.SPACES_CONSUMER_SPACES).toBe('[]');
     expect(config.PERMISSIONED_RECORD_WRITER_MODE).toBe('private-record');
     expect(config.SPACE_MANAGING_SESSION_DIDS).toBeUndefined();
   });
@@ -49,6 +51,16 @@ describe('loadConfig', () => {
     const config = loadConfig();
 
     expect(config.PERMISSIONED_RECORD_WRITER_MODE).toBe('draft-xrpc');
+  });
+
+  it('parses the draft XRPC permissioned repo reader mode', () => {
+    process.env.PERMISSIONED_REPO_READER_MODE = 'draft-xrpc';
+    process.env.SPACES_CONSUMER_SPACES = '[{"arbiterDid":"did:plc:coop","spaceKey":"members","expectedSpaceType":"app.example.space"}]';
+
+    const config = loadConfig();
+
+    expect(config.PERMISSIONED_REPO_READER_MODE).toBe('draft-xrpc');
+    expect(config.SPACES_CONSUMER_SPACES).toContain('did:plc:coop');
   });
 
   it('parses managing session candidate DIDs', () => {
