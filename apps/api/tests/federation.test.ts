@@ -287,33 +287,12 @@ describe('Federation endpoints', () => {
     });
   });
 
-  describe('POST /api/v1/federation/hub/register', () => {
-    it('returns 501 NotImplemented (V3 deprecated)', async () => {
-      const res = await testApp.agent
-        .post('/api/v1/federation/hub/register')
-        .send({
-          cooperativeDid: coopDid,
-          hubUrl: 'http://localhost:3001',
-          metadata: { displayName: 'Test Cooperative' },
-        })
-        .expect(501);
-
-      expect(res.body.error).toBe('NotImplemented');
-    });
-  });
-
-  describe('POST /api/v1/federation/hub/notify', () => {
-    it('returns 501 NotImplemented (V3 deprecated)', async () => {
-      const res = await testApp.agent
-        .post('/api/v1/federation/hub/notify')
-        .send({
-          type: 'membership.approved',
-          sourceDid: coopDid,
-          data: {},
-        })
-        .expect(501);
-
-      expect(res.body.error).toBe('NotImplemented');
+  describe('retired V3 hub federation endpoints', () => {
+    it.each([
+      '/api/v1/federation/hub/register',
+      '/api/v1/federation/hub/notify',
+    ])('does not mount POST %s', async (path) => {
+      await testApp.agent.post(path).send({}).expect(404);
     });
   });
 

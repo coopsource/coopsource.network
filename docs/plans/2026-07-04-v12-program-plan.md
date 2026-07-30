@@ -475,6 +475,10 @@ protects mounted inbound federation routes, while the other listed systems
 retain runtime consumers or explicit migration/signoff gates; they are not safe
 mechanical deletions.
 
+The federation outbox residue and the deprecated hub register/notify 501 stubs
+are also retired. The remaining inbound federation routes still expose live
+entity discovery, membership, and agreement workflows.
+
 - [x] First task: expand into a task-level plan with a hidden-consumer sweep.
 
 ## Phase 7 — Full UX overhaul

@@ -323,38 +323,7 @@ describe('Cross-Instance Federation', () => {
     expect(body).toHaveProperty('memberCount');
   });
 
-  // ─── 4. Signed hub registration ──────────────────────────────────
-
-  it('hub registration returns 501 NotImplemented (V3 deprecated)', async () => {
-    const db = createDb(INSTANCES.coopA.dbUrl);
-    dbs.push(db);
-    const { privateKey, keyId } = await resolveSigningKey(
-      db,
-      coopACoopDid,
-      INSTANCES.coopA.keyEncKey,
-    );
-
-    const url = `${INSTANCES.hub.url}/api/v1/federation/hub/register`;
-    const body = {
-      cooperativeDid: coopACoopDid,
-      hubUrl: INSTANCES.hub.url,
-      metadata: {
-        displayName: 'Alpha Co-op',
-        description: 'A test cooperative',
-        cooperativeType: 'worker',
-      },
-    };
-
-    const res = await signedFetch(url, 'POST', body, privateKey, keyId);
-    expect(res.status).toBe(501);
-    const result = (await res.json()) as Record<string, unknown>;
-    expect(result).toHaveProperty('error', 'NotImplemented');
-
-    await db.destroy();
-    dbs.pop();
-  });
-
-  // ─── 5. Signed cross-instance membership request ─────────────────
+  // ─── 4. Signed cross-instance membership request ─────────────────
 
   it('coop-a can request membership on coop-b via signed federation call', async () => {
     const db = createDb(INSTANCES.coopA.dbUrl);
@@ -436,7 +405,7 @@ describe('Cross-Instance Federation', () => {
     dbs.pop();
   });
 
-  // ─── 6. Cross-instance entity lookup after membership ────────────
+  // ─── 5. Cross-instance entity lookup after membership ────────────
 
   it('returns 404 for non-existent entity on federation endpoint', async () => {
     const res = await fetch(

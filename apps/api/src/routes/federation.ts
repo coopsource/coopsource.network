@@ -583,30 +583,5 @@ export function createFederationRoutes(
     }),
   );
 
-  // ── Hub-only endpoints ──
-
-  // No fedAuth — these endpoints return 501 unconditionally (V3 deprecated)
-  router.post(
-    '/api/v1/federation/hub/register',
-    asyncHandler(async (_req, res) => {
-      res.status(501).json({
-        error: 'NotImplemented',
-        message:
-          'Hub registration is deprecated. Cooperatives are discovered via the ATProto relay firehose.',
-      });
-    }),
-  );
-
-  router.post(
-    '/api/v1/federation/hub/notify',
-    asyncHandler(async (_req, res) => {
-      res.status(501).json({
-        error: 'NotImplemented',
-        message:
-          'Hub notification is deprecated. Events flow through the ATProto firehose.',
-      });
-    }),
-  );
-
   return router;
 }

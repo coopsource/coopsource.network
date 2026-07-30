@@ -36,6 +36,7 @@ not count as runtime consumers.
 | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | `IFederationClient` and `HttpFederationClient`               | No app/container/service consumer; only package exports and the implementation refer to the outbound abstraction                                   | Remove first                                                             |
 | RFC 9421 signing                                             | `requireFederationAuth` verifies mounted inbound federation routes and cross-instance tests exercise signed calls                                  | Retain until inbound routes are replaced or retired                      |
+| hub register/notify endpoints                                | Unauthenticated V3 stubs always returned 501; their only outbound caller was the retired `HttpFederationClient`                                    | Complete; routes removed in checkpoint 3                                 |
 | `SigningKeyResolver`                                         | No runtime caller; one method supports cross-instance tests and the raw-byte method is only dormant future infrastructure                          | Remove; use a test-local real-DB key loader for retained signature tests |
 | `privateRecordService`, route, adapter, and `private_record` | Default permissioned writer, Tier 2 source authority, readiness/copy-ledger source, direct private-record API, and finance/ops descriptions remain | Blocked on V12-S05 migration/cutover evidence                            |
 | `governanceLabeler`                                          | Mounted label XRPC, WebSocket subscription, admin UI, public proposal outcome labels, and tests remain                                             | Retain pending a `$labeler`/anchor contract                              |
@@ -120,6 +121,31 @@ outbox references as evidence of the earlier removal.
 - `pnpm build`: 10 tasks passed
 - `pnpm test`: 17 tasks passed, including API (107 files, 1,015 tests)
 
+## Checkpoint 3: Deprecated Hub Routes
+
+Remove the unimplemented `POST /api/v1/federation/hub/register` and
+`POST /api/v1/federation/hub/notify` stubs. Both endpoints were V3 compatibility
+surface that always returned 501 without authentication or side effects. Their
+only outbound caller was the dormant HTTP federation client removed in
+checkpoint 1.
+
+API coverage now asserts that both paths are unmounted and return 404. The
+three-instance suite no longer signs a request solely to prove a deprecated
+stub returns 501. Live public entity/profile reads and signed membership and
+agreement workflows remain mounted.
+
+### Checkpoint 3 Verification
+
+- focused federation API tests: 1 file, 35 tests
+- isolated three-instance federation suite: 1 file, 7 tests
+- `pnpm lint`: 4 tasks passed
+- `pnpm build`: 10 tasks passed
+- `pnpm test`: 17 tasks passed, including API (107 files, 1,015 tests)
+
+The first full test run hit an unrelated transient 404 during campaign test
+setup. The campaign suite passed 18/18 in isolation and the immediate exact
+`pnpm build && pnpm test` rerun passed in full.
+
 ## Later Checkpoints
 
 ### Inbound federation surface
@@ -131,7 +157,8 @@ Classify each route before deletion:
   seams without losing caller authorization;
 - agreement signature commands need a durable inter-cooperative replacement;
   and
-- hub register/notify must be proven unused or replaced.
+- no remaining route may retire before its replacement or lack of use is
+  proven.
 
 Only after the mounted routes are gone may RFC 9421 signing and the
 cross-instance HTTP-signature tests retire.
