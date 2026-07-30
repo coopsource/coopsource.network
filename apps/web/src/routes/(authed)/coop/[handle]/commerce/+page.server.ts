@@ -8,17 +8,17 @@ export const load: PageServerLoad = async ({ fetch, request }) => {
 
   try {
     const [listings, needs, agreements, projects] = await Promise.all([
-      api.getCommerceListings({ limit: 1 }).catch(() => ({ items: [], cursor: null })),
-      api.getCommerceNeeds({ limit: 1 }).catch(() => ({ items: [], cursor: null })),
-      api.getIntercoopAgreements({ limit: 1 }).catch(() => ({ items: [], cursor: null })),
-      api.getCollaborativeProjects({ limit: 1 }).catch(() => ({ items: [], cursor: null })),
+      api.getCommerceListings({ limit: 1 }),
+      api.getCommerceNeeds({ limit: 1 }),
+      api.getIntercoopAgreements({ limit: 1 }),
+      api.getCollaborativeProjects({ limit: 1 }),
     ]);
 
     return {
-      listingsCount: listings.items.length,
-      needsCount: needs.items.length,
-      agreementsCount: agreements.items.length,
-      projectsCount: projects.items.length,
+      listingsCount: listings.listings.length,
+      needsCount: needs.needs.length,
+      agreementsCount: agreements.agreements.length,
+      projectsCount: projects.projects.length,
     };
   } catch (err) {
     if (err instanceof ApiError) {

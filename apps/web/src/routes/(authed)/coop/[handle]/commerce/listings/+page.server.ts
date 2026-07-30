@@ -11,7 +11,7 @@ export const load: PageServerLoad = async ({ fetch, request, url }) => {
   try {
     const result = await api.getCommerceListings({ category, status, limit: 50 });
     return {
-      listings: result.items,
+      listings: result.listings,
       cursor: result.cursor,
       filterCategory: category ?? '',
       filterStatus: status ?? '',

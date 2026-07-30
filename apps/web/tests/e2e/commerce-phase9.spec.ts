@@ -75,6 +75,19 @@ test.describe('Commerce Listings API (E2E)', () => {
     // Archive (soft delete)
     const archiveRes = await del(request, cookie, `/commerce/listings/${listing.id}`);
     expect(archiveRes.status()).toBe(204);
+
+    const defaultListRes = await get(request, cookie, '/commerce/listings');
+    const defaultList = await defaultListRes.json();
+    expect(defaultList.listings).toHaveLength(0);
+
+    const archivedListRes = await get(
+      request,
+      cookie,
+      '/commerce/listings?status=archived',
+    );
+    const archivedList = await archivedListRes.json();
+    expect(archivedList.listings).toHaveLength(1);
+    expect(archivedList.listings[0].id).toBe(listing.id);
   });
 
   test('list and filter listings', async ({ request }) => {

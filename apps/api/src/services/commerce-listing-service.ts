@@ -173,6 +173,8 @@ export class CommerceListingService {
     }
     if (filters?.status) {
       query = query.where('status', '=', filters.status);
+    } else {
+      query = query.where('status', '!=', 'archived');
     }
 
     if (params.cursor) {

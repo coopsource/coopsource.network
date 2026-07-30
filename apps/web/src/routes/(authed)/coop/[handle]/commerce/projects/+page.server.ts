@@ -13,9 +13,9 @@ export const load: PageServerLoad = async ({ fetch, request, url }) => {
       api.getIntercoopAgreements({ status, limit: 50 }),
     ]);
     return {
-      projects: projectsResult.items,
+      projects: projectsResult.projects,
       projectsCursor: projectsResult.cursor,
-      agreements: agreementsResult.items,
+      agreements: agreementsResult.agreements,
       agreementsCursor: agreementsResult.cursor,
       filterStatus: status ?? '',
     };
