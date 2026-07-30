@@ -147,7 +147,7 @@ Cooperative-specific concerns: Subchapter T patronage & capital accounts, multi-
 ## 8. Data tiers
 
 - **Tier 1 (Public ATProto):** cooperative profiles, public proposals, vote tallies, ratified agreements. Public repo / publish-space.
-- **Tier 2 (Permissioned-space):** closed deliberations, draft proposals, private votes, confidential agreements, private member directories, financials. Members' permissioned repos for the appropriate space. **Never on the public firehose.** No `private_record` as authoritative storage (it persists as a projection cache during transition; retires in Phase 6).
+- **Tier 2 (Permissioned-space):** closed deliberations, draft proposals, private votes, confidential agreements, private member directories, financials. Members' permissioned repos for the appropriate space. **Never on the public firehose.** No `private_record` as authoritative storage (it persists as a projection cache during transition; retires in Phase 6). A read-only governance migration audit now reconciles semantic permissioned locations and private sources; copy, rollback, and authority changes remain gated.
 - **Tier 3 (E2EE):** board-confidential, salary, personnel. Germ DM / MLS. **Optional secondary channel only** — Germ is iOS-only (July 2026). Governance flows must not require Tier 3.
 
 ---

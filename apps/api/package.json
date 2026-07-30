@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit",
     "exercise:draft-xrpc-pds": "tsx scripts/exercise-draft-xrpc-pds.ts",
     "probe:permissioned-conformance": "tsx scripts/probe-permissioned-conformance.ts",
+    "audit:tier2-governance-migration": "tsx scripts/audit-tier2-governance-migration.ts",
     "clean": "rm -rf dist"
   },
   "dependencies": {

@@ -22,7 +22,7 @@ export class PrivateRecordPermissionedWritePort implements PermissionedRecordWri
       args.collection,
       args.record,
       args.authorDid,
-      physicalPrivateRecordRkey(args.authorDid, rkey),
+      formatPrivatePermissionedRecordRkey(args.authorDid, rkey),
     );
 
     return {
@@ -43,7 +43,7 @@ export class PrivateRecordPermissionedWritePort implements PermissionedRecordWri
       await this.privateRecordService.update(
         args.space.arbiterDid,
         args.collection,
-        physicalPrivateRecordRkey(args.authorDid, args.rkey),
+        formatPrivatePermissionedRecordRkey(args.authorDid, args.rkey),
         args.record,
       );
     } catch (err) {
@@ -72,7 +72,7 @@ export class PrivateRecordPermissionedWritePort implements PermissionedRecordWri
       await this.privateRecordService.delete(
         args.space.arbiterDid,
         args.collection,
-        physicalPrivateRecordRkey(args.authorDid, args.rkey),
+        formatPrivatePermissionedRecordRkey(args.authorDid, args.rkey),
       );
     } catch (err) {
       if (err instanceof NotFoundError) {
@@ -86,8 +86,22 @@ export class PrivateRecordPermissionedWritePort implements PermissionedRecordWri
   }
 }
 
-function physicalPrivateRecordRkey(authorDid: string, rkey: string): string {
+export function formatPrivatePermissionedRecordRkey(authorDid: string, rkey: string): string {
   return `${encodeURIComponent(authorDid)}/${encodeURIComponent(rkey)}`;
+}
+
+export function parsePrivatePermissionedRecordRkey(
+  physicalRkey: string,
+): { readonly authorDid: string; readonly rkey: string } | null {
+  const parts = physicalRkey.split('/');
+  if (parts.length !== 2 || parts.some((part) => part.length === 0)) return null;
+  try {
+    const [authorDid, rkey] = parts.map((part) => decodeURIComponent(part)) as [string, string];
+    if (!authorDid.startsWith('did:') || rkey.length === 0) return null;
+    return { authorDid, rkey };
+  } catch {
+    return null;
+  }
 }
 
 function generatePermissionedRkey(): string {
