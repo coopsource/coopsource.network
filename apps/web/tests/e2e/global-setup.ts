@@ -6,7 +6,12 @@ import { promises as fs } from 'node:fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEST_DB_NAME = 'coopsource_test';
-const ADMIN_URL = 'postgresql://coopsource:coopsource_dev@localhost:5432/postgres';
+const TEST_DB_URL =
+  process.env.E2E_DATABASE_URL ??
+  `postgresql://coopsource:dev_password@localhost:5433/${TEST_DB_NAME}`;
+const derivedAdminUrl = new URL(TEST_DB_URL);
+derivedAdminUrl.pathname = '/postgres';
+const ADMIN_URL = process.env.E2E_DATABASE_ADMIN_URL ?? derivedAdminUrl.toString();
 
 async function globalSetup(): Promise<void> {
   // Drop and recreate the test database
@@ -27,7 +32,7 @@ async function globalSetup(): Promise<void> {
   const db = new Kysely<Record<string, unknown>>({
     dialect: new PostgresDialect({
       pool: new pg.Pool({
-        connectionString: `postgresql://coopsource:coopsource_dev@localhost:5432/${TEST_DB_NAME}`,
+        connectionString: TEST_DB_URL,
         max: 3,
       }),
     }),

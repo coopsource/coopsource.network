@@ -8,6 +8,7 @@
   import ProfileDropdown from './ProfileDropdown.svelte';
   import {
     cooperativeNavSection,
+    networkWorkspaceNavSection,
     networkNavSection,
     homeNavSection,
     myCoopsNavSection,
@@ -41,12 +42,15 @@
 
   const homeNav = $derived(homeNavSection(workspace));
   const cooperativeNav = $derived(cooperativeNavSection(workspace, isAdmin));
+  const networkWorkspaceNav = $derived(networkWorkspaceNavSection(workspace));
   const networkNav = $derived(networkNavSection(workspace));
   const myCoopsNav = $derived(myCoopsNavSection(workspace, myCoops));
   const youNav = $derived(youNavSection(workspace));
 
   const sections: NavSection[] = $derived(
-    [homeNav, cooperativeNav, networkNav, myCoopsNav, youNav].filter((s) => s.items.length > 0)
+    [homeNav, cooperativeNav, networkWorkspaceNav, networkNav, myCoopsNav, youNav].filter(
+      (s) => s.items.length > 0,
+    ),
   );
 
   function isActive(href: string): boolean {

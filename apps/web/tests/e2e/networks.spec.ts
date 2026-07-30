@@ -2,8 +2,11 @@ import { test, expect } from '@playwright/test';
 import { ADMIN, COOP, wp, setupCooperative, loginAs } from './helpers.js';
 
 test.describe('Networks', () => {
+  let cookie: string;
+
   test.beforeEach(async ({ page, request }) => {
-    await setupCooperative(request);
+    const setup = await setupCooperative(request);
+    cookie = setup.cookie;
     await loginAs(page, ADMIN.email, ADMIN.password);
   });
 
@@ -29,17 +32,9 @@ test.describe('Networks', () => {
     await expect(page.getByText('Test Network')).toBeVisible();
   });
 
-  test.fixme('join network shows co-op in members', async ({ page, request }) => {
-    // V8.13 investigation: clicking "Join network" submits the form but the
-    // page never updates — "Leave network" button never appears. The form
-    // action may be silently failing or the page's load function isn't
-    // invalidating properly after the network join. Needs backend + SvelteKit
-    // form action debugging.
-    const setup = await setupCooperative(request);
-    await loginAs(page, ADMIN.email, ADMIN.password);
-
+  test('join network shows co-op in members', async ({ page, request }) => {
     const createRes = await request.post('http://localhost:3002/api/v1/networks', {
-      headers: { Cookie: setup.cookie },
+      headers: { Cookie: cookie },
       data: { name: 'Joinable Network' },
     });
     const { did: networkDid } = await createRes.json();
@@ -54,5 +49,67 @@ test.describe('Networks', () => {
     // Should now show Leave button and the co-op in members
     await expect(page.getByRole('button', { name: 'Leave network' })).toBeVisible({ timeout: 10_000 });
     await expect(page.getByRole('heading', { name: COOP.name })).toBeVisible({ timeout: 10_000 });
+  });
+
+  test('workspace switcher opens a network with only valid navigation', async ({
+    page,
+    request,
+  }) => {
+    const createRes = await request.post('http://localhost:3002/api/v1/networks', {
+      headers: { Cookie: cookie },
+      data: {
+        name: 'Navigation Network',
+        handle: 'navigation-network',
+      },
+    });
+    expect(createRes.status()).toBe(201);
+    const { did } = await createRes.json();
+
+    const joinRes = await request.post(
+      `http://localhost:3002/api/v1/networks/${encodeURIComponent(did)}/join`,
+      { headers: { Cookie: cookie } },
+    );
+    expect(joinRes.status()).toBe(201);
+
+    await page.goto('/me');
+    await page.getByRole('button', { name: 'Switch workspace' }).click();
+    await page.getByRole('menuitem', { name: 'Navigation Network' }).click();
+    await page.waitForURL('/net/navigation-network/cooperatives');
+
+    const navLinks = page.locator('aside nav a');
+    await expect(navLinks).toHaveCount(3);
+    await expect(navLinks.nth(0)).toHaveAttribute(
+      'href',
+      '/net/navigation-network/cooperatives',
+    );
+    await expect(navLinks.nth(1)).toHaveAttribute('href', '/me/profile');
+    await expect(navLinks.nth(2)).toHaveAttribute('href', '/me/settings');
+
+    await expect(page.getByRole('link', { name: 'Governance' })).not.toBeVisible();
+    await expect(page.getByRole('link', { name: 'Agreements' })).not.toBeVisible();
+
+    await page.getByRole('button', { name: 'Switch workspace' }).click();
+    await expect(page.getByRole('menuitem', { name: 'Create new coop' })).not.toBeVisible();
+    await page.keyboard.press('Escape');
+
+    expect((await page.goto('/net/navigation-network/governance'))?.status()).toBe(404);
+    expect((await page.goto('/net/navigation-network/agreements'))?.status()).toBe(404);
+    expect((await page.goto('/coop/navigation-network'))?.status()).toBe(404);
+  });
+
+  test('network workspace rejects a cooperative that is not a member', async ({
+    page,
+    request,
+  }) => {
+    const createRes = await request.post('http://localhost:3002/api/v1/networks', {
+      headers: { Cookie: cookie },
+      data: {
+        name: 'Private Network',
+        handle: 'private-network',
+      },
+    });
+    expect(createRes.status()).toBe(201);
+
+    expect((await page.goto('/net/private-network/cooperatives'))?.status()).toBe(403);
   });
 });

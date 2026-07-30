@@ -1,6 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const TEST_DB_URL = 'postgresql://coopsource:coopsource_dev@localhost:5432/coopsource_test';
+const TEST_DB_URL =
+  process.env.E2E_DATABASE_URL ??
+  'postgresql://coopsource:dev_password@localhost:5433/coopsource_test';
 const TEST_KEY_ENC_KEY = 'yIknTzhyTfVpR7cc/ZrwSpewmhyiOJA97leVbKqccsY=';
 
 export default defineConfig({
