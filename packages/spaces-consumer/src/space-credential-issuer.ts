@@ -1,3 +1,5 @@
+import { ATPROTO_SPACE_HOST_SERVICE_ID } from '@coopsource/lexicons';
+import type { ClientAttestationProvider } from './client-attestation.js';
 import {
   SpaceCredentialError,
   type SpaceCredential,
@@ -52,7 +54,7 @@ export interface SpaceCredentialExchangeClientPort {
 export interface TwoStepSpaceCredentialIssuerOptions {
   readonly clientId: string;
   readonly spaceUriForRef?: (ref: SpaceRef) => string;
-  readonly clientAttestation?: string;
+  readonly clientAttestationProvider?: ClientAttestationProvider;
 }
 
 /**
@@ -88,14 +90,21 @@ export class TwoStepSpaceCredentialIssuer implements SpaceCredentialIssuerPort {
       );
     }
 
+    const clientAttestation =
+      await this.opts.clientAttestationProvider?.getClientAttestation({
+        ref: request.ref,
+        space,
+        clientId: this.opts.clientId,
+        audience: `${request.ref.arbiterDid}${ATPROTO_SPACE_HOST_SERVICE_ID}`,
+        reason: request.reason,
+        now: request.now,
+      });
     const credentialResponse = await this.credentials.getSpaceCredential({
       ref: request.ref,
       space,
       clientId: this.opts.clientId,
       delegationToken: delegationResponse.token,
-      ...(this.opts.clientAttestation
-        ? { clientAttestation: this.opts.clientAttestation }
-        : {}),
+      ...(clientAttestation ? { clientAttestation } : {}),
       reason: request.reason,
       previous: request.previous,
       now: request.now,

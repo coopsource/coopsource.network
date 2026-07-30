@@ -5,6 +5,24 @@
 permissioned-spaces reference/harness and lexicon compatibility smoke target,
 not as CSN's application substrate.
 
+## July 30 Update
+
+The July 11 decision still holds. Stable HappyView moved through `2.11.8`, and
+`2.12.0-dev.1`/`.2` followed Permissioned Data Diary 7 with real CID, CBOR,
+attestation, and backfill changes. The dev line also removed the signed-commit
+field while pinned Proposal 0016 and atproto PR #5187 still use a signed
+context plus HMAC. HappyView is therefore more valuable as an independent
+differential target, but less suitable as the sole protocol oracle.
+
+The announced HappyView v3 TypeScript/Rust/Lua plugin model may improve future
+extension fit. No released v3 contract currently supplies CSN's query
+semantics, typed governance plugin composition, transactional projections, or
+fail-closed acceptance gates. Revisit only against a released, exercisable
+plugin API.
+
+For current release details and source links, see
+`docs/plans/2026-07-29-atproto-permissioned-spaces-research-report.md`.
+
 ## Question
 
 Can current HappyView replace CSN's TypeScript/Express AppView without moving

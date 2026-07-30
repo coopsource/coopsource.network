@@ -6,6 +6,7 @@ import {
 } from '@coopsource/arbiter-client';
 import type { GroupMutationPort } from '@coopsource/arbiter-client';
 import {
+  DidSpaceAuthorityResolver,
   KyselySpaceCredentialStore,
   XrpcPermissionedRecordWritePort,
   type GroupDirectoryPort,
@@ -297,6 +298,9 @@ export function createContainer(config: AppConfig): Container {
         import('@coopsource/federation').DidDocument
       >,
   });
+  const spaceAuthorityResolver = new DidSpaceAuthorityResolver({
+    resolveDid: (did) => didResolver.resolve(did),
+  });
 
   // V9.2.5: Service-auth JWT verifier for external ATProto apps.
   // Only instantiated when an audience DID AND at least one trusted issuer
@@ -447,7 +451,8 @@ export function createContainer(config: AppConfig): Container {
     sessionSelector: managingSpaceCredentialSessionSelector,
   });
   const spaceCredentialExchangeClient = new OAuthSpaceCredentialExchangeClient({
-    serviceUrlForSpaceAuthority: () => config.COOP_PDS_URL ?? config.PDS_URL,
+    serviceUrlForSpaceAuthority: async (ref) =>
+      (await spaceAuthorityResolver.resolve(ref)).serviceUrl,
   });
   const permissionedRecordWriter =
     config.PERMISSIONED_RECORD_WRITER_MODE === 'draft-xrpc'

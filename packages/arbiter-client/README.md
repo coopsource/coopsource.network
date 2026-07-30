@@ -1,8 +1,15 @@
 # @coopsource/arbiter-client
 
-Stage 2 V11 package for Group Directory / Arbiter adapters.
+V12 package for replaceable group-directory and authority adapters.
 
-The first implementation is deliberately a CSN-backed temporary adapter, not a final upstream Arbiter XRPC client. Upstream Arbiter and permissioned-space APIs are still settling, so this package exposes replaceable helpers and adapters behind the stable `GroupDirectoryPort` and `GroupMutationPort` contracts.
+The runtime implementation is deliberately CSN-backed, not a final upstream
+Arbiter client. Proposal 0016, SimpleSpace, and Roomy's Arbiter direction are
+still moving, so this package keeps them behind stable `GroupDirectoryPort`
+and `GroupMutationPort` contracts.
+
+Roomy's current Arbiter direction is a portable Rego-controlled XRPC proxy.
+The older `town.muni.arbiter.*` lexicons and recursive role-space model remain
+useful prior art, not a stable wire contract CSN should bind to.
 
 ## Public Surface
 
@@ -12,7 +19,9 @@ The first implementation is deliberately a CSN-backed temporary adapter, not a f
 - `XrpcGroupDirectoryPort`: experimental mock-tested adapter for current draft `com.atproto.space.*` + `com.atproto.simplespace.*` endpoints. It is not wired as the default because the upstream implementation is still draft and only exposes direct simplespace membership.
 - `GroupMutationPort`: write-side boundary for cooperative provisioning, member changes, role changes, and audit reads.
 - `CsnDbGroupMutationPort`: writes the current CSN tables behind that boundary until Arbiter XRPC semantics are available.
-- `DidProvisioningPort`: binds DID service entries such as `#space_host`.
+- `DidProvisioningPort`: binds the pinned Proposal 0016
+  `#atproto_space_host` DID service entry. The current service `type` is a CSN
+  convention because the proposal fixes the id but not a normative type.
 
 ## Temporary Space Conventions
 
@@ -44,10 +53,16 @@ exports.
 
 The adapter intentionally does not claim a protocol-level recursive
 `resolveSpaceMembers` primitive exists. Resolution returns the direct DID set
-from `simplespace.listMembers`; pagination under `consistency: 'strict'` walks
+from the SimpleSpace host-internal member list; pagination under
+`consistency: 'strict'` walks
 all pages, while `projection-ok` may return `partial: true` after the first
 page. Network or malformed upstream responses fail closed as partial/stale
-results. CSN-DB remains the runtime default.
+results. This list is application/host policy, not part of the core
+permissioned-data protocol. CSN-DB remains the runtime default.
+
+The draft XRPC clients take method names from
+`@coopsource/lexicons`' pinned Proposal 0016 baseline. SimpleSpace creation
+uses `manage=create`; member add/remove/list operations use `manage=update`.
 
 Unknown space shapes fail closed as partial/stale resolved membership.
 

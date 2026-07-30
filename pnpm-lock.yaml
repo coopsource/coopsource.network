@@ -260,6 +260,9 @@ importers:
       '@coopsource/db':
         specifier: workspace:*
         version: link:../db
+      '@coopsource/lexicons':
+        specifier: workspace:*
+        version: link:../lexicons
       '@coopsource/spaces-consumer':
         specifier: workspace:*
         version: link:../spaces-consumer
@@ -436,6 +439,9 @@ importers:
       '@coopsource/db':
         specifier: workspace:*
         version: link:../db
+      '@coopsource/lexicons':
+        specifier: workspace:*
+        version: link:../lexicons
       kysely:
         specifier: ^0.28.14
         version: 0.28.14

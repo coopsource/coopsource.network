@@ -7,6 +7,7 @@ import {
   formatSpaceReadScope,
   formatSpaceReadSelfScope,
   type SpaceScopeAction,
+  type SpaceScopeManageAction,
 } from './space-scopes.js';
 
 export type CsnScopePlanSkeyMode = 'omit' | 'canonical-or-wildcard';
@@ -24,6 +25,11 @@ export interface CsnSpaceScopePlanOptions {
 export interface CsnSpaceWriteScopePlanOptions
   extends CsnSpaceScopePlanOptions {
   readonly actions?: readonly CsnSpaceWriteAction[];
+}
+
+export interface CsnSpaceManageScopeOptions {
+  readonly authority?: string;
+  readonly manages?: readonly SpaceScopeManageAction[];
 }
 
 export function formatCsnAppViewReadScopePlan(
@@ -62,6 +68,16 @@ export function formatCsnMemberWriteScopePlan(
       actions,
     }),
   );
+}
+
+export function formatCsnMembersSpaceManageScope(
+  options: CsnSpaceManageScopeOptions = {},
+): string {
+  return formatSpaceScope('network.coopsource.org.spaceType.members', {
+    authority: options.authority,
+    skey: 'members',
+    manage: options.manages ?? ['create', 'update'],
+  });
 }
 
 function placementsForPlan(

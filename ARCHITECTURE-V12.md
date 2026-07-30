@@ -2,7 +2,10 @@
 
 **Status:** Active canonical specification. Supersedes ARCHITECTURE-V11.md + CLAUDE-CODE-PROMPT-V11.md (both archived in `docs/archive/`). When CLAUDE.md and this document disagree, **this document wins**.
 
-**Updated:** 2026-07-11. Grounded in `docs/plans/2026-07-04-atproto-shared-spaces-research.md` plus the July 5 code/proposal reconciliation in `docs/plans/2026-07-05-v12-replan-after-code-deep-dive.md`. Current code audit target: `main` at the Phase 5 proposal-lifecycle checkpoint after the Phase 4 live-XRPC harness checkpoint.
+**Updated:** 2026-07-30. Grounded in the July 29 ecosystem research and gap
+analysis plus the Phase 4 Proposal 0016 conformance baseline. Current code
+audit target: `main` after the Phase 5 generic vote-summary checkpoint and the
+July 29 permissioned-spaces research checkpoint.
 
 V12 is a **documentation-and-alignment revision, not a design pivot.** The four-layer architecture, the ten-plugin contract, the authority axes, and the recursive cooperative model are all carried from V11 unchanged. What changed is the upstream reality V11 was betting on — and the bet aged well.
 
@@ -14,14 +17,14 @@ V12 is a **documentation-and-alignment revision, not a design pivot.** The four-
 
 | Area                     | V11 assumption (May)           | V12 reality (July)                                                                                                                          | Impact                                                                                                                             |
 | ------------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Permissioned data status | Sketch proposal + diaries      | **Proposal 0016 merged** into `bluesky-social/proposals`; impl PR `atproto#5187` is a 74-commit draft (`@atproto/space` pkg, PDS endpoints) | Substrate has a real spec + reference to target                                                                                    |
+| Permissioned data status | Sketch proposal + diaries      | **Proposal 0016 is a published draft**, not a final specification; impl PR `atproto#5187` remains a 74-commit draft and `@atproto/space` is unpublished | Pin proposal and implementation commits; do not treat either as a stable dependency                                               |
 | URI scheme               | "probably `ats://`" (70–80%)   | **`at://` reused** with a `/space/` segment: `at://{spaceDid}/space/{spaceType}/{skey}/{authorDid}/{collection}/{rkey}`                     | Pitfall held: scheme was never baked → helper-only change                                                                          |
 | Commit digest            | ECMH                           | **LtHash** (lattice-based, quantum-secure)                                                                                                  | Verification belongs inside the `PermissionedRepoPort` sync boundary; a concrete adapter may add an internal LtHash verifier later |
-| OAuth-spaces seam        | Open (~50%, the one real risk) | **Three-token credential flow** (delegation token → client attestation → space credential) + client allow/deny lists (Diary 6, June 5)      | Seam now known-but-unshipped; maps 1:1 to our three failure modes                                                                  |
-| Arbiter                  | "two weeks old"                | **16 draft `town.muni.arbiter.*` lexicons** (`resolveSpaceMembers`, `createDid`, …) + Rego policy prototype + WASM simulator                | Wire contract to converge on; identity/authorization split                                                                         |
+| OAuth-spaces seam        | Open (~50%, the one real risk) | Delegation token → space credential, with a client attestation only when app identity is gated; SimpleSpace adds member-list/managing-app policy | Shape is executable but draft; CSN keeps signing, exchange, and policy behind ports                                               |
+| Arbiter                  | "two weeks old"                | Roomy's current direction is a portable Rego-controlled XRPC proxy; the 16 `town.muni.arbiter.*` lexicons are useful prior art, not a stable wire contract | Preserve authority ports and keep Rego below GovernanceView                                                                        |
 | Community modeling       | (implicit)                     | Holmgren (June 2): **many typed spaces under one community DID**, against "universal spaces"                                                | Directly validates our role-space design                                                                                           |
 | OAuth scopes             | shipping                       | **Shipped + normative** (`repo:`/`rpc:`/`blob:`/`account:`/`identity:`/`include:`); permission sets are lexicons anyone can publish         | Axis 1 rests on documented protocol surface                                                                                        |
-| HappyView                | experimental behind flag       | **2.11.4 (July 9)**: `com.atproto.space.*`/`com.atproto.simplespace.*`, LtHash, `listRepoOps`, `registerNotify`/`notifyWrite`               | Use as dev/test harness; Phase 5 spike rejected it as CSN's AppView substrate (build-vs-use §10)                                   |
+| HappyView                | experimental behind flag       | Stable **2.11.8** plus `2.12.0-dev.2`; dev releases follow Diary 7 and currently diverge from Proposal 0016 on signed commits               | Use for differential tests, not as the protocol oracle or CSN AppView substrate                                                    |
 
 **What did NOT change (carried from V11):** the four layers; the ten-plugin `GovernancePluginSet`; the five authority axes; the recursive cooperative model; the three data tiers; fail-closed cross-checking; DIDs authoritative + `did_rotation_history` aliasing; Tier 3 optional (Germ still iOS-only). The May addendum's own forecast scored 7/9 (see the research report §III).
 
@@ -32,14 +35,14 @@ V12 is a **documentation-and-alignment revision, not a design pivot.** The four-
 ```
 Layer 4: CoopView        network.coopsource.*          cooperative-specific
 Layer 3: GovernanceView  community.lexicon.governance.*  generic governance
-Layer 2: Arbiter         town.muni.arbiter.* (draft)     group/role/space mgmt
+Layer 2: Group policy    adapters behind stable ports     authority/acceptance
 Layer 1: Spaces          at://…/space/… (proposal 0016)  protocol primitives
 ```
 
 **Placement rule:** push a feature down a layer unless doing so dilutes its generality. Test: _would Roomy (or another non-cooperative group app) use this unmodified?_ If yes, it belongs in Layer 3 or lower.
 
-- **Layer 1 — Spaces** (Holmgren / Bluesky). A space is `(authority: DID, type: NSID, skey: string)`, where the type is a lexicon-resolved `"type": "space"` declaration and the protocol does **not** carry an application member roster. Space credentials are issued by policy above the protocol; CSN resolves membership through Layer 2. **Writes are enforced by readers** at the application layer. Sync is pull-based (oplog `listRepoOps` + CAR fallback), digest is LtHash. _"space authority" ≙ our `arbiterDid`._
-- **Layer 2 — Arbiter** (Meri + Zicklag / Muni Town). Generic group/role/space management: community DID minting, member-list resolution, role-spaces, space-as-member-of-space recursion. Separates **identity/membership** ("who is in what group") from **authorization** ("who can do what", via uploadable Rego policy). CSN consumes it behind ports.
+- **Layer 1 — Spaces** (Holmgren / Bluesky). A space is `(authority: DID, type: NSID, skey: string)`, where the type is a lexicon-resolved `"type": "space"` declaration. The protocol carries a writer set, not an application member or reader roster. Repo hosts enforce OAuth write authority; syncers verify signed/HMAC commits, LtHash state, CIDs, identity, and schema. CSN applies cooperative acceptance policy above that verified stream. Sync is pull-based (`listRepoOps` plus `getRepo` CAR recovery), with best-effort notifications and periodic `listRepos` reconciliation. _"space authority" ≙ our `arbiterDid`._
+- **Layer 2 — Group/authority policy** (CSN adapters, SimpleSpace, Roomy/Arbiter-style hosts). Decides who may obtain a credential and which verified records the application accepts. CSN consumes it behind `GroupDirectoryPort` and `GroupMutationPort`. Recursive role-space and old Arbiter lexicon models remain possible adapters, not protocol facts.
 - **Layer 3 — GovernanceView** (`community.lexicon.governance.*`). Generic proposals, votes, deliberations, anchor records, transparency logs, role-state derivation. Co-designed for ecosystem reuse. Accepts a `GovernancePluginSet` (§6). Initial package/default interfaces exist; service extraction remains Phase 5.
 - **Layer 4 — CoopView** (`network.coopsource.*`). Subchapter T, patronage, capital accounts, multi-stakeholder weighted voting, ICA principles, 1099-PATR, agreements, alignment, agents. Provides the plugin implementations. Initial package adapters exist; broad application-service rewrite remains Phase 5.
 
@@ -50,25 +53,25 @@ Layer 1: Spaces          at://…/space/… (proposal 0016)  protocol primitives
 At every write checkpoint, identify which axis applies and route failures so the error **names the axis** (the difference between debuggable and tangled):
 
 1. **OAuth scope** (app→user) — the user's PDS granted the client the scope. Now: typed-prefix scopes + permission sets.
-2. **Space membership** (user→user) — resolved group-directory membership; fail closed on partial/stale.
+2. **Group/authority policy** (user→group) — credential issuance and CSN record-acceptance policy; fail closed on partial/stale authority data.
 3. **Application logic** (user→action) — eligibility, quorum, weighted voting (the plugin set).
 4. **Labels** — governance labels via cooperative-controlled policy (no separate labeler service).
 5. **Service-auth JWTs** — cross-arbiter trust; audience-bound, short-lived, verified against the DID doc.
 
-**The OAuth-spaces seam** (Axis 1 ↔ Axis 2) now has a concrete but unshipped shape: **delegation token** (minted by the user's PDS) → **client attestation** (signed by the app) → **space credential** (issued by the space authority), plus per-space client allow/deny lists. Proposal 0016 distinguishes `space:...#read` from `space:...#read_self`; only `read` can support full-space background sync. The three distinct failure modes map directly: _scope not granted_ (Axis 1) / _not in space_ (Axis 2) / _app not authorized for this space_ (client-policy). Code must keep them distinct.
+**The OAuth-spaces seam** (Axis 1 ↔ Axis 2) now has a concrete but unshipped shape: a **delegation token** minted by the user's PDS is exchanged for a **space credential** issued by the authority; a short-lived **client attestation** is included only when the space gates on application identity. Proposal 0016 distinguishes whole-space `read` from collection-constrained `read_self`; only `read` supports full-space background sync. Keep scope denial, user-policy denial, and application-policy denial distinct.
 
 _Reference implementation of the gate:_ see `apps/api/src/routes/federation.ts` `/membership/approve` — Axis 2 authority check (caller must be the coop DID or an active owner/admin) runs before any mutation and returns 403 naming `axis: 'spaces'`.
 
 ---
 
-## 4. Arbiter integration — port ↔ lexicon mapping
+## 4. Group-authority integration — port ↔ adapter mapping
 
-CSN operates the Arbiter behind two ports so the wire contract can evolve. Today
+CSN operates group/authority policy behind two ports so the wire contract can evolve. Today
 both are backed by CSN's own Postgres (`Csn*` adapters). Phase 3 added a
 non-default XRPC group-directory adapter against the current draft substrate
 shape (`com.atproto.space.*` / `com.atproto.simplespace.*`) while keeping CSN-DB
-as the runtime default. The longer-term `town.muni.arbiter.*` method
-correspondence is already close:
+as the runtime default. The following `town.muni.arbiter.*` correspondence is
+historical, provisional prior art and not a convergence target:
 
 | CSN port method                                       | Draft `town.muni.arbiter.*`          | Notes                          |
 | ----------------------------------------------------- | ------------------------------------ | ------------------------------ |
@@ -79,7 +82,10 @@ correspondence is already close:
 | `GroupMutationPort.removeMember` / `removeRoleMember` | `removeSpaceMember`                  |                                |
 | `DidProvisioningPort`                                 | `createDid` / `updateDidDoc`         | controlled-DID ops for Stage 3 |
 
-The Arbiter's **identity-vs-authorization split** aligns with our axes: its membership layer answers Axis 2; its uploadable Rego policy is the arbiter's _server-side_ authorization, distinct from CSN's Axis-3 `GovernancePluginSet` which sits **above** the arbiter boundary. Do not push cooperative governance logic down into arbiter policy.
+Roomy's current Arbiter direction still validates the boundary: portable Rego
+may enforce host-side XRPC authorization, while CSN's Axis-3
+`GovernancePluginSet` remains above it. Do not push cooperative quorum,
+eligibility, retention, or legal policy into generic host Rego.
 
 `SpaceRef = { arbiterDid: DID, spaceKey: string, expectedSpaceType?: NSID }` — URI-scheme-independent. Current CSN space types are constants in `packages/arbiter-client/src/space-ref.ts` (`membersSpace`, `roleSpace`, `MEMBERS_SPACE_TYPE`, …) with draft Proposal 0016 declarations under `packages/lexicons/network/coopsource/org/spaceType/` and typed exports from `@coopsource/lexicons`. The declarations stay outside generated record schemas for now because the installed atproto lex tooling rejects `"type": "space"`. Before real `space:` scopes are requested, Phase 4 must decide whether the current `network.coopsource.org.spaceType.*` namespace is the publication namespace or an internal draft to remap.
 
@@ -88,10 +94,10 @@ The Arbiter's **identity-vs-authorization split** aligns with our axes: its memb
 ## 5. Spaces substrate (Layer 1 detail)
 
 - **URI:** `at://{spaceDid}/space/{spaceType}/{skey}/{authorDid}/{collection}/{rkey}` — parse/emit only through helpers (`packages/spaces-consumer/src/space-uri.ts`, Phase 2). Still marked "likely to change" upstream; keep behind helpers.
-- **Digest and sync verification:** LtHash is the proposal's current digest algorithm. In current code, digest/commit verification is folded into `PermissionedRepoPort.sync(...)`, which returns a `verification` status and fails closed through `FailClosedPermissionedRepoPort`. No package-root `CommitDigestVerifier` exists; a real adapter may introduce an internal LtHash verifier when `@atproto/space` or equivalent primitives become consumable.
-- **Sync:** pull-based. The spaces consumer subscribes to arbiter write-notifications, pulls changed records from member PDSes, cross-checks each record's `authorDid` against the resolved member list, verifies the digest, and projects into Postgres. **Records from non-members are discarded; resolution that is partial or stale fails closed.** This reader-side enforcement is not a stopgap — it is _the_ write-enforcement mechanism per Diary 6.
-- **Trust anchor:** pulled records are _claimed_ until cross-checked against the authoritative member list.
-- **Current state:** flag-gated off (`SPACES_CONSUMER_ENABLED=false`), starts with `spaces:[]`, handlers log-only. The real notification/pull/verify loop lands in Phase 3.
+- **Digest and sync verification:** Proposal 0016 currently combines a signed context, HMAC, and LtHash. Diary 7 and HappyView's dev branch use a different HMAC-only shape. `PermissionedRepoPort.sync(...)` exposes verification status; the concrete adapter must select a verifier by pinned conformance target rather than inventing a local hybrid.
+- **Sync:** repo hosts send best-effort `notifyWrite` events to the authority, which forwards them to registered syncers. Correctness comes from periodic authority `listRepos` sweeps, per-repo `listRepoOps`, commit/LtHash comparison, and `getRepo` CAR recovery when history is missing or state diverges. Public DID/account events are another reconciliation input.
+- **Application acceptance:** only after protocol verification does CSN resolve cooperative policy and decide whether to project a writer's record. A partial or stale group result fails the CSN acceptance step closed. `listRepos` is a writer-discovery list, never a membership or reader list.
+- **Current state:** flag-gated off (`SPACES_CONSUMER_ENABLED=false`), starts with `spaces:[]`, and has no real notification/pull/verify adapter. Phase 4 P1 owns the first proposal/vote read and recovery slice.
 
 ---
 
@@ -106,13 +112,17 @@ The Arbiter's **identity-vs-authorization split** aligns with our axes: its memb
 | `quorum`             | quorum from collected votes                                                                                                                    |
 | `actionAuthorizer`   | authorize a governance action (propose, amend, suspend…)                                                                                       |
 | `anchorSummary`      | non-identifying public summary for anchor records                                                                                              |
-| `historicalState`    | read/record arbiter member-list snapshots at cadence boundaries — **the only plugin GovernanceView writes to** (as-of-fiscal-period patronage) |
+| `historicalState`    | read/record group-authority snapshots at cadence boundaries — **the only plugin GovernanceView writes to** (as-of-fiscal-period patronage) |
 | `patronageAllocator` | per-member patronage allocation for a fiscal period                                                                                            |
 | `surplusDistributor` | qualified vs non-qualified, cash vs equity distribution                                                                                        |
 | `meetingMinutes`     | canonicalize deliberation threads into minutes                                                                                                 |
 | `delegateChains`     | resolve vote-delegation chains                                                                                                                 |
 
-Diary 6's deliberately minimal protocol auth (one member list, reader-enforced writes, no protocol roles) **confirms** this design: all cooperative governance semantics live in the plugin set, above the substrate. Phase 5 extracts the generic logic from `proposal-service`/`delegation-voting-service` into `packages/governance-view` and wires the CSN plugins from existing services (member classes → `voteWeight`; patronage service → `patronageAllocator`/`surplusDistributor`; meeting records → `meetingMinutes`).
+Diary 7's removal of membership from the core protocol reinforces this design:
+all cooperative governance semantics and CSN acceptance policy live above the
+substrate. GovernanceView now owns generic tally/outcome and proposal lifecycle
+policy; further extraction is limited to pure, persistence-independent logic
+with an existing contract.
 
 ---
 
@@ -132,9 +142,22 @@ Cooperative-specific concerns: Subchapter T patronage & capital accounts, multi-
 
 ## 9. Security requirements
 
-AppView validation for every record: (1) commit-signature verification against the DID doc; (2) independent DID resolution (never trust cache for security); (3) schema validation; (4) author == expected DID; (5) cross-check against resolved group-directory membership (discard non-members; fail closed on partial/stale); (6) per-DID rate limiting; (7) reject implausible timestamps; (8) audit every state transition with commit CID, rev, signature.
+AppView processing has two explicit gates. **Protocol verification:** verify the
+pinned commit format against fresh DID material, compare LtHash state, validate
+CIDs/CAR structure, schema, author identity, and plausible timestamps.
+**Application acceptance:** resolve the relevant cooperative/group policy,
+fail closed on partial or stale authority data, apply moderation and retention
+rules, then project transactionally. Checkpoints advance only after projection
+commits. Audit both gate outcomes without publishing private metadata.
 
-Identity: cooperatives self-manage rotation keys offline (higher priority than the PDS signing key, which CSN holds); monitor PLC for unexpected rotations; DID equality must resolve through `did_rotation_history` before any spaces consumer activation. The table exists today, but writer/reader plumbing is incomplete. Space credentials are bearer tokens — short lifetimes (≤1h, refresh per batch), least-privilege per-(coop, space), rotate on member-list changes, behind `SpaceCredentialStore`. Replay protection in recursive coops: signed write + freshness window + **child-still-a-member-at-write-time** check (the load-bearing mitigation against stale former-member state).
+Identity: cooperatives self-manage rotation keys offline (higher priority than
+the PDS signing key, which CSN holds); monitor PLC for unexpected rotations;
+DID equality must resolve through `did_rotation_history` before consumer
+activation. Space credentials are bearer tokens: keep them short-lived,
+least-privilege per space, and refresh per batch behind
+`SpaceCredentialStore`. A local membership change invalidates CSN's credential
+cache as defense in depth; it is not a protocol-defined global revocation
+mechanism.
 
 Digest algorithm is LtHash per proposal 0016; current public code exposes the verification outcome through `PermissionedRepoPort`, not a separate digest-verifier port.
 
@@ -142,12 +165,12 @@ Digest algorithm is LtHash per proposal 0016; current public code exposes the ve
 
 ## 10. Implementation playbook
 
-### Current code state (audit of `feature/v12-phase-3-doc-reality-reconcile`, 2026-07-07)
+### Current code state (audit of the Phase 4 conformance branch, 2026-07-30)
 
 | Layer            | Package                    | State                                                                                                                                                                                                                                                                                                                      |
 | ---------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1 Spaces         | `packages/spaces-consumer` | Real skeleton, **flag-gated off**. `SpaceRef`, `SpacesConsumer`, `GroupDirectoryPort`, `SpaceCredentialStore` with Kysely-backed `space_credential` persistence, Kysely checkpoint store, tests. `PermissionedRepoPort` is the public watch/sync/verification boundary; in-memory and fail-closed repo ports are sketches. |
-| 2 Arbiter        | `packages/arbiter-client`  | Real code, **CSN-Postgres-backed stand-in** for a real arbiter. `CsnDbGroupDirectoryPort`, `CsnDbGroupMutationPort`, `DidProvisioningPort`, `space-ref`, and non-default/mock-server-tested `XrpcGroupDirectoryPort`. Runtime default remains CSN-DB.                                                                      |
+| 1 Spaces         | `packages/spaces-consumer` | Flag-gated skeleton with persistent credentials/checkpoints, draft write XRPC, pinned authority DID resolution, and a client-attestation signing port. In-memory/fail-closed sync adapters remain sketches; no real repo ingestion exists yet. |
+| 2 Group policy   | `packages/arbiter-client`  | CSN-Postgres remains the runtime authority. Mock-tested SimpleSpace directory/management clients and Proposal 0016 DID service provisioning are draft adapters; Roomy/Rego remains a possible future host adapter. |
 | 3 GovernanceView | `packages/governance-view` | Concrete `GovernanceView` registration owns generic tally/outcome and proposal-lifecycle policy plus the complete ten-plugin set; production governance consumers use it. Non-canonical community governance draft lexicons live outside the runtime schema set. Phase 5 still owns further generic service extraction.    |
 | 4 CoopView       | `packages/coop-view`       | Concrete `CoopView` registration composes CSN vote, eligibility, quorum, authorization, delegation, patronage, and distribution plugins with defaults for the remaining interfaces. Broad service rewrites remain Phase 5 work.                                                                                            |
 
@@ -175,9 +198,9 @@ Branch naming: `feature/v12-phase-N-<desc>`. Merges to `main`: `--no-ff`, green 
 | Capability                                                       | Default                                                                                                                                                                                                                                                                                            | Decide at   |
 | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
 | AppView substrate (custom `apps/api` vs **HappyView 2.10+**)     | **Build confirmed.** The 2026-07-11 HappyView 2.11.4 spike loaded all 58 canonical/draft documents, but all 8 CSN queries need custom semantics; Lua/WASM cannot host the typed plugin and projection model without a rewrite. See `docs/plans/2026-07-11-v12-phase-5-happyview-appview-spike.md`. | decided     |
-| Spaces dev/test harness (fixtures vs **HappyView 2.10**)         | Use                                                                                                                                                                                                                                                                                                | Phase 3     |
-| Spaces primitives (extend vs **`@atproto/space`** from PR #5187) | Use when published; as of 2026-07-05 it does not appear published on npm                                                                                                                                                                                                                           | each sweep  |
-| Arbiter server (CSN-DB vs **Muni Town arbiter**)                 | Build interim, use when real                                                                                                                                                                                                                                                                       | Phase 3     |
+| Spaces dev/test harness (fixtures vs **HappyView**)              | Use pinned fixtures first; run differential tests against stable and dev HappyView because they currently differ                                                                                                                                                                                   | Phase 4     |
+| Spaces primitives (extend vs **`@atproto/space`** from PR #5187) | Use when published and conformance-tested; unpublished as of 2026-07-29                                                                                                                                                                                                                             | each sweep  |
+| Group authority (CSN-DB vs SimpleSpace vs Roomy-style Arbiter)   | Keep adapters; CSN-DB remains default until the real read/recovery slice and production-host decision                                                                                                                                                                                               | Phase 4/P2  |
 | Axis-3 policy (TS plugin set vs Rego/OPA)                        | Build                                                                                                                                                                                                                                                                                              | firm        |
 | Tier 3 E2EE (Germ/MLS)                                           | Use, optional-only                                                                                                                                                                                                                                                                                 | parity news |
 
@@ -187,7 +210,12 @@ Branch naming: `feature/v12-phase-N-<desc>`. Merges to `main`: `--no-ff`, green 
 
 Per-(coop, member) personal spaces; both V9 membership lexicons retire; binary `governance_visibility` retires; governance labels via cooperative-controlled policy (no separate labeler service); RFC 9421 retires; single custom AppView (HappyView remains a spaces/reference harness per the completed Phase 5 spike); the `community.lexicon.governance.*` namespace; cooperatives own DIDs (rotation keys offline, CSN holds signing key only); `did_rotation_history` aliasing; ATProto-native records canonical for Subchapter T; historical-state snapshots at cadence boundaries.
 
-**Load-bearing (do not casually revisit):** the semantic distinction between permissioned and public URI resolution (the token is substrate); `(DID, read|write)` member-list minimality; cooperative DID distinct from any founder's personal DID. Everything else — URI scheme token, digest algorithm, sync wire format, exact permission-set spellings — is substrate behind ports and is _expected_ to drift.
+**Load-bearing (do not casually revisit):** the semantic distinction between
+permissioned and public data; protocol verification separated from application
+acceptance policy; cooperative DID distinct from any founder's personal DID;
+cooperative policy remains above generic host/protocol adapters. URI shape,
+commit format, sync wire details, and exact permission spellings remain behind
+ports and are expected to drift.
 
 ---
 
@@ -195,15 +223,25 @@ Per-(coop, member) personal spaces; both V9 membership lexicons retire; binary `
 
 **Open (§17/§18 carried, updated):**
 
-1. Full credential-seam mechanics — known shape (three tokens plus `space:` scopes), unshipped; firm up in Phase 4 against the proposal branch, HappyView 2.10, and `@atproto/space` if/when published. Local background-sync posture is decided: cooperative-designated managing session pool, no arbitrary member-session pooling, no `read_self` fallback for AppView sync.
+1. Production client-attestation key custody/JWKS publication and signer
+   deployment; the code-level signer port and exact audience claims now exist.
 2. Lexicon Community response to `community.lexicon.governance.*` — no governance namespace exists yet; the process is TSC-sponsored (gated, slow). Start sponsorship outreach early; Phase 5 does not wait on ratification.
 3. Subchapter T legal-counsel consultation.
-4. Arbiter hosting (user PDS vs per-app vs independent) — unresolved upstream (Holmgren June 2).
+4. Production authority hosting: cooperative-operated host, accountable
+   operator, SimpleSpace, Roomy-style Rego proxy, or a supported combination.
 5. Cross-modality notification routing for community-router apps — unresolved upstream.
 6. `$publish`/`$labeler` conventions — not formalized (arbiter uses open unions).
-7. Diary 7 (sync protocol / "what an app does with a space credential") — promised; feeds Phase 4's gate.
+7. Signed-context-plus-HMAC versus Diary 7/HappyView HMAC-only commit format.
+8. Cooperative retention, re-homing, deletion, and private moderation policy;
+   see the July 30 signoff register.
 
-**Watchlist (two-week cadence; next due 2026-07-18, IETF 126 week):** direct fetches of `dholms.leaflet.pub`, `zicklag.leaflet.pub`, `meri.leaflet.pub`, `happyview.dev` + `github.com/gamesgamesgamesgamesgames/happyview` (reactivated — the old "use Tangled" note is stale), `github.com/bluesky-social/proposals` + PR `atproto#5187`, `discourse.atprotocol.community` Private Data WG (thread t/750), `@atproto/oauth-scopes` npm (0.5.3), `@atproto/pds` npm (0.5.x), `blog.muni.town`, `lexicon.garden/browse/town.muni.arbiter`. Search is permitted to discover _new_ venues (proposal 0016's merge was found by search). Track whether HappyView 2.10's `read_self` access level and `com.atproto.space.*` NSIDs get confirmed in PR #5187 — implementation sightings, not yet upstream-normative.
+**Watchlist (two-week cadence; last deep sweep 2026-07-29, next due
+2026-08-12):** Proposal 0016 and `atproto#5187`; Holmgren's permissioned-data
+diary; Atmospheric Groups forum/activity; HappyView stable/dev releases; Roomy
+devlogs and Arbiter/Rego work; Habitat, Blacksky, Northsky, Colibri, and
+atproto-crates; released ATProto OAuth/PDS packages. Record source commit or
+release pins and distinguish proposals, executable drafts, and deployed
+products.
 
 The IETF ATP working group is chartered but its charter **excludes non-public data** — spaces standardization stays in `bluesky-social/proposals` + community venues for now. (IETF 126 is Vienna, July 18–24; the V11 docs' "IETF 125" was wrong.)
 
@@ -221,7 +259,9 @@ The IETF ATP working group is chartered but its charter **excludes non-public da
 8. Don't conflate axes — name the axis on every authorization failure.
 9. Don't trust handles for security — DIDs only.
 10. Don't skip the `did_rotation_history` lookup on DID equality.
-11. Don't trust records from non-members — cross-check; fail closed on partial/stale.
+11. Don't conflate protocol verification with cooperative acceptance — verify
+    first, then apply membership/policy; fail the acceptance gate closed on
+    partial or stale authority data.
 12. Don't generate fake DIDs — real `did:plc` via PlcClient.
 13. Don't put Tier 2 data on the public firehose.
 14. Don't make Tier 3 (Germ) a required path.

@@ -217,6 +217,17 @@ through whichever adapter is easiest to implement.
 
 Create `feature/v12-phase-4-proposal-0016-conformance-baseline`.
 
+**Progress 2026-07-30:** Implemented. Canonical/package documentation now
+separates protocol verification from cooperative acceptance policy; the
+proposal and implementation commits, DID fragments, commit fields, and every
+draft method CSN currently calls are executable constants with tests. The
+manager scope is narrowed to `manage=create,update`; authority endpoints and
+verification methods resolve from DID documents; client attestation has a
+deterministic signer port; draft error mapping matches the pin. Production
+signer/key custody and differential HappyView/PR runners remain parked or P3
+work. See
+`docs/plans/2026-07-30-v12-phase-4-proposal-0016-conformance-baseline.md`.
+
 1. Update `ARCHITECTURE-V12.md`, the V12 program plan, spaces-consumer README,
    Arbiter README, and HappyView spike addendum with the July 29 facts.
 2. Pin Proposal 0016 plus atproto PR #5187 head SHA in a machine-readable test

@@ -1,4 +1,5 @@
 import type { DID } from '@coopsource/common';
+import { SIMPLESPACE_XRPC_METHODS } from '@coopsource/lexicons';
 import type {
   SpaceRef,
   UnknownLexiconObject,
@@ -8,9 +9,9 @@ import {
   parseProtocolSpaceUri,
 } from './xrpc-group-directory-port.js';
 
-const CREATE_SPACE_NSID = 'com.atproto.simplespace.createSpace';
-const ADD_MEMBER_NSID = 'com.atproto.simplespace.addMember';
-const REMOVE_MEMBER_NSID = 'com.atproto.simplespace.removeMember';
+const CREATE_SPACE_NSID = SIMPLESPACE_XRPC_METHODS.createSpace;
+const ADD_MEMBER_NSID = SIMPLESPACE_XRPC_METHODS.addMember;
+const REMOVE_MEMBER_NSID = SIMPLESPACE_XRPC_METHODS.removeMember;
 
 type JsonObject = { readonly [key: string]: unknown };
 

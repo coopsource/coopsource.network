@@ -1,6 +1,9 @@
 import { Buffer } from 'node:buffer';
 import type { DID } from '@coopsource/common';
-import type { SpaceRef } from '@coopsource/spaces-consumer';
+import {
+  SpaceAuthorityResolutionError,
+  type SpaceRef,
+} from '@coopsource/spaces-consumer';
 import { OAuthSpaceCredentialExchangeClient } from '../src/services/oauth-space-credential-exchange-client.js';
 import { describe, expect, it } from 'vitest';
 
@@ -100,6 +103,40 @@ describe('OAuthSpaceCredentialExchangeClient', () => {
 
     await expect(client.getSpaceCredential(request)).rejects.toMatchObject({
       name: 'SpaceCredentialError',
+      kind: 'invalid-space',
+    });
+  });
+
+  it('preserves typed DID authority resolution failures', async () => {
+    const unavailable = new OAuthSpaceCredentialExchangeClient({
+      serviceUrlForSpaceAuthority: () => {
+        throw new SpaceAuthorityResolutionError(
+          'unavailable',
+          'PLC directory unavailable',
+        );
+      },
+      async fetch() {
+        throw new Error('fetch should not be called after resolution fails');
+      },
+    });
+    const invalid = new OAuthSpaceCredentialExchangeClient({
+      serviceUrlForSpaceAuthority: () => {
+        throw new SpaceAuthorityResolutionError(
+          'missing-service',
+          'authority has no space host',
+        );
+      },
+      async fetch() {
+        throw new Error('fetch should not be called after resolution fails');
+      },
+    });
+
+    await expect(unavailable.getSpaceCredential(request)).rejects.toMatchObject(
+      {
+        kind: 'unavailable',
+      },
+    );
+    await expect(invalid.getSpaceCredential(request)).rejects.toMatchObject({
       kind: 'invalid-space',
     });
   });
