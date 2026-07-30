@@ -8,6 +8,9 @@ export const load: LayoutServerLoad = async ({ params, fetch, request, locals })
 
   try {
     const cooperative = await api.getCooperativeByHandle(params.handle);
+    if (cooperative.isNetwork) {
+      error(404, 'Cooperative not found');
+    }
 
     // V8.1 — Fetch user's roles for THIS cooperative (not from locals.user which may be scoped to a different coop)
     let userRoles: string[] = [];

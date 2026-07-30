@@ -179,28 +179,40 @@ the repaired boundary.
 
 ### P0-03: Network workspace navigation targets nonexistent routes
 
-The network route tree implements:
-
-- `/cooperatives`;
-- `/governance`; and
-- `/agreements`.
+The network route tree implements `/cooperatives`. It also contains
+`/governance` and `/agreements` pages, but implementation review found that
+those loaders call cooperative-scoped APIs without a target network. They
+therefore display the signed-in cooperative's records under a network heading
+and are not valid network routes.
 
 The shared sidebar treats a network as a cooperative with an `isNetwork`
 label. It renders “Cooperatives” with an `/members` href and also renders
 Posts, Networks, Partners, Alignment, Campaigns, Profile, and a
-network-prefixed Settings link. Except for Governance and the globally scoped
-Profile link, those destinations do not exist under `/net/:handle`.
+network-prefixed Settings link. Except for the globally scoped Profile link,
+those destinations either do not exist under `/net/:handle` or do not have a
+valid network authority contract.
 
 The network root redirects to the real `/cooperatives` page, but the sidebar
 cannot return there and does not mark it active.
 
 **Required response**
 
-- define a dedicated network navigation section from the actual route tree;
-- add Agreements to that navigation;
+- define a dedicated network navigation section from the valid route tree;
+- retire the misleading Governance and Agreements pages until V12-S13 is
+  resolved;
 - keep person-scoped Profile global and suppress nonexistent network Settings;
 - test every rendered network navigation href; and
 - add a network-workspace journey beginning at the workspace switcher.
+
+**Resolved 2026-07-30:** network workspaces now have an explicit workspace
+type and roster-only navigation. The switcher routes network memberships
+through `/net`, person settings remain under `/me`, the unsupported
+cooperative-creation item is removed, and misleading Governance/Agreements
+routes are retired. The canonical route requires verified membership by the
+active cooperative, and network handles are rejected under the `/coop` route
+tree so that alias cannot recreate the wrong actor scope. V12-S13 records the
+authority and visibility decisions required before those capabilities can
+return.
 
 ### P1-01: Cooperative acquisition journey promises an action that does not exist
 
@@ -487,7 +499,7 @@ actions distinct:
 ### Wave 0: Baseline integrity
 
 1. [x] Fix commerce list/search contracts.
-2. Correct network workspace navigation.
+2. [x] Correct network workspace navigation.
 3. Preserve or remove registration handle input.
 4. Align proposal detail metadata.
 5. Repair all six fixmes and obsolete fixtures.

@@ -36,7 +36,7 @@ export interface CoopEntity {
 }
 
 export interface WorkspaceContext {
-  type: 'coop' | 'home';
+  type: 'coop' | 'network' | 'home';
   handle: string; // 'me' when type === 'home'
   prefix: string; // '/me' when type === 'home'
   cooperative: CoopEntity | null; // null for home workspace

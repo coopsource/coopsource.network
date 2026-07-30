@@ -1,41 +1,46 @@
 import { error } from '@sveltejs/kit';
-import { createApiClient } from '$lib/api/client.js';
+import { createApiClient, ApiError } from '$lib/api/client.js';
 import type { LayoutServerLoad } from './$types.js';
 
 export const load: LayoutServerLoad = async ({ params, fetch, request }) => {
   const cookie = request.headers.get('cookie') ?? undefined;
   const api = createApiClient(fetch, cookie);
 
+  let cooperative: Awaited<ReturnType<typeof api.getCooperativeByHandle>>;
   try {
-    const cooperative = await api.getCooperativeByHandle(params.handle);
-    if (!cooperative.isNetwork) {
-      error(404, 'Network not found');
+    cooperative = await api.getCooperativeByHandle(params.handle);
+  } catch (err) {
+    if (err instanceof ApiError) {
+      error(err.status >= 500 ? 500 : err.status, 'Failed to load network.');
     }
+    error(500, 'Failed to load network.');
+  }
 
-    // V8.2 — Fetch myCoops for the workspace switcher dropdown.
-    let cooperatives: Awaited<ReturnType<typeof api.getMyMemberships>>['cooperatives'] = [];
-    let networks: typeof cooperatives = [];
-    try {
-      const result = await api.getMyMemberships();
-      cooperatives = result.cooperatives;
-      networks = result.networks;
-    } catch {
-      // empty arrays
-    }
-
-    return {
-      workspace: {
-        // V8.1 — networks use the 'coop' workspace type now; the sidebar
-        // reads `cooperative.isNetwork` to drive label variations
-        // (e.g., "Members" → "Cooperatives").
-        type: 'coop' as const,
-        handle: params.handle,
-        prefix: `/net/${params.handle}`,
-        cooperative,
-      },
-      myCoops: [...cooperatives, ...networks],
-    };
-  } catch {
+  if (!cooperative.isNetwork) {
     error(404, 'Network not found');
   }
+
+  let memberships: Awaited<ReturnType<typeof api.getMyMemberships>>;
+  try {
+    memberships = await api.getMyMemberships();
+  } catch (err) {
+    if (err instanceof ApiError) {
+      error(err.status >= 500 ? 500 : err.status, 'Failed to verify network membership.');
+    }
+    error(500, 'Failed to verify network membership.');
+  }
+
+  if (!memberships.networks.some((network) => network.did === cooperative.did)) {
+    error(403, 'Network membership required');
+  }
+
+  return {
+    workspace: {
+      type: 'network' as const,
+      handle: params.handle,
+      prefix: `/net/${params.handle}`,
+      cooperative,
+    },
+    myCoops: [...memberships.cooperatives, ...memberships.networks],
+  };
 };

@@ -14,6 +14,11 @@ import CircleUser from '@lucide/svelte/icons/circle-user';
 import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
 import Building2 from '@lucide/svelte/icons/building-2';
 import type { CoopEntity, WorkspaceContext } from '$lib/api/types.js';
+import {
+  networkWorkspaceRoutes,
+  workspaceHref,
+  workspaceSettingsHref,
+} from './workspace-navigation.js';
 
 export interface NavItem {
   href: string;
@@ -51,11 +56,8 @@ export function cooperativeNavSection(
   const prefix = workspace?.prefix ?? '';
   if (!prefix || workspace?.type !== 'coop') return { label: 'Cooperative', items: [] };
 
-  const isNetwork = workspace?.cooperative?.isNetwork ?? false;
-  const membersLabel = isNetwork ? 'Cooperatives' : 'Members';
-
   const items: NavItem[] = [
-    { href: `${prefix}/members`, label: membersLabel, icon: Users },
+    { href: `${prefix}/members`, label: 'Members', icon: Users },
     { href: `${prefix}/governance`, label: 'Governance', icon: Vote },
     { href: `${prefix}/posts`, label: 'Posts', icon: MessageSquare },
   ];
@@ -66,6 +68,22 @@ export function cooperativeNavSection(
   }
 
   return { label: 'Cooperative', items };
+}
+
+/** Compute the available navigation for a network workspace. */
+export function networkWorkspaceNavSection(
+  workspace: WorkspaceContext | null | undefined,
+): NavSection {
+  const prefix = workspace?.prefix ?? '';
+  if (!prefix || workspace?.type !== 'network') return { label: 'Network', items: [] };
+
+  return {
+    label: 'Network',
+    items: networkWorkspaceRoutes(workspace).map((route) => ({
+      ...route,
+      icon: Building2,
+    })),
+  };
 }
 
 /** Compute the Network nav section for a coop workspace. */
@@ -91,13 +109,8 @@ export function youNavSection(
   workspace: WorkspaceContext | null | undefined,
 ): NavSection {
   // Profile is always user-scoped: /me/profile
-  // Settings is context-scoped: /me/settings in home mode, /coop/X/settings in coop mode
-  const isHome = workspace?.type === 'home';
-  const settingsHref = isHome
-    ? '/me/settings'
-    : workspace?.prefix
-      ? `${workspace.prefix}/settings`
-      : '/me/settings';
+  // Settings is cooperative-scoped only when the route exists.
+  const settingsHref = workspaceSettingsHref(workspace);
 
   return {
     label: 'You',
@@ -133,15 +146,13 @@ export function myCoopsNavSection(
   }
   return {
     label: 'My Coops',
-    // Skip coops without a handle — we'd render /coop/null otherwise.
+    // Skip workspaces without a handle rather than rendering an invalid route.
     // The /me page cards apply the same filter for consistency.
     items: myCoops
-      .filter((coop) => coop.handle !== null)
-      .map((coop) => ({
-        href: `/coop/${coop.handle}`,
-        label: coop.displayName,
-        icon: Building2,
-      })),
+      .flatMap((coop) => {
+        const href = workspaceHref(coop);
+        return href ? [{ href, label: coop.displayName, icon: Building2 }] : [];
+      }),
   };
 }
 

@@ -159,7 +159,8 @@ export function createAuthRoutes(
     }),
   );
 
-  // GET /api/v1/me/memberships — list all cooperatives/networks user belongs to
+  // GET /api/v1/me/memberships — list the person's cooperatives and the
+  // active cooperative's network memberships.
   router.get(
     '/api/v1/me/memberships',
     requireAuth,
@@ -180,6 +181,25 @@ export function createAuthRoutes(
         return;
       }
 
+      const networkMembershipResult =
+        await container.membershipReadModel.listMemberCooperativesResult(
+          req.actor!.cooperativeDid as DID,
+        );
+      if (!networkMembershipResult.ok) {
+        res.status(membershipAuthorityHttpStatus(networkMembershipResult, 403)).json({
+          error: {
+            code: membershipAuthorityErrorCode(
+              networkMembershipResult,
+              'FORBIDDEN',
+            ),
+            message: networkMembershipResult.message,
+            axis: networkMembershipResult.axis,
+            reason: networkMembershipResult.reason,
+          },
+        });
+        return;
+      }
+
       const cooperatives = membershipResult.memberships
         .filter((r) => !r.isNetwork)
         .map((r) => ({
@@ -193,7 +213,7 @@ export function createAuthRoutes(
           createdAt: r.createdAt,
         }));
 
-      const networks = membershipResult.memberships
+      const networks = networkMembershipResult.memberships
         .filter((r) => r.isNetwork)
         .map((r) => ({
           did: r.did,

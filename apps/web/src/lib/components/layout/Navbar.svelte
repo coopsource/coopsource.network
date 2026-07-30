@@ -85,7 +85,7 @@
   <!-- User actions -->
   {#if user}
     <div class="flex items-center gap-2">
-    <NotificationBell workspacePrefix={workspace?.prefix ?? ''} />
+      <NotificationBell workspacePrefix={workspace?.type === 'coop' ? workspace.prefix : ''} />
     <div class="relative" data-user-menu>
       <button
         type="button"

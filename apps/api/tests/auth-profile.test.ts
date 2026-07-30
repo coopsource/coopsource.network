@@ -55,6 +55,34 @@ describe('V8.3 — profile inlining in /auth/me', () => {
     }
   });
 
+  it('GET /me/memberships fails closed when network authority is degraded', async () => {
+    await setupAndLogin(testApp);
+    const spy = vi
+      .spyOn(
+        testApp.container.membershipReadModel,
+        'listMemberCooperativesResult',
+      )
+      .mockResolvedValueOnce({ ok: true, memberships: [] })
+      .mockResolvedValueOnce(
+        membershipAuthorityFailure(
+          'stale',
+          'Network membership authority is stale',
+        ),
+      );
+
+    try {
+      const res = await testApp.agent.get('/api/v1/me/memberships').expect(503);
+
+      expect(res.body.error).toMatchObject({
+        code: 'SPACES_AUTHORITY_UNAVAILABLE',
+        axis: 'spaces',
+        reason: 'stale',
+      });
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it('POST /auth/login response includes the profile inline', async () => {
     // Use setup to create the admin, then issue an explicit login on a fresh agent.
     await setupAndLogin(testApp);

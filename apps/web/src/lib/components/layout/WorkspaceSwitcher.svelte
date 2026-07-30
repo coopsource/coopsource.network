@@ -2,10 +2,11 @@
   import ChevronDown from '@lucide/svelte/icons/chevron-down';
   import Home from '@lucide/svelte/icons/home';
   import Building2 from '@lucide/svelte/icons/building-2';
-  import Plus from '@lucide/svelte/icons/plus';
+  import Globe from '@lucide/svelte/icons/globe';
   import { goto } from '$app/navigation';
   import { clickOutside } from '$lib/actions/click-outside.js';
   import type { CoopEntity } from '$lib/api/types.js';
+  import { workspaceHref } from './workspace-navigation.js';
 
   interface Props {
     /** The label to display when the dropdown is closed */
@@ -38,10 +39,11 @@
     goto('/me');
   }
 
-  function selectCoop(handle: string | null) {
-    if (!handle) return;
+  function selectWorkspace(coop: CoopEntity) {
+    const href = workspaceHref(coop);
+    if (!href) return;
     open = false;
-    goto(`/coop/${handle}`);
+    goto(href);
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -112,28 +114,21 @@
         <button
           type="button"
           role="menuitem"
-          onclick={() => selectCoop(coop.handle)}
+          onclick={() => selectWorkspace(coop)}
           class="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-[var(--cs-text)] hover:bg-[var(--cs-bg-inset)] cs-transition cursor-pointer
             {isCurrent ? 'bg-[var(--cs-bg-inset)]' : ''}"
         >
-          <Building2 class="h-4 w-4 shrink-0 text-[var(--cs-text-muted)]" />
+          {#if coop.isNetwork}
+            <Globe class="h-4 w-4 shrink-0 text-[var(--cs-text-muted)]" />
+          {:else}
+            <Building2 class="h-4 w-4 shrink-0 text-[var(--cs-text-muted)]" />
+          {/if}
           <span class="flex-1 text-left truncate">{coop.displayName}</span>
           {#if isCurrent}
             <span class="text-[10px] text-[var(--cs-text-muted)]">current</span>
           {/if}
         </button>
       {/each}
-
-      <div class="my-1 border-t border-[var(--cs-border)]"></div>
-
-      <a
-        href="/cooperative/new"
-        role="menuitem"
-        class="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-[var(--cs-text-muted)] hover:bg-[var(--cs-bg-inset)] hover:text-[var(--cs-text)] cs-transition"
-      >
-        <Plus class="h-4 w-4 shrink-0" />
-        <span>Create new coop</span>
-      </a>
     </div>
   {/if}
 </div>
