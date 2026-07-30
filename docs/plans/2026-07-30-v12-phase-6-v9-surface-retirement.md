@@ -1,7 +1,7 @@
 # V12 Phase 6 V9 Surface Retirement
 
 - **Date:** 2026-07-30
-- **Status:** Phase in progress; checkpoint 1 complete
+- **Status:** Phase in progress; checkpoints 1-4 complete
 - **Entry gate:** Phases 3-5 stable on `main`
 
 ## Purpose
@@ -41,7 +41,7 @@ not count as runtime consumers.
 | `privateRecordService`, route, adapter, and `private_record` | Default permissioned writer, Tier 2 source authority, readiness/copy-ledger source, direct private-record API, and finance/ops descriptions remain | Blocked on V12-S05 migration/cutover evidence                            |
 | `governanceLabeler`                                          | Mounted label XRPC, WebSocket subscription, admin UI, public proposal outcome labels, and tests remain                                             | Retain pending a `$labeler`/anchor contract                              |
 | `cooperative-link-service` and table                         | Container and cooperative-link governance routes still expose the user workflow                                                                    | Retain pending a recursive-space/network replacement                     |
-| local PDS/PLC/blob/provisioning classes                      | Configured dev/test fallback, setup, provisioning scripts, and real-PDS tests still use portions                                                   | Retain until Docker/real-PDS development is the only supported posture   |
+| local PDS/PLC/blob/provisioning classes                      | Configured dev/test fallback, setup, provisioning scripts, and real-PDS tests still use portions                                                   | Retain for development/test; prohibit silent production activation       |
 | federation outbox                                            | Table, processor, enqueue path, schema type, and runtime wiring were removed in V7; only two stale current-code comments remained                    | Complete; comments removed in checkpoint 2                               |
 
 ## Checkpoint 1: Dormant Outbound Federation Client
@@ -145,6 +145,37 @@ agreement workflows remain mounted.
 The first full test run hit an unrelated transient 404 during campaign test
 setup. The campaign suite passed 18/18 in isolation and the immediate exact
 `pnpm build && pnpm test` rerun passed in full.
+
+## Checkpoint 4: Production Substrate Guard
+
+The component-level local substrate audit found no individually dormant
+adapter. `LocalPdsService`, `LocalPlcClient`, local firehose delivery, and local
+blob storage remain active development/test infrastructure, while provisioning
+and real PDS/PLC clients remain active integration paths.
+
+Production previously inherited the same fallback defaults: omitting PDS
+configuration selected `LocalPdsService`, `PLC_URL=local` selected
+`LocalPlcClient`, and the effective PDS admin password could remain `admin`.
+This checkpoint makes production fail closed instead:
+
+- API configuration requires `PDS_URL` or `COOP_PDS_URL`;
+- `PLC_URL` must be a valid non-local URL;
+- the effective PDS admin password must be non-empty and non-default;
+- production Compose requires and passes real PDS/PLC settings; and
+- development and test defaults remain unchanged.
+
+This is a deployment-boundary correction, not a claim that the local adapters
+are retired. Their later deletion still requires disposable real PDS/PLC
+infrastructure to replace every development and test caller.
+
+### Checkpoint 4 Verification
+
+- focused API configuration tests: 1 file, 12 tests
+- public production Compose configuration rendered successfully
+- combined private-network Compose configuration rendered successfully
+- `pnpm lint`: 4 tasks passed
+- `pnpm build`: 10 tasks passed
+- `pnpm test`: 17 tasks passed, including API (107 files, 1,019 tests)
 
 ## Later Checkpoints
 
