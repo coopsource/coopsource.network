@@ -1,8 +1,9 @@
 # V12 Phase 7.1 UX Overhaul Audit
 
 - **Date:** 2026-07-30
-- **Status:** Complete; remediation not started
+- **Status:** Complete; Wave 0 remediation in progress (items 1-2 complete)
 - **Code baseline:** `main` at `88b9eb2`
+- **Latest remediation baseline:** `main` at `b88ed06`
 - **Scope:** all current web routes, the six program journeys, shared shell
   and UI components, and the Playwright regression suite
 
