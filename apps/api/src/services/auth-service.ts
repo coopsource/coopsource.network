@@ -126,6 +126,18 @@ export class AuthService {
       }
     }
 
+    if (params.handle) {
+      const existingHandle = await this.db
+        .selectFrom('entity')
+        .where('handle', '=', params.handle)
+        .select('did')
+        .executeTakeFirst();
+
+      if (existingHandle) {
+        throw new ConflictError('Handle already registered');
+      }
+    }
+
     const cooperativeDid = invitation?.cooperative_did ?? params.cooperativeDid;
     if (!cooperativeDid) {
       throw new ValidationError('Instance not set up');

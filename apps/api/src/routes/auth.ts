@@ -34,7 +34,7 @@ export function createAuthRoutes(
     '/api/v1/auth/register',
     requireSetup,
     asyncHandler(async (req, res) => {
-      const { email, password, displayName, invitationToken } =
+      const { email, password, displayName, handle, invitationToken } =
         RegisterSchema.parse(req.body);
 
       // Get cooperative DID from system config
@@ -54,6 +54,7 @@ export function createAuthRoutes(
         email,
         password,
         displayName,
+        handle,
         cooperativeDid,
         invitationToken,
       });

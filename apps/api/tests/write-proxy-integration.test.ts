@@ -31,6 +31,7 @@ describe('Write proxy integration (dev-mode fallback)', () => {
         email: 'member@test.com',
         password: 'password123',
         displayName: 'Test Member',
+        handle: 'test-member',
       })
       .expect(201);
 

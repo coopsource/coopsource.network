@@ -151,6 +151,7 @@ describe('Federation endpoints', () => {
           email: 'mallory@test.com',
           password: 'password123',
           displayName: 'Mallory',
+          handle: 'mallory',
         })
         .expect(201);
 
@@ -213,6 +214,7 @@ describe('Federation endpoints', () => {
           email: 'coord@test.com',
           password: 'password123',
           displayName: 'Coordinator',
+          handle: 'coordinator',
         })
         .expect(201);
       // Admin (this suite's logged-in agent) grants the coordinator role.

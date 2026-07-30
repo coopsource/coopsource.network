@@ -84,6 +84,7 @@ describe('Members & Invitations', () => {
         email: 'rostertest@test.com',
         password: 'password123',
         displayName: 'Roster',
+        handle: 'roster',
       })
       .expect(201);
     const otherDid = reg.body.did as string;
@@ -126,6 +127,7 @@ describe('Members & Invitations', () => {
           email: 'joiner@test.com',
           password: 'password123',
           displayName: 'Joiner',
+          handle: 'joiner',
         })
         .expect(201);
       const joinerDid = reg.body.did as string;
@@ -158,6 +160,7 @@ describe('Members & Invitations', () => {
         email: 'target@test.com',
         password: 'password123',
         displayName: 'Target',
+        handle: 'target',
       })
       .expect(201);
     const targetDid = reg.body.did as string;
@@ -594,6 +597,7 @@ describe('Members & Invitations', () => {
         email: 'attacker@example.com',
         password: 'password123',
         displayName: 'Mallory',
+        handle: 'mallory',
         invitationToken: token,
       })
       .expect(400);
@@ -606,6 +610,7 @@ describe('Members & Invitations', () => {
         email: 'invited@example.com',
         password: 'password123',
         displayName: 'Invitee',
+        handle: 'invitee',
         invitationToken: token,
       })
       .expect(201);
@@ -616,6 +621,7 @@ describe('Members & Invitations', () => {
         email: 'invited@example.com',
         password: 'password123',
         displayName: 'Again',
+        handle: 'again',
         invitationToken: token,
       })
       .expect(400);

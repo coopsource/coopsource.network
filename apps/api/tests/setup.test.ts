@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import supertest from 'supertest';
 import { truncateAllTables } from './helpers/test-db.js';
 import { createTestApp, setupAndLogin } from './helpers/test-app.js';
 import { resetSetupCache } from '../src/auth/middleware.js';
@@ -125,6 +126,99 @@ describe('Setup & Auth', () => {
         .post('/api/v1/auth/login')
         .send({ email: 'admin@test.com', password: 'wrong' })
         .expect(401);
+    });
+  });
+
+  describe('POST /api/v1/auth/register', () => {
+    it('returns, persists, and exposes the submitted handle through /auth/me', async () => {
+      const testApp = createTestApp();
+      await setupAndLogin(testApp);
+
+      const publicAgent = supertest.agent(testApp.app);
+      const res = await publicAgent
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'new-user@example.com',
+          password: 'password123',
+          displayName: 'New User',
+          handle: 'new-user',
+        })
+        .expect(201);
+
+      expect(res.body.did).toBeDefined();
+      expect(res.body.displayName).toBe('New User');
+      expect(res.body.handle).toBe('new-user');
+      expect(res.body.roles).toEqual(['member']);
+
+      const persisted = await testApp.container.db
+        .selectFrom('entity')
+        .where('did', '=', res.body.did as string)
+        .select(['handle'])
+        .executeTakeFirstOrThrow();
+      expect(persisted.handle).toBe('new-user');
+
+      const meRes = await publicAgent.get('/api/v1/auth/me').expect(200);
+      expect(meRes.body.did).toBe(res.body.did);
+      expect(meRes.body.handle).toBe('new-user');
+      expect(meRes.body.displayName).toBe('New User');
+      expect(meRes.body.roles).toEqual(['member']);
+    });
+
+    it('rejects missing handles with field-level validation details', async () => {
+      const testApp = createTestApp();
+      await setupAndLogin(testApp);
+
+      const res = await supertest
+        .agent(testApp.app)
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'missing-handle@example.com',
+          password: 'password123',
+          displayName: 'Missing Handle',
+        })
+        .expect(400);
+
+      expect(res.body.error).toBe('ValidationError');
+      expect(res.body.details).toContainEqual(
+        expect.objectContaining({ path: 'handle' }),
+      );
+    });
+
+    it('rejects duplicate handles before registering a second account', async () => {
+      const testApp = createTestApp();
+      await setupAndLogin(testApp);
+
+      await supertest
+        .agent(testApp.app)
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'first@example.com',
+          password: 'password123',
+          displayName: 'First User',
+          handle: 'shared-handle',
+        })
+        .expect(201);
+
+      const res = await supertest
+        .agent(testApp.app)
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'second@example.com',
+          password: 'password123',
+          displayName: 'Second User',
+          handle: 'shared-handle',
+        })
+        .expect(409);
+
+      expect(res.body.error).toBe('Conflict');
+      expect(res.body.message).toMatch(/handle already registered/i);
+
+      const rows = await testApp.container.db
+        .selectFrom('auth_credential')
+        .where('identifier', '=', 'second@example.com')
+        .select('id')
+        .execute();
+      expect(rows).toHaveLength(0);
     });
   });
 
