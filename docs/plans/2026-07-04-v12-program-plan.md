@@ -501,7 +501,11 @@ configured.
 
 **Process requirements:** superpowers:brainstorming before the IA and visual-direction work; frontend-design skill during implementation; Playwright specs updated per wave (84 existing specs are the regression net); no wave merges without user review of screenshots.
 
-- [ ] First task: run the audit (7.1) and write `docs/plans/2026-MM-DD-ux-overhaul-audit.md`; second task: brainstorm + design doc + review rounds; third: expand implementation waves into task-level plans.
+- [x] First task: run the audit (7.1), completed in
+  `docs/plans/2026-07-30-v12-phase-7-ux-overhaul-audit.md`.
+- [ ] Second task: repair the audit's baseline-integrity findings, then prepare
+  the route-map and visual-direction review artifacts. Default IA/theme
+  activation remains gated by V12-S12.
 
 ## Ongoing track — Ecosystem cadence (parallel to all phases)
 
