@@ -154,5 +154,13 @@ model, but remains disabled and subscribes to no spaces by default. Select
 The API does not yet expose/register an inbound notification endpoint because
 the pinned URL-derived service-auth audience conflicts with CSN's DID-audience
 verifier. Periodic sweeps provide correctness. Public DID/account event
-ingestion and a live upstream `getRepo` server exercise also remain open; the
-reader fails closed when those missing capabilities are required.
+ingestion is implemented with host-scoped durable account state. The pinned
+atproto `getRepo` handler remains unimplemented; the reader fails closed when
+full recovery is required.
+
+`runPermissionedConformanceProbe` and the API
+`probe:permissioned-conformance` command provide a non-destructive by default,
+abort-aware differential harness for the pinned atproto PR #5187 and
+HappyView `2.12.0-dev.2` profiles. Notification registration is the explicit
+mutating opt-in. The harness does not change the production reader target or
+accept HappyView's unsigned commit shape.

@@ -153,9 +153,13 @@ of a production custody or retention model.
 
 ## Next Work
 
-1. Build differential runners against the pinned atproto branch and HappyView
-   dev release; record commit/CAR/notification deviations.
-2. Exercise live full recovery when a pinned implementation serves `getRepo`.
+1. Run the implemented authenticated HTTP differential CLI against
+   pre-provisioned atproto and HappyView deployments. The pinned upstream
+   suites and target profiles are complete; see
+   `2026-07-30-v12-phase-4-permissioned-conformance-differential.md`.
+2. Exercise Proposal 0016 full recovery when the pinned atproto implementation
+   serves `getRepo`. HappyView's CAR path is executable but its commit omits
+   the Proposal 0016 signature.
 3. Resolve V12-S09 before exposing or registering an inbound notification
    endpoint.
 4. Proceed to managing-app, cooperative custody, retention, and migration

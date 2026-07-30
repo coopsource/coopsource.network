@@ -377,6 +377,16 @@ non-destructive. Runtime defaults are unchanged; production source topology
 remains parked. See
 `docs/plans/2026-07-30-v12-phase-4-public-repo-lifecycle-events.md`.
 
+**Progress 2026-07-30, differential conformance checkpoint:** The
+permissioned reader now has machine-readable profiles and a non-destructive by
+default, abort-aware HTTP probe for the unchanged atproto PR #5187 pin and
+HappyView `2.12.0-dev.2`. Notification registration is an explicit opt-in.
+Upstream executable suites confirm PR #5187's signed commit/oplog path and
+unimplemented `getRepo`, plus HappyView's working two-root CAR with unsigned
+commits and divergent credential/notification envelopes. Runtime defaults
+remain unchanged. See
+`docs/plans/2026-07-30-v12-phase-4-permissioned-conformance-differential.md`.
+
 - [x] First task expanded through the July 29 gap analysis and July 30
   conformance-baseline note.
 

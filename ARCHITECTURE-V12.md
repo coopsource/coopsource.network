@@ -103,9 +103,13 @@ eligibility, retention, or legal policy into generic host Rego.
   reader implements periodic/notification-driven inventory and oplog pulls,
   pinned LtHash/commit/CID verification, CAR/blob recovery, durable replica
   checkpoints, writer removal, public identity/account reconciliation with
-  host-scoped durable invalidation, and idempotent proposal/vote projection.
+  host-scoped durable invalidation, and idempotent proposal/vote projection. A
+  pinned differential probe records atproto PR #5187 versus HappyView
+  `2.12.0-dev.2` request, commit, CAR, credential, and notification behavior.
   Inbound notification endpoint activation, production lifecycle-source
-  selection, and a live upstream `getRepo` server exercise remain parked.
+  selection, and a deployed authenticated cross-service probe remain parked.
+  PR #5187 still does not implement `getRepo`; HappyView serves the CAR but
+  omits the Proposal 0016 commit signature.
 
 ---
 
@@ -206,7 +210,7 @@ Branch naming: `feature/v12-phase-N-<desc>`. Merges to `main`: `--no-ff`, green 
 | Capability                                                       | Default                                                                                                                                                                                                                                                                                            | Decide at   |
 | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
 | AppView substrate (custom `apps/api` vs **HappyView 2.10+**)     | **Build confirmed.** The 2026-07-11 HappyView 2.11.4 spike loaded all 58 canonical/draft documents, but all 8 CSN queries need custom semantics; Lua/WASM cannot host the typed plugin and projection model without a rewrite. See `docs/plans/2026-07-11-v12-phase-5-happyview-appview-spike.md`. | decided     |
-| Spaces dev/test harness (fixtures vs **HappyView**)              | Use pinned fixtures first; run differential tests against stable and dev HappyView because they currently differ                                                                                                                                                                                   | Phase 4     |
+| Spaces dev/test harness (fixtures vs **HappyView**)              | **Implemented:** pinned PR #5187 and HappyView 2.12-dev profiles, abort-aware HTTP probe, CAR inspection, and upstream executable-suite evidence. Keep HappyView diagnostic because its commit/auth/notification contracts differ.                                                                     | decided     |
 | Spaces primitives (extend vs **`@atproto/space`** from PR #5187) | Use when published and conformance-tested; unpublished as of 2026-07-29                                                                                                                                                                                                                             | each sweep  |
 | Group authority (CSN-DB vs SimpleSpace vs Roomy-style Arbiter)   | Keep adapters; CSN-DB remains default until the real read/recovery slice and production-host decision                                                                                                                                                                                               | Phase 4/P2  |
 | Axis-3 policy (TS plugin set vs Rego/OPA)                        | Build                                                                                                                                                                                                                                                                                              | firm        |
