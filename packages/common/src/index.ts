@@ -70,6 +70,10 @@ export {
   UpdateRolesSchema,
   CreateProposalBodySchema,
   UpdateProposalBodySchema,
+  ProposalVotingTypeSchema,
+  ProposalQuorumTypeSchema,
+  ProposalResponseSchema,
+  ProposalsResponseSchema,
   CreateAgreementBodySchema,
   UpdateAgreementBodySchema,
   CreateThreadSchema,
@@ -168,6 +172,10 @@ export {
   CreateMentionSchema,
 } from './validation.js';
 export type {
+  ProposalVotingType,
+  ProposalQuorumType,
+  ProposalResponse,
+  ProposalsResponse,
   CreateCooperativeInput,
   UpdateCooperativeInput,
   CreateProjectInput,

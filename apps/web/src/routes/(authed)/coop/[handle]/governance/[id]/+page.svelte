@@ -2,6 +2,10 @@
   import { enhance } from '$app/forms';
   import { Badge, ConfirmDialog } from '$lib/components/ui';
   import { canEditProposal, canDeleteProposal } from '$lib/utils/entity-permissions.js';
+  import {
+    proposalQuorumTypeLabel,
+    proposalVotingTypeLabel,
+  } from '$lib/utils/proposal-metadata.js';
   import { workspacePrefix } from '$lib/utils/workspace.js';
 
   let { data, form } = $props();
@@ -17,6 +21,9 @@
   }
 
   const proposal = $derived(data.proposal);
+  const authorName = $derived(
+    proposal.authorDisplayName ?? proposal.authorHandle ?? proposal.authorDid,
+  );
   const votes = $derived(data.votes);
   const tally = $derived(data.tally);
 
@@ -76,16 +83,13 @@
     </div>
 
     <div class="mb-4 flex flex-wrap gap-3 text-xs text-[var(--cs-text-muted)]">
-      <span>Type: <strong>{proposal.proposalType}</strong></span>
-      <span>Voting: <strong>{proposal.votingMethod}</strong></span>
-      {#if proposal.quorumType}
-        <span>Quorum: <strong>{proposal.quorumType}</strong></span>
-      {/if}
-      {#if proposal.votingEndsAt}
-        <span>Deadline: <strong>{new Date(proposal.votingEndsAt).toLocaleString()}</strong></span>
+      <span>Voting: <strong>{proposalVotingTypeLabel(proposal.votingType)}</strong></span>
+      <span>Quorum: <strong>{proposalQuorumTypeLabel(proposal.quorumType)}</strong></span>
+      {#if proposal.closesAt}
+        <span>Deadline: <strong>{new Date(proposal.closesAt).toLocaleString()}</strong></span>
       {/if}
       <span>
-        By <strong>{proposal.authorDisplayName}</strong> on
+        By <strong>{authorName}</strong> on
         {new Date(proposal.createdAt).toLocaleDateString()}
       </span>
     </div>

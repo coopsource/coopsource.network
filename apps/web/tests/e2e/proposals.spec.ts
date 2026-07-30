@@ -17,12 +17,21 @@ test.describe('Proposals', () => {
     await page.goto(wp('/governance/new'));
     await page.getByLabel('Title').fill('Test Proposal');
     await page.getByLabel('Description').fill('This is a test proposal for E2E testing.');
+    await page.getByLabel('Voting Method').selectOption('approval');
+    await page.getByLabel('Quorum').selectOption('superMajority');
+    await page.getByLabel('Voting Deadline').fill('2030-06-15T12:30');
+    await expect(page.getByLabel('Voting Method')).toHaveValue('approval');
+    await expect(page.getByLabel('Quorum')).toHaveValue('superMajority');
     await page.getByRole('button', { name: 'Create proposal' }).click();
 
     // Should redirect to the proposal detail page
     await page.waitForURL(/\/coop\/[^/]+\/governance\/[a-f0-9-]+$/);
     await expect(page.getByRole('heading', { name: 'Test Proposal' })).toBeVisible();
     await expect(page.getByText('draft')).toBeVisible();
+    await expect(page.getByText('Voting: Approval', { exact: true })).toBeVisible();
+    await expect(page.getByText('Quorum: Supermajority', { exact: true })).toBeVisible();
+    await expect(page.getByText(/^Deadline:/)).toBeVisible();
+    await expect(page.getByText(/^Type:/)).toHaveCount(0);
   });
 
   test('open proposal and cast vote', async ({ page }) => {

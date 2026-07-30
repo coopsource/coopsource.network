@@ -12,7 +12,6 @@ import type {
   SetupStatus,
   MembersResponse,
   InvitationsResponse,
-  ProposalsResponse,
   AgreementsResponse,
   VotesResponse,
   Thread,
@@ -151,6 +150,10 @@ import type {
   ScriptTestResult,
   ScriptLogsResponse,
 } from './types.js';
+import {
+  ProposalResponseSchema,
+  ProposalsResponseSchema,
+} from '@coopsource/common';
 
 export class ApiError extends Error {
   constructor(
@@ -215,6 +218,13 @@ export function createApiClient(
     }
 
     return res.json() as Promise<T>;
+  }
+
+  async function requestProposal(
+    path: string,
+    options: RequestInit = {},
+  ): Promise<Proposal> {
+    return ProposalResponseSchema.parse(await request<unknown>(path, options));
   }
 
   return {
@@ -388,7 +398,7 @@ export function createApiClient(
       request<void>(`/invitations/${id}`, { method: 'DELETE' }),
 
     // Proposals
-    getProposals: (params?: {
+    getProposals: async (params?: {
       status?: string;
       limit?: number;
       cursor?: string;
@@ -397,7 +407,9 @@ export function createApiClient(
       if (params?.status) qs.set('status', params.status);
       if (params?.limit) qs.set('limit', String(params.limit));
       if (params?.cursor) qs.set('cursor', params.cursor);
-      return request<ProposalsResponse>(`/proposals${qs.size ? `?${qs}` : ''}`);
+      return ProposalsResponseSchema.parse(
+        await request<unknown>(`/proposals${qs.size ? `?${qs}` : ''}`),
+      );
     },
 
     createProposal: (body: {
@@ -410,25 +422,23 @@ export function createApiClient(
       closesAt?: string;
       tags?: string[];
     }) =>
-      request<Proposal>('/proposals', {
+      requestProposal('/proposals', {
         method: 'POST',
         body: JSON.stringify(body),
       }),
 
-    getProposal: (id: string) => request<Proposal>(`/proposals/${id}`),
+    getProposal: (id: string) => requestProposal(`/proposals/${id}`),
 
     updateProposal: (
       id: string,
       body: Partial<{
         title: string;
         body: string;
-        proposalType: string;
-        votingMethod: string;
-        quorumType: string;
-        votingEndsAt: string;
+        closesAt: string;
+        tags: string[];
       }>,
     ) =>
-      request<Proposal>(`/proposals/${id}`, {
+      requestProposal(`/proposals/${id}`, {
         method: 'PUT',
         body: JSON.stringify(body),
       }),
@@ -437,13 +447,13 @@ export function createApiClient(
       request<void>(`/proposals/${id}`, { method: 'DELETE' }),
 
     openProposal: (id: string) =>
-      request<Proposal>(`/proposals/${id}/open`, { method: 'POST' }),
+      requestProposal(`/proposals/${id}/open`, { method: 'POST' }),
 
     closeProposal: (id: string) =>
-      request<Proposal>(`/proposals/${id}/close`, { method: 'POST' }),
+      requestProposal(`/proposals/${id}/close`, { method: 'POST' }),
 
     resolveProposal: (id: string) =>
-      request<Proposal>(`/proposals/${id}/resolve`, { method: 'POST' }),
+      requestProposal(`/proposals/${id}/resolve`, { method: 'POST' }),
 
     getVotes: (proposalId: string) =>
       request<VotesResponse>(`/proposals/${proposalId}/votes`),

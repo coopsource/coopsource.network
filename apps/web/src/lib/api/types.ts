@@ -1,3 +1,8 @@
+import type {
+  ProposalResponse,
+  ProposalsResponse as ProposalCollectionResponse,
+} from '@coopsource/common';
+
 // V8.3 — user presentation layer (separate from DID/identity).
 // Each person has exactly one default profile in V8.3; multi-profile
 // arrives in V8.X. The default profile is always the "current" profile.
@@ -82,23 +87,7 @@ export interface PublicInvitationPreview {
   cooperativeName: string | null;
 }
 
-export interface Proposal {
-  id: string;
-  did: string;
-  title: string;
-  body: string;
-  proposalType: string;
-  votingMethod: string;
-  quorumType: string;
-  quorumBasis: string | null;
-  votingEndsAt: string | null;
-  status: string; // draft | open | closed | resolved
-  outcome: string | null;
-  authorDid: string;
-  authorHandle: string | null;
-  authorDisplayName: string;
-  createdAt: string;
-}
+export type Proposal = ProposalResponse;
 
 export interface Vote {
   id: string;
@@ -153,9 +142,7 @@ export interface InvitationsResponse extends PaginatedResponse<Invitation> {
   invitations: Invitation[];
 }
 
-export interface ProposalsResponse extends PaginatedResponse<Proposal> {
-  proposals: Proposal[];
-}
+export type ProposalsResponse = ProposalCollectionResponse;
 
 export interface AgreementsResponse extends PaginatedResponse<Agreement> {
   agreements: Agreement[];

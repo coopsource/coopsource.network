@@ -2,6 +2,7 @@
   import { enhance } from '$app/forms';
   import { goto } from '$app/navigation';
   import { Badge, EmptyState, Modal, Tabs } from '$lib/components/ui';
+  import { proposalVotingTypeLabel } from '$lib/utils/proposal-metadata.js';
   import { workspacePrefix } from '$lib/utils/workspace.js';
   import type { Member } from '$lib/api/types.js';
 
@@ -160,7 +161,8 @@
                 <h3 class="font-medium text-[var(--cs-text)]">{proposal.title}</h3>
                 <p class="mt-1 line-clamp-2 text-sm text-[var(--cs-text-muted)]">{proposal.body}</p>
                 <p class="mt-2 text-xs text-[var(--cs-text-muted)]">
-                  {proposal.proposalType} · by {proposal.authorDisplayName} ·
+                  {proposalVotingTypeLabel(proposal.votingType)} · by
+                  {proposal.authorDisplayName ?? proposal.authorHandle ?? proposal.authorDid} ·
                   {new Date(proposal.createdAt).toLocaleDateString()}
                 </p>
               </div>
