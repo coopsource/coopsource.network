@@ -72,7 +72,10 @@ import {
   DelegationVotingServiceDelegateChainReader,
   DelegationVotingServiceVoteWeightDelegationReader,
 } from '../../src/services/coop-view-delegation-adapters.js';
-import { VisibilityRouter } from '../../src/services/visibility-router.js';
+import {
+  CsnDbGovernanceRecordPlacementPort,
+  type GovernanceRecordPlacementPort,
+} from '../../src/services/governance-record-placement-port.js';
 import {
   PdsPublicGovernanceAnchorWritePort,
   PublicGovernanceAnchorService,
@@ -176,6 +179,7 @@ export interface TestApp {
 export interface TestAppOptions {
   xrpcRouteOptions?: XrpcRouteOptions;
   permissionedRecordWriter?: PermissionedRecordWritePort;
+  governanceRecordPlacement?: GovernanceRecordPlacementPort;
 }
 
 export function createTestApp(options?: TestAppOptions): TestApp {
@@ -308,7 +312,9 @@ export function createTestApp(options?: TestAppOptions): TestApp {
   const permissionedRecordWriter =
     options?.permissionedRecordWriter ??
     new PrivateRecordPermissionedWritePort(privateRecordService);
-  const visibilityRouter = new VisibilityRouter(db);
+  const governanceRecordPlacement =
+    options?.governanceRecordPlacement ??
+    new CsnDbGovernanceRecordPlacementPort(db);
   const publicGovernanceAnchorService = new PublicGovernanceAnchorService(
     new PdsPublicGovernanceAnchorWritePort(pdsService),
     () => clock.now(),
@@ -326,9 +332,9 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     clock,
     membershipReadModel,
     governanceView,
+    governanceRecordPlacement,
     memberWriteProxy,
     governanceLabeler,
-    visibilityRouter,
     permissionedRecordWriter,
     publicGovernanceAnchorService,
   );
@@ -484,7 +490,7 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     spaceCredentialStore,
     permissionedRecordWriter,
     permissionedRecordWriteSessionProvider,
-    visibilityRouter,
+    governanceRecordPlacement,
     publicGovernanceAnchorService,
     patronageService,
     capitalAccountService,

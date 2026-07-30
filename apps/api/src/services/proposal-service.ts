@@ -74,7 +74,7 @@ export interface UpdateDraftProposalInput {
 
 import type { IMemberRecordWriter } from './member-write-proxy.js';
 import type { GovernanceLabeler } from './governance-labeler.js';
-import type { VisibilityRouter } from './visibility-router.js';
+import type { GovernanceRecordPlacementPort } from './governance-record-placement-port.js';
 import type {
   PublicGovernanceAnchorService,
   PublicGovernanceAnchorWriteResult,
@@ -91,9 +91,9 @@ export class ProposalService {
     private clock: IClock,
     private membershipReadModel: MembershipReadModel,
     private governanceView: GovernanceView,
+    private governanceRecordPlacement: GovernanceRecordPlacementPort,
     private memberWriteProxy?: IMemberRecordWriter,
     private labeler?: GovernanceLabeler,
-    private visibilityRouter?: VisibilityRouter,
     private permissionedRecordWriter?: PermissionedRecordWritePort,
     private publicGovernanceAnchorService?: PublicGovernanceAnchorService,
   ) {}
@@ -287,32 +287,22 @@ export class ProposalService {
   ): Promise<ProposalRow> {
     const now = this.clock.now();
 
-    // Check visibility routing for closed cooperatives (Tier 2 private data)
     const collection = PROPOSAL_COLLECTION;
     const record = proposalRecordFromCreateInput(data, now);
-
-    let ref: RecordRef;
-    if (this.visibilityRouter) {
-      const route = await this.visibilityRouter.routeWrite({
+    const placement =
+      await this.governanceRecordPlacement.resolveWritePlacement({
         cooperativeDid: data.cooperativeDid,
         collection,
-        record,
-        createdBy: authorDid,
       });
-      if (route.tier === 2) {
-        ref = await this.writePermissionedRecordRef({
-          routeSpace: route.space,
-          authorDid,
-          collection,
-          record,
-        });
-      } else {
-        ref = await this.pdsService.createRecord({
-          did: authorDid as DID,
-          collection,
-          record,
-        });
-      }
+
+    let ref: RecordRef;
+    if (placement.kind === 'permissioned-space') {
+      ref = await this.writePermissionedRecordRef({
+        space: placement.space,
+        authorDid,
+        collection,
+        record,
+      });
     } else {
       ref = await this.pdsService.createRecord({
         did: authorDid as DID,
@@ -515,9 +505,6 @@ export class ProposalService {
       at: now,
     });
 
-    // Write vote record. Closed-governance cooperatives route votes to Tier 2
-    // private storage; open/mixed-default cooperatives keep member-owned PDS
-    // writes through MemberWriteProxy.
     const collection = VOTE_COLLECTION;
     const voteRecord = {
       proposal: proposal.uri,
@@ -541,23 +528,18 @@ export class ProposalService {
 
     let ref: RecordRef | undefined;
     try {
-      if (this.visibilityRouter) {
-        const route = await this.visibilityRouter.routeWrite({
+      const placement =
+        await this.governanceRecordPlacement.resolveWritePlacement({
           cooperativeDid: proposal.cooperative_did,
           collection,
-          record: voteRecord,
-          createdBy: params.voterDid,
         });
-        if (route.tier === 2) {
-          ref = await this.writePermissionedRecordRef({
-            routeSpace: route.space,
-            authorDid: params.voterDid,
-            collection,
-            record: voteRecord,
-          });
-        } else {
-          ref = await writePublicVote();
-        }
+      if (placement.kind === 'permissioned-space') {
+        ref = await this.writePermissionedRecordRef({
+          space: placement.space,
+          authorDid: params.voterDid,
+          collection,
+          record: voteRecord,
+        });
       } else {
         ref = await writePublicVote();
       }
@@ -824,23 +806,20 @@ export class ProposalService {
   }
 
   private async writePermissionedRecordRef(args: {
-    routeSpace: SpaceRef | undefined;
+    space: SpaceRef;
     authorDid: string;
     collection: string;
     record: Record<string, unknown>;
     rkey?: string;
   }): Promise<RecordRef> {
-    if (!args.routeSpace) {
-      throw new Error('VisibilityRouter returned Tier 2 without a space');
-    }
     if (!this.permissionedRecordWriter) {
       throw new Error(
-        'VisibilityRouter returned Tier 2 without a PermissionedRecordWritePort',
+        'GovernanceRecordPlacementPort selected a permissioned space without a PermissionedRecordWritePort',
       );
     }
 
     const write = await this.permissionedRecordWriter.createRecord({
-      space: args.routeSpace,
+      space: args.space,
       authorDid: args.authorDid as DID,
       collection: args.collection,
       record: args.record,

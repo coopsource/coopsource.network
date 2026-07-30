@@ -47,6 +47,9 @@ legitimate cooperative purpose.
 - Pinned atproto/HappyView differential profiles plus a non-destructive by
   default, abort-aware conformance CLI. Notification registration is the
   explicit mutating opt-in.
+- Named governance record placement port for public repositories and
+  permissioned spaces. The CSN adapter preserves existing open/mixed/closed
+  behavior, and `private-record` remains the default physical writer.
 
 These are engineering checkpoints, not approval of the production authority,
 custody, retention, moderation, or migration model.

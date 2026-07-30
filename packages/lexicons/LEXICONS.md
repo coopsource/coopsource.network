@@ -1,6 +1,6 @@
 # Co-op Source Network Lexicon Reference
 
-> **V11 transition snapshot:** This reference describes the current checked-in lexicons during the V12 migration. Active architecture is V12 in [ARCHITECTURE-V12.md](../../ARCHITECTURE-V12.md). V11 retires bilateral membership as active authority, retires `VisibilityRouter` as canonical private-data routing, introduces `community.lexicon.governance.*`, and moves Tier 2 data toward permissioned spaces.
+> **V12 transition snapshot:** This reference describes the current checked-in lexicons during the V12 migration. Active architecture is V12 in [ARCHITECTURE-V12.md](../../ARCHITECTURE-V12.md). Bilateral membership is retired as active authority, `GovernanceRecordPlacementPort` replaces the legacy numeric visibility router, `community.lexicon.governance.*` remains a non-canonical draft, and Tier 2 data is moving toward permissioned spaces.
 
 Co-op Source Network is a federated collaboration platform built on the AT Protocol. These lexicon schemas define the current record types and queries that cooperatives, their members, and external applications use to interact with the platform. Most schemas live under the `network.coopsource.*` namespace and are organized into 11 sub-namespaces covering organizational structure, governance, agreements, finance, operations, commerce, alignment, funding, connections, administration, and legal records.
 
@@ -16,8 +16,10 @@ final syntax or tooling makes this namespace actively misleading.
 
 Phase 4 placement planning lives in `src/space-placement.ts` and
 `docs/plans/2026-07-06-v12-phase-4-space-placement-matrix.md`. The matrix is
-derived from the declarations below and is still draft-only; it does not wire
-live OAuth or permissioned-space writes.
+derived from the declarations below. Proposal and vote writes now resolve a
+public repository or permissioned `SpaceRef` through
+`GovernanceRecordPlacementPort`; the default permissioned writer remains the
+local `private_record` adapter while draft XRPC activation is gated.
 
 ## Record Ownership Matrix
 
@@ -46,7 +48,7 @@ live OAuth or permissioned-space writes.
 |                       |                                 | `connection.binding`      |
 |                       |                                 | `connection.sync`         |
 
-\* `governance.proposal` uses the VisibilityRouter: open-governance cooperatives write proposals to their PDS (Tier 1 public), while closed-governance cooperatives write through `PermissionedRecordWritePort` to Tier 2 storage. The current default adapter is still backed by `private_record`, but persisted proposal URIs use structured permissioned-space locations.
+\* `governance.proposal` uses `GovernanceRecordPlacementPort`: open-governance cooperatives write proposals to their PDS, while closed-governance cooperatives select the members permissioned space and write through `PermissionedRecordWritePort`. The current default writer is backed by `private_record`, but persisted proposal URIs use structured permissioned-space locations.
 
 **Note:** XRPC query schemas (`org.getCooperative`, `org.getMembership`, `governance.listProposals`, `governance.getProposal`, `governance.listProposalAnchors`) are not records and do not have an ownership location -- they are read-only endpoints served by the AppView.
 
@@ -203,13 +205,13 @@ The `governance` namespace covers cooperative decision-making through proposals,
 
 Quorum is configurable per proposal: `quorumRequired` sets the fraction of participation needed (0-1), and `quorumBasis` determines whether that fraction is calculated against `votesCast` or `totalMembers`. Votes can carry variable `weight` to support delegation -- when a member casts a vote on behalf of a delegator, the `delegatedFrom` field identifies whose authority backs the vote.
 
-Proposals in open-governance cooperatives are written to the cooperative's PDS and appear on the firehose. In closed-governance cooperatives, the VisibilityRouter routes proposal and vote writes through `PermissionedRecordWritePort`; the current default adapter stores physical rows in `private_record`, while the semantic record location is a permissioned-space URI. Delegations are DB-only records that construct an AT URI for identification but store in PostgreSQL; their scope can cover all proposals in a project or a single specific proposal.
+Proposals in open-governance cooperatives are written to the cooperative's PDS and appear on the firehose. In closed-governance cooperatives, `GovernanceRecordPlacementPort` selects the members permissioned space and `PermissionedRecordWritePort` performs proposal and vote writes; the current default writer stores physical rows in `private_record`, while the semantic record location is a permissioned-space URI. Delegations are DB-only records that construct an AT URI for identification but store in PostgreSQL; their scope can cover all proposals in a project or a single specific proposal.
 
 This namespace also includes XRPC query schemas for AppView reads. `listProposals` and `getProposal` are governance-access-gated proposal endpoints. `listProposalAnchors` is a public endpoint that returns only public anchor projection fields for private governance proposals.
 
 ### `network.coopsource.governance.proposal`
 
-A governance proposal for cooperative decision-making. Written to the **cooperative's PDS** (open governance) or `private_record` table (closed governance) via VisibilityRouter.
+A governance proposal for cooperative decision-making. Placement resolves to the **cooperative's PDS** for open governance or the members permissioned space for closed governance. The current default permissioned writer stores the latter in `private_record`.
 
 | Field              | Type                     | Required | Description                                                                                                    |
 | ------------------ | ------------------------ | -------- | -------------------------------------------------------------------------------------------------------------- |

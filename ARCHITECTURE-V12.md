@@ -200,7 +200,7 @@ DB: `packages/db/src/migrations/0001_v11_baseline.ts` + `schema.sql` is the **pe
 | 3     | soft           | Arbiter convergence + membership read seam design/migration + review carry-ins (suspension, lifecycle events, consent-overwrite, roster-`partial`, DID rotation gate) |
 | 4     | Stage 3 + seam | Governance→spaces, credential seam, personal spaces                                                                                                                   |
 | 5     | none           | GovernanceView + CoopView + the ten plugins (parallelizable with 3–4)                                                                                                 |
-| 6     | 3–5 stable     | Retire V9 surface (visibilityRouter, privateRecordService, governanceLabeler, `private_record`, RFC 9421, HttpFederationClient, `local/*`)                            |
+| 6     | 3–5 stable     | Retire remaining V9 surface (privateRecordService, governanceLabeler, `private_record`, RFC 9421, HttpFederationClient, `local/*`)                                  |
 | 7     | 3–4 merged     | Full UX overhaul                                                                                                                                                      |
 
 Branch naming: `feature/v12-phase-N-<desc>`. Merges to `main`: `--no-ff`, green build+tests first, tag `v12-phase-N`.
