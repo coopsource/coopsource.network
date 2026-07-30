@@ -106,4 +106,5 @@ export type {
   // V11 Stage 1 — Spaces consumer
   DidRotationHistoryTable,
   SpacesConsumerCursorTable,
+  Tier2GovernanceMigrationTable,
 } from './schema.js';

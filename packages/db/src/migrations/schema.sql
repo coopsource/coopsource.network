@@ -1383,43 +1383,6 @@ CREATE TABLE public.pds_record (
 
 
 --
--- Name: post; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.post (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    thread_id uuid NOT NULL,
-    author_did text NOT NULL,
-    body text NOT NULL,
-    body_format text DEFAULT 'markdown'::text NOT NULL,
-    parent_post_id uuid,
-    status text DEFAULT 'active'::text NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    edited_at timestamp with time zone,
-    invalidated_at timestamp with time zone,
-    invalidated_by text,
-    post_search_tsv tsvector GENERATED ALWAYS AS (to_tsvector('english'::regconfig, COALESCE(body, ''::text))) STORED,
-    CONSTRAINT post_body_format_check CHECK ((body_format = ANY (ARRAY['plain'::text, 'markdown'::text]))),
-    CONSTRAINT post_status_check CHECK ((status = ANY (ARRAY['active'::text, 'edited'::text, 'deleted'::text])))
-);
-
-
---
--- Name: private_record; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.private_record (
-    did text NOT NULL,
-    collection text NOT NULL,
-    rkey text NOT NULL,
-    record jsonb NOT NULL,
-    created_by text,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL
-);
-
-
---
 -- Name: permissioned_notification_registration; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1478,6 +1441,43 @@ CREATE TABLE public.permissioned_repo_record (
     record jsonb NOT NULL,
     source_revision text,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: post; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.post (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    thread_id uuid NOT NULL,
+    author_did text NOT NULL,
+    body text NOT NULL,
+    body_format text DEFAULT 'markdown'::text NOT NULL,
+    parent_post_id uuid,
+    status text DEFAULT 'active'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    edited_at timestamp with time zone,
+    invalidated_at timestamp with time zone,
+    invalidated_by text,
+    post_search_tsv tsvector GENERATED ALWAYS AS (to_tsvector('english'::regconfig, COALESCE(body, ''::text))) STORED,
+    CONSTRAINT post_body_format_check CHECK ((body_format = ANY (ARRAY['plain'::text, 'markdown'::text]))),
+    CONSTRAINT post_status_check CHECK ((status = ANY (ARRAY['active'::text, 'edited'::text, 'deleted'::text])))
+);
+
+
+--
+-- Name: private_record; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.private_record (
+    did text NOT NULL,
+    collection text NOT NULL,
+    rkey text NOT NULL,
+    record jsonb NOT NULL,
+    created_by text,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL
 );
 
 
@@ -2000,6 +2000,38 @@ CREATE TABLE public.thread_member (
     entity_did text NOT NULL,
     joined_at timestamp with time zone DEFAULT now() NOT NULL,
     last_read_at timestamp with time zone
+);
+
+
+--
+-- Name: tier2_governance_migration; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tier2_governance_migration (
+    projection_kind text NOT NULL,
+    projection_id uuid NOT NULL,
+    cooperative_did text NOT NULL,
+    source_did text NOT NULL,
+    source_collection text NOT NULL,
+    source_rkey text NOT NULL,
+    source_updated_at timestamp with time zone NOT NULL,
+    source_digest text NOT NULL,
+    target_uri text NOT NULL,
+    target_cid text,
+    target_revision text,
+    status text NOT NULL,
+    last_error_code text,
+    copy_attempt_count integer DEFAULT 0 NOT NULL,
+    copied_at timestamp with time zone,
+    verified_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT tier2_governance_migration_attempt_check CHECK ((copy_attempt_count >= 0)),
+    CONSTRAINT tier2_governance_migration_digest_check CHECK ((source_digest ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT tier2_governance_migration_kind_collection_check CHECK ((((projection_kind = 'proposal'::text) AND (source_collection = 'network.coopsource.governance.proposal'::text)) OR ((projection_kind = 'vote'::text) AND (source_collection = 'network.coopsource.governance.vote'::text)))),
+    CONSTRAINT tier2_governance_migration_source_authority_check CHECK ((source_did = cooperative_did)),
+    CONSTRAINT tier2_governance_migration_state_data_check CHECK (((status = 'copy_pending'::text) OR ((status = 'copied'::text) AND (target_cid IS NOT NULL) AND (copied_at IS NOT NULL)) OR ((status = 'verified'::text) AND (target_cid IS NOT NULL) AND (copied_at IS NOT NULL) AND (verified_at IS NOT NULL)))),
+    CONSTRAINT tier2_governance_migration_status_check CHECK ((status = ANY (ARRAY['copy_pending'::text, 'copied'::text, 'verified'::text])))
 );
 
 
@@ -3029,6 +3061,14 @@ ALTER TABLE ONLY public.thread
 
 
 --
+-- Name: tier2_governance_migration tier2_governance_migration_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tier2_governance_migration
+    ADD CONSTRAINT tier2_governance_migration_pkey PRIMARY KEY (projection_kind, projection_id);
+
+
+--
 -- Name: time_entry time_entry_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3243,13 +3283,6 @@ CREATE INDEX did_rotation_history_current_did_idx ON public.did_rotation_history
 --
 
 CREATE INDEX did_rotation_history_prior_did_idx ON public.did_rotation_history USING btree (prior_did);
-
-
---
--- Name: space_credential_expires_at_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX space_credential_expires_at_idx ON public.space_credential USING btree (expires_at);
 
 
 --
@@ -4216,6 +4249,34 @@ CREATE INDEX onboarding_progress_coop_status ON public.onboarding_progress USING
 --
 
 CREATE INDEX onboarding_review_coop_member ON public.onboarding_review USING btree (cooperative_did, member_did);
+
+
+--
+-- Name: space_credential_expires_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX space_credential_expires_at_idx ON public.space_credential USING btree (expires_at);
+
+
+--
+-- Name: tier2_governance_migration_coop_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX tier2_governance_migration_coop_status ON public.tier2_governance_migration USING btree (cooperative_did, status);
+
+
+--
+-- Name: tier2_governance_migration_source_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX tier2_governance_migration_source_unique ON public.tier2_governance_migration USING btree (source_did, source_collection, source_rkey);
+
+
+--
+-- Name: tier2_governance_migration_target_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX tier2_governance_migration_target_unique ON public.tier2_governance_migration USING btree (target_uri);
 
 
 --

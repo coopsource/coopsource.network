@@ -343,8 +343,11 @@ After the vertical slice:
 5. Change the default writer from `private-record` only after read/recovery and
    operational rollback are demonstrated. **Readiness progress 2026-07-30:**
    a read-only, payload-minimizing governance manifest now reconciles active
-   permissioned projections and private sources in both directions. Copy,
-   ledger, rollback, and default changes remain unimplemented and gated.
+   permissioned projections and private sources in both directions. A
+   disabled, exact-cooperative copy command and payload-free verification
+   ledger are also implemented, but have not been run against cooperative
+   data. Conditional remote rollback and default changes remain unimplemented
+   and gated.
 6. Retire `private_record` authority and other Phase 6 surfaces one subsystem
    at a time.
 

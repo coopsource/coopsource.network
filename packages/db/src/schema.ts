@@ -1088,6 +1088,7 @@ export interface Database {
   permissioned_repo_account_state: PermissionedRepoAccountStateTable;
   permissioned_repo_cursor: PermissionedRepoCursorTable;
   permissioned_repo_record: PermissionedRepoRecordTable;
+  tier2_governance_migration: Tier2GovernanceMigrationTable;
 }
 
 // ──────────────────────────────────────────────
@@ -1813,6 +1814,27 @@ export interface PermissionedRepoRecordTable {
   cid: string;
   record: ColumnType<unknown, unknown, unknown>;
   source_revision: string | null;
+  updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface Tier2GovernanceMigrationTable {
+  projection_kind: string;
+  projection_id: string;
+  cooperative_did: string;
+  source_did: string;
+  source_collection: string;
+  source_rkey: string;
+  source_updated_at: ColumnType<Date, Date | string, Date | string>;
+  source_digest: string;
+  target_uri: string;
+  target_cid: string | null;
+  target_revision: string | null;
+  status: string;
+  last_error_code: string | null;
+  copy_attempt_count: ColumnType<number, number | undefined, number>;
+  copied_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  verified_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
   updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }
 
