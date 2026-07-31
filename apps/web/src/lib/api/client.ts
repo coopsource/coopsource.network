@@ -153,6 +153,8 @@ import type {
 import {
   ProposalResponseSchema,
   ProposalsResponseSchema,
+  type CreateProposalRequest,
+  type UpdateProposalRequest,
 } from '@coopsource/common';
 
 export class ApiError extends Error {
@@ -412,16 +414,7 @@ export function createApiClient(
       );
     },
 
-    createProposal: (body: {
-      title: string;
-      body: string;
-      votingType?: string;
-      quorumType?: string;
-      quorumBasis?: string;
-      quorumThreshold?: number;
-      closesAt?: string;
-      tags?: string[];
-    }) =>
+    createProposal: (body: CreateProposalRequest) =>
       requestProposal('/proposals', {
         method: 'POST',
         body: JSON.stringify(body),
@@ -429,15 +422,7 @@ export function createApiClient(
 
     getProposal: (id: string) => requestProposal(`/proposals/${id}`),
 
-    updateProposal: (
-      id: string,
-      body: Partial<{
-        title: string;
-        body: string;
-        closesAt: string;
-        tags: string[];
-      }>,
-    ) =>
+    updateProposal: (id: string, body: UpdateProposalRequest) =>
       requestProposal(`/proposals/${id}`, {
         method: 'PUT',
         body: JSON.stringify(body),

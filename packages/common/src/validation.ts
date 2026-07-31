@@ -778,34 +778,13 @@ export const UpdateRolesSchema = z.object({
   roles: z.array(z.string().min(1)).max(10),
 });
 
-export const CreateProposalBodySchema = z.object({
-  title: z.string().min(1).max(256),
-  body: z.string().min(1).max(50000),
-  bodyFormat: z.string().max(50).optional(),
-  votingType: z.string().min(1),
-  options: z.array(z.unknown()).max(20).optional(),
-  quorumType: z.string().min(1),
-  quorumBasis: z.string().optional(),
-  quorumThreshold: z.number().min(0).max(1).optional(),
-  closesAt: z.string().optional(),
-  tags: z.array(z.string()).max(20).optional(),
-  meetingEvent: z.string().max(512).optional(),
-  fullDocument: z.string().max(512).optional(),
-  discussionThread: z.string().max(512).optional(),
-});
-
-export const UpdateProposalBodySchema = z.object({
-  title: z.string().min(1).max(256).optional(),
-  body: z.string().min(1).max(50000).optional(),
-  closesAt: z.string().optional(),
-  tags: z.array(z.string()).max(20).optional(),
-});
-
 export const ProposalVotingTypeSchema = z.enum([
   'binary',
   'approval',
   'ranked',
 ]);
+
+export const ExecutableProposalVotingTypeSchema = z.literal('binary');
 
 export const ProposalQuorumTypeSchema = z.enum([
   'simpleMajority',
@@ -813,6 +792,52 @@ export const ProposalQuorumTypeSchema = z.enum([
   'unanimous',
   'custom',
 ]);
+
+export const ProposalQuorumBasisSchema = z.enum(['votesCast', 'totalMembers']);
+
+const ProposalDateTimeSchema = z.iso.datetime({ offset: true });
+
+export const CreateProposalBodySchema = z
+  .object({
+    title: z.string().min(1).max(256),
+    body: z.string().min(1).max(50000),
+    bodyFormat: z.string().max(50).optional(),
+    votingType: ExecutableProposalVotingTypeSchema,
+    quorumType: ProposalQuorumTypeSchema,
+    quorumBasis: ProposalQuorumBasisSchema.optional(),
+    quorumThreshold: z.number().min(0).max(1).optional(),
+    closesAt: ProposalDateTimeSchema.optional(),
+    tags: z.array(z.string()).max(20).optional(),
+    meetingEvent: z.string().max(512).optional(),
+    fullDocument: z.string().max(512).optional(),
+    discussionThread: z.string().max(512).optional(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.quorumType === 'custom' && value.quorumThreshold === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['quorumThreshold'],
+        message: 'Custom quorum requires a threshold',
+      });
+    }
+    if (value.quorumType !== 'custom' && value.quorumThreshold !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['quorumThreshold'],
+        message: 'Only custom quorum accepts an explicit threshold',
+      });
+    }
+  });
+
+export const UpdateProposalBodySchema = z
+  .object({
+    title: z.string().min(1).max(256).optional(),
+    body: z.string().min(1).max(50000).optional(),
+    closesAt: ProposalDateTimeSchema.nullable().optional(),
+    tags: z.array(z.string()).max(20).optional(),
+  })
+  .strict();
 
 export const ProposalResponseSchema = z
   .object({
@@ -825,12 +850,13 @@ export const ProposalResponseSchema = z
       .nullable(),
     votingType: ProposalVotingTypeSchema,
     quorumType: ProposalQuorumTypeSchema,
-    quorumBasis: z.enum(['votesCast', 'totalMembers']).nullable(),
-    closesAt: z.string().nullable(),
+    quorumBasis: ProposalQuorumBasisSchema.nullable(),
+    quorumThreshold: z.number().min(0).max(1).nullable(),
+    closesAt: ProposalDateTimeSchema.nullable(),
     authorDid: DidSchema,
     authorDisplayName: z.string().nullable(),
     authorHandle: z.string().nullable(),
-    createdAt: z.string().min(1),
+    createdAt: ProposalDateTimeSchema,
   })
   .strict();
 
@@ -842,7 +868,13 @@ export const ProposalsResponseSchema = z
   .strict();
 
 export type ProposalVotingType = z.infer<typeof ProposalVotingTypeSchema>;
+export type ExecutableProposalVotingType = z.infer<
+  typeof ExecutableProposalVotingTypeSchema
+>;
 export type ProposalQuorumType = z.infer<typeof ProposalQuorumTypeSchema>;
+export type ProposalQuorumBasis = z.infer<typeof ProposalQuorumBasisSchema>;
+export type CreateProposalRequest = z.infer<typeof CreateProposalBodySchema>;
+export type UpdateProposalRequest = z.infer<typeof UpdateProposalBodySchema>;
 export type ProposalResponse = z.infer<typeof ProposalResponseSchema>;
 export type ProposalsResponse = z.infer<typeof ProposalsResponseSchema>;
 

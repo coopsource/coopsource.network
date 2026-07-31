@@ -12,6 +12,7 @@ import type {
   VoteWeightPlugin,
 } from './plugins.js';
 import type { GovernanceGroupRef } from './types.js';
+import { evaluateGovernanceHeadcountQuorum } from './quorum.js';
 
 export const defaultVoteWeightPlugin: VoteWeightPlugin = {
   async weightForVote() {
@@ -27,14 +28,11 @@ export const defaultEligibilityPlugin: EligibilityPlugin = {
 
 export const defaultQuorumPlugin: QuorumPlugin = {
   async evaluate(input) {
-    const config = input.quorum;
-    if (!config || config.type === undefined || config.type === 'none') {
-      return { met: true, outcomeReason: 'met' };
-    }
-
-    const threshold =
-      config.threshold ?? (config.type === 'superMajority' ? 0.67 : 0.5);
-    const met = input.votes.length > input.eligibleVoterCount * threshold;
+    const { met } = evaluateGovernanceHeadcountQuorum(
+      input.quorum,
+      input.votes.length,
+      input.eligibleVoterCount,
+    );
     return {
       met,
       outcomeReason: met ? 'met' : 'no_quorum',

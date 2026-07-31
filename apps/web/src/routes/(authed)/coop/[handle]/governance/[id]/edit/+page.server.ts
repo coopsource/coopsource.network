@@ -20,10 +20,14 @@ export const actions: Actions = {
     const data = await request.formData();
     const title = String(data.get('title') ?? '').trim();
     const body = String(data.get('body') ?? '').trim();
+    const closesAtLocal = String(data.get('closesAtLocal') ?? '').trim();
     const closesAt = String(data.get('closesAt') ?? '').trim();
 
     if (!title || !body) {
       return fail(400, { error: 'Title and body are required.' });
+    }
+    if (closesAtLocal && !closesAt) {
+      return fail(400, { error: 'Voting deadline must include a timezone.' });
     }
 
     const cookie = request.headers.get('cookie') ?? undefined;
@@ -32,7 +36,7 @@ export const actions: Actions = {
       await api.updateProposal(params.id, {
         title,
         body,
-        closesAt: closesAt || undefined,
+        closesAt: closesAt || null,
       });
     } catch (err) {
       if (err instanceof ApiError) {

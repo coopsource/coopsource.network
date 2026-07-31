@@ -306,6 +306,10 @@ strict proposal response schema using `votingType`, `quorumType`, and
 `closesAt`. Proposal-returning client calls validate that schema, list and
 detail pages render explicit supported-mode labels, and the browser contract
 test exercises non-default metadata from creation through the detail page.
+Follow-up review hardening limits executable proposals to binary voting,
+implements every advertised quorum mode with explicit thresholds, preserves
+deadline instants across browser time zones, rejects invalid writes before
+external publication, and removes published records if projection fails.
 
 ### P1-05: Responsive and journey coverage are absent
 

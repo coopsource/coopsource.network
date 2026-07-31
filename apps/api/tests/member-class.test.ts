@@ -328,7 +328,6 @@ describe('Member Class API', () => {
         body: 'Testing fixed quorum check',
         votingType: 'binary',
         quorumType: 'simpleMajority',
-        quorumThreshold: 0.5,
       })
       .expect(201);
 
@@ -374,7 +373,6 @@ describe('Member Class API', () => {
         body: 'Testing class quorum',
         votingType: 'binary',
         quorumType: 'simpleMajority',
-        quorumThreshold: 0.5,
       })
       .expect(201);
 
@@ -413,7 +411,6 @@ describe('Member Class API', () => {
         body: 'Testing quorum precedence',
         votingType: 'binary',
         quorumType: 'simpleMajority',
-        quorumThreshold: 0.5,
       })
       .expect(201);
 

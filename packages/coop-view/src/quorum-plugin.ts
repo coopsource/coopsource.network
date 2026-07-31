@@ -3,6 +3,7 @@ import type {
   JsonValue,
   QuorumPlugin,
 } from '@coopsource/governance-view';
+import { evaluateGovernanceHeadcountQuorum } from '@coopsource/governance-view';
 
 export interface CoopQuorumPluginOptions {
   readonly includeEvidence?: boolean;
@@ -28,12 +29,15 @@ export interface CoopQuorumEvidence {
 export class CoopQuorumPlugin implements QuorumPlugin {
   constructor(private readonly options: CoopQuorumPluginOptions = {}) {}
 
-  async evaluate(input: GovernanceTallyInput): ReturnType<QuorumPlugin['evaluate']> {
-    const threshold = quorumThreshold(input);
-    const headcountMet =
-      threshold === undefined
-        ? true
-        : input.votes.length > input.eligibleVoterCount * threshold;
+  async evaluate(
+    input: GovernanceTallyInput,
+  ): ReturnType<QuorumPlugin['evaluate']> {
+    const headcount = evaluateGovernanceHeadcountQuorum(
+      input.quorum,
+      input.votes.length,
+      input.eligibleVoterCount,
+    );
+    const headcountMet = headcount.met;
     const classChecks = headcountMet ? evaluateClassQuorum(input) : [];
     const classMet = classChecks.every((check) => check.met);
     const met = headcountMet && classMet;
@@ -49,7 +53,9 @@ export class CoopQuorumPlugin implements QuorumPlugin {
         source: 'coop-quorum-rules',
         voteCount: input.votes.length,
         eligibleVoterCount: input.eligibleVoterCount,
-        ...(threshold === undefined ? {} : { threshold }),
+        ...(headcount.threshold === undefined
+          ? {}
+          : { threshold: headcount.threshold }),
         classChecks,
       };
       return {
@@ -67,14 +73,6 @@ export function createCoopQuorumPlugin(
   options: CoopQuorumPluginOptions = {},
 ): QuorumPlugin {
   return new CoopQuorumPlugin(options);
-}
-
-function quorumThreshold(input: GovernanceTallyInput): number | undefined {
-  const config = input.quorum;
-  if (!config || config.type === undefined || config.type === 'none') {
-    return undefined;
-  }
-  return config.threshold ?? (config.type === 'superMajority' ? 0.67 : 0.5);
 }
 
 function evaluateClassQuorum(

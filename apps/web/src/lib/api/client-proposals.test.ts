@@ -10,6 +10,7 @@ const proposal = {
   votingType: 'approval',
   quorumType: 'superMajority',
   quorumBasis: 'votesCast',
+  quorumThreshold: null,
   closesAt: '2030-06-15T19:30:00.000Z',
   authorDid: 'did:plc:proposal-author',
   authorDisplayName: 'Proposal Author',
@@ -82,6 +83,37 @@ describe('proposal API client contracts', () => {
         body: JSON.stringify({
           title: 'Revised title',
           closesAt: '2030-07-01T19:30:00.000Z',
+        }),
+      }),
+    );
+  });
+
+  it('submits only executable proposal voting modes', async () => {
+    const fetchFn = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(jsonResponse(proposal));
+    const api = createApiClient(fetchFn, undefined, 'https://api.example');
+
+    await api.createProposal({
+      title: proposal.title,
+      body: proposal.body,
+      votingType: 'binary',
+      quorumType: 'custom',
+      quorumThreshold: 0.75,
+      closesAt: '2030-06-15T19:30:00.000Z',
+    });
+
+    expect(fetchFn).toHaveBeenCalledWith(
+      'https://api.example/api/v1/proposals',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          title: proposal.title,
+          body: proposal.body,
+          votingType: 'binary',
+          quorumType: 'custom',
+          quorumThreshold: 0.75,
+          closesAt: '2030-06-15T19:30:00.000Z',
         }),
       }),
     );

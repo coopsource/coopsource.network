@@ -27,3 +27,23 @@ export function proposalQuorumTypeLabel(
 ): string {
   return quorumTypeLabels[quorumType];
 }
+
+export function proposalQuorumLabel(
+  quorumType: ProposalQuorumType,
+  quorumThreshold: number | null,
+): string {
+  const threshold =
+    quorumThreshold ??
+    (quorumType === 'superMajority'
+      ? 2 / 3
+      : quorumType === 'unanimous'
+        ? 1
+        : quorumType === 'simpleMajority'
+          ? 0.5
+          : null);
+  if (threshold === null) return `${quorumTypeLabels[quorumType]} (missing)`;
+
+  const percentage = Math.round(threshold * 1_000) / 10;
+  const operator = quorumType === 'simpleMajority' ? '>' : '';
+  return `${quorumTypeLabels[quorumType]} (${operator}${percentage}%)`;
+}
