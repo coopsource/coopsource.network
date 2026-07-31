@@ -3,7 +3,7 @@
   import { Badge, ConfirmDialog } from '$lib/components/ui';
   import { canEditProposal, canDeleteProposal } from '$lib/utils/entity-permissions.js';
   import {
-    proposalQuorumTypeLabel,
+    proposalQuorumLabel,
     proposalVotingTypeLabel,
   } from '$lib/utils/proposal-metadata.js';
   import { workspacePrefix } from '$lib/utils/workspace.js';
@@ -84,7 +84,10 @@
 
     <div class="mb-4 flex flex-wrap gap-3 text-xs text-[var(--cs-text-muted)]">
       <span>Voting: <strong>{proposalVotingTypeLabel(proposal.votingType)}</strong></span>
-      <span>Quorum: <strong>{proposalQuorumTypeLabel(proposal.quorumType)}</strong></span>
+      <span>
+        Quorum:
+        <strong>{proposalQuorumLabel(proposal.quorumType, proposal.quorumThreshold)}</strong>
+      </span>
       {#if proposal.closesAt}
         <span>Deadline: <strong>{new Date(proposal.closesAt).toLocaleString()}</strong></span>
       {/if}
@@ -111,14 +114,16 @@
             Delete
           </button>
         {/if}
-        <form method="POST" action="?/open" use:enhance>
-          <button
-            type="submit"
-            class="rounded-md bg-[var(--cs-primary)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)]"
-          >
-            Open for voting
-          </button>
-        </form>
+        {#if proposal.votingType === 'binary'}
+          <form method="POST" action="?/open" use:enhance>
+            <button
+              type="submit"
+              class="rounded-md bg-[var(--cs-primary)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)]"
+            >
+              Open for voting
+            </button>
+          </form>
+        {/if}
       </div>
     {:else if proposal.status === 'open'}
       <div class="mt-4 flex gap-3 border-t border-[var(--cs-border)] pt-4">
@@ -131,7 +136,7 @@
           </button>
         </form>
       </div>
-    {:else if proposal.status === 'closed'}
+    {:else if proposal.status === 'closed' && proposal.votingType === 'binary'}
       <div class="mt-4 flex gap-3 border-t border-[var(--cs-border)] pt-4">
         <form method="POST" action="?/resolve" use:enhance>
           <button
@@ -146,7 +151,7 @@
   </div>
 
   <!-- Vote Tally -->
-  {#if totalVotes > 0 || proposal.status === 'open'}
+  {#if proposal.votingType === 'binary' && (totalVotes > 0 || proposal.status === 'open')}
     <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-5">
       <h2 class="mb-4 text-sm font-semibold text-[var(--cs-text)]">Vote Tally</h2>
       <div class="space-y-3">
@@ -193,7 +198,7 @@
   {/if}
 
   <!-- Vote Section -->
-  {#if proposal.status === 'open'}
+  {#if proposal.status === 'open' && proposal.votingType === 'binary'}
     <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-5">
       <h2 class="mb-4 text-sm font-semibold text-[var(--cs-text)]">Cast Your Vote</h2>
 

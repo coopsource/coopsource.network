@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   AcceptInvitationSchema,
+  CreateProposalBodySchema,
   MoneySchema,
   PaginationSchema,
   ProposalResponseSchema,
@@ -74,6 +75,7 @@ describe('proposal response schemas', () => {
     votingType: 'approval',
     quorumType: 'superMajority',
     quorumBasis: 'votesCast',
+    quorumThreshold: null,
     closesAt: '2030-06-15T19:30:00.000Z',
     authorDid: 'did:plc:proposal-author',
     authorDisplayName: 'Proposal Author',
@@ -99,6 +101,71 @@ describe('proposal response schemas', () => {
         ...withoutVotingType,
         proposalType: 'policy',
         votingMethod: 'approval',
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe('proposal write schemas', () => {
+  const proposal = {
+    title: 'Adopt open source policy',
+    body: 'Release internal tools under an open source license.',
+    votingType: 'binary',
+    quorumType: 'simpleMajority',
+  };
+
+  it('accepts executable voting and supported quorum modes', () => {
+    expect(CreateProposalBodySchema.safeParse(proposal).success).toBe(true);
+    expect(
+      CreateProposalBodySchema.safeParse({
+        ...proposal,
+        quorumType: 'custom',
+        quorumThreshold: 0.75,
+        closesAt: '2030-06-15T19:30:00.000Z',
+      }).success,
+    ).toBe(true);
+    expect(
+      CreateProposalBodySchema.safeParse({
+        ...proposal,
+        quorumType: 'unanimous',
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects non-executable or unknown modes before persistence', () => {
+    for (const votingType of ['approval', 'ranked', 'quadratic']) {
+      expect(
+        CreateProposalBodySchema.safeParse({
+          ...proposal,
+          votingType,
+        }).success,
+      ).toBe(false);
+    }
+    expect(
+      CreateProposalBodySchema.safeParse({
+        ...proposal,
+        quorumType: 'unknown',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('requires custom thresholds and offset-bearing deadline instants', () => {
+    expect(
+      CreateProposalBodySchema.safeParse({
+        ...proposal,
+        quorumType: 'custom',
+      }).success,
+    ).toBe(false);
+    expect(
+      CreateProposalBodySchema.safeParse({
+        ...proposal,
+        quorumThreshold: 0.6,
+      }).success,
+    ).toBe(false);
+    expect(
+      CreateProposalBodySchema.safeParse({
+        ...proposal,
+        closesAt: '2030-06-15T12:30',
       }).success,
     ).toBe(false);
   });

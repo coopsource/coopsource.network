@@ -30,7 +30,13 @@ import {
 type ProposalRow = Selectable<ProposalTable>;
 type PublicGovernanceAnchorRow = Selectable<PublicGovernanceAnchorTable>;
 type VoteRow = Selectable<VoteTable>;
-import type { AtUri, CID, DID } from '@coopsource/common';
+import type {
+  AtUri,
+  CID,
+  CreateProposalRequest,
+  DID,
+  UpdateProposalRequest,
+} from '@coopsource/common';
 import {
   NotFoundError,
   UnauthorizedError,
@@ -48,29 +54,11 @@ export interface ProposalWithVotes {
   voteSummary: Readonly<Record<string, number>>;
 }
 
-export interface CreateProposalInput {
+export interface CreateProposalInput extends CreateProposalRequest {
   cooperativeDid: string;
-  title: string;
-  body: string;
-  bodyFormat?: string;
-  votingType: string;
-  options?: unknown[];
-  quorumType: string;
-  quorumBasis?: string;
-  quorumThreshold?: number;
-  closesAt?: string;
-  tags?: string[];
-  meetingEvent?: string; // AT-URI: Smoke Signal calendar event
-  fullDocument?: string; // AT-URI: WhiteWind blog entry
-  discussionThread?: string; // AT-URI: Frontpage link submission
 }
 
-export interface UpdateDraftProposalInput {
-  title?: string;
-  body?: string;
-  closesAt?: string;
-  tags?: string[];
-}
+export type UpdateDraftProposalInput = UpdateProposalRequest;
 
 import type { IMemberRecordWriter } from './member-write-proxy.js';
 import type { GovernanceLabeler } from './governance-labeler.js';
@@ -295,51 +283,63 @@ export class ProposalService {
         collection,
       });
 
-    let ref: RecordRef;
-    if (placement.kind === 'permissioned-space') {
-      ref = await this.writePermissionedRecordRef({
-        space: placement.space,
-        authorDid,
-        collection,
-        record,
-      });
-    } else {
-      ref = await this.pdsService.createRecord({
-        did: authorDid as DID,
-        collection,
-        record,
-      });
+    let ref: RecordRef | undefined;
+    try {
+      if (placement.kind === 'permissioned-space') {
+        ref = await this.writePermissionedRecordRef({
+          space: placement.space,
+          authorDid,
+          collection,
+          record,
+        });
+      } else {
+        ref = await this.pdsService.createRecord({
+          did: authorDid as DID,
+          collection,
+          record,
+        });
+      }
+
+      const [row] = await this.db
+        .insertInto('proposal')
+        .values({
+          uri: ref.uri,
+          cid: ref.cid,
+          cooperative_did: data.cooperativeDid,
+          author_did: authorDid,
+          title: data.title,
+          body: data.body,
+          body_format: data.bodyFormat ?? 'text',
+          voting_type: data.votingType,
+          options: null,
+          quorum_type: data.quorumType,
+          quorum_basis: data.quorumBasis ?? 'votesCast',
+          quorum_threshold: data.quorumThreshold ?? null,
+          status: 'draft',
+          closes_at: data.closesAt ? new Date(data.closesAt) : null,
+          tags: data.tags ?? [],
+          meeting_event: data.meetingEvent ?? null,
+          full_document: data.fullDocument ?? null,
+          discussion_thread: data.discussionThread ?? null,
+          created_at: now,
+          created_by: authorDid,
+          indexed_at: now,
+        })
+        .returningAll()
+        .execute();
+
+      return row!;
+    } catch (err) {
+      if (ref) {
+        await this.deleteProposalSourceUri(ref.uri).catch((cleanupErr) => {
+          logger.warn(
+            { err: cleanupErr, uri: ref?.uri },
+            'Failed to clean up proposal record after projection failure',
+          );
+        });
+      }
+      throw err;
     }
-
-    const [row] = await this.db
-      .insertInto('proposal')
-      .values({
-        uri: ref.uri,
-        cid: ref.cid,
-        cooperative_did: data.cooperativeDid,
-        author_did: authorDid,
-        title: data.title,
-        body: data.body,
-        body_format: data.bodyFormat ?? 'text',
-        voting_type: data.votingType,
-        options: data.options ?? null,
-        quorum_type: data.quorumType,
-        quorum_basis: data.quorumBasis ?? 'votesCast',
-        quorum_threshold: data.quorumThreshold ?? null,
-        status: 'draft',
-        closes_at: data.closesAt ? new Date(data.closesAt) : null,
-        tags: data.tags ?? [],
-        meeting_event: data.meetingEvent ?? null,
-        full_document: data.fullDocument ?? null,
-        discussion_thread: data.discussionThread ?? null,
-        created_at: now,
-        created_by: authorDid,
-        indexed_at: now,
-      })
-      .returningAll()
-      .execute();
-
-    return row!;
   }
 
   async updateDraftProposal(params: {
@@ -358,9 +358,11 @@ export class ProposalService {
     this.assertProposalActionAllowed(proposal.status, 'edit');
 
     const closesAt =
-      params.data.closesAt !== undefined
-        ? new Date(params.data.closesAt)
-        : proposal.closes_at;
+      params.data.closesAt === undefined
+        ? proposal.closes_at
+        : params.data.closesAt === null
+          ? null
+          : new Date(params.data.closesAt);
     const nextProposal: ProposalRow = {
       ...proposal,
       ...(params.data.title !== undefined ? { title: params.data.title } : {}),
@@ -428,6 +430,7 @@ export class ProposalService {
   ): Promise<ProposalRow> {
     const proposal = await this._getOwnedProposal(id, actorDid, cooperativeDid);
     this.assertProposalActionAllowed(proposal.status, 'open');
+    this.assertExecutableVotingType(proposal);
 
     const now = this.clock.now();
     const [updated] = await this.db
@@ -496,6 +499,7 @@ export class ProposalService {
 
     if (!proposal) throw new NotFoundError('Proposal not found');
     this.assertProposalActionAllowed(proposal.status, 'vote');
+    this.assertExecutableVotingType(proposal);
 
     const now = this.clock.now();
     const weight = await this.weightForVote({
@@ -649,6 +653,7 @@ export class ProposalService {
 
     if (!proposal) throw new NotFoundError('Proposal not found');
     this.assertProposalActionAllowed(proposal.status, 'resolve');
+    this.assertExecutableVotingType(proposal);
 
     // Tally votes
     const votes = await this.db
@@ -805,6 +810,13 @@ export class ProposalService {
     throw new ValidationError(PROPOSAL_ACTION_ERROR_MESSAGES[action]);
   }
 
+  private assertExecutableVotingType(proposal: ProposalRow): void {
+    if (proposal.voting_type === 'binary') return;
+    throw new ValidationError(
+      `Voting type '${proposal.voting_type}' is readable but not executable`,
+    );
+  }
+
   private async writePermissionedRecordRef(args: {
     space: SpaceRef;
     authorDid: string;
@@ -873,16 +885,19 @@ export class ProposalService {
     proposal: ProposalRow,
   ): Promise<void> {
     if (!proposal.uri) return;
+    await this.deleteProposalSourceUri(proposal.uri);
+  }
 
-    const permissioned = parseSpaceRecordUri(proposal.uri);
+  private async deleteProposalSourceUri(uri: string): Promise<void> {
+    const permissioned = parseSpaceRecordUri(uri);
     if (permissioned) {
-      await this.deletePermissionedRecordIfNeeded(proposal.uri);
+      await this.deletePermissionedRecordIfNeeded(uri);
       return;
     }
 
-    const publicRecord = parsePublicRecordUri(proposal.uri);
+    const publicRecord = parsePublicRecordUri(uri);
     if (!publicRecord || publicRecord.collection !== PROPOSAL_COLLECTION) {
-      throw new Error(`Unsupported proposal source URI: ${proposal.uri}`);
+      throw new Error(`Unsupported proposal source URI: ${uri}`);
     }
     try {
       await this.pdsService.deleteRecord({
@@ -1221,7 +1236,6 @@ function proposalRecordFromCreateInput(
     body: data.body,
     bodyFormat: data.bodyFormat ?? 'text',
     votingType: data.votingType,
-    options: data.options,
     quorumType: data.quorumType,
     quorumBasis: data.quorumBasis,
     quorumThreshold: data.quorumThreshold,
@@ -1281,25 +1295,43 @@ function toIsoString(value: Date | string): string {
 function quorumConfigFromProposal(
   proposal: ProposalRow,
 ): GovernanceQuorumConfig | undefined {
-  if (proposal.quorum_type === 'none') {
-    return { type: 'none' };
-  }
+  const configuredThreshold =
+    proposal.quorum_threshold === null
+      ? null
+      : Number(proposal.quorum_threshold);
 
-  if (
-    proposal.quorum_type !== 'simpleMajority' &&
-    proposal.quorum_type !== 'superMajority'
-  ) {
-    return undefined;
+  switch (proposal.quorum_type) {
+    case 'none':
+      return { type: 'none' };
+    case 'simpleMajority':
+      return {
+        type: 'simpleMajority',
+        threshold: configuredThreshold ?? 0.5,
+        comparison: 'greaterThan',
+      };
+    case 'superMajority':
+      return {
+        type: 'superMajority',
+        threshold: configuredThreshold ?? 2 / 3,
+        comparison: 'atLeast',
+      };
+    case 'unanimous':
+      return {
+        type: 'unanimous',
+        threshold: 1,
+        comparison: 'atLeast',
+      };
+    case 'custom':
+      return {
+        type: 'custom',
+        ...(configuredThreshold === null
+          ? {}
+          : { threshold: configuredThreshold }),
+        comparison: 'atLeast',
+      };
+    default:
+      return undefined;
   }
-
-  const currentDefaultThreshold = proposal.quorum_threshold ?? 0.5;
-  return {
-    type: proposal.quorum_type,
-    threshold:
-      proposal.quorum_type === 'superMajority'
-        ? currentDefaultThreshold || 0.67
-        : currentDefaultThreshold,
-  };
 }
 
 function classQuorumRulesFromRecord(

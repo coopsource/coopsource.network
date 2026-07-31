@@ -89,6 +89,53 @@ describe('default governance plugins', () => {
     ).resolves.toEqual({ met: false, outcomeReason: 'no_quorum' });
   });
 
+  it('uses explicit semantics for every quorum mode', async () => {
+    const votes = [
+      { voter, choice: 'yes' },
+      { voter: { did: 'did:plc:second' }, choice: 'yes' },
+      { voter: { did: 'did:plc:third' }, choice: 'yes' },
+    ];
+    const input: GovernanceTallyInput = {
+      proposal,
+      cooperative,
+      eligibleVoterCount: 5,
+      votes,
+    };
+
+    await expect(
+      defaultQuorumPlugin.evaluate({
+        ...input,
+        quorum: { type: 'superMajority' },
+      }),
+    ).resolves.toEqual({ met: false, outcomeReason: 'no_quorum' });
+    await expect(
+      defaultQuorumPlugin.evaluate({
+        ...input,
+        eligibleVoterCount: 3,
+        quorum: { type: 'superMajority' },
+      }),
+    ).resolves.toEqual({ met: true, outcomeReason: 'met' });
+    await expect(
+      defaultQuorumPlugin.evaluate({
+        ...input,
+        quorum: { type: 'unanimous' },
+      }),
+    ).resolves.toEqual({ met: false, outcomeReason: 'no_quorum' });
+    await expect(
+      defaultQuorumPlugin.evaluate({
+        ...input,
+        eligibleVoterCount: 4,
+        quorum: { type: 'custom', threshold: 0.75 },
+      }),
+    ).resolves.toEqual({ met: true, outcomeReason: 'met' });
+    await expect(
+      defaultQuorumPlugin.evaluate({
+        ...input,
+        quorum: { type: 'custom' },
+      }),
+    ).resolves.toEqual({ met: false, outcomeReason: 'no_quorum' });
+  });
+
   it('keeps optional plugin surfaces as no-ops', async () => {
     const context = {
       proposal,

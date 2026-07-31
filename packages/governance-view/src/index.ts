@@ -55,6 +55,11 @@ export {
   reduceGovernanceVoteTally,
 } from './tally.js';
 
+export {
+  evaluateGovernanceHeadcountQuorum,
+  type GovernanceHeadcountQuorumResult,
+} from './quorum.js';
+
 export type {
   GovernanceProposalExpiryAction,
   GovernanceProposalLifecycleAction,

@@ -52,6 +52,58 @@ describe('CoopQuorumPlugin', () => {
     });
   });
 
+  it('applies supermajority, unanimous, and custom thresholds', async () => {
+    const plugin = createCoopQuorumPlugin();
+
+    await expect(
+      plugin.evaluate({
+        ...baseInput,
+        eligibleVoterCount: 3,
+        quorum: { type: 'superMajority' },
+      }),
+    ).resolves.toEqual({
+      met: true,
+      outcomeReason: 'met',
+    });
+    await expect(
+      plugin.evaluate({
+        ...baseInput,
+        quorum: { type: 'unanimous' },
+      }),
+    ).resolves.toEqual({
+      met: false,
+      outcomeReason: 'no_quorum',
+    });
+    await expect(
+      plugin.evaluate({
+        ...baseInput,
+        eligibleVoterCount: 4,
+        quorum: { type: 'custom', threshold: 0.75 },
+      }),
+    ).resolves.toEqual({
+      met: false,
+      outcomeReason: 'no_quorum',
+    });
+    await expect(
+      plugin.evaluate({
+        ...baseInput,
+        eligibleVoterCount: 4,
+        votes: [
+          ...baseInput.votes,
+          {
+            voter: { did: 'did:plc:carol' },
+            choice: 'yes',
+            weight: 1,
+          },
+        ],
+        quorum: { type: 'custom', threshold: 0.75 },
+      }),
+    ).resolves.toEqual({
+      met: true,
+      outcomeReason: 'met',
+    });
+  });
+
   it('evaluates class minimum vote rules after headcount quorum passes', async () => {
     const plugin = createCoopQuorumPlugin();
 

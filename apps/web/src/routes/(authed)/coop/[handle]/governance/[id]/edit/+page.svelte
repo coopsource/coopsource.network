@@ -10,7 +10,7 @@
   const initialValues = $derived({
     title: data.proposal.title,
     body: data.proposal.body,
-    closesAt: data.proposal.closesAt?.slice(0, 16) ?? '',
+    closesAt: data.proposal.closesAt ?? '',
   });
 </script>
 

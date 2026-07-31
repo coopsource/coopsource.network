@@ -1,5 +1,10 @@
 <script lang="ts">
-  import { untrack } from 'svelte';
+  import type { ProposalQuorumType } from '@coopsource/common';
+  import { onMount, untrack } from 'svelte';
+  import {
+    isoDateTimeToLocalInput,
+    localDateTimeToIso,
+  } from '$lib/utils/datetime.js';
 
   interface Props {
     initialValues?: Partial<{
@@ -16,7 +21,16 @@
   const values = $state({
     title: initial?.title ?? '',
     body: initial?.body ?? '',
-    closesAt: initial?.closesAt ?? '',
+    closesAt: '',
+  });
+  let quorumType = $state<ProposalQuorumType>('simpleMajority');
+  let quorumThresholdPercent = $state('50');
+  const closesAtIso = $derived(localDateTimeToIso(values.closesAt));
+
+  onMount(() => {
+    values.closesAt = initial?.closesAt
+      ? isoDateTimeToLocalInput(initial.closesAt)
+      : '';
   });
 </script>
 
@@ -49,18 +63,13 @@
 {#if showVotingSettings}
   <div class="grid grid-cols-2 gap-4">
     <div>
-      <label for="votingType" class="block text-sm font-medium text-[var(--cs-text-secondary)]">
+      <span class="block text-sm font-medium text-[var(--cs-text-secondary)]">
         Voting Method
-      </label>
-      <select
-        id="votingType"
-        name="votingType"
-        class="mt-1 block w-full rounded-md border border-[var(--cs-border)] px-3 py-2 text-sm focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
-      >
-        <option value="binary">Yes / No</option>
-        <option value="approval">Approval</option>
-        <option value="ranked">Ranked Choice</option>
-      </select>
+      </span>
+      <p class="mt-1 border border-[var(--cs-border)] px-3 py-2 text-sm text-[var(--cs-text)]">
+        Yes / No
+      </p>
+      <input type="hidden" name="votingType" value="binary" />
     </div>
 
     <div>
@@ -68,14 +77,35 @@
       <select
         id="quorumType"
         name="quorumType"
+        bind:value={quorumType}
         class="mt-1 block w-full rounded-md border border-[var(--cs-border)] px-3 py-2 text-sm focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
       >
         <option value="simpleMajority">Simple Majority</option>
         <option value="superMajority">Supermajority (2/3)</option>
         <option value="unanimous">Unanimous</option>
+        <option value="custom">Custom threshold</option>
       </select>
     </div>
   </div>
+
+  {#if quorumType === 'custom'}
+    <div>
+      <label for="quorumThresholdPercent" class="block text-sm font-medium text-[var(--cs-text-secondary)]">
+        Quorum threshold (%)
+      </label>
+      <input
+        id="quorumThresholdPercent"
+        name="quorumThresholdPercent"
+        type="number"
+        min="0"
+        max="100"
+        step="1"
+        required
+        bind:value={quorumThresholdPercent}
+        class="mt-1 block w-full rounded-md border border-[var(--cs-border)] px-3 py-2 text-sm focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
+      />
+    </div>
+  {/if}
 {/if}
 
 <div>
@@ -84,9 +114,10 @@
   </label>
   <input
     id="closesAt"
-    name="closesAt"
+    name="closesAtLocal"
     type="datetime-local"
     bind:value={values.closesAt}
     class="mt-1 block w-full rounded-md border border-[var(--cs-border)] px-3 py-2 text-sm focus:border-[var(--cs-border-focus)] focus:outline-none focus:ring-1 focus:ring-[var(--cs-ring)]"
   />
+  <input type="hidden" name="closesAt" value={closesAtIso} />
 </div>

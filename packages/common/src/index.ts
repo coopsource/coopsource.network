@@ -71,7 +71,9 @@ export {
   CreateProposalBodySchema,
   UpdateProposalBodySchema,
   ProposalVotingTypeSchema,
+  ExecutableProposalVotingTypeSchema,
   ProposalQuorumTypeSchema,
+  ProposalQuorumBasisSchema,
   ProposalResponseSchema,
   ProposalsResponseSchema,
   CreateAgreementBodySchema,
@@ -173,7 +175,11 @@ export {
 } from './validation.js';
 export type {
   ProposalVotingType,
+  ExecutableProposalVotingType,
   ProposalQuorumType,
+  ProposalQuorumBasis,
+  CreateProposalRequest,
+  UpdateProposalRequest,
   ProposalResponse,
   ProposalsResponse,
   CreateCooperativeInput,

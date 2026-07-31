@@ -69,6 +69,7 @@ export function formatProposal(
     voting_type: string;
     quorum_type: string;
     quorum_basis: string | null;
+    quorum_threshold: number | string | null;
     closes_at: Date | null;
     author_did: string;
     created_at: Date;
@@ -84,6 +85,8 @@ export function formatProposal(
     votingType: row.voting_type,
     quorumType: row.quorum_type,
     quorumBasis: row.quorum_basis ?? null,
+    quorumThreshold:
+      row.quorum_threshold === null ? null : Number(row.quorum_threshold),
     closesAt: row.closes_at ? row.closes_at.toISOString() : null,
     authorDid: row.author_did,
     authorDisplayName: enrichment.displayName ?? null,

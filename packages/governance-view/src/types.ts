@@ -80,8 +80,14 @@ export interface GovernanceClassQuorumRule {
 }
 
 export interface GovernanceQuorumConfig {
-  readonly type?: 'none' | 'simpleMajority' | 'superMajority';
+  readonly type?:
+    | 'none'
+    | 'simpleMajority'
+    | 'superMajority'
+    | 'unanimous'
+    | 'custom';
   readonly threshold?: number;
+  readonly comparison?: 'greaterThan' | 'atLeast';
 }
 
 export interface GovernanceTallyInput {

@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { truncateAllTables } from './helpers/test-db.js';
 import { createTestApp, setupAndLogin } from './helpers/test-app.js';
 import { resetSetupCache } from '../src/auth/middleware.js';
+import { InMemoryPermissionedRecordWritePort } from '@coopsource/spaces-consumer';
+import type { DID } from '@coopsource/common';
 
 describe('Proposals & Voting', () => {
   beforeEach(async () => {
@@ -46,11 +48,191 @@ describe('Proposals & Voting', () => {
     expect(proposal.votingType).toBe('binary');
     expect(proposal.quorumType).toBe('simpleMajority');
     expect(proposal.quorumBasis).toBeDefined();
+    expect(proposal.quorumThreshold).toBeNull();
     expect(proposal.authorDid).toBe(adminDid);
     expect(proposal.authorDisplayName).toBe('Test Admin');
     expect(proposal.createdAt).toBeDefined();
     // closesAt is null when not provided
     expect(proposal.closesAt).toBeNull();
+  });
+
+  it('rejects invalid proposal contracts before any external record write', async () => {
+    const writer = new InMemoryPermissionedRecordWritePort();
+    const testApp = createTestApp({
+      permissionedRecordWriter: writer,
+      governanceRecordPlacement: {
+        async resolveWritePlacement(request) {
+          return {
+            kind: 'permissioned-space',
+            space: {
+              arbiterDid: request.cooperativeDid as DID,
+              spaceKey: 'members',
+              expectedSpaceType: 'network.coopsource.org.spaceType.members',
+            },
+          };
+        },
+      },
+    });
+    await setupAndLogin(testApp);
+
+    const invalidBodies = [
+      {
+        title: 'Approval proposal',
+        body: 'Not executable locally',
+        votingType: 'approval',
+        quorumType: 'simpleMajority',
+      },
+      {
+        title: 'Unknown quorum',
+        body: 'Invalid quorum mode',
+        votingType: 'binary',
+        quorumType: 'unknown',
+      },
+      {
+        title: 'Missing custom threshold',
+        body: 'Invalid custom quorum',
+        votingType: 'binary',
+        quorumType: 'custom',
+      },
+      {
+        title: 'Timezone-free deadline',
+        body: 'Ambiguous voting close instant',
+        votingType: 'binary',
+        quorumType: 'simpleMajority',
+        closesAt: '2030-06-15T12:30',
+      },
+    ];
+
+    for (const body of invalidBodies) {
+      await testApp.agent.post('/api/v1/proposals').send(body).expect(400);
+    }
+
+    expect(writer.writtenRecords()).toHaveLength(0);
+
+    await expect(
+      testApp.container.proposalService.createProposal(
+        'did:plc:service-boundary-test',
+        {
+          cooperativeDid: 'did:plc:service-boundary-coop',
+          title: 'Invalid direct service call',
+          body: 'The database constraint should trigger cleanup.',
+          votingType: 'quadratic' as 'binary',
+          quorumType: 'simpleMajority',
+        },
+      ),
+    ).rejects.toBeDefined();
+
+    expect(writer.writtenRecords()).toHaveLength(0);
+    const count = await testApp.container.db
+      .selectFrom('proposal')
+      .select((eb) => eb.fn.countAll<number>().as('count'))
+      .executeTakeFirstOrThrow();
+    expect(Number(count.count)).toBe(0);
+  });
+
+  it('returns and enforces custom and unanimous quorum thresholds', async () => {
+    const testApp = createTestApp();
+    const { coopDid, adminDid } = await setupAndLogin(testApp);
+    const now = testApp.clock.now();
+    const secondMemberDid = 'did:plc:second-quorum-member';
+
+    await testApp.container.db
+      .insertInto('entity')
+      .values({
+        did: secondMemberDid,
+        type: 'person',
+        display_name: 'Second Member',
+        handle: 'second-member',
+        description: null,
+        status: 'active',
+        created_at: now,
+        indexed_at: now,
+      })
+      .execute();
+    await testApp.container.db
+      .insertInto('membership')
+      .values({
+        member_did: secondMemberDid,
+        cooperative_did: coopDid,
+        status: 'active',
+        member_class: null,
+        member_record_uri: null,
+        member_record_cid: null,
+        approval_record_uri: null,
+        approval_record_cid: null,
+        invited_by_did: adminDid,
+        invitation_id: null,
+        joined_at: now,
+        departed_at: null,
+        status_reason: null,
+        directory_visible: true,
+        created_at: now,
+        created_by: adminDid,
+        invalidated_at: null,
+        invalidated_by: null,
+        indexed_at: now,
+      })
+      .execute();
+
+    for (const quorum of [
+      { quorumType: 'custom', quorumThreshold: 0.75 },
+      { quorumType: 'unanimous' },
+    ] as const) {
+      const created = await createDraftProposal(testApp.agent, quorum);
+      expect(created.quorumThreshold).toBe(
+        quorum.quorumType === 'custom' ? 0.75 : null,
+      );
+
+      await testApp.agent
+        .post(`/api/v1/proposals/${created.id}/open`)
+        .expect(200);
+      await testApp.agent
+        .post(`/api/v1/proposals/${created.id}/vote`)
+        .send({ choice: 'yes' })
+        .expect(201);
+      await testApp.agent
+        .post(`/api/v1/proposals/${created.id}/close`)
+        .expect(200);
+      const resolved = await testApp.agent
+        .post(`/api/v1/proposals/${created.id}/resolve`)
+        .expect(200);
+
+      expect(resolved.body.outcome).toBe('no_quorum');
+    }
+  });
+
+  it('keeps imported non-binary proposals read-only', async () => {
+    const testApp = createTestApp();
+    await setupAndLogin(testApp);
+    const created = await createDraftProposal(testApp.agent);
+
+    await testApp.container.db
+      .updateTable('proposal')
+      .set({ voting_type: 'approval' })
+      .where('id', '=', created.id)
+      .execute();
+    await testApp.agent
+      .post(`/api/v1/proposals/${created.id}/open`)
+      .expect(400);
+
+    await testApp.container.db
+      .updateTable('proposal')
+      .set({ status: 'open', opens_at: testApp.clock.now() })
+      .where('id', '=', created.id)
+      .execute();
+    await testApp.agent
+      .post(`/api/v1/proposals/${created.id}/vote`)
+      .send({ choice: 'yes' })
+      .expect(400);
+
+    await testApp.container.db
+      .updateTable('proposal')
+      .set({ status: 'closed', closes_at: testApp.clock.now() })
+      .where('id', '=', created.id)
+      .execute();
+    await testApp.agent
+      .post(`/api/v1/proposals/${created.id}/resolve`)
+      .expect(400);
   });
 
   // ---------------------------------------------------------------
