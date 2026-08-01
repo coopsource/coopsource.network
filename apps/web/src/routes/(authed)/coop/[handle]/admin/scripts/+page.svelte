@@ -123,18 +123,33 @@
       <Code class="h-5 w-5 text-[var(--cs-text-secondary)]" />
       <h1 class="text-xl font-semibold text-[var(--cs-text)]">Scripts</h1>
     </div>
-    <button type="button" onclick={openCreateModal}
-      class="rounded-md bg-[var(--cs-primary)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)]">
-      New script
-    </button>
+    {#if !data.disabled}
+      <button type="button" onclick={openCreateModal}
+        class="rounded-md bg-[var(--cs-primary)] px-3 py-1.5 text-sm font-medium text-[var(--cs-text-on-primary)] hover:bg-[var(--cs-primary-hover)]">
+        New script
+      </button>
+    {/if}
   </div>
+
+  {#if data.disabled}
+    <div class="rounded-md border border-[var(--cs-border)] bg-[var(--cs-bg-card)] p-4 text-sm text-[var(--cs-text-secondary)]">
+      <p class="font-medium text-[var(--cs-text)]">Scripting is disabled</p>
+      <p class="mt-1">
+        Cooperative scripting ran untrusted code inside the API process, where it could
+        reach the process itself. It stays disabled until it runs in an isolated runner
+        outside the API. Existing scripts are retained and are not executing.
+      </p>
+    </div>
+  {/if}
 
   {#if form?.error}
     <div class="rounded-md bg-red-50 p-3 text-sm text-red-700">{form.error}</div>
   {/if}
 
   <!-- Scripts Table -->
-  {#if data.scripts.length === 0}
+  {#if data.disabled}
+    <!-- listing unavailable while scripting is disabled -->
+  {:else if data.scripts.length === 0}
     <EmptyState title="No scripts" description="Create your first pipeline script to automate record processing." />
   {:else}
     <div class="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-bg-card)]">
