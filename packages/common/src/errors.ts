@@ -22,6 +22,16 @@ export class UnauthorizedError extends AppError {
   }
 }
 
+/**
+ * The caller is authenticated but not permitted to perform this action.
+ * Distinct from `UnauthorizedError` (401), which means the caller is unknown.
+ */
+export class ForbiddenError extends AppError {
+  constructor(message = 'Forbidden') {
+    super(message, 403, 'Forbidden');
+  }
+}
+
 export class ValidationError extends AppError {
   constructor(message = 'Validation failed') {
     super(message, 400, 'ValidationError');

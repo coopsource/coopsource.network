@@ -26,6 +26,7 @@ import {
   emitMemberDeparted,
 } from '../appview/membership-events.js';
 import type { MembershipReadModel } from './membership-read-model.js';
+import { assertRolesAssignable } from './role-assignment-ceiling.js';
 
 export class MembershipService {
   constructor(
@@ -53,6 +54,12 @@ export class MembershipService {
         inviteeEmail: params.email,
         intendedRoles: params.intendedRoles ?? ['member'],
       },
+    });
+
+    await this.authorizeRoleAssignment({
+      cooperativeDid: params.cooperativeDid,
+      actorDid: params.invitedByDid,
+      requestedRoles: params.intendedRoles ?? ['member'],
     });
 
     // Check for existing pending invitation to same email
@@ -165,6 +172,12 @@ export class MembershipService {
       payload: { memberDid, roles },
     });
 
+    await this.authorizeRoleAssignment({
+      cooperativeDid,
+      actorDid,
+      requestedRoles: roles,
+    });
+
     const membership =
       await this.membershipReadModel.getProjectedMembershipStatus(
         cooperativeDid as DID,
@@ -201,6 +214,12 @@ export class MembershipService {
       actorDid,
       action: 'member.roles.assign',
       payload: { memberDid, roles },
+    });
+
+    await this.authorizeRoleAssignment({
+      cooperativeDid,
+      actorDid,
+      requestedRoles: roles,
     });
 
     this.assertCommandOk(
@@ -314,6 +333,32 @@ export class MembershipService {
       throw new ValidationError('Role must be a non-empty string');
     }
     throw new NotFoundError('Membership not found');
+  }
+
+  /**
+   * Reject role assignments that would grant more authority than the actor
+   * holds (audit S-01). The cooperative acting on its own behalf is the same
+   * system-level bypass `authorizeMemberCommand` uses.
+   */
+  private async authorizeRoleAssignment(args: {
+    readonly cooperativeDid: string;
+    readonly actorDid: string;
+    readonly requestedRoles: readonly string[];
+  }): Promise<void> {
+    if (args.actorDid === args.cooperativeDid) return;
+
+    const actor = await this.membershipReadModel.getActiveMembershipResult(
+      args.cooperativeDid as DID,
+      args.actorDid as DID,
+    );
+    const actorRoles = actor.ok ? actor.membership.roles : [];
+
+    await assertRolesAssignable({
+      db: this.db,
+      cooperativeDid: args.cooperativeDid,
+      actorRoles,
+      requestedRoles: args.requestedRoles,
+    });
   }
 
   private async authorizeMemberCommand(args: {
