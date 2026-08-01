@@ -38,14 +38,18 @@ export function createPaymentWebhookRoutes(container: Container): Router {
           return;
         }
 
+        // Scoped to the cooperative whose provider secret verified this request
+        // (S-06) — a session belonging to another cooperative must not resolve.
         const pledge = await container.fundingService.findPledgeByPaymentSession(
           webhookEvent.sessionId,
+          cooperativeDid,
+          providerId,
         );
 
         if (!pledge) {
           logger.warn(
             { sessionId: webhookEvent.sessionId, providerId, cooperativeDid },
-            'Payment webhook: no pledge found for session',
+            'Payment webhook: no pledge found for session in this cooperative',
           );
           res.json({ received: true });
           return;
