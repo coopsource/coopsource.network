@@ -173,6 +173,11 @@ async function start(): Promise<void> {
   );
   logger.info('Container created');
 
+  // Request logging. Mounted ahead of every route so nothing escapes it — the
+  // payment webhook previously mounted earlier and was never logged. Credential
+  // and signature headers are redacted (S-03).
+  app.use(httpLogger);
+
   // Health routes (always available, no auth required)
   app.use(createHealthRoutes(container.db));
 
@@ -192,7 +197,6 @@ async function start(): Promise<void> {
 
   // JSON body parsing
   app.use(express.json({ limit: '1mb' }));
-  app.use(httpLogger);
 
   // Session middleware (PostgreSQL-backed)
   app.use(createSessionMiddleware(config));
