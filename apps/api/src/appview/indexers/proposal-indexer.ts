@@ -2,14 +2,60 @@ import type { DID } from '@coopsource/common';
 import type { Database } from '@coopsource/db';
 import type { FirehoseEvent } from '@coopsource/federation';
 import type { Kysely } from 'kysely';
-import { loadProjectedMemberVoteWeight } from '../../services/membership-read-model.js';
+import { loadActiveProjectedMemberVoteWeight } from '../../services/membership-read-model.js';
+import { logger } from '../../middleware/logger.js';
 import { emitAppEvent } from '../sse.js';
 
 type RecordData = Record<string, unknown>;
 
+/**
+ * Constraints supplied by the caller that owns the authority decision.
+ *
+ * Records arriving on the public firehose carry no proof that their author may
+ * affect the cooperative they name, so the projectors below apply the
+ * application acceptance policy themselves (audit C-01). The permissioned
+ * consumer has already proved space membership cryptographically and says so
+ * with `authorityVerified`.
+ */
+export interface GovernanceProjectionConstraints {
+  readonly expectedCooperativeDid?: string;
+  readonly authorityVerified?: boolean;
+}
+
+/**
+ * An active membership in the cooperative is the minimum authority to affect
+ * its projected governance state. Fails closed on anything else.
+ */
+async function activeMemberWeight(
+  db: Kysely<Database>,
+  cooperativeDid: string,
+  memberDid: string,
+): Promise<number | null> {
+  return loadActiveProjectedMemberVoteWeight(
+    db,
+    cooperativeDid as DID,
+    memberDid as DID,
+  );
+}
+
+async function isKnownCooperative(
+  db: Kysely<Database>,
+  cooperativeDid: string,
+): Promise<boolean> {
+  const row = await db
+    .selectFrom('entity')
+    .where('did', '=', cooperativeDid)
+    .where('type', '=', 'cooperative')
+    .where('invalidated_at', 'is', null)
+    .select('did')
+    .executeTakeFirst();
+  return row !== undefined;
+}
+
 export async function indexProposal(
   db: Kysely<Database>,
   event: FirehoseEvent,
+  constraints?: GovernanceProjectionConstraints,
 ): Promise<void> {
   const indexedAt = eventDate(event);
   if (event.operation === 'delete') {
@@ -27,6 +73,33 @@ export async function indexProposal(
   const title = stringField(record.title);
   const body = stringField(record.body);
   if (!cooperativeDid || !title || body === undefined) return;
+
+  if (!constraints?.authorityVerified) {
+    if (
+      constraints?.expectedCooperativeDid &&
+      cooperativeDid !== constraints.expectedCooperativeDid
+    ) {
+      logger.warn(
+        { uri: event.uri, cooperativeDid, expected: constraints.expectedCooperativeDid },
+        'Discarding proposal declaring a different cooperative',
+      );
+      return;
+    }
+    if (!(await isKnownCooperative(db, cooperativeDid))) {
+      logger.warn(
+        { uri: event.uri, cooperativeDid, authorDid: event.did },
+        'Discarding proposal for an unknown cooperative',
+      );
+      return;
+    }
+    if ((await activeMemberWeight(db, cooperativeDid, event.did)) === null) {
+      logger.warn(
+        { uri: event.uri, cooperativeDid, authorDid: event.did },
+        'Discarding proposal from a non-member of the declared cooperative',
+      );
+      return;
+    }
+  }
 
   const existing = await db
     .selectFrom('proposal')
@@ -92,7 +165,7 @@ export async function indexProposal(
 export async function indexVote(
   db: Kysely<Database>,
   event: FirehoseEvent,
-  constraints?: { readonly expectedCooperativeDid?: string },
+  constraints?: GovernanceProjectionConstraints,
 ): Promise<boolean> {
   const indexedAt = eventDate(event);
   if (event.operation === 'delete') {
@@ -136,7 +209,7 @@ export async function indexVote(
     .selectFrom('proposal')
     .where('uri', '=', proposalUri)
     .where('invalidated_at', 'is', null)
-    .select(['id', 'cid', 'cooperative_did'])
+    .select(['id', 'cid', 'cooperative_did', 'status', 'closes_at'])
     .executeTakeFirst();
   if (!proposal) return false;
   if (
@@ -154,12 +227,41 @@ export async function indexVote(
     );
   }
 
-  const voteWeight = await loadProjectedMemberVoteWeight(
-    db,
-    proposal.cooperative_did as DID,
-    event.did as DID,
-  );
   const createdAt = dateField(record.createdAt) ?? indexedAt;
+
+  // A ballot is only counted for an active member of the proposal's own
+  // cooperative, cast while voting is actually open (audit C-01). A rejected
+  // ballot is discarded permanently, which is distinct from the `false` above
+  // that reports an ordering gap the caller may retry.
+  const voteWeight = await activeMemberWeight(
+    db,
+    proposal.cooperative_did,
+    event.did,
+  );
+  if (!constraints?.authorityVerified) {
+    if (voteWeight === null) {
+      logger.warn(
+        { uri: event.uri, cooperativeDid: proposal.cooperative_did, voterDid: event.did },
+        'Discarding vote from a non-member of the proposal cooperative',
+      );
+      return true;
+    }
+    if (proposal.status !== 'open') {
+      logger.warn(
+        { uri: event.uri, proposalStatus: proposal.status, voterDid: event.did },
+        'Discarding vote for a proposal that is not open',
+      );
+      return true;
+    }
+    if (proposal.closes_at && createdAt > proposal.closes_at) {
+      logger.warn(
+        { uri: event.uri, closesAt: proposal.closes_at, voterDid: event.did },
+        'Discarding vote cast after the proposal deadline',
+      );
+      return true;
+    }
+  }
+  const effectiveWeight = voteWeight ?? 1;
 
   await db.transaction().execute(async (transaction) => {
     await transaction
@@ -185,7 +287,7 @@ export async function indexVote(
         proposal_cid: proposalCid ?? '',
         voter_did: event.did,
         choice,
-        vote_weight: voteWeight,
+        vote_weight: effectiveWeight,
         rationale: stringField(record.rationale) ?? null,
         created_at: createdAt,
         retracted_at: null,
@@ -200,7 +302,7 @@ export async function indexVote(
           proposal_cid: proposalCid ?? '',
           voter_did: event.did,
           choice,
-          vote_weight: voteWeight,
+          vote_weight: effectiveWeight,
           rationale: stringField(record.rationale) ?? null,
           retracted_at: null,
           retracted_by: null,

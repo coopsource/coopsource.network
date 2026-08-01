@@ -195,6 +195,10 @@ describe('permissioned governance projection', () => {
         },
         time: now.toISOString(),
       },
+      // Stands in for a proposal the other cooperative projected from its own
+      // space; the public-path acceptance gate (C-01) would otherwise discard
+      // this seeding because alice is not a member of that cooperative.
+      { authorityVerified: true },
     );
 
     await expect(
