@@ -59,7 +59,7 @@ export class MembershipService {
       },
     });
 
-    await this.authorizeRoleAssignment({
+    await this.assertRoleAssignmentAllowed({
       cooperativeDid: params.cooperativeDid,
       actorDid: params.invitedByDid,
       requestedRoles: params.intendedRoles ?? ['member'],
@@ -181,7 +181,7 @@ export class MembershipService {
       payload: { memberDid, roles },
     });
 
-    await this.authorizeRoleAssignment({
+    await this.assertRoleAssignmentAllowed({
       cooperativeDid,
       actorDid,
       requestedRoles: roles,
@@ -226,7 +226,7 @@ export class MembershipService {
       payload: { memberDid, roles },
     });
 
-    await this.authorizeRoleAssignment({
+    await this.assertRoleAssignmentAllowed({
       cooperativeDid,
       actorDid,
       requestedRoles: roles,
@@ -350,8 +350,13 @@ export class MembershipService {
    * Reject role assignments that would grant more authority than the actor
    * holds (audit S-01). The cooperative acting on its own behalf is the same
    * system-level bypass `authorizeMemberCommand` uses.
+   *
+   * Public because the federation membership-approval route must apply the
+   * same ceiling: holding `member.approve` authorises admitting someone, not
+   * admitting them above the approver's own level. One implementation, so the
+   * two paths cannot drift.
    */
-  private async authorizeRoleAssignment(args: {
+  async assertRoleAssignmentAllowed(args: {
     readonly cooperativeDid: string;
     readonly actorDid: string;
     readonly requestedRoles: readonly string[];
