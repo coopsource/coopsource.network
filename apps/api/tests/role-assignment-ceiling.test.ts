@@ -41,6 +41,7 @@ async function createMemberWithRoles(
 describe('Role assignment ceiling (S-01)', () => {
   let testApp: TestApp;
   let coopDid: string;
+  let adminDid: string;
 
   beforeEach(async () => {
     await truncateAllTables();
@@ -48,6 +49,7 @@ describe('Role assignment ceiling (S-01)', () => {
     testApp = createTestApp();
     const result = await setupAndLogin(testApp);
     coopDid = result.coopDid;
+    adminDid = result.adminDid;
   });
 
   async function rolesOf(did: string): Promise<string[]> {
@@ -109,6 +111,58 @@ describe('Role assignment ceiling (S-01)', () => {
       expect(res.status).toBe(403);
     });
   }
+
+  it('a coordinator cannot strip an owner by assigning a lower role', async () => {
+    const { agent } = await coordinator();
+    const ownerDid = adminDid;
+
+    const res = await agent.put(`/api/v1/members/${ownerDid}/roles`).send({ roles: ['member'] });
+
+    expect(res.status).toBe(403);
+    expect(await rolesOf(ownerDid)).toEqual(expect.arrayContaining(['owner', 'admin']));
+  });
+
+  it('a coordinator cannot strip an owner with an empty role array', async () => {
+    const { agent } = await coordinator();
+    const ownerDid = adminDid;
+
+    const res = await agent.put(`/api/v1/members/${ownerDid}/roles`).send({ roles: [] });
+
+    expect(res.status).toBe(403);
+    expect(await rolesOf(ownerDid)).toEqual(expect.arrayContaining(['owner', 'admin']));
+  });
+
+  it('an owner can still demote another member', async () => {
+    const target = await createMemberWithRoles(testApp, {
+      email: 'demote@test.com',
+      displayName: 'Demote',
+      handle: 'demote',
+      password: 'password123',
+      roles: ['coordinator'],
+    });
+
+    await testApp.agent
+      .put(`/api/v1/members/${target.did}/roles`)
+      .send({ roles: ['member'] })
+      .expect(200);
+
+    expect(await rolesOf(target.did)).toEqual(['member']);
+  });
+
+  it('a coordinator can still demote a peer at or below their own level', async () => {
+    const { agent } = await coordinator();
+    const target = await createMemberWithRoles(testApp, {
+      email: 'peerdemote@test.com',
+      displayName: 'Peer',
+      handle: 'peerdemote',
+      password: 'password123',
+      roles: ['coordinator'],
+    });
+
+    await agent.put(`/api/v1/members/${target.did}/roles`).send({ roles: ['member'] }).expect(200);
+
+    expect(await rolesOf(target.did)).toEqual(['member']);
+  });
 
   it('rejects unknown role names', async () => {
     const target = await createMemberWithRoles(testApp, {

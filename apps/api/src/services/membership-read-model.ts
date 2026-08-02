@@ -907,28 +907,17 @@ export async function loadActiveProjectedMemberVoteWeight(
   return result.vote_weight ?? 1;
 }
 
+/**
+ * Vote weight for callers that have already established membership, where a
+ * missing row cannot mean an unknown identity. Prefer
+ * {@link loadActiveProjectedMemberVoteWeight} on any path where it can.
+ */
 export async function loadProjectedMemberVoteWeight(
   db: Kysely<Database>,
   cooperativeDid: DID,
   memberDid: DID,
 ): Promise<number> {
-  const result = await db
-    .selectFrom('membership')
-    .leftJoin('member_class', (j) =>
-      j
-        .onRef('member_class.name', '=', 'membership.member_class')
-        .onRef(
-          'member_class.cooperative_did',
-          '=',
-          'membership.cooperative_did',
-        ),
-    )
-    .where('membership.cooperative_did', '=', cooperativeDid)
-    .where('membership.member_did', '=', memberDid)
-    .where('membership.status', '=', 'active')
-    .where('membership.invalidated_at', 'is', null)
-    .select('member_class.vote_weight')
-    .executeTakeFirst();
-
-  return result?.vote_weight ?? 1;
+  return (
+    (await loadActiveProjectedMemberVoteWeight(db, cooperativeDid, memberDid)) ?? 1
+  );
 }

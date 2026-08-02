@@ -138,6 +138,58 @@ describe('Public governance acceptance gate (C-01)', () => {
     expect(votes).toEqual([]);
   });
 
+  it('re-projects a vote after its proposal resolves, so a reindex is not lossy', async () => {
+    const proposalUri = await seedMemberProposal();
+    const event = voteEvent(memberDid, proposalUri);
+    await indexVote(getTestDb(), event);
+
+    // Voting closes and the proposal resolves, then projections are rebuilt
+    // from the canonical records the way a reindex or backfill would.
+    await getTestDb()
+      .updateTable('proposal')
+      .set({ status: 'resolved' })
+      .where('uri', '=', proposalUri)
+      .execute();
+    await getTestDb().deleteFrom('vote').execute();
+
+    await indexVote(getTestDb(), event);
+
+    const votes = await getTestDb().selectFrom('vote').select('voter_did').execute();
+    expect(votes.map((v) => v.voter_did)).toEqual([memberDid]);
+  });
+
+  it('still discards a late ballot on replay, because the deadline is time-invariant', async () => {
+    const proposalUri = await seedMemberProposal();
+    await getTestDb()
+      .updateTable('proposal')
+      .set({ closes_at: new Date(Date.now() - 60_000) })
+      .where('uri', '=', proposalUri)
+      .execute();
+
+    await indexVote(getTestDb(), voteEvent(memberDid, proposalUri));
+    await indexVote(getTestDb(), voteEvent(memberDid, proposalUri));
+
+    expect(await getTestDb().selectFrom('vote').selectAll().execute()).toEqual([]);
+  });
+
+  it('projects a permissioned ballot with weight 1 when no membership row exists yet', async () => {
+    const proposalUri = await seedMemberProposal();
+    // The author is a known entity but has no projected membership row.
+    await getTestDb()
+      .insertInto('entity')
+      .values({ did: OUTSIDER, type: 'person', display_name: 'Outsider' })
+      .execute();
+
+    // Space membership is the authority on the permissioned path; the projected
+    // membership row may legitimately lag behind it.
+    await indexVote(getTestDb(), voteEvent(OUTSIDER, proposalUri), {
+      authorityVerified: true,
+    });
+
+    const votes = await getTestDb().selectFrom('vote').select(['voter_did', 'vote_weight']).execute();
+    expect(votes).toEqual([{ voter_did: OUTSIDER, vote_weight: 1 }]);
+  });
+
   it('reports an absent proposal as an ordering gap, not a rejection', async () => {
     const missing = `at://${memberDid}/network.coopsource.governance.proposal/absent`;
 

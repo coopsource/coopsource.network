@@ -92,6 +92,39 @@ describe('Cooperative admission policy (S-02)', () => {
     expect(await membershipStatus('requester@test.com')).toBe('pending');
   });
 
+  it('does not announce a join for a membership that is only pending', async () => {
+    await setPolicy('request_approval');
+    const { sseEmitter } = await import('../src/appview/sse.js');
+    const seen: string[] = [];
+    const listener = (event: { type: string }) => seen.push(event.type);
+    sseEmitter.on('event', listener);
+
+    try {
+      await register('pendingjoin@test.com').expect(201);
+    } finally {
+      sseEmitter.off('event', listener);
+    }
+
+    expect(await membershipStatus('pendingjoin@test.com')).toBe('pending');
+    expect(seen).not.toContain('member.joined');
+  });
+
+  it('still announces a join when the policy admits directly', async () => {
+    await setPolicy('open');
+    const { sseEmitter } = await import('../src/appview/sse.js');
+    const seen: string[] = [];
+    const listener = (event: { type: string }) => seen.push(event.type);
+    sseEmitter.on('event', listener);
+
+    try {
+      await register('openjoin@test.com').expect(201);
+    } finally {
+      sseEmitter.off('event', listener);
+    }
+
+    expect(seen).toContain('member.joined');
+  });
+
   it('setup stores the policy the operator chose', async () => {
     await truncateAllTables();
     resetSetupCache();

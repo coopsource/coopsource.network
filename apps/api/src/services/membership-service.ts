@@ -26,7 +26,10 @@ import {
   emitMemberDeparted,
 } from '../appview/membership-events.js';
 import type { MembershipReadModel } from './membership-read-model.js';
-import { assertRolesAssignable } from './role-assignment-ceiling.js';
+import {
+  assertRolesAssignable,
+  loadCurrentMemberRoles,
+} from './role-assignment-ceiling.js';
 
 export class MembershipService {
   constructor(
@@ -176,6 +179,7 @@ export class MembershipService {
       cooperativeDid,
       actorDid,
       requestedRoles: roles,
+      targetDid: memberDid,
     });
 
     const membership =
@@ -220,6 +224,7 @@ export class MembershipService {
       cooperativeDid,
       actorDid,
       requestedRoles: roles,
+      targetDid: memberDid,
     });
 
     this.assertCommandOk(
@@ -344,6 +349,8 @@ export class MembershipService {
     readonly cooperativeDid: string;
     readonly actorDid: string;
     readonly requestedRoles: readonly string[];
+    /** Omitted when the subject holds no roles yet, as for a new invitation. */
+    readonly targetDid?: string;
   }): Promise<void> {
     if (args.actorDid === args.cooperativeDid) return;
 
@@ -353,10 +360,15 @@ export class MembershipService {
     );
     const actorRoles = actor.ok ? actor.membership.roles : [];
 
+    const currentRoles = args.targetDid
+      ? await loadCurrentMemberRoles(this.db, args.cooperativeDid, args.targetDid)
+      : [];
+
     await assertRolesAssignable({
       db: this.db,
       cooperativeDid: args.cooperativeDid,
       actorRoles,
+      currentRoles,
       requestedRoles: args.requestedRoles,
     });
   }

@@ -226,7 +226,11 @@ export class AuthService {
     }
 
     const did = artifacts.did;
-    emitMemberJoined(cooperativeDid, did);
+    // A request-and-approve registration has not joined anything yet; the join
+    // is announced when an approver admits them (audit S-02).
+    if (admissionStatus === 'active') {
+      emitMemberJoined(cooperativeDid, did);
+    }
 
     return {
       did,

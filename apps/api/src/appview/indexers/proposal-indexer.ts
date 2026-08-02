@@ -230,9 +230,22 @@ export async function indexVote(
   const createdAt = dateField(record.createdAt) ?? indexedAt;
 
   // A ballot is only counted for an active member of the proposal's own
-  // cooperative, cast while voting is actually open (audit C-01). A rejected
-  // ballot is discarded permanently, which is distinct from the `false` above
-  // that reports an ordering gap the caller may retry.
+  // cooperative, cast before the deadline (audit C-01). A rejected ballot is
+  // discarded permanently, which is distinct from the `false` above that
+  // reports an ordering gap the caller may retry.
+  //
+  // Both tests are deliberately time-invariant: they compare the record's own
+  // `createdAt` against a stored deadline, so replaying a record reaches the
+  // same verdict it did the first time. Testing the proposal's *current*
+  // status would not — a reindex after voting closed would silently discard
+  // every ballot for it, and Postgres is a projection cache that has to be
+  // rebuildable from the repos. Rejecting ballots on a draft or resolved
+  // proposal belongs with Phase 4's governance-boundary snapshot.
+  //
+  // The membership test carries a smaller version of the same sensitivity: a
+  // member who later departs would have their historical ballot discarded on
+  // replay. That is finding L-07, and Phase 4's eligibility snapshot resolves
+  // it; membership cannot simply be dropped here because it is the C-01 fix.
   const voteWeight = await activeMemberWeight(
     db,
     proposal.cooperative_did,
@@ -246,13 +259,6 @@ export async function indexVote(
       );
       return true;
     }
-    if (proposal.status !== 'open') {
-      logger.warn(
-        { uri: event.uri, proposalStatus: proposal.status, voterDid: event.did },
-        'Discarding vote for a proposal that is not open',
-      );
-      return true;
-    }
     if (proposal.closes_at && createdAt > proposal.closes_at) {
       logger.warn(
         { uri: event.uri, closesAt: proposal.closes_at, voterDid: event.did },
@@ -260,6 +266,18 @@ export async function indexVote(
       );
       return true;
     }
+  }
+
+  // On the permissioned path space membership is the authority, and the
+  // projected membership row may legitimately lag it. Weight 1 is the same
+  // default an active member without a weighted class receives — but it is a
+  // deliberate choice here rather than the silent `?? 1` that C-01 was about,
+  // so it is recorded.
+  if (voteWeight === null) {
+    logger.warn(
+      { uri: event.uri, cooperativeDid: proposal.cooperative_did, voterDid: event.did },
+      'Projecting authority-verified vote at default weight; no projected membership row',
+    );
   }
   const effectiveWeight = voteWeight ?? 1;
 
