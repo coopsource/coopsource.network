@@ -1,5 +1,12 @@
 # Deployment Guide — Co-op Source Network
 
+> **Not production-ready.** The [2026-07-31 audit](./docs/plans/2026-07-31-complete-codebase-audit-and-refactor-plan.md)
+> found this system unsafe to deploy or operate as documented. Do not use it
+> for real financial records, legally binding signatures, confidential member
+> data, or real cooperative decisions until the P0 and P1 gates in that plan
+> are complete. Keep `SPACES_CONSUMER_ENABLED=false` outside conformance
+> environments.
+
 This document covers development modes, test modes, environment variable reference, Docker Compose stacks, Make targets, PDS setup, and production/private network deployment details.
 
 For architecture and design principles see [README.md](./README.md). For ATProto federation design see [ARCHITECTURE-V6.md](./ARCHITECTURE-V6.md).

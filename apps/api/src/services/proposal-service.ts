@@ -281,6 +281,9 @@ export class ProposalService {
       await this.governanceRecordPlacement.resolveWritePlacement({
         cooperativeDid: data.cooperativeDid,
         collection,
+        // The row below is inserted as `draft`; publishing the text before the
+        // cooperative has opened it is irreversible (audit C-03).
+        lifecycleState: 'draft',
       });
 
     let ref: RecordRef | undefined;

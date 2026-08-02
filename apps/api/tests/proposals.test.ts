@@ -474,15 +474,24 @@ describe('Proposals & Voting', () => {
       .where('id', '=', created.id)
       .select(['uri'])
       .executeTakeFirstOrThrow();
-    const source = await testApp.container.db
+    // A draft is Tier 2 (C-03): its canonical copy lives in the permissioned
+    // store and never in the public repo.
+    const published = await testApp.container.db
       .selectFrom('pds_record')
       .where('uri', '=', row.uri!)
-      .select(['content', 'deleted_at'])
+      .select(['uri'])
+      .executeTakeFirst();
+    expect(published).toBeUndefined();
+
+    const source = await testApp.container.db
+      .selectFrom('private_record')
+      .where('collection', '=', 'network.coopsource.governance.proposal')
+      .select(['record'])
       .executeTakeFirstOrThrow();
     const content =
-      typeof source.content === 'string'
-        ? JSON.parse(source.content)
-        : source.content;
+      typeof source.record === 'string'
+        ? JSON.parse(source.record)
+        : source.record;
     expect(content).toMatchObject({
       title: 'Updated title',
       body: created.body,
@@ -492,7 +501,6 @@ describe('Proposals & Voting', () => {
       discussionThread:
         'at://did:plc:frontpage/fyi.unravel.frontpage.post/thread1',
     });
-    expect(source.deleted_at).toBeNull();
   });
 
   // ---------------------------------------------------------------
@@ -758,12 +766,14 @@ describe('Proposals & Voting', () => {
       .where('id', '=', created.id)
       .select(['uri'])
       .executeTakeFirstOrThrow();
-    const source = await testApp.container.db
-      .selectFrom('pds_record')
-      .where('uri', '=', row.uri!)
-      .select(['deleted_at'])
-      .executeTakeFirstOrThrow();
-    expect(source.deleted_at).not.toBeNull();
+    // The draft was written to the permissioned store (C-03), so deletion is
+    // observed there rather than on a public repo record.
+    const remaining = await testApp.container.db
+      .selectFrom('private_record')
+      .where('collection', '=', 'network.coopsource.governance.proposal')
+      .select(['rkey'])
+      .execute();
+    expect(remaining).toEqual([]);
 
     // Should no longer appear in list
     const listRes = await testApp.agent.get('/api/v1/proposals').expect(200);

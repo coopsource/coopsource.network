@@ -248,6 +248,7 @@ describe('Governance Visibility', () => {
       {
         cooperativeDid: coopDid,
         collection: 'network.coopsource.governance.proposal',
+        lifecycleState: 'draft',
       },
       {
         cooperativeDid: coopDid,
