@@ -168,8 +168,19 @@ describe('GovernanceTier2MigrationReadinessService', () => {
 
   it('counts public governance projections without treating them as candidates', async () => {
     const testApp = createTestApp();
-    const { coopDid } = await setupAndLogin(testApp);
-    await createProposal(testApp, 'public proposal');
+    const { coopDid, adminDid } = await setupAndLogin(testApp);
+    const proposal = await createProposal(testApp, 'public proposal');
+    // Creation now places drafts in a permissioned space (C-03), so stand this
+    // one up the way the public firehose projects an already-public proposal.
+    await testApp.container.db
+      .deleteFrom('private_record')
+      .where('collection', '=', 'network.coopsource.governance.proposal')
+      .execute();
+    await testApp.container.db
+      .updateTable('proposal')
+      .set({ uri: `at://${adminDid}/network.coopsource.governance.proposal/public1` })
+      .where('id', '=', proposal.id)
+      .execute();
 
     const report = await new GovernanceTier2MigrationReadinessService(testApp.container.db).inspect(
       coopDid,
@@ -191,6 +202,12 @@ describe('GovernanceTier2MigrationReadinessService', () => {
     const testApp = createTestApp();
     const { coopDid } = await setupAndLogin(testApp);
     const proposal = await createProposal(testApp, 'malformed location');
+    // Drop the permissioned source created alongside the draft (C-03) so the
+    // malformed location is the only blocker under test.
+    await testApp.container.db
+      .deleteFrom('private_record')
+      .where('collection', '=', 'network.coopsource.governance.proposal')
+      .execute();
     await testApp.container.db
       .updateTable('proposal')
       .set({ uri: `at://${coopDid}/space/incomplete/extra` })
