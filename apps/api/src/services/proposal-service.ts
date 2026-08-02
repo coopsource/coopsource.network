@@ -533,12 +533,29 @@ export class ProposalService {
             record: voteRecord,
           });
 
+    // A ballot inherits its proposal's placement. Publishing a vote for a
+    // permissioned proposal would put the proposal's space URI on the public
+    // firehose, and that URI names the cooperative, the collection, the rkey,
+    // and the DID of the member who authored the proposal — Tier 2 metadata
+    // about a record the reader cannot resolve (ARCHITECTURE-V12 §8).
+    const proposalSpace = proposal.uri ? parseSpaceRecordUri(proposal.uri) : null;
+
     let ref: RecordRef | undefined;
     try {
       const placement =
         await this.governanceRecordPlacement.resolveWritePlacement({
           cooperativeDid: proposal.cooperative_did,
           collection,
+          ...(proposalSpace
+            ? {
+                visibilityOverride: 'private' as const,
+                space: {
+                  arbiterDid: proposalSpace.spaceDid as DID,
+                  spaceKey: proposalSpace.skey,
+                  expectedSpaceType: proposalSpace.spaceType,
+                },
+              }
+            : {}),
         });
       if (placement.kind === 'permissioned-space') {
         ref = await this.writePermissionedRecordRef({

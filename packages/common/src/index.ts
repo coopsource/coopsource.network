@@ -69,6 +69,7 @@ export {
   CreateInvitationSchema,
   AcceptInvitationSchema,
   UpdateRolesSchema,
+  ApproveMembershipSchema,
   CreateProposalBodySchema,
   UpdateProposalBodySchema,
   ProposalVotingTypeSchema,

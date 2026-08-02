@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { truncateAllTables, getTestDb } from './helpers/test-db.js';
+import { createTestApp, setupAndLogin } from './helpers/test-app.js';
+import { resetSetupCache } from '../src/auth/middleware.js';
 import { CsnDbGovernanceRecordPlacementPort } from '../src/services/governance-record-placement-port.js';
 
 /**
@@ -21,6 +23,7 @@ describe('Tier 2 placement containment (C-03)', () => {
 
   beforeEach(async () => {
     await truncateAllTables();
+    resetSetupCache();
     port = new CsnDbGovernanceRecordPlacementPort(getTestDb());
     await getTestDb()
       .insertInto('entity')
@@ -149,6 +152,38 @@ describe('Tier 2 placement containment (C-03)', () => {
     });
 
     expect(placement.kind).toBe('public-repo');
+  });
+
+  it('never publishes a permissioned space URI on a public record', async () => {
+    // A vote is a members-space collection, so under `open` visibility it is
+    // published. Its proposal is now Tier 2, and the permissioned URI names the
+    // cooperative, the collection, the rkey, and the DID of the member who
+    // authored the proposal — so publishing a reference to it puts Tier 2
+    // metadata on the public firehose (ARCHITECTURE-V12 §8).
+    const app = createTestApp();
+    await setupAndLogin(app);
+
+    const created = await app.agent
+      .post('/api/v1/proposals')
+      .send({ title: 'Sensitive', body: 'Body', votingType: 'binary', quorumType: 'simpleMajority' })
+      .expect(201);
+    await app.agent.post(`/api/v1/proposals/${created.body.id}/open`).expect(200);
+    await app.agent
+      .post(`/api/v1/proposals/${created.body.id}/vote`)
+      .send({ choice: 'yes' })
+      .expect(201);
+
+    const publicRecords = await getTestDb()
+      .selectFrom('pds_record')
+      .select(['uri', 'content'])
+      .execute();
+
+    for (const record of publicRecords) {
+      const content =
+        typeof record.content === 'string' ? record.content : JSON.stringify(record.content);
+      expect(content).not.toContain('/space/');
+      expect(content).not.toContain('"private"');
+    }
   });
 
   it('still keeps everything permissioned under closed visibility', async () => {

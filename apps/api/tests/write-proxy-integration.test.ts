@@ -70,6 +70,17 @@ describe('Write proxy integration (dev-mode fallback)', () => {
       .post(`/api/v1/proposals/${proposalRes.body.id}/open`)
       .expect(200);
 
+    // A ballot inherits its proposal's placement (C-03), and a newly created
+    // proposal is Tier 2. Stand this one up as an already-public proposal so
+    // the vote takes the public write path this test is about.
+    await testApp.container.db
+      .updateTable('proposal')
+      .set({
+        uri: `at://did:plc:testauthor/network.coopsource.governance.proposal/public1`,
+      })
+      .where('id', '=', proposalRes.body.id)
+      .execute();
+
     // Cast a vote — this triggers ProposalService.castVote()
     // which writes governance.vote via MemberWriteProxy
     await testApp.agent

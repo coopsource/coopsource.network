@@ -785,6 +785,10 @@ export const UpdateRolesSchema = z.object({
   roles: z.array(z.string().min(1)).max(10),
 });
 
+export const ApproveMembershipSchema = z.object({
+  roles: z.array(z.string().min(1)).max(10).optional(),
+});
+
 export const ProposalVotingTypeSchema = z.enum([
   'binary',
   'approval',

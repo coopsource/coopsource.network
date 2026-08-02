@@ -125,6 +125,75 @@ describe('Cooperative admission policy (S-02)', () => {
     expect(seen).toContain('member.joined');
   });
 
+  it('an admin can see and admit a pending applicant', async () => {
+    await setPolicy('request_approval');
+    const applicant = supertest.agent(testApp.app);
+    const reg = await applicant
+      .post('/api/v1/auth/register')
+      .send({
+        email: 'applicant@test.com',
+        password: 'password123',
+        displayName: 'Applicant',
+        handle: 'applicant',
+      })
+      .expect(201);
+
+    // The applicant holds a session but is not yet a member.
+    await applicant.get('/api/v1/auth/me').expect(401);
+
+    const pending = await testApp.agent.get('/api/v1/members?status=pending').expect(200);
+    expect(pending.body.members.map((m: { did: string }) => m.did)).toContain(reg.body.did);
+
+    await testApp.agent
+      .post(`/api/v1/members/${reg.body.did}/approve`)
+      .send({ roles: ['member'] })
+      .expect(204);
+
+    expect(await membershipStatus('applicant@test.com')).toBe('active');
+    await applicant.get('/api/v1/auth/me').expect(200);
+  });
+
+  it('approving cannot grant roles beyond the approver', async () => {
+    await setPolicy('request_approval');
+    // A coordinator holds member.approve but not the wildcard.
+    const invite = await testApp.agent
+      .post('/api/v1/invitations')
+      .send({ email: 'coord@test.com', roles: ['coordinator'] })
+      .expect(201);
+    const coordinator = supertest.agent(testApp.app);
+    await coordinator
+      .post(`/api/v1/invitations/${invite.body.token}/accept`)
+      .send({
+        email: 'coord@test.com',
+        displayName: 'Coord',
+        handle: 'coord',
+        password: 'password123',
+      })
+      .expect(201);
+    await coordinator
+      .post('/api/v1/auth/login')
+      .send({ email: 'coord@test.com', password: 'password123' })
+      .expect(200);
+
+    const applicant = supertest.agent(testApp.app);
+    const reg = await applicant
+      .post('/api/v1/auth/register')
+      .send({
+        email: 'escalate@test.com',
+        password: 'password123',
+        displayName: 'Escalate',
+        handle: 'escalate',
+      })
+      .expect(201);
+
+    const res = await coordinator
+      .post(`/api/v1/members/${reg.body.did}/approve`)
+      .send({ roles: ['owner'] });
+
+    expect(res.status).toBe(403);
+    expect(await membershipStatus('escalate@test.com')).toBe('pending');
+  });
+
   it('setup stores the policy the operator chose', async () => {
     await truncateAllTables();
     resetSetupCache();

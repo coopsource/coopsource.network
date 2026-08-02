@@ -162,7 +162,13 @@ export class MembershipService {
     return { invitation: { ...inv, status: 'accepted' } as InvitationRow };
   }
 
-  async approveInvitation(
+  /**
+   * Admit a member whose membership is pending — a request under a
+   * request-and-approve admission policy, or an invitation awaiting approval.
+   * The role ceiling applies, so an approver cannot admit someone at a level
+   * above their own (audit S-01, S-02).
+   */
+  async approveMembership(
     cooperativeDid: string,
     memberDid: string,
     roles: string[],
