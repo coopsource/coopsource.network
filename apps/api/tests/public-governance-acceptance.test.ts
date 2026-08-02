@@ -91,6 +91,18 @@ describe('Public governance acceptance gate (C-01)', () => {
     expect(await proposalCount()).toBe(0);
   });
 
+  it('discards a proposal for a suspended cooperative', async () => {
+    await getTestDb()
+      .updateTable('entity')
+      .set({ status: 'suspended' })
+      .where('did', '=', coopDid)
+      .execute();
+
+    await indexProposal(getTestDb(), proposalEvent(memberDid, coopDid));
+
+    expect(await proposalCount()).toBe(0);
+  });
+
   it('still projects a proposal authored by an active member', async () => {
     await seedMemberProposal();
 

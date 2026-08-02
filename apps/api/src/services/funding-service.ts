@@ -444,13 +444,12 @@ export class FundingService {
       .where('funding_pledge.payment_session_id', '=', sessionId)
       .where('funding_campaign.did', '=', cooperativeDid);
 
+    // Exact match, including against NULL. `createCheckoutSession` writes
+    // payment_session_id and payment_provider together, so a session always has
+    // a recorded provider; tolerating NULL here would only let a cooperative's
+    // other providers claim a session whose own provider was lost.
     if (providerId) {
-      query = query.where((eb) =>
-        eb.or([
-          eb('funding_pledge.payment_provider', '=', providerId),
-          eb('funding_pledge.payment_provider', 'is', null),
-        ]),
-      );
+      query = query.where('funding_pledge.payment_provider', '=', providerId);
     }
 
     const row = await query.selectAll('funding_pledge').executeTakeFirst();

@@ -26,6 +26,9 @@ describe('Request log redaction (S-03)', () => {
       res.setHeader('set-cookie', 'coopsource_sid=SUPERSECRET_SESSION; Path=/');
       res.status(200).json({ ok: true });
     });
+    app.get('/health', (_req, res) => {
+      res.status(200).json({ status: 'ok' });
+    });
 
     return { app, lines: () => chunks.join('') };
   }
@@ -57,6 +60,14 @@ describe('Request log redaction (S-03)', () => {
     await request(app).get('/probe').expect(200);
 
     expect(lines()).not.toContain('SUPERSECRET_SESSION');
+  });
+
+  it('does not log health probes, which poll continuously', async () => {
+    const { app, lines } = appWithCapturedLogs();
+
+    await request(app).get('/health').expect(200);
+
+    expect(lines()).toBe('');
   });
 
   it('still logs useful request metadata', async () => {

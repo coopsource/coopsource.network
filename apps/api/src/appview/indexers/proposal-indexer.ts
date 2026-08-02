@@ -38,6 +38,11 @@ async function activeMemberWeight(
   );
 }
 
+/**
+ * A suspended or deleted cooperative is not a valid destination for projected
+ * governance: suspension is a moderation decision, so records naming it are
+ * discarded rather than accumulating against it.
+ */
 async function isKnownCooperative(
   db: Kysely<Database>,
   cooperativeDid: string,
@@ -46,6 +51,7 @@ async function isKnownCooperative(
     .selectFrom('entity')
     .where('did', '=', cooperativeDid)
     .where('type', '=', 'cooperative')
+    .where('status', '=', 'active')
     .where('invalidated_at', 'is', null)
     .select('did')
     .executeTakeFirst();

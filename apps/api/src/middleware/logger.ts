@@ -35,6 +35,13 @@ export const REDACT_PATHS = SECRET_HEADERS.flatMap((header) => [
   `res.headers["${header}"]`,
 ]);
 
+/**
+ * Endpoints polled continuously by infrastructure rather than driven by users.
+ * Logging them buries real traffic without adding information — the container
+ * healthcheck alone hits `/health` on a fixed interval forever.
+ */
+const UNLOGGED_PATHS = new Set(['/health']);
+
 export function createHttpLogger(
   destination?: import('node:stream').Writable,
 ): ReturnType<typeof createPinoHttp> {
@@ -42,6 +49,14 @@ export function createHttpLogger(
   return createPinoHttp({
     logger: target,
     redact: { paths: REDACT_PATHS, censor: '[Redacted]' },
+    autoLogging: {
+      ignore: (req: unknown) => {
+        const url = (req as { readonly url?: unknown }).url;
+        if (typeof url !== 'string') return false;
+        const path = url.split('?')[0];
+        return path !== undefined && UNLOGGED_PATHS.has(path);
+      },
+    },
   });
 }
 

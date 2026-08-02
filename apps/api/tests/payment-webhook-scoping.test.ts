@@ -134,6 +134,35 @@ describe('Payment webhook cooperative scoping (S-06)', () => {
     expect(await pledgeStatus(VICTIM_COOP)).toBe('completed');
   });
 
+  it("does not resolve a session through another provider's webhook", async () => {
+    const wrongProvider = await testApp.container.fundingService.findPledgeByPaymentSession(
+      VICTIM_SESSION,
+      VICTIM_COOP,
+      'some-other-provider',
+    );
+
+    expect(wrongProvider).toBeNull();
+  });
+
+  it('does not let any provider claim a session whose provider is unrecorded', async () => {
+    // createCheckoutSession always writes payment_session_id and
+    // payment_provider together, so this shape should not occur — but the
+    // lookup must not fall open if it ever does.
+    await getTestDb()
+      .updateTable('funding_pledge')
+      .set({ payment_provider: null })
+      .where('did', '=', VICTIM_COOP)
+      .execute();
+
+    const claimed = await testApp.container.fundingService.findPledgeByPaymentSession(
+      VICTIM_SESSION,
+      VICTIM_COOP,
+      'some-other-provider',
+    );
+
+    expect(claimed).toBeNull();
+  });
+
   it('scopes the session lookup to the cooperative at the service layer', async () => {
     const asAttacker = await testApp.container.fundingService.findPledgeByPaymentSession(
       VICTIM_SESSION,
