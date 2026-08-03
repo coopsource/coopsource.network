@@ -19,6 +19,7 @@ export {
   CreateInterestSchema,
   UpdateInterestSchema,
   CreateOutcomeSchema,
+  AgreementTypeEnum,
   CreateMasterAgreementSchema,
   UpdateMasterAgreementSchema,
   CreateStakeholderTermsSchema,

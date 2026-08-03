@@ -73,7 +73,7 @@ export interface AgreementMaster {
   version: number;
   purpose?: string;
   scope?: string;
-  agreementType?: 'worker-cooperative' | 'multi-stakeholder' | 'platform-cooperative' | 'open-source' | 'producer-cooperative' | 'hybrid-member-investor' | 'custom' | (string & {});
+  agreementType?: 'worker-cooperative' | 'multi-stakeholder' | 'platform-cooperative' | 'open-source' | 'producer-cooperative' | 'hybrid-member-investor' | 'operating' | 'custom' | (string & {});
   effectiveDate?: string;
   terminationDate?: string;
   governanceFramework?: GovernanceFramework;

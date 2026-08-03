@@ -577,6 +577,7 @@ export const lexicons = [
                 "open-source",
                 "producer-cooperative",
                 "hybrid-member-investor",
+                "operating",
                 "custom"
               ]
             },

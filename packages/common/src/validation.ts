@@ -162,21 +162,22 @@ const TerminationConditionsSchema = z.object({
   consequences: z.string().max(2000).optional(),
 });
 
+export const AgreementTypeEnum = z.enum([
+  'worker-cooperative',
+  'multi-stakeholder',
+  'platform-cooperative',
+  'open-source',
+  'producer-cooperative',
+  'hybrid-member-investor',
+  'operating',
+  'custom',
+]);
+
 export const CreateMasterAgreementSchema = z.object({
   title: z.string().min(1).max(255),
   purpose: z.string().max(3000).optional(),
   scope: z.string().max(3000).optional(),
-  agreementType: z
-    .enum([
-      'worker-cooperative',
-      'multi-stakeholder',
-      'platform-cooperative',
-      'open-source',
-      'producer-cooperative',
-      'hybrid-member-investor',
-      'custom',
-    ])
-    .default('custom'),
+  agreementType: AgreementTypeEnum.default('custom'),
   governanceFramework: GovernanceFrameworkSchema.optional(),
   disputeResolution: DisputeResolutionSchema.optional(),
   amendmentProcess: AmendmentProcessSchema.optional(),
@@ -278,34 +279,14 @@ const TemplateDataSchema = z.object({
 export const CreateAgreementTemplateSchema = z.object({
   name: z.string().min(1).max(255),
   description: z.string().max(2000).optional(),
-  agreementType: z
-    .enum([
-      'worker-cooperative',
-      'multi-stakeholder',
-      'platform-cooperative',
-      'open-source',
-      'producer-cooperative',
-      'hybrid-member-investor',
-      'custom',
-    ])
-    .default('custom'),
+  agreementType: AgreementTypeEnum.default('custom'),
   templateData: TemplateDataSchema.default({}),
 });
 
 export const UpdateAgreementTemplateSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   description: z.string().max(2000).optional(),
-  agreementType: z
-    .enum([
-      'worker-cooperative',
-      'multi-stakeholder',
-      'platform-cooperative',
-      'open-source',
-      'producer-cooperative',
-      'hybrid-member-investor',
-      'custom',
-    ])
-    .optional(),
+  agreementType: AgreementTypeEnum.optional(),
   templateData: TemplateDataSchema.optional(),
 });
 
