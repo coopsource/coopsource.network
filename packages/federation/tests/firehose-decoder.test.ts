@@ -138,8 +138,7 @@ describe('firehose-decoder', () => {
     const events = decodeFirehoseMessage(data);
 
     expect(events).toHaveLength(1);
-    expect(events[0]!.operation).toBe('update');
-    expect(events[0]!.cid).toBe('bafyupdated');
+    expect(events[0]).toMatchObject({ operation: 'update', cid: 'bafyupdated' });
   });
 });
 

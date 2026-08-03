@@ -77,7 +77,7 @@ describe('BUILT_IN_ROLES', () => {
     const validKeys = new Set(Object.keys(PERMISSIONS));
     for (const [roleName, def] of Object.entries(BUILT_IN_ROLES)) {
       for (const perm of def.permissions) {
-        if (perm === '*') continue;
+        if ((perm as string) === '*') continue;
         expect(validKeys.has(perm as Permission)).toBe(true);
       }
     }

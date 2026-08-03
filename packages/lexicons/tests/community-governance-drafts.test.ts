@@ -106,7 +106,7 @@ describe('community governance draft lexicons', () => {
 
     for (const id of DRAFT_IDS) {
       const result = lexicons.validate(id, SAMPLE_RECORDS[id]);
-      expect(result.success, `${id}: ${String(result.error)}`).toBe(true);
+      expect(result.success, result.success ? id : `${id}: ${String(result.error)}`).toBe(true);
     }
   });
 
