@@ -1,6 +1,9 @@
 # Agent Learnings — hazards, traps, and time-savers
 
-Working notes for whoever picks this repo up next, human or agent. Everything
+Working notes for whoever picks this repo up next, human or agent. Companions:
+[agent-debugging-playbook.md](./agent-debugging-playbook.md) (how to find root
+cause) and [agent-testing-practices.md](./agent-testing-practices.md) (how to
+write tests that catch these). Everything
 here was verified by reading the cited line or by executing it; where a claim is
 second-hand it says so. Entries are dated because the codebase moves — **check
 the citation before relying on it.**
