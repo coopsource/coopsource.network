@@ -153,6 +153,70 @@ describe('Cooperative admission policy (S-02)', () => {
     await applicant.get('/api/v1/auth/me').expect(200);
   });
 
+  it('approving cannot reverse a suspension', async () => {
+    // `member.approve` admits a pending applicant. Reinstating a suspended
+    // member is `member.remove`. Without a status check, approve launders one
+    // permission into the other.
+    const invite = await testApp.agent
+      .post('/api/v1/invitations')
+      .send({ email: 'susp-coord@test.com', roles: ['coordinator'] })
+      .expect(201);
+    const coordinator = supertest.agent(testApp.app);
+    await coordinator
+      .post(`/api/v1/invitations/${invite.body.token}/accept`)
+      .send({
+        email: 'susp-coord@test.com',
+        displayName: 'Coord',
+        handle: 'suspcoord',
+        password: 'password123',
+      })
+      .expect(201);
+    await coordinator
+      .post('/api/v1/auth/login')
+      .send({ email: 'susp-coord@test.com', password: 'password123' })
+      .expect(200);
+
+    const victimInvite = await testApp.agent
+      .post('/api/v1/invitations')
+      .send({ email: 'victim@test.com', roles: ['member'] })
+      .expect(201);
+    const victim = supertest.agent(testApp.app);
+    const victimAcc = await victim
+      .post(`/api/v1/invitations/${victimInvite.body.token}/accept`)
+      .send({
+        email: 'victim@test.com',
+        displayName: 'Victim',
+        handle: 'victimx',
+        password: 'password123',
+      })
+      .expect(201);
+
+    await testApp.agent
+      .post(`/api/v1/members/${victimAcc.body.member.did}/suspend`)
+      .send({})
+      .expect(204);
+
+    // The coordinator lacks member.remove, so reinstate is correctly refused.
+    await coordinator
+      .post(`/api/v1/members/${victimAcc.body.member.did}/reinstate`)
+      .send({})
+      .expect(403);
+
+    // Approve must not be a second door to the same outcome.
+    const res = await coordinator
+      .post(`/api/v1/members/${victimAcc.body.member.did}/approve`)
+      .send({ roles: ['member'] });
+
+    expect(res.status).toBe(409);
+
+    const status = await getTestDb()
+      .selectFrom('membership')
+      .where('member_did', '=', victimAcc.body.member.did)
+      .select('status')
+      .executeTakeFirst();
+    expect(status?.status).toBe('suspended');
+  });
+
   it('approving cannot grant roles beyond the approver', async () => {
     await setPolicy('request_approval');
     // A coordinator holds member.approve but not the wildcard.

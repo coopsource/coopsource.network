@@ -150,7 +150,7 @@ describe('Write proxy integration (dev-mode fallback)', () => {
     const ref = await testApp.container.operatorWriteProxy.writeCoopRecord({
       operatorDid: adminDid,
       cooperativeDid: coopDid as import('@coopsource/common').DID,
-      collection: 'network.coopsource.admin.memberNotice',
+      collection: 'network.coopsource.org.cooperative',
       record: {
         title: 'Operator notice',
         body: 'Test',
@@ -169,6 +169,6 @@ describe('Write proxy integration (dev-mode fallback)', () => {
 
     expect(logs).toHaveLength(1);
     expect(logs[0]!.operator_did).toBe(adminDid);
-    expect(logs[0]!.collection).toBe('network.coopsource.admin.memberNotice');
+    expect(logs[0]!.collection).toBe('network.coopsource.org.cooperative');
   });
 });

@@ -198,6 +198,16 @@ export class MembershipService {
       throw new NotFoundError('Membership not found');
     }
 
+    // Approval admits a *pending* applicant and nothing else. `addMember`
+    // unconditionally sets status to active, so without this check approving a
+    // suspended member reinstates them — turning `member.approve` into a second
+    // door to `member.remove`'s reinstate, with a weaker audit trail.
+    if (membership.status !== 'pending') {
+      throw new ConflictError(
+        `Membership is ${membership.status}, not pending; approval does not apply`,
+      );
+    }
+
     const now = this.clock.now();
     this.assertCommandOk(
       await this.groupMutations.addMember({

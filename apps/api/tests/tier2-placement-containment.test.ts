@@ -186,6 +186,81 @@ describe('Tier 2 placement containment (C-03)', () => {
     }
   });
 
+  /**
+   * The port-level assertions above are necessary but not sufficient: they
+   * prove the port decides correctly, not that writers consult it. These drive
+   * the real routes and assert against the public repo itself, which is the
+   * only thing that actually matters.
+   */
+  describe('real write paths', () => {
+    it('does not publish stakeholder terms to the public repo', async () => {
+      const app = createTestApp();
+      await setupAndLogin(app);
+
+      const agreement = await app.agent
+        .post('/api/v1/agreements')
+        .send({
+          title: 'Operating Agreement',
+          agreementType: 'worker-cooperative',
+          body: 'Terms body',
+        })
+        .expect(201);
+
+      await app.agent
+        .post(`/api/v1/agreements/${encodeURIComponent(agreement.body.uri)}/terms`)
+        .send({
+          stakeholderDid: 'did:web:member.example',
+          stakeholderType: 'worker',
+          financialTerms: { profitShare: 10 },
+          governanceRights: { votingPower: 1 },
+        });
+
+      const published = await getTestDb()
+        .selectFrom('pds_record')
+        .where('collection', '=', 'network.coopsource.agreement.stakeholderTerms')
+        .select('uri')
+        .execute();
+      expect(published).toEqual([]);
+    });
+
+    it('does not publish funding pledges to the public repo', async () => {
+      const app = createTestApp();
+      const { coopDid } = await setupAndLogin(app);
+
+      const campaign = await app.agent
+        .post('/api/v1/campaigns')
+        .send({
+          beneficiaryUri: `at://${coopDid}/network.coopsource.org.cooperative/self`,
+          title: 'Equipment Fund',
+          description: 'Buy equipment',
+          tier: 'cooperative',
+          campaignType: 'donation',
+          goalAmount: 100000,
+          fundingModel: 'keep_it_all',
+        })
+        .expect(201);
+
+      await app.agent
+        .post(`/api/v1/campaigns/${encodeURIComponent(campaign.body.uri)}/status`)
+        .send({ status: 'active' })
+        .expect(200);
+
+      // The pledge must be genuinely attempted, or the assertion below is
+      // vacuous — a rejected pledge writes nothing for trivial reasons.
+      const pledgeRes = await app.agent
+        .post(`/api/v1/campaigns/${encodeURIComponent(campaign.body.uri)}/pledge`)
+        .send({ amount: 5000, currency: 'USD' });
+      expect(pledgeRes.status).not.toBe(400);
+
+      const published = await getTestDb()
+        .selectFrom('pds_record')
+        .where('collection', '=', 'network.coopsource.funding.pledge')
+        .select('uri')
+        .execute();
+      expect(published).toEqual([]);
+    });
+  });
+
   it('still keeps everything permissioned under closed visibility', async () => {
     await setVisibility('closed');
 
