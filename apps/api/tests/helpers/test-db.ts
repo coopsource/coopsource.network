@@ -12,28 +12,102 @@ import { fileURLToPath } from 'node:url';
 import { promises as fs } from 'node:fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const TEST_DB_NAME = 'coopsource_test';
-const ADMIN_URL = 'postgresql://localhost:5432/postgres';
 
+/**
+ * Each run gets its own database.
+ *
+ * A shared name made `createTestDb`'s drop-and-recreate destructive to any
+ * concurrent run — the victim then fails on the first table of
+ * `truncateAllTables`, which looks like a mass product regression rather than
+ * a harness collision. It also put this suite in contention with the Playwright
+ * harness over ownership of `coopsource_test`, which previously needed a manual
+ * `psql DROP` between the two.
+ *
+ * Set `TEST_DATABASE_URL` to pin a specific database instead (turbo.json
+ * already passes it through), and `TEST_DB_KEEP=1` to leave it behind for
+ * post-mortem inspection.
+ */
+export function perRunConnectionString(): string {
+  return `postgresql://localhost:5432/coopsource_test_${process.pid}`;
+}
+
+/**
+ * Resolved once in the global setup and exported to the workers, because tests
+ * run in forked processes whose `process.pid` differs from the one that created
+ * the database.
+ */
 export function getTestConnectionString(): string {
-  return (
-    process.env.TEST_DATABASE_URL ??
-    `postgresql://localhost:5432/${TEST_DB_NAME}`
+  return process.env.TEST_DATABASE_URL ?? perRunConnectionString();
+}
+
+/** Env marker distinguishing a database this run created from one pinned by the caller. */
+export const OWNED_DB_ENV = 'TEST_DATABASE_OWNED';
+
+/**
+ * The database a run owns. It reaches DDL, where it cannot be parameterised,
+ * so it must be a bare identifier — and it is now attacker-adjacent in the
+ * sense that it comes from the environment rather than a literal.
+ */
+export function getTestDbName(
+  connectionString: string = getTestConnectionString(),
+): string {
+  const name = decodeURIComponent(
+    new URL(connectionString).pathname.replace(/^\//, ''),
   );
+  if (!/^[A-Za-z0-9_]+$/.test(name)) {
+    throw new Error(
+      `Refusing to use test database name '${name}': expected a bare identifier`,
+    );
+  }
+  return name;
+}
+
+/** Same server and credentials as the target, pointed at `postgres`. */
+export function getAdminConnectionString(
+  connectionString: string = getTestConnectionString(),
+): string {
+  if (process.env.TEST_DATABASE_ADMIN_URL) {
+    return process.env.TEST_DATABASE_ADMIN_URL;
+  }
+  const url = new URL(connectionString);
+  url.pathname = '/postgres';
+  return url.toString();
 }
 
 export async function createTestDb(): Promise<void> {
-  const client = new pg.Client({ connectionString: ADMIN_URL });
+  const dbName = getTestDbName();
+  const client = new pg.Client({ connectionString: getAdminConnectionString() });
   await client.connect();
   try {
     // Drop and recreate to ensure clean migration state
     // Terminate any active connections first
     await client.query(
       `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()`,
-      [TEST_DB_NAME],
+      [dbName],
     );
-    await client.query(`DROP DATABASE IF EXISTS ${TEST_DB_NAME}`);
-    await client.query(`CREATE DATABASE ${TEST_DB_NAME}`);
+    await client.query(`DROP DATABASE IF EXISTS "${dbName}"`);
+    await client.query(`CREATE DATABASE "${dbName}"`);
+  } finally {
+    await client.end();
+  }
+}
+
+/**
+ * Drops the database this run created. A database pinned by the caller through
+ * `TEST_DATABASE_URL` is theirs, not ours to remove.
+ */
+export async function dropTestDb(): Promise<void> {
+  if (process.env[OWNED_DB_ENV] !== '1' || process.env.TEST_DB_KEEP) return;
+
+  const dbName = getTestDbName();
+  const client = new pg.Client({ connectionString: getAdminConnectionString() });
+  await client.connect();
+  try {
+    await client.query(
+      `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()`,
+      [dbName],
+    );
+    await client.query(`DROP DATABASE IF EXISTS "${dbName}"`);
   } finally {
     await client.end();
   }
