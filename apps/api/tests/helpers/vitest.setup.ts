@@ -3,6 +3,7 @@ import {
   migrateTestDb,
   destroyTestDb,
   dropTestDb,
+  sweepOrphanedTestDbs,
   perRunConnectionString,
   OWNED_DB_ENV,
 } from './test-db.js';
@@ -15,6 +16,9 @@ export async function setup(): Promise<void> {
     process.env.TEST_DATABASE_URL = perRunConnectionString();
     process.env[OWNED_DB_ENV] = '1';
   }
+
+  // Reclaim databases from runs that were killed before teardown.
+  await sweepOrphanedTestDbs();
 
   await createTestDb();
   await migrateTestDb();

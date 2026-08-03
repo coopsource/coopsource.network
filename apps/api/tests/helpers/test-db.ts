@@ -51,10 +51,20 @@ export const OWNED_DB_ENV = 'TEST_DATABASE_OWNED';
 export function getTestDbName(
   connectionString: string = getTestConnectionString(),
 ): string {
-  const name = decodeURIComponent(
-    new URL(connectionString).pathname.replace(/^\//, ''),
-  );
-  if (!/^[A-Za-z0-9_]+$/.test(name)) {
+  let url: URL;
+  try {
+    url = new URL(connectionString);
+  } catch {
+    throw new Error(
+      `TEST_DATABASE_URL must be a URL (postgresql://host:port/name), got '${connectionString}'. ` +
+        'libpq keyword strings are not supported here.',
+    );
+  }
+
+  const name = decodeURIComponent(url.pathname.replace(/^\//, ''));
+  // Hyphens are common in hosted database names and are safe because the
+  // identifier is quoted at every DDL site; quotes and semicolons are not.
+  if (!/^[A-Za-z0-9_-]+$/.test(name)) {
     throw new Error(
       `Refusing to use test database name '${name}': expected a bare identifier`,
     );
@@ -113,6 +123,52 @@ export async function dropTestDb(): Promise<void> {
   }
 }
 
+/**
+ * Removes per-run databases left behind by runs that died before teardown —
+ * a killed process, a crashed CI job. Without this, owning a database per run
+ * trades a collision problem for an accumulation problem.
+ *
+ * Deliberately conservative: only names this harness generates, and only when
+ * the owning process is gone. A pid that has been reused by an unrelated
+ * process just means the database survives another round, which is harmless;
+ * dropping one out from under a live run would not be.
+ */
+export function selectOrphanedTestDbs(datnames: readonly string[]): string[] {
+  return datnames.filter((datname) => {
+    const match = /^coopsource_test_(\d+)$/.exec(datname);
+    if (!match) return false;
+
+    const pid = Number(match[1]);
+    if (!Number.isInteger(pid) || pid <= 0) return false;
+
+    try {
+      // Signal 0 performs the permission/existence check without delivering.
+      process.kill(pid, 0);
+      return false; // still running — not ours to reclaim
+    } catch (err) {
+      // EPERM means the process exists under another user; only ESRCH is proof
+      // that nothing is running.
+      return (err as NodeJS.ErrnoException).code === 'ESRCH';
+    }
+  });
+}
+
+export async function sweepOrphanedTestDbs(): Promise<void> {
+  const client = new pg.Client({ connectionString: getAdminConnectionString() });
+  await client.connect();
+  try {
+    const { rows } = await client.query<{ datname: string }>(
+      `SELECT datname FROM pg_database WHERE datname LIKE 'coopsource\\_test\\_%'`,
+    );
+
+    for (const datname of selectOrphanedTestDbs(rows.map((r) => r.datname))) {
+      await client.query(`DROP DATABASE IF EXISTS "${datname}"`);
+    }
+  } finally {
+    await client.end();
+  }
+}
+
 export async function migrateTestDb(): Promise<void> {
   const db = getTestDb();
   const migrationsPath = path.resolve(
@@ -155,6 +211,7 @@ export async function truncateAllTables(): Promise<void> {
     TRUNCATE TABLE
       tax_form_1099_patr, capital_account_transaction, capital_account,
       patronage_record, patronage_config,
+      expense, expense_category, revenue_entry,
       fiscal_period, member_notice, compliance_item, admin_officer,
       meeting_record, legal_document,
       frontpage_post_ref, calendar_event_ref, governance_label,

@@ -4,6 +4,7 @@ import {
   getTestDbName,
   getAdminConnectionString,
   perRunConnectionString,
+  selectOrphanedTestDbs,
 } from './helpers/test-db.js';
 
 /**
@@ -55,5 +56,57 @@ describe('test database isolation', () => {
     // The name reaches DDL, where it cannot be parameterised.
     expect(() => getTestDbName('postgresql://localhost:5432/evil";DROP DATABASE x;--')).toThrow();
     expect(() => getTestDbName('postgresql://localhost:5432/')).toThrow();
+  });
+});
+
+/**
+ * Teardown does not run when a process is killed, so per-run databases from
+ * crashed runs would otherwise accumulate forever — which undercuts the whole
+ * point of owning one per run.
+ *
+ * These exercise the selection, not the DDL, deliberately. An earlier version
+ * created and dropped real databases here, and `CREATE`/`DROP DATABASE` take
+ * heavyweight locks that stalled unrelated tests to the point of 30s timeouts.
+ * The risk in a sweep is choosing the wrong name, and that is entirely in the
+ * selection.
+ */
+describe('orphaned per-run database selection', () => {
+  /** A pid with no live process. */
+  function deadPid(): number {
+    for (let candidate = 999_999; candidate > 900_000; candidate--) {
+      try {
+        process.kill(candidate, 0);
+      } catch {
+        return candidate;
+      }
+    }
+    throw new Error('could not find a dead pid');
+  }
+
+  it('selects databases whose owning process is gone', () => {
+    const orphan = `coopsource_test_${deadPid()}`;
+
+    expect(selectOrphanedTestDbs([orphan])).toEqual([orphan]);
+  });
+
+  it('never selects a database whose process is alive', () => {
+    const live = `coopsource_test_${process.pid}`;
+
+    expect(selectOrphanedTestDbs([live])).toEqual([]);
+  });
+
+  it('never selects anything that is not a per-run database', () => {
+    // `coopsource_test` belongs to the Playwright harness; the others are dev
+    // and federation databases that must survive.
+    expect(
+      selectOrphanedTestDbs([
+        'coopsource_test',
+        'coopsource_dev',
+        'coopsource_hub',
+        'coopsource_test_sweepguard',
+        'coopsource_v91_gate_test',
+        'postgres',
+      ]),
+    ).toEqual([]);
   });
 });

@@ -90,11 +90,34 @@ A run failing on **`tax_form_1099_patr`** — the first table in
 harness (or a concurrent run), not the product. This previously produced
 hundreds of phantom failures that read as mass regressions.
 
-### `expense` is missing from `truncateAllTables`
+### Keep `truncateAllTables` complete
 
-Verified 2026-08-02: `apps/api/tests/helpers/test-db.ts` does not truncate
-`expense`, so expense rows leak across test files and can produce
-order-dependent results. Add it when you next touch that list.
+`apps/api/tests/helpers/test-db.ts` truncates an explicit table list, so a new
+table silently leaks rows across test files until someone adds it. `expense`,
+`expense_category`, and `revenue_entry` were missing until 2026-08-02. When you
+add a table to `packages/db/src/schema.ts`, add it here in the same commit.
+
+### Do not run `CREATE`/`DROP DATABASE` inside the normal suite
+
+Both take heavyweight locks. Tests that created and dropped real databases
+mid-run stalled *unrelated* tests to the point of 30-second timeouts — and the
+resulting failures pointed at innocent files (`posts.test.ts`), which is close
+to undiagnosable if you do not know DDL was running alongside.
+
+If you need to test database-lifecycle logic, split the decision from the
+execution and unit-test the decision. `selectOrphanedTestDbs()` is the worked
+example: the risk in a sweep is choosing the wrong name, and that is entirely
+in the selection, so the selection is pure and tested and the DDL is not
+exercised by the suite at all.
+
+### Orphaned per-run databases are reclaimed at setup
+
+`sweepOrphanedTestDbs()` runs before `createTestDb()` and drops
+`coopsource_test_<pid>` databases whose owning process is gone (`process.kill(pid, 0)`
+throwing `ESRCH`). `EPERM` means the process exists under another user and is
+deliberately *not* treated as dead. Without this, killed runs accumulate
+databases forever — owning one per run otherwise trades a collision problem for
+a litter problem.
 
 ### The test container is a second implementation of the real one
 
@@ -257,3 +280,6 @@ ARCHITECTURE-V12 §12. The canonical repo moved to
 
 - **2026-08-02** — created during the tranche-1 audit remediation program.
   Sections 1–6 as above.
+- **2026-08-02** — added the DDL-in-tests hazard and the orphan sweep after a
+  self-review found that testing the sweep against a real server was itself
+  destabilising the suite.
