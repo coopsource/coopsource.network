@@ -165,6 +165,8 @@ describe('Declarative hooks (P7)', () => {
         title: 'Board Meeting Q1',
         meeting_type: 'board',
         meeting_date: new Date(),
+        attendee_dids: [],
+        resolutions: [],
       })
       .execute();
 
@@ -213,6 +215,8 @@ describe('Declarative hooks (P7)', () => {
         constraints: '[]',
         red_lines: '[]',
         preferences: '{}',
+        created_at: new Date(),
+        updated_at: new Date(),
       })
       .execute();
 
