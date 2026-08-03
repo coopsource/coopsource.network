@@ -15,6 +15,7 @@
   "scripts": {
     "prebuild": "rm -rf dist",
     "build": "tsc",
+    "typecheck": "tsc --noEmit -p tsconfig.test.json",
     "lex:generate": "npx @atproto/lex-cli gen-ts-obj network/coopsource/**/*.json > src/generated/lexicons.ts",
     "test": "vitest run",
     "clean": "rm -rf dist"
@@ -22,6 +23,7 @@
   "devDependencies": {
     "@atproto/lex-cli": "^0.9.8",
     "@coopsource/config": "workspace:*",
+    "@types/node": "^25.3.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.4"
