@@ -13,7 +13,7 @@ import {
   streamText,
   stepCountIs,
   type ModelMessage,
-  type StopCondition,
+  type StepResult,
 } from 'ai';
 import { ModelProviderRegistry } from './model-provider-registry.js';
 import { buildAiSdkTools, type AgentToolContext } from './tools/index.js';
@@ -25,8 +25,12 @@ const DOOM_LOOP_THRESHOLD = 3;
 
 // ── Doom loop detection (inspired by opencode's processor.ts) ──────────
 // Checks if the last 3 tool calls are identical (same tool, same params).
+// Typed to the single field it reads rather than the whole `StepResult`, so it
+// stays assignable to the AI SDK's `StopCondition` at the `stopWhen` sites
+// below while callers need only supply `toolCalls`.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const detectDoomLoop: StopCondition<any> = ({ steps }) => {
+type DoomLoopStep = Pick<StepResult<any>, 'toolCalls'>;
+const detectDoomLoop = ({ steps }: { steps: readonly DoomLoopStep[] }): boolean => {
   if (steps.length < DOOM_LOOP_THRESHOLD) return false;
   const recentCalls = steps
     .slice(-DOOM_LOOP_THRESHOLD)
