@@ -206,7 +206,9 @@ describe('Tier 2 placement containment (C-03)', () => {
         })
         .expect(201);
 
-      await app.agent
+      // Assert the refusal explicitly: a write rejected for some unrelated
+      // reason would satisfy the pds_record assertion below vacuously.
+      const termsRes = await app.agent
         .post(`/api/v1/agreements/${encodeURIComponent(agreement.body.uri)}/terms`)
         .send({
           stakeholderDid: 'did:web:member.example',
@@ -214,6 +216,7 @@ describe('Tier 2 placement containment (C-03)', () => {
           financialTerms: { profitShare: 10 },
           governanceRights: { votingPower: 1 },
         });
+      expect(termsRes.status).toBe(501);
 
       const published = await getTestDb()
         .selectFrom('pds_record')
@@ -250,7 +253,7 @@ describe('Tier 2 placement containment (C-03)', () => {
       const pledgeRes = await app.agent
         .post(`/api/v1/campaigns/${encodeURIComponent(campaign.body.uri)}/pledge`)
         .send({ amount: 5000, currency: 'USD' });
-      expect(pledgeRes.status).not.toBe(400);
+      expect(pledgeRes.status).toBe(501);
 
       const published = await getTestDb()
         .selectFrom('pds_record')

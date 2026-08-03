@@ -106,6 +106,11 @@ export class MemberWriteProxy implements IMemberRecordWriter {
     rkey: string;
     record: Record<string, unknown>;
   }): Promise<RecordRef> {
+    // Same boundary as writeRecord: this path reaches the member's PDS without
+    // going through IPdsService, and update publishes a record just as create
+    // does (C-03). Guarding only create leaves an equivalent way in.
+    assertPublicWriteAllowed(params.collection);
+
     if (!this.oauthClient) {
       return this.handleNoOAuthUpdate(params, 'No OAuth client configured');
     }
