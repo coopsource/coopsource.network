@@ -25,7 +25,7 @@
             "format": "datetime"
           },
           "payload": {
-            "type": "object",
+            "type": "unknown",
             "description": "Event-specific data."
           }
         }

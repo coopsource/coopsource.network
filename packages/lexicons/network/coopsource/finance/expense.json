@@ -17,7 +17,7 @@
           "description": { "type": "string", "maxLength": 2000 },
           "amount": { "type": "number", "minimum": 0 },
           "currency": { "type": "string", "maxLength": 10 },
-          "receiptBlobCid": { "type": "string", "format": "cid-link" },
+          "receiptBlobCid": { "type": "string", "format": "cid" },
           "status": {
             "type": "string",
             "knownValues": ["draft", "submitted", "approved", "rejected", "reimbursed"]
