@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { membersSpace } from '@coopsource/arbiter-client';
+import type { DID } from '@coopsource/common';
 import { truncateAllTables } from './helpers/test-db.js';
 import { createTestApp, setupAndLogin } from './helpers/test-app.js';
 import { resetSetupCache } from '../src/auth/middleware.js';
@@ -199,7 +200,7 @@ describe('Delegation Voting API', () => {
     if (!proposal.uri) {
       throw new Error('Expected proposal URI');
     }
-    const memberSpace = membersSpace(coopDid);
+    const memberSpace = membersSpace(coopDid as DID);
 
     const result =
       await testApp.container.governanceView.plugins.delegateChains.resolve({

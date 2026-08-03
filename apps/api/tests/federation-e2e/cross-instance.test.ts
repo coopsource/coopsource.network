@@ -10,6 +10,9 @@
  * Tests exercise both public GET endpoints and signed POST endpoints.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+// `JsonWebKey` is not a global under `lib: ["ES2022"]`; @types/node exposes it
+// on the `webcrypto` namespace rather than as a top-level `node:crypto` export.
+import type { webcrypto } from 'node:crypto';
 import pg from 'pg';
 import { Kysely, PostgresDialect } from 'kysely';
 import type { Database } from '@coopsource/db';
@@ -74,7 +77,7 @@ async function resolveSigningKey(
   ) as JwkKey;
   const privateKey = await crypto.subtle.importKey(
     'jwk',
-    privateJwk as JsonWebKey,
+    privateJwk as webcrypto.JsonWebKey,
     { name: 'ECDSA', namedCurve: 'P-256' },
     false,
     ['sign'],

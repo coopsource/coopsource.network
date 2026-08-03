@@ -10,6 +10,7 @@ import { truncateAllTables } from './helpers/test-db.js';
 import { createTestApp, setupAndLogin } from './helpers/test-app.js';
 import { resetSetupCache } from '../src/auth/middleware.js';
 import type {
+  GovernanceRecordPlacement,
   GovernanceRecordPlacementPort,
   GovernanceRecordPlacementRequest,
 } from '../src/services/governance-record-placement-port.js';
@@ -149,7 +150,7 @@ describe('Governance Visibility', () => {
         cooperativeDid: coopDid,
         collection: 'network.coopsource.governance.proposal',
       });
-    expect(closedResult.kind).toBe('permissioned-space');
+    assertPermissionedSpace(closedResult);
     expect(closedResult.space).toEqual({
       arbiterDid: coopDid,
       spaceKey: 'members',
@@ -176,7 +177,7 @@ describe('Governance Visibility', () => {
         collection: 'network.coopsource.governance.vote',
         visibilityOverride: 'private',
       });
-    expect(mixedPrivateResult.kind).toBe('permissioned-space');
+    assertPermissionedSpace(mixedPrivateResult);
     expect(mixedPrivateResult.space).toMatchObject({
       arbiterDid: coopDid,
       spaceKey: 'members',
@@ -277,7 +278,8 @@ describe('Governance Visibility', () => {
       .where('id', '=', vote.body.id)
       .select('uri')
       .executeTakeFirstOrThrow();
-    expect(parseSpaceRecordUri(voteRow.uri)).toMatchObject({
+    expect(voteRow.uri).not.toBeNull();
+    expect(parseSpaceRecordUri(voteRow.uri!)).toMatchObject({
       spaceDid: coopDid,
       authorDid: adminDid,
       collection: 'network.coopsource.governance.vote',
@@ -320,7 +322,8 @@ describe('Governance Visibility', () => {
       .selectAll()
       .executeTakeFirstOrThrow();
     expect(vote.cid).toBe('private');
-    expect(parseSpaceRecordUri(vote.uri)).toMatchObject({
+    expect(vote.uri).not.toBeNull();
+    expect(parseSpaceRecordUri(vote.uri!)).toMatchObject({
       spaceDid: coopDid,
       spaceType: 'network.coopsource.org.spaceType.members',
       skey: 'members',
@@ -678,7 +681,8 @@ describe('Governance Visibility', () => {
       .select(['uri', 'cid'])
       .executeTakeFirstOrThrow();
     expect(proposal.cid).toBe('private');
-    expect(parseSpaceRecordUri(proposal.uri)).toMatchObject({
+    expect(proposal.uri).not.toBeNull();
+    expect(parseSpaceRecordUri(proposal.uri!)).toMatchObject({
       spaceDid: coopDid,
       collection: 'network.coopsource.governance.proposal',
     });
@@ -885,4 +889,15 @@ class FailingPermissionedRecordWriter implements PermissionedRecordWritePort {
     await Promise.resolve();
     throw new Error('permissioned delete unavailable');
   }
+}
+
+/**
+ * Narrows a placement to its permissioned-space variant. Carries the same
+ * assertion the callers made inline before (`kind === 'permissioned-space'`),
+ * and additionally lets TypeScript see `.space`.
+ */
+function assertPermissionedSpace(
+  placement: GovernanceRecordPlacement,
+): asserts placement is Extract<GovernanceRecordPlacement, { kind: 'permissioned-space' }> {
+  expect(placement.kind).toBe('permissioned-space');
 }

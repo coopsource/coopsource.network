@@ -98,7 +98,7 @@ describe('permissioned governance projection', () => {
         ...vote,
         operation: 'update',
         cid: 'bafy-vote-2' as CID,
-        record: { ...vote.record, choice: 'no' },
+        record: { ...fieldsOf(vote.record), choice: 'no' },
       },
       new Date('2026-07-30T12:01:00Z'),
     );
@@ -153,7 +153,7 @@ describe('permissioned governance projection', () => {
         testApp.container.db,
         {
           ...vote,
-          record: { ...vote.record, voterDid: aliceDid },
+          record: { ...fieldsOf(vote.record), voterDid: aliceDid },
         },
         now,
       ),
@@ -167,7 +167,7 @@ describe('permissioned governance projection', () => {
         {
           ...proposalChange(),
           record: {
-            ...proposalChange().record,
+            ...fieldsOf(proposalChange().record),
             cooperative: 'did:plc:other',
           },
         },
@@ -225,7 +225,7 @@ describe('permissioned governance projection', () => {
         testApp.container.db,
         {
           ...vote,
-          record: { ...vote.record, choice: undefined },
+          record: { ...fieldsOf(vote.record), choice: undefined },
         },
         now,
       ),
@@ -235,7 +235,7 @@ describe('permissioned governance projection', () => {
         testApp.container.db,
         {
           ...vote,
-          record: { ...vote.record, proposalCid: 'bafy-stale' },
+          record: { ...fieldsOf(vote.record), proposalCid: 'bafy-stale' },
         },
         now,
       ),
@@ -317,4 +317,12 @@ function membership(memberDid: DID) {
     created_at: now,
     indexed_at: now,
   };
+}
+
+/**
+ * `VerifiedPermissionedRecord.record` is declared `unknown`; the fixtures above
+ * build it as an object literal, so narrow it to a record before spreading.
+ */
+function fieldsOf(record: unknown): Record<string, unknown> {
+  return record as Record<string, unknown>;
 }

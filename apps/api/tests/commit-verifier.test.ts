@@ -19,10 +19,12 @@ async function exportPublicKeyJwk(key: CryptoKey): Promise<Record<string, unknow
 }
 
 async function signData(privateKey: CryptoKey, data: Uint8Array): Promise<Uint8Array> {
+  // `BufferSource` requires an `ArrayBuffer`-backed view (TS 5.9 generic typed
+  // arrays); `data` is `Uint8Array<ArrayBufferLike>`, so copy it into one.
   const sig = await crypto.subtle.sign(
     { name: 'ECDSA', hash: 'SHA-256' },
     privateKey,
-    data,
+    new Uint8Array(data),
   );
   return new Uint8Array(sig);
 }

@@ -235,11 +235,9 @@ describe('GovernanceTier2CopyService', () => {
       .execute();
     const service = copyService(fixture.testApp, new InMemoryPermissionedRecordWritePort());
 
-    await expect(service.copy(fixture.coopDid)).rejects.toMatchObject<
-      Partial<GovernanceTier2CopyBlockedError>
-    >({
+    await expect(service.copy(fixture.coopDid)).rejects.toMatchObject({
       code: 'readiness_blocked',
-    });
+    } satisfies Partial<GovernanceTier2CopyBlockedError>);
     const ledger = await fixture.testApp.container.db
       .selectFrom('tier2_governance_migration')
       .select('projection_id')
