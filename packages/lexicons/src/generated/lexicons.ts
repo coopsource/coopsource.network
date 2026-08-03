@@ -1913,6 +1913,49 @@ export const lexicons = [
   },
   {
     "lexicon": 1,
+    "id": "network.coopsource.connection.sync",
+    "defs": {
+      "main": {
+        "type": "record",
+        "description": "A synchronization event for a connection binding (placeholder for Phase 3).",
+        "key": "tid",
+        "record": {
+          "type": "object",
+          "required": [
+            "bindingUri",
+            "eventType",
+            "timestamp"
+          ],
+          "properties": {
+            "bindingUri": {
+              "type": "string",
+              "format": "at-uri",
+              "description": "The connection binding this sync event relates to."
+            },
+            "eventType": {
+              "type": "string",
+              "description": "The type of sync event.",
+              "knownValues": [
+                "push",
+                "pull",
+                "webhook"
+              ]
+            },
+            "timestamp": {
+              "type": "string",
+              "format": "datetime"
+            },
+            "payload": {
+              "type": "unknown",
+              "description": "Event-specific data."
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "lexicon": 1,
     "id": "network.coopsource.finance.expenseApproval",
     "defs": {
       "main": {

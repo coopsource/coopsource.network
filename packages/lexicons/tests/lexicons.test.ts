@@ -1,9 +1,31 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
 import { lexiconSchemas, LEXICON_IDS } from '../src/index.js';
 
+const GENERATED_FILE = fileURLToPath(new URL('../src/generated/lexicons.ts', import.meta.url));
+
+describe('generated module hygiene', () => {
+  // Regression guard: `lex-cli gen-ts-obj` prints validation diagnostics to stdout,
+  // interleaved with the module it generates. The old `lex:generate` piped stdout
+  // straight into this file, so any failing lexicon injected English prose into a
+  // .ts file. See scripts/generate-lexicons.mjs.
+  it('contains no lex-cli diagnostic prose', () => {
+    const source = readFileSync(GENERATED_FILE, 'utf8');
+    expect(source).not.toMatch(/Issues at |Invalid lexicon |Invalid discriminator/);
+    expect(source.startsWith('export const lexicons = [')).toBe(true);
+  });
+
+  it('is pure data after the export prefix', () => {
+    const source = readFileSync(GENERATED_FILE, 'utf8');
+    const payload = source.slice('export const lexicons = '.length).trim().replace(/;$/, '');
+    expect(() => JSON.parse(payload)).not.toThrow();
+  });
+});
+
 describe('lexicon schemas', () => {
-  it('should export all 44 valid lexicon schemas', () => {
-    expect(lexiconSchemas).toHaveLength(44);
+  it('should export all 45 valid lexicon schemas', () => {
+    expect(lexiconSchemas).toHaveLength(45);
   });
 
   it('should contain all expected lexicon IDs', () => {
@@ -30,6 +52,7 @@ describe('lexicon schemas', () => {
       'network.coopsource.commerce.resource',
       'network.coopsource.connection.binding',
       'network.coopsource.connection.link',
+      'network.coopsource.connection.sync',
       'network.coopsource.finance.expenseApproval',
       'network.coopsource.funding.campaign',
       'network.coopsource.funding.pledge',
