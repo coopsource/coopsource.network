@@ -12,6 +12,7 @@ export default defineConfig({
     pool: 'forks',
     maxWorkers: 1,
     isolate: false,
+    include: ['tests/**/*.test.ts', 'src/**/*.test.ts'],
     exclude: ['tests/federation-e2e/**', 'node_modules/**'],
     server: {
       deps: {
