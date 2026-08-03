@@ -137,23 +137,38 @@ the same commit, or the tests are describing a system that does not exist.
 
 ## 3. Build, typecheck, and deployment
 
-*Second-hand from a multi-agent review 2026-08-02 except where marked verified;
-re-confirm before acting.*
+*Verified by building and running the images on 2026-08-02 unless marked
+second-hand.*
 
-### Neither production image builds
+### Both production images build (fixed 2026-08-02) — and how they broke
 
-- `apps/api/Dockerfile` — fails with TypeScript errors; omits the
-  `governance-view` and `coop-view` workspace packages that `apps/api` depends
-  on (audit O-01).
-- `apps/web/Dockerfile:17` — **verified**: `RUN CI=true pnpm install
-  --frozen-lockfile --prod` re-runs `apps/web`'s `"prepare": "svelte-kit sync"`
-  (`apps/web/package.json:11`) *after* `@sveltejs/kit` has been pruned as a
-  devDependency, so it dies at `svelte-kit: not found`. `CI=true` does not
-  disable pnpm lifecycle scripts, and `.npmrc` is never copied into the image.
-  Use `--ignore-scripts`.
-- `packages/db/dist/migrations/schema.sql` is ENOENT in the image: TypeScript
-  does not copy the `.sql` asset that `0001_v11_baseline.ts` reads, so a
-  container deployment cannot create a schema (audit O-02).
+All three defects were real; all are fixed. Recorded because the *shapes* recur:
+
+- **`pnpm --filter <pkg> build` does not build workspace dependencies.**
+  `apps/api`'s build script is plain `tsc`, so dependency build steps were
+  silently skipped and `packages/db`'s `schema.sql` copy never ran. Use
+  **`--filter "<pkg>..."`** (trailing three dots) to select the package *and* its
+  dependencies. Dependency `dist/` directories may still appear in the image by
+  other means, which makes this failure look like it cannot be happening.
+- **A `--prod` prune re-runs the workspace's own `prepare` script.**
+  `apps/web` has `"prepare": "svelte-kit sync"` and `@sveltejs/kit` is a
+  devDependency, so the prune removed the tool and then invoked it:
+  `svelte-kit: not found`. `CI=true` does not disable pnpm lifecycle scripts;
+  `--ignore-scripts` does.
+- **TypeScript does not copy non-`.ts` assets into `dist/`.**
+  `0001_v11_baseline.ts` reads an adjacent `schema.sql` at runtime, which simply
+  did not exist in the image. Any asset a compiled module reads needs an
+  explicit copy step in the package's `build` script.
+- **`governance-view` and `coop-view` were missing from the API image entirely**
+  — manifest, source, `node_modules`, and `dist`. `apps/api` depends on both.
+
+**Verify an image by running it, not by watching it build.** A build that
+succeeds proves nothing about resolution or assets:
+
+```bash
+docker run --rm --entrypoint node <img> -e "import('./apps/api/dist/container.js').then(()=>console.log('OK'))"
+docker run --rm --entrypoint sh   <img> -c "ls packages/db/dist/migrations/"
+```
 
 ### Typecheck covers less than it appears to
 
