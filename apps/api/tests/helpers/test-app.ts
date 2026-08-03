@@ -4,6 +4,7 @@ import supertest from 'supertest';
 import type { Kysely, Transaction } from 'kysely';
 import type { Database } from '@coopsource/db';
 import {
+  DidSpaceAuthorityResolver,
   KyselySpaceCredentialStore,
   type PermissionedRecordWritePort,
 } from '@coopsource/spaces-consumer';
@@ -65,6 +66,12 @@ import { FiscalPeriodService } from '../../src/services/fiscal-period-service.js
 import { PrivateRecordService } from '../../src/services/private-record-service.js';
 import { PrivateRecordPermissionedWritePort } from '../../src/services/private-record-permissioned-write-port.js';
 import { OAuthPermissionedRecordWriteSessionProvider } from '../../src/services/oauth-permissioned-record-write-session-provider.js';
+import {
+  OAuthManagingSpaceCredentialSessionSelector,
+  StaticManagingSpaceSessionCandidateProvider,
+} from '../../src/services/oauth-managing-space-credential-session-selector.js';
+import { OAuthSpaceDelegationTokenClient } from '../../src/services/oauth-space-delegation-token-client.js';
+import { OAuthSpaceCredentialExchangeClient } from '../../src/services/oauth-space-credential-exchange-client.js';
 import { MembershipReadModelActionPermissionReader } from '../../src/services/coop-view-action-authorizer-adapters.js';
 import {
   MembershipReadModelVoteWeightReader,
@@ -92,6 +99,23 @@ import { GovernanceFeedService } from '../../src/services/governance-feed-servic
 import { MemberClassService } from '../../src/services/member-class-service.js';
 import { SpaceCredentialInvalidatingGroupMutationPort } from '../../src/services/space-credential-invalidating-group-mutation-port.js';
 import { CooperativeLinkService } from '../../src/services/cooperative-link-service.js';
+import { TaskService } from '../../src/services/task-service.js';
+import { TimeTrackingService } from '../../src/services/time-tracking-service.js';
+import { ScheduleService } from '../../src/services/schedule-service.js';
+import { ExpenseService } from '../../src/services/expense-service.js';
+import { RevenueService } from '../../src/services/revenue-service.js';
+import { CommerceListingService } from '../../src/services/commerce-listing-service.js';
+import { CommerceNeedService } from '../../src/services/commerce-need-service.js';
+import { IntercoopAgreementService } from '../../src/services/intercoop-agreement-service.js';
+import { CollaborativeProjectService } from '../../src/services/collaborative-project-service.js';
+import { SharedResourceService } from '../../src/services/shared-resource-service.js';
+import { ProcurementService } from '../../src/services/procurement-service.js';
+import { ConnectorRegistryService } from '../../src/services/connector-registry-service.js';
+import { EventBusService } from '../../src/services/event-bus-service.js';
+import { WebhookService } from '../../src/services/webhook-service.js';
+import { ReportingService } from '../../src/services/reporting-service.js';
+import { DashboardService } from '../../src/services/dashboard-service.js';
+import { MentionService } from '../../src/services/mention-service.js';
 import { StarterPackService } from '../../src/services/starter-pack-service.js';
 import {
   ConsentEvidenceVerifier,
@@ -218,6 +242,9 @@ export function createTestApp(options?: TestAppOptions): TestApp {
   });
 
   const didResolver = new DidWebResolver();
+  const spaceAuthorityResolver = new DidSpaceAuthorityResolver({
+    resolveDid: (did) => didResolver.resolve(did),
+  });
 
   const emailService = new NoopEmailService();
 
@@ -316,6 +343,21 @@ export function createTestApp(options?: TestAppOptions): TestApp {
   const privateRecordService = new PrivateRecordService(db, clock);
   const permissionedRecordWriteSessionProvider =
     new OAuthPermissionedRecordWriteSessionProvider(undefined);
+  // Mirrors container.ts with SPACE_MANAGING_SESSION_DIDS unset: an empty
+  // candidate list, which is the production default.
+  const managingSpaceCredentialSessionSelector =
+    new OAuthManagingSpaceCredentialSessionSelector({
+      membershipReadModel,
+      candidateProvider: new StaticManagingSpaceSessionCandidateProvider([]),
+      requiredPermission: 'private.manage',
+    });
+  const spaceDelegationTokenClient = new OAuthSpaceDelegationTokenClient({
+    sessionSelector: managingSpaceCredentialSessionSelector,
+  });
+  const spaceCredentialExchangeClient = new OAuthSpaceCredentialExchangeClient({
+    serviceUrlForSpaceAuthority: async (ref) =>
+      (await spaceAuthorityResolver.resolve(ref)).serviceUrl,
+  });
   const permissionedRecordWriter =
     options?.permissionedRecordWriter ??
     new PrivateRecordPermissionedWritePort(privateRecordService);
@@ -421,6 +463,57 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     spaceCredentialStore,
   );
   const cooperativeLinkService = new CooperativeLinkService(db, clock);
+  const taskService = new TaskService(
+    db,
+    pdsService,
+    clock,
+    operatorWriteProxy,
+  );
+  const timeTrackingService = new TimeTrackingService(db, clock);
+  const scheduleService = new ScheduleService(
+    db,
+    pdsService,
+    clock,
+    operatorWriteProxy,
+  );
+  const expenseService = new ExpenseService(db, clock);
+  const revenueService = new RevenueService(db, clock);
+  const commerceListingService = new CommerceListingService(
+    db,
+    pdsService,
+    clock,
+    operatorWriteProxy,
+  );
+  const commerceNeedService = new CommerceNeedService(
+    db,
+    pdsService,
+    clock,
+    operatorWriteProxy,
+  );
+  const intercoopAgreementService = new IntercoopAgreementService(
+    db,
+    pdsService,
+    clock,
+  );
+  const collaborativeProjectService = new CollaborativeProjectService(
+    db,
+    pdsService,
+    clock,
+    operatorWriteProxy,
+  );
+  const sharedResourceService = new SharedResourceService(
+    db,
+    pdsService,
+    clock,
+    operatorWriteProxy,
+  );
+  const procurementService = new ProcurementService(db, clock);
+  const connectorRegistryService = new ConnectorRegistryService(db, clock);
+  const eventBusService = new EventBusService(db, clock);
+  const webhookService = new WebhookService(db, clock);
+  const reportingService = new ReportingService(db, clock, membershipReadModel);
+  const dashboardService = new DashboardService(db, membershipReadModel);
+  const mentionService = new MentionService(db, clock);
   const starterPackService = new StarterPackService(db, pdsService);
   const consentEvidenceVerifier = new ConsentEvidenceVerifier(
     new PdsPublicRepoRecordResolver(pdsService),
@@ -498,6 +591,9 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     spaceCredentialStore,
     permissionedRecordWriter,
     permissionedRecordWriteSessionProvider,
+    managingSpaceCredentialSessionSelector,
+    spaceDelegationTokenClient,
+    spaceCredentialExchangeClient,
     governanceRecordPlacement,
     publicGovernanceAnchorService,
     patronageService,
@@ -509,6 +605,23 @@ export function createTestApp(options?: TestAppOptions): TestApp {
     governanceFeedService,
     memberClassService,
     cooperativeLinkService,
+    taskService,
+    timeTrackingService,
+    scheduleService,
+    expenseService,
+    revenueService,
+    commerceListingService,
+    commerceNeedService,
+    intercoopAgreementService,
+    collaborativeProjectService,
+    sharedResourceService,
+    procurementService,
+    connectorRegistryService,
+    eventBusService,
+    webhookService,
+    reportingService,
+    dashboardService,
+    mentionService,
     starterPackService,
     consentEvidenceVerifier,
     hookRegistry,

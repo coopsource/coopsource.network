@@ -46,8 +46,12 @@ describe('Payment webhook cooperative scoping (S-06)', () => {
           tier: 'standard',
           campaign_type: 'donation',
           goal_amount: 100000,
+          goal_currency: 'USD',
+          amount_raised: 0,
+          backer_count: 0,
           funding_model: 'keep-what-you-raise',
           status: 'active',
+          created_at: new Date(),
         })
         .execute();
 
@@ -60,9 +64,11 @@ describe('Payment webhook cooperative scoping (S-06)', () => {
           campaign_uri: campaignUri,
           backer_did: 'did:web:backer.example',
           amount: 5000,
+          currency: 'USD',
           payment_status: 'pending',
           payment_session_id: session,
           payment_provider: 'stripe',
+          created_at: new Date(),
         })
         .execute();
 

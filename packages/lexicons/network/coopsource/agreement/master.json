@@ -34,7 +34,7 @@
           "agreementType": {
             "type": "string",
             "description": "Template type used.",
-            "knownValues": ["worker-cooperative", "multi-stakeholder", "platform-cooperative", "open-source", "producer-cooperative", "hybrid-member-investor", "custom"]
+            "knownValues": ["worker-cooperative", "multi-stakeholder", "platform-cooperative", "open-source", "producer-cooperative", "hybrid-member-investor", "operating", "custom"]
           },
           "effectiveDate": {
             "type": "string",

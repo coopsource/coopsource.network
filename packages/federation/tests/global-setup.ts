@@ -42,6 +42,7 @@ export async function setup(): Promise<void> {
       // PDS already running — just set env vars
       process.env.PDS_URL = PDS_URL;
       process.env.PLC_URL = PLC_URL;
+      process.env.MAILPIT_URL = 'http://localhost:8025';
       return;
     }
   } catch {

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { P256Keypair } from '@atproto/crypto';
 import { InlayAuthVerifier } from '../src/atproto/inlay-auth-verifier.js';
-import type { DidResolver } from '../src/atproto/inlay-auth-verifier.js';
+import type { DidResolver } from '../src/atproto/service-auth-verifier.js';
 import type { DidDocument } from '../src/types.js';
 import type { DID } from '@coopsource/common';
 

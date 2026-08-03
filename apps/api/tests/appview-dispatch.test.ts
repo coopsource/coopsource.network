@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { Kysely } from 'kysely';
 import type { Database } from '@coopsource/db';
+import type { CID, DID } from '@coopsource/common';
 import { HookRegistry } from '../src/appview/hooks/registry.js';
 import { registerBuiltinHooks } from '../src/appview/hooks/builtin/index.js';
 import { processFirehoseEvent } from '../src/appview/hooks/pipeline.js';
@@ -224,7 +225,7 @@ describe('Hook pipeline dispatch', () => {
         consentType: 'joinRequest',
         createdAt: now.toISOString(),
       },
-      { did: 'did:plc:no-authority' },
+      { did: 'did:plc:no-authority' as DID },
     );
     await processFirehoseEvent(db, registry, unrelatedEvent);
 
@@ -243,7 +244,7 @@ describe('Hook pipeline dispatch', () => {
         consentType: 'joinRequest',
         createdAt: now.toISOString(),
       },
-      { uri: createEvent.uri, cid: 'bafynewconsent', prevCid: createEvent.cid },
+      { uri: createEvent.uri, cid: 'bafynewconsent' as CID, prevCid: createEvent.cid },
     );
     await processFirehoseEvent(db, registry, updateEvent);
 
@@ -267,7 +268,7 @@ describe('Hook pipeline dispatch', () => {
       'network.coopsource.org.memberConsent',
       'delete',
       undefined,
-      { uri: createEvent.uri, cid: '' },
+      { uri: createEvent.uri, cid: '' as CID },
     );
     await processFirehoseEvent(db, registry, deleteEvent);
 

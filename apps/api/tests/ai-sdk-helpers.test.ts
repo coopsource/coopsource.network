@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import type { StepResult } from 'ai';
 import { detectDoomLoop, createRepairToolCall } from '../src/ai/chat-engine.js';
 
 describe('AI SDK Helpers', () => {
@@ -93,9 +94,24 @@ describe('AI SDK Helpers', () => {
   });
 });
 
-// Helper to create step-like objects for doom loop testing
-function makeStep(toolName: string, input: Record<string, unknown>) {
+// Helper to create step-like objects for doom loop testing. `detectDoomLoop`
+// reads only `toolCalls`, so the fixture supplies exactly that slice of a real
+// `StepResult`, shaped as the AI SDK's dynamic tool call.
+let toolCallSeq = 0;
+function makeStep(
+  toolName: string,
+  input: Record<string, unknown>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Pick<StepResult<any>, 'toolCalls'> {
   return {
-    toolCalls: [{ toolName, input }],
+    toolCalls: [
+      {
+        type: 'tool-call',
+        toolCallId: `call-${++toolCallSeq}`,
+        toolName,
+        input,
+        dynamic: true,
+      },
+    ],
   };
 }

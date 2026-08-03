@@ -421,6 +421,9 @@ importers:
       '@coopsource/config':
         specifier: workspace:*
         version: link:../config
+      '@types/node':
+        specifier: ^25.3.2
+        version: 25.3.2
       tsx:
         specifier: ^4.21.0
         version: 4.21.0

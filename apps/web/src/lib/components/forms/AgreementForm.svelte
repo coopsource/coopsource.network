@@ -27,6 +27,7 @@
     <option value="open-source">Open Source</option>
     <option value="producer-cooperative">Producer Cooperative</option>
     <option value="hybrid-member-investor">Hybrid Member-Investor</option>
+    <option value="operating">Operating Agreement</option>
   </select>
 </div>
 

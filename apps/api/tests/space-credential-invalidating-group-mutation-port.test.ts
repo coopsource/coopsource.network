@@ -29,6 +29,7 @@ describe('SpaceCredentialInvalidatingGroupMutationPort', () => {
       membersSpace(otherCooperativeDid),
     ], events);
     const delegate = new FakeGroupMutationPort(events, {
+      ok: true,
       changed: true,
       operation: 'add-member',
       cooperativeDid,
@@ -66,6 +67,7 @@ describe('SpaceCredentialInvalidatingGroupMutationPort', () => {
       events,
     );
     const delegate = new FakeGroupMutationPort(events, {
+      ok: true,
       changed: false,
       operation: 'remove-member',
       cooperativeDid,
@@ -94,6 +96,7 @@ describe('SpaceCredentialInvalidatingGroupMutationPort', () => {
       events,
     );
     const delegate = new FakeGroupMutationPort(events, {
+      ok: true,
       changed: true,
       operation: 'add-member',
       cooperativeDid,

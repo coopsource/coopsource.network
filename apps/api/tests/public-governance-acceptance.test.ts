@@ -189,7 +189,7 @@ describe('Public governance acceptance gate (C-01)', () => {
     // The author is a known entity but has no projected membership row.
     await getTestDb()
       .insertInto('entity')
-      .values({ did: OUTSIDER, type: 'person', display_name: 'Outsider' })
+      .values({ did: OUTSIDER, type: 'person', display_name: 'Outsider', status: 'active' })
       .execute();
 
     // Space membership is the authority on the permissioned path; the projected

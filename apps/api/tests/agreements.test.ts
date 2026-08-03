@@ -83,6 +83,18 @@ describe('Unified Agreements', () => {
     expect(res.body.status).toBe('draft');
   });
 
+  it('creates a draft agreement with the operating type (201)', async () => {
+    const res = await createDraft({
+      title: 'Operating Agreement',
+      agreementType: 'operating',
+    }).expect(201);
+
+    expect(res.body.uri).toBeDefined();
+    expect(res.body.title).toBe('Operating Agreement');
+    expect(res.body.agreementType).toBe('operating');
+    expect(res.body.status).toBe('draft');
+  });
+
   it('lists agreements with pagination', async () => {
     await createDraft({ title: 'Agreement A' }).expect(201);
     testApp.clock.advance(1000);

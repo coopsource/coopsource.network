@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-typecheck-test:
+    name: Build, typecheck, test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Pins the api test harness DB; the harness derives its admin
+      # connection by swapping the URL path to /postgres, so credentials
+      # must be in this URL. Already listed in turbo.json test.passThroughEnv.
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/coopsource_test
+      # Keeps the compose postgres (federation stack) off the service
+      # container's 5432. Only the pre-start step below reads this;
+      # inside vitest, global-setup defaults it to 5433 itself.
+      POSTGRES_HOST_PORT: "5433"
+      # Two federation tests connect to localhost:5432 with no credentials in
+      # the URL; supply them out-of-band. Explicit credentials in
+      # TEST_DATABASE_URL still take precedence.
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # packages/federation tests need a live PLC+PDS. Their vitest
+      # global-setup would docker-compose these up itself; pre-starting
+      # with --wait gives deterministic readiness and visible logs, and
+      # the global-setup then just adopts the running stack.
+      - name: Start PLC/PDS stack for federation tests
+        run: |
+          docker compose -f infrastructure/docker-compose.yml up -d --wait postgres
+          docker compose -f infrastructure/docker-compose.yml exec -T postgres \
+            psql -U coopsource -d postgres -tc "SELECT 1 FROM pg_database WHERE datname='plc_dev'" | grep -q 1 || \
+          docker compose -f infrastructure/docker-compose.yml exec -T postgres \
+            psql -U coopsource -d postgres -c "CREATE DATABASE plc_dev"
+          docker compose -f infrastructure/docker-compose.yml up -d --wait plc pds mailpit
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  docker-images:
+    name: Docker image (${{ matrix.image }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: api
+            dockerfile: apps/api/Dockerfile
+          - image: web
+            dockerfile: apps/web/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+      # Plain docker build, not `compose build`: docker-compose.prod.yml
+      # has required `${VAR:?}` interpolations that fail at parse time.
+      - run: docker build -f ${{ matrix.dockerfile }} .
+      - name: Validate prod compose file parses
+        if: matrix.image == 'api'
+        run: |
+          POSTGRES_PASSWORD=x REDIS_PASSWORD=x SESSION_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx \
+          KEY_ENC_KEY=x PLC_URL=http://x PDS_URL=http://x PDS_ADMIN_PASSWORD=x \
+          docker compose -f infrastructure/docker-compose.prod.yml config -q
+        shell: bash

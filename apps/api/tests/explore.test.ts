@@ -868,6 +868,7 @@ describe('Explore', () => {
           entity_did: privateDid,
           cooperative_type: 'worker',
           is_network: false,
+          membership_policy: 'invite_only',
           anon_discoverable: false,
         })
         .execute();

@@ -53,6 +53,17 @@ describe('Agreement Templates', () => {
     expect(res.body.updatedAt).toBeDefined();
   });
 
+  it('creates a template with the operating type (201)', async () => {
+    const res = await createTemplate({
+      name: 'Standard Operating Agreement',
+      agreementType: 'operating',
+    }).expect(201);
+
+    expect(res.body.id).toBeDefined();
+    expect(res.body.name).toBe('Standard Operating Agreement');
+    expect(res.body.agreementType).toBe('operating');
+  });
+
   it('lists templates with pagination', async () => {
     await createTemplate({ name: 'Template A' }).expect(201);
     testApp.clock.advance(1000);

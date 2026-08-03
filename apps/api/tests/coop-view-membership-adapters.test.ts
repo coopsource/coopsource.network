@@ -22,9 +22,6 @@ describe('MembershipReadModelVoteWeightReader', () => {
     const weight = await reader.getProjectedMemberVoteWeight({
       cooperativeDid: 'did:plc:coop',
       memberDid: 'did:plc:alice',
-      proposalUri:
-        'at://did:plc:coop/network.coopsource.governance.proposal/abc',
-      voteChoice: 'yes',
       at: '2026-07-06T12:00:00.000Z',
     });
     events.push('call-finish');
@@ -50,9 +47,6 @@ describe('MembershipReadModelVoteWeightReader', () => {
       reader.getProjectedMemberVoteWeight({
         cooperativeDid: 'did:plc:coop',
         memberDid: 'did:plc:alice',
-        proposalUri:
-          'at://did:plc:coop/network.coopsource.governance.proposal/abc',
-        voteChoice: 'yes',
         at: '2026-07-06T12:00:00.000Z',
       }),
     ).rejects.toThrow('Membership authority returned stale data');

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { truncateAllTables, getTestDb } from './helpers/test-db.js';
 import { createTestApp, setupAndLogin } from './helpers/test-app.js';
+import { ValidationError } from '@coopsource/common';
 import { resetSetupCache } from '../src/auth/middleware.js';
 import { CsnDbGovernanceRecordPlacementPort } from '../src/services/governance-record-placement-port.js';
 
@@ -27,7 +28,12 @@ describe('Tier 2 placement containment (C-03)', () => {
     port = new CsnDbGovernanceRecordPlacementPort(getTestDb());
     await getTestDb()
       .insertInto('entity')
-      .values({ did: COOP, type: 'cooperative', display_name: 'Placement Coop' })
+      .values({
+        did: COOP,
+        type: 'cooperative',
+        display_name: 'Placement Coop',
+        status: 'active',
+      })
       .execute();
   });
 
@@ -38,6 +44,7 @@ describe('Tier 2 placement containment (C-03)', () => {
         entity_did: COOP,
         cooperative_type: 'worker',
         is_network: false,
+        membership_policy: 'invite_only',
         governance_visibility: visibility,
       })
       .onConflict((c) => c.column('entity_did').doUpdateSet({ governance_visibility: visibility }))
@@ -73,7 +80,12 @@ describe('Tier 2 placement containment (C-03)', () => {
         ...(space ? { space: space as never } : {}),
       });
       return placement.kind;
-    } catch {
+    } catch (e) {
+      // Only a deliberate placement refusal counts. `CsnDbGovernanceRecordPlacementPort`
+      // raises exactly one class for that (`ValidationError`, thrown from
+      // `permissionedSpaceFor`); anything else — a DB failure, a refactor
+      // `TypeError` — must fail the test rather than masquerade as containment.
+      expect(e).toBeInstanceOf(ValidationError);
       return 'refused';
     }
   }
