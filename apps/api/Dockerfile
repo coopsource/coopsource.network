@@ -46,7 +46,10 @@ COPY --from=build /app/packages/common/node_modules ./packages/common/node_modul
 COPY --from=build /app/packages/coop-view/node_modules ./packages/coop-view/node_modules
 COPY --from=build /app/packages/db/node_modules ./packages/db/node_modules
 COPY --from=build /app/packages/federation/node_modules ./packages/federation/node_modules
-COPY --from=build /app/packages/governance-view/node_modules ./packages/governance-view/node_modules
+# No governance-view/node_modules: that package has zero `dependencies` (its
+# only entries are devDependencies), so the `--prod` prune above deletes the
+# directory outright and a COPY of it fails the build. Consumers reach it
+# through the symlink in their own node_modules/@coopsource.
 COPY --from=build /app/packages/lexicons/node_modules ./packages/lexicons/node_modules
 COPY --from=build /app/packages/spaces-consumer/node_modules ./packages/spaces-consumer/node_modules
 

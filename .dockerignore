@@ -1,10 +1,13 @@
 # Dependencies (installed fresh inside container)
-node_modules/
+# `**/`-prefixed so these match at every depth: a bare `node_modules/` or
+# `dist/` is root-anchored, which let workspace artifacts such as
+# packages/common/dist ship from the host and mask in-image build gaps.
+**/node_modules
 
 # Build outputs (rebuilt inside container)
-dist/
-.svelte-kit/
-.turbo/
+**/dist
+**/.svelte-kit
+**/.turbo
 
 # Environment files (secrets)
 .env

@@ -11,7 +11,12 @@ RUN pnpm install --frozen-lockfile
 
 COPY packages/common/ packages/common/
 COPY apps/web/ apps/web/
-RUN pnpm --filter @coopsource/web build
+# `--filter <pkg>...` selects the package AND its workspace dependencies, so
+# each dependency runs its own build script. `--filter @coopsource/web` alone
+# runs only `vite build` for the app and never builds @coopsource/common, whose
+# `dist` the runtime stage copies and whose value exports the governance
+# routes import at runtime.
+RUN pnpm --filter "@coopsource/web..." build
 
 # Prune to production dependencies.
 # --ignore-scripts is required: this workspace's own `prepare` runs
