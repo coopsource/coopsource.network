@@ -14,6 +14,7 @@ import {
   CreateInvitationSchema,
   AcceptInvitationSchema,
   UpdateRolesSchema,
+  ApproveMembershipSchema,
   ValidationError,
 } from '@coopsource/common';
 import { validateDid } from '../../lib/validate-params.js';
@@ -204,6 +205,27 @@ export function createMembershipRoutes(container: Container): Router {
         req.actor!.cooperativeDid,
         validateDid(req.params.did),
         typeof reason === 'string' ? reason : undefined,
+        req.actor!.did,
+      );
+      res.status(204).send();
+    }),
+  );
+
+  // POST /api/v1/members/:did/approve — admit a pending applicant.
+  //
+  // Under a request-and-approve admission policy, registration creates a
+  // pending membership that confers nothing until an approver admits it
+  // (audit S-02). Roles are subject to the assignment ceiling.
+  router.post(
+    '/api/v1/members/:did/approve',
+    requireAuth,
+    requirePermission('member.approve'),
+    asyncHandler(async (req, res) => {
+      const { roles } = ApproveMembershipSchema.parse(req.body ?? {});
+      await container.membershipService.approveMembership(
+        req.actor!.cooperativeDid,
+        validateDid(req.params.did),
+        roles ?? ['member'],
         req.actor!.did,
       );
       res.status(204).send();

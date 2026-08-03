@@ -424,13 +424,35 @@ export class FundingService {
     return row!;
   }
 
-  /** Find pledge by payment session ID (provider-agnostic) */
-  async findPledgeByPaymentSession(sessionId: string): Promise<PledgeRow | null> {
-    const row = await this.db
+  /**
+   * Find a pledge by payment session ID within one cooperative.
+   *
+   * The cooperative is required (audit S-06): a webhook is authenticated with
+   * the provider secret of the cooperative named in its URL, so it may only
+   * resolve sessions belonging to that cooperative's own campaigns. A global
+   * lookup let any cooperative administrator complete another cooperative's
+   * pledge using a session ID exposed by pledge listing.
+   */
+  async findPledgeByPaymentSession(
+    sessionId: string,
+    cooperativeDid: string,
+    providerId?: string,
+  ): Promise<PledgeRow | null> {
+    let query = this.db
       .selectFrom('funding_pledge')
-      .where('payment_session_id', '=', sessionId)
-      .selectAll()
-      .executeTakeFirst();
+      .innerJoin('funding_campaign', 'funding_campaign.uri', 'funding_pledge.campaign_uri')
+      .where('funding_pledge.payment_session_id', '=', sessionId)
+      .where('funding_campaign.did', '=', cooperativeDid);
+
+    // Exact match, including against NULL. `createCheckoutSession` writes
+    // payment_session_id and payment_provider together, so a session always has
+    // a recorded provider; tolerating NULL here would only let a cooperative's
+    // other providers claim a session whose own provider was lost.
+    if (providerId) {
+      query = query.where('funding_pledge.payment_provider', '=', providerId);
+    }
+
+    const row = await query.selectAll('funding_pledge').executeTakeFirst();
 
     return row ?? null;
   }

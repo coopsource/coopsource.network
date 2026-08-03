@@ -306,6 +306,18 @@ export function createFederationRoutes(
         return;
       }
 
+      // Axis 2 continued: `member.approve` authorises admitting this member,
+      // not admitting them above the approver's own level. Same ceiling the
+      // HTTP role paths enforce (audit S-01) — without it this route was a way
+      // around that guard. Throws ForbiddenError, which the error middleware
+      // renders as 403.
+      await container.membershipService.assertRoleAssignmentAllowed({
+        cooperativeDid: params.cooperativeDid,
+        actorDid: (callerDid ?? params.cooperativeDid) as string,
+        requestedRoles: params.roles,
+        targetDid: params.memberDid,
+      });
+
       const result = await container.groupMutations.addMember({
         cooperativeDid: params.cooperativeDid as DID,
         memberDid: params.memberDid as DID,

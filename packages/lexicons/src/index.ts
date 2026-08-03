@@ -108,6 +108,7 @@ export {
 export {
   CSN_SPACE_PLACEMENT_MATRIX,
   findCsnSpacePlacement,
+  isConfidentialCsnCollection,
   formatPlacementAppViewReadScope,
   formatPlacementMemberSelfReadScope,
 } from './space-placement.js';

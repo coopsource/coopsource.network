@@ -242,28 +242,29 @@ describe('Funding Campaigns', () => {
 
   // ─── Pledges ─────────────────────────────────────────────────────────
 
-  it('creates a pledge on an active campaign', async () => {
+  /**
+   * Pledges are member-class Tier 2 — a pledge names a backer and an amount.
+   * They were published to public repos; the write boundary now refuses that
+   * (audit C-03). Rewrite this to assert member-class placement once the
+   * collection has a real permissioned destination.
+   */
+  it('refuses to create a pledge while pledges have no Tier 2 write path', async () => {
     const testApp = createTestApp();
     await setupAndLogin(testApp);
 
     const campaign = await createDraftCampaign(testApp.agent);
 
-    // Activate
     await testApp.agent
       .post(`/api/v1/campaigns/${encodeURIComponent(campaign.uri)}/status`)
       .send({ status: 'active' })
       .expect(200);
 
-    // Pledge
     const res = await testApp.agent
       .post(`/api/v1/campaigns/${encodeURIComponent(campaign.uri)}/pledge`)
-      .send({ amount: 5000, currency: 'USD' })
-      .expect(201);
+      .send({ amount: 5000, currency: 'USD' });
 
-    expect(res.body.amount).toBe(5000);
-    expect(res.body.currency).toBe('USD');
-    expect(res.body.paymentStatus).toBe('pending');
-    expect(res.body.campaignUri).toBe(campaign.uri);
+    expect(res.status).toBe(501);
+    expect(res.body.error).toBe('Tier2WriteUnavailable');
   });
 
   it('rejects pledge on draft campaign', async () => {
@@ -278,39 +279,21 @@ describe('Funding Campaigns', () => {
       .expect(400);
   });
 
-  it('lists pledges for a campaign', async () => {
+  it('lists no pledges, because none can be created', async () => {
     const testApp = createTestApp();
     await setupAndLogin(testApp);
 
     const campaign = await createDraftCampaign(testApp.agent);
-
-    // Activate
     await testApp.agent
       .post(`/api/v1/campaigns/${encodeURIComponent(campaign.uri)}/status`)
       .send({ status: 'active' })
       .expect(200);
 
-    // Create two pledges
-    await testApp.agent
-      .post(`/api/v1/campaigns/${encodeURIComponent(campaign.uri)}/pledge`)
-      .send({ amount: 2500 })
-      .expect(201);
-
-    testApp.clock.advance(1000);
-
-    await testApp.agent
-      .post(`/api/v1/campaigns/${encodeURIComponent(campaign.uri)}/pledge`)
-      .send({ amount: 7500 })
-      .expect(201);
-
     const res = await testApp.agent
       .get(`/api/v1/campaigns/${encodeURIComponent(campaign.uri)}/pledges`)
       .expect(200);
 
-    expect(res.body.pledges).toHaveLength(2);
-    // Most recent first
-    expect(res.body.pledges[0].amount).toBe(7500);
-    expect(res.body.pledges[1].amount).toBe(2500);
+    expect(res.body.pledges).toHaveLength(0);
   });
 
   // ─── Validation ──────────────────────────────────────────────────────

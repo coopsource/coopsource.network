@@ -284,59 +284,34 @@ describe('Unified Agreements', () => {
 
   // ─── Stakeholder Terms ────────────────────────────────────────────
 
-  it('adds stakeholder terms (201)', async () => {
+  /**
+   * Stakeholder terms are member-class Tier 2 (financial terms, governance
+   * rights). They were published to public repos; the write boundary now
+   * refuses that (audit C-03). These assertions hold until the collection has a
+   * real permissioned destination — at which point they should be rewritten to
+   * assert the record lands in the member-class space, not deleted.
+   */
+  it('refuses to create stakeholder terms while they have no Tier 2 write path', async () => {
     const created = await createDraft().expect(201);
     const uri = encUri(created.body.uri);
 
     const res = await testApp.agent
       .post(`/api/v1/agreements/${uri}/terms`)
-      .send({ ...sampleTerms, stakeholderDid: adminDid })
-      .expect(201);
+      .send({ ...sampleTerms, stakeholderDid: adminDid });
 
-    expect(res.body.uri).toBeDefined();
-    expect(res.body.stakeholderDid).toBe(adminDid);
-    expect(res.body.stakeholderType).toBe('worker');
-    expect(res.body.stakeholderClass).toBe('founding-member');
-    expect(res.body.contributions).toHaveLength(1);
-    expect(res.body.financialTerms.profitShare).toBe(10);
-    expect(res.body.governanceRights.votingPower).toBe(1);
+    expect(res.status).toBe(501);
+    expect(res.body.error).toBe('Tier2WriteUnavailable');
   });
 
-  it('lists stakeholder terms for an agreement', async () => {
+  it('reports no stakeholder terms, because none can be created', async () => {
     const created = await createDraft().expect(201);
     const uri = encUri(created.body.uri);
-
-    await testApp.agent
-      .post(`/api/v1/agreements/${uri}/terms`)
-      .send({ ...sampleTerms, stakeholderDid: adminDid })
-      .expect(201);
 
     const res = await testApp.agent
       .get(`/api/v1/agreements/${uri}/terms`)
       .expect(200);
 
-    expect(res.body.terms).toHaveLength(1);
-    expect(res.body.terms[0].stakeholderType).toBe('worker');
-  });
-
-  it('removes stakeholder terms from a draft agreement', async () => {
-    const created = await createDraft().expect(201);
-    const uri = encUri(created.body.uri);
-
-    const terms = await testApp.agent
-      .post(`/api/v1/agreements/${uri}/terms`)
-      .send({ ...sampleTerms, stakeholderDid: adminDid })
-      .expect(201);
-
-    await testApp.agent
-      .delete(`/api/v1/agreements/${uri}/terms/${encodeURIComponent(terms.body.uri)}`)
-      .expect(204);
-
-    const list = await testApp.agent
-      .get(`/api/v1/agreements/${uri}/terms`)
-      .expect(200);
-
-    expect(list.body.terms).toHaveLength(0);
+    expect(res.body.terms).toHaveLength(0);
   });
 
   // ─── Audit Trail ──────────────────────────────────────────────────

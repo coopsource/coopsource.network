@@ -137,6 +137,17 @@ make dev-federation  # hub :3001, coop-a :3002, coop-b :3003, web :5173
 
 ## Production Deployment
 
+> **Not production-ready.** The [2026-07-31 audit](./docs/plans/2026-07-31-complete-codebase-audit-and-refactor-plan.md)
+> found this system unsafe to deploy or operate as documented, and its
+> findings were independently confirmed. Do not expose it to untrusted users,
+> federated records, real cooperative decisions, confidential data, or real
+> money until the P0 and P1 gates in that plan are complete. In particular, do
+> not use it for real financial records, legally binding signatures, or
+> confidential member data. The steps below are for evaluation environments.
+>
+> The documented build and fresh-migration path are themselves known to be
+> broken (findings O-01 through O-04); Phase 7 covers them.
+
 Deploy to a VPS with Docker Compose + Caddy (automatic HTTPS via Let's Encrypt).
 
 ```bash

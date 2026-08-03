@@ -872,11 +872,19 @@ export function membershipAuthorityAppError(
   );
 }
 
-export async function loadProjectedMemberVoteWeight(
+/**
+ * Vote weight for an active member, or `null` when the DID has no active
+ * membership in the cooperative.
+ *
+ * Callers on unauthenticated paths must treat `null` as "discard this record"
+ * (audit C-01) — the previous `?? 1` default silently enfranchised arbitrary
+ * public identities on the firehose.
+ */
+export async function loadActiveProjectedMemberVoteWeight(
   db: Kysely<Database>,
   cooperativeDid: DID,
   memberDid: DID,
-): Promise<number> {
+): Promise<number | null> {
   const result = await db
     .selectFrom('membership')
     .leftJoin('member_class', (j) =>
@@ -895,5 +903,21 @@ export async function loadProjectedMemberVoteWeight(
     .select('member_class.vote_weight')
     .executeTakeFirst();
 
-  return result?.vote_weight ?? 1;
+  if (!result) return null;
+  return result.vote_weight ?? 1;
+}
+
+/**
+ * Vote weight for callers that have already established membership, where a
+ * missing row cannot mean an unknown identity. Prefer
+ * {@link loadActiveProjectedMemberVoteWeight} on any path where it can.
+ */
+export async function loadProjectedMemberVoteWeight(
+  db: Kysely<Database>,
+  cooperativeDid: DID,
+  memberDid: DID,
+): Promise<number> {
+  return (
+    (await loadActiveProjectedMemberVoteWeight(db, cooperativeDid, memberDid)) ?? 1
+  );
 }

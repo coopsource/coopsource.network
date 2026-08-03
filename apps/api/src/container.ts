@@ -153,6 +153,7 @@ import { lexiconValidatorHook } from './appview/hooks/builtin/lexicon-validator-
 import { LexiconManagementService } from './services/lexicon-management-service.js';
 import { ScriptWorkerPool } from './scripting/worker-pool.js';
 import { ScriptService } from './scripting/script-service.js';
+import { guardPublicWrites } from './services/public-write-guard.js';
 
 export interface Container {
   db: Kysely<Database>;
@@ -272,7 +273,7 @@ export function createContainer(config: AppConfig): Container {
   const effectivePdsUrl = config.COOP_PDS_URL ?? config.PDS_URL;
   const effectivePdsPassword =
     config.COOP_PDS_ADMIN_PASSWORD ?? config.PDS_ADMIN_PASSWORD;
-  const pdsService: IPdsService = effectivePdsUrl
+  const rawPdsService: IPdsService = effectivePdsUrl
     ? new AtprotoPdsService(
         effectivePdsUrl,
         effectivePdsPassword,
@@ -289,6 +290,11 @@ export function createContainer(config: AppConfig): Container {
         },
         clock,
       );
+
+  // Tier 2 collections must never reach a public repo (audit C-03). Guarding
+  // the port itself means every service that writes through it is covered,
+  // including ones that never consult the placement port.
+  const pdsService: IPdsService = guardPublicWrites(rawPdsService);
 
   // Fallback DID resolution for did:plc identifiers:
   // - When PLC_URL is a real URL → use PlcClient (HTTP to PLC directory)

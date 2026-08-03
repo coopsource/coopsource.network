@@ -54,6 +54,12 @@ export interface GroupMutationContext {
 export interface AddMemberArgs {
   readonly cooperativeDid: DID;
   readonly memberDid: DID;
+  /**
+   * Admission state for a newly created membership. `pending` records an
+   * unapproved request under a request-and-approve admission policy; it does
+   * not confer membership until approved. Defaults to `active`.
+   */
+  readonly status?: 'active' | 'pending';
   readonly roles?: ReadonlyArray<string>;
   readonly memberClass?: string | null;
   readonly directoryVisible?: boolean;
@@ -266,7 +272,7 @@ export class CsnDbGroupMutationPort implements GroupMutationPort {
           .values({
             member_did: args.memberDid,
             cooperative_did: args.cooperativeDid,
-            status: 'active',
+            status: args.status ?? 'active',
             member_class: args.memberClass ?? null,
             member_record_uri: args.consentRecordUri ?? null,
             member_record_cid: args.consentRecordCid ?? null,

@@ -42,7 +42,7 @@ describe('OperatorWriteProxy', () => {
     const ref = await proxy.writeCoopRecord({
       operatorDid: adminDid,
       cooperativeDid: coopDid as DID,
-      collection: 'network.coopsource.admin.memberNotice',
+      collection: 'network.coopsource.org.cooperative',
       record: {
         title: 'Operator notice',
         body: 'Test',
@@ -65,7 +65,7 @@ describe('OperatorWriteProxy', () => {
     const ref = await proxy.writeCoopRecord({
       operatorDid: adminDid,
       cooperativeDid: coopDid as DID,
-      collection: 'network.coopsource.admin.memberNotice',
+      collection: 'network.coopsource.org.cooperative',
       record: {
         title: 'Operator notice',
         body: 'Test',
@@ -88,7 +88,7 @@ describe('OperatorWriteProxy', () => {
       proxy.writeCoopRecord({
         operatorDid: 'did:plc:unauthorized',
         cooperativeDid: coopDid as DID,
-        collection: 'network.coopsource.admin.memberNotice',
+        collection: 'network.coopsource.org.cooperative',
         record: { title: 'Operator notice', body: 'Test' },
       }),
     ).rejects.toThrow('not authorized');
@@ -107,7 +107,7 @@ describe('OperatorWriteProxy', () => {
     await proxy.writeCoopRecord({
       operatorDid: adminDid,
       cooperativeDid: coopDid as DID,
-      collection: 'network.coopsource.admin.memberNotice',
+      collection: 'network.coopsource.org.cooperative',
       record: { title: 'Operator notice', body: 'Test' },
     });
 
@@ -120,7 +120,7 @@ describe('OperatorWriteProxy', () => {
     expect(logs).toHaveLength(1);
     expect(logs[0]!.operator_did).toBe(adminDid);
     expect(logs[0]!.operation).toBe('create');
-    expect(logs[0]!.collection).toBe('network.coopsource.admin.memberNotice');
+    expect(logs[0]!.collection).toBe('network.coopsource.org.cooperative');
     expect(logs[0]!.record_uri).toBeTruthy();
   });
 
@@ -137,7 +137,7 @@ describe('OperatorWriteProxy', () => {
       await proxy.writeCoopRecord({
         operatorDid: 'did:plc:unauthorized',
         cooperativeDid: coopDid as DID,
-        collection: 'network.coopsource.admin.memberNotice',
+        collection: 'network.coopsource.org.cooperative',
         record: { title: 'Operator notice' },
       });
     } catch {
@@ -165,7 +165,7 @@ describe('OperatorWriteProxy', () => {
       proxy.writeCoopRecord({
         operatorDid: adminDid,
         cooperativeDid: coopDid as DID,
-        collection: 'network.coopsource.admin.memberNotice',
+        collection: 'network.coopsource.org.cooperative',
         record: { title: 'Operator notice', body: 'Test' },
       }),
     ).rejects.toThrow('partial result');
@@ -201,3 +201,26 @@ class PartialDirectoryPort extends DenyAllGroupDirectoryPort {
     };
   }
 }
+
+describe('Tier 2 containment on the operator write path (C-03)', () => {
+  it('refuses to publish a confidential collection', async () => {
+    const { assertPublicWriteAllowed } = await import(
+      '../src/services/public-write-guard.js'
+    );
+
+    // Role- and member-class-scoped collections carry member notices, legal
+    // documents, financials, and stakeholder terms. The operator proxy wrote
+    // these to public repos until the guard landed.
+    expect(() =>
+      assertPublicWriteAllowed('network.coopsource.admin.memberNotice'),
+    ).toThrow(/Tier 2/);
+    expect(() =>
+      assertPublicWriteAllowed('network.coopsource.finance.expense'),
+    ).toThrow(/Tier 2/);
+
+    // Members-space governance records remain publishable.
+    expect(() =>
+      assertPublicWriteAllowed('network.coopsource.governance.proposal'),
+    ).not.toThrow();
+  });
+});

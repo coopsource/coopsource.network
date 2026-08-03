@@ -3,7 +3,10 @@ import type { Database } from '@coopsource/db';
 import type { DID } from '@coopsource/common';
 import { ValidationError } from '@coopsource/common';
 import type { SpaceRef } from '@coopsource/spaces-consumer';
-import { findCsnSpacePlacement } from '@coopsource/lexicons';
+import {
+  findCsnSpacePlacement,
+  isConfidentialCsnCollection,
+} from '@coopsource/lexicons';
 
 export type GovernanceRecordPlacement =
   | {
@@ -19,6 +22,12 @@ export interface GovernanceRecordPlacementRequest {
   readonly collection: string;
   readonly space?: SpaceRef;
   readonly visibilityOverride?: 'public' | 'private';
+  /**
+   * Where the record sits in its own lifecycle. A `draft` is Tier 2 until it
+   * is deliberately published, independent of the cooperative's governance
+   * visibility (audit C-03).
+   */
+  readonly lifecycleState?: 'draft' | 'published';
 }
 
 export interface GovernanceRecordPlacementPort {
@@ -34,6 +43,20 @@ export class CsnDbGovernanceRecordPlacementPort implements GovernanceRecordPlace
     request: GovernanceRecordPlacementRequest,
   ): Promise<GovernanceRecordPlacement> {
     const visibility = await this.getVisibility(request.cooperativeDid);
+
+    // Publication is irreversible — relay, crawler, and archive copies survive
+    // any later deletion — so Tier 2 placement is decided before anything a
+    // caller or cooperative setting can relax (audit C-03,
+    // ARCHITECTURE-V12 §8: "Never on the public firehose").
+    if (
+      isConfidentialCsnCollection(request.collection) ||
+      request.lifecycleState === 'draft'
+    ) {
+      return {
+        kind: 'permissioned-space',
+        space: permissionedSpaceFor(request),
+      };
+    }
 
     if (request.visibilityOverride === 'public') {
       return { kind: 'public-repo' };

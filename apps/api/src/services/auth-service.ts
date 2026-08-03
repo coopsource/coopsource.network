@@ -4,6 +4,7 @@ import type { Database } from '@coopsource/db';
 import type { DID } from '@coopsource/common';
 import {
   ConflictError,
+  ForbiddenError,
   NotFoundError,
   UnauthorizedError,
   ValidationError,
@@ -143,6 +144,13 @@ export class AuthService {
       throw new ValidationError('Instance not set up');
     }
 
+    // Decided before any PDS write or DB mutation so a rejected applicant
+    // leaves no artifacts behind.
+    const admissionStatus = await this.resolveAdmission(
+      cooperativeDid,
+      invitation !== undefined,
+    );
+
     const now = this.clock.now();
 
     // Hash password
@@ -177,6 +185,7 @@ export class AuthService {
           params,
           cooperativeDid,
           roles,
+          admissionStatus,
           invitation,
           artifacts,
           secretHash,
@@ -204,6 +213,7 @@ export class AuthService {
           params,
           cooperativeDid,
           roles,
+          admissionStatus,
           artifacts: artifacts!,
           secretHash,
           now,
@@ -216,7 +226,11 @@ export class AuthService {
     }
 
     const did = artifacts.did;
-    emitMemberJoined(cooperativeDid, did);
+    // A request-and-approve registration has not joined anything yet; the join
+    // is announced when an approver admits them (audit S-02).
+    if (admissionStatus === 'active') {
+      emitMemberJoined(cooperativeDid, did);
+    }
 
     return {
       did,
@@ -269,6 +283,38 @@ export class AuthService {
     return { did, consentRef };
   }
 
+  /**
+   * Apply the cooperative's stored admission policy to a registration
+   * (audit S-02). The policy was persisted at setup but never read, so an
+   * instance recorded as invite-only admitted anyone who posted to /register.
+   *
+   * An invitation is itself the admission decision, so it short-circuits.
+   * Unknown policy values fail closed.
+   */
+  private async resolveAdmission(
+    cooperativeDid: string,
+    hasInvitation: boolean,
+  ): Promise<'active' | 'pending'> {
+    if (hasInvitation) return 'active';
+
+    const profile = await this.db
+      .selectFrom('cooperative_profile')
+      .where('entity_did', '=', cooperativeDid)
+      .select('membership_policy')
+      .executeTakeFirst();
+
+    switch (profile?.membership_policy) {
+      case 'open':
+        return 'active';
+      case 'request_approval':
+        return 'pending';
+      default:
+        throw new ForbiddenError(
+          'This cooperative admits new members by invitation only',
+        );
+    }
+  }
+
   private async persistRegistration(args: {
     readonly trx: Transaction<Database>;
     readonly params: {
@@ -278,6 +324,7 @@ export class AuthService {
     };
     readonly cooperativeDid: string;
     readonly roles: readonly string[];
+    readonly admissionStatus: 'active' | 'pending';
     readonly invitation?: InvitationRegistration;
     readonly artifacts: RegistrationArtifacts;
     readonly secretHash: string;
@@ -324,6 +371,7 @@ export class AuthService {
       cooperativeDid: args.cooperativeDid as DID,
       memberDid: did as DID,
       actorDid: (invitation?.invited_by_did ?? did) as DID,
+      status: args.admissionStatus,
       roles: args.roles,
       consentRecordUri: artifacts.consentRef.uri,
       consentRecordCid: artifacts.consentRef.cid,

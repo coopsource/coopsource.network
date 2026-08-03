@@ -37,13 +37,17 @@ export async function projectPermissionedGovernanceChange(
     time: now.toISOString(),
   };
 
+  // Space membership was verified cryptographically before this point, and
+  // `validateGovernanceRecord` bound the record to this space's arbiter, so the
+  // projectors' own public-path acceptance gate (C-01) does not re-derive it.
   if (collection === PROPOSAL_COLLECTION) {
-    await indexProposal(db, event);
+    await indexProposal(db, event, { authorityVerified: true });
     return 'projected';
   }
   if (
     !(await indexVote(db, event, {
       expectedCooperativeDid: change.location.space.arbiterDid,
+      authorityVerified: true,
     }))
   ) {
     throw new Error(

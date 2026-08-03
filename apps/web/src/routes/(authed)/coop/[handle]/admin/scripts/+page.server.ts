@@ -13,12 +13,17 @@ export const load: PageServerLoad = async ({ fetch, request, parent }) => {
   }
   const coopDid = workspace.cooperative.did;
 
-  const result = await api.getScripts(coopDid);
-
-  return {
-    scripts: result.items,
-    coopDid,
-  };
+  // Cooperative scripting is disabled at the API (audit C-02 / AM-1). Render the
+  // notice instead of failing the workspace page.
+  try {
+    const result = await api.getScripts(coopDid);
+    return { scripts: result.items, coopDid, disabled: false };
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 410) {
+      return { scripts: [], coopDid, disabled: true };
+    }
+    throw err;
+  }
 };
 
 /** Extract coopDid from form data (passed as hidden field from the page). */

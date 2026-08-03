@@ -719,6 +719,12 @@ export type UpdateModelProviderInput = z.infer<
 // --- Route-Level Request Body Schemas ---
 // Used by API route handlers for runtime validation
 
+export const MembershipPolicySchema = z.enum([
+  'open',
+  'request_approval',
+  'invite_only',
+]);
+
 export const SetupInitializeSchema = z.object({
   cooperativeName: z.string().min(1).max(255),
   cooperativeHandle: z.string().max(100).optional(),
@@ -726,6 +732,7 @@ export const SetupInitializeSchema = z.object({
   adminHandle: z.string().max(100).optional(),
   adminEmail: z.string().email(),
   adminPassword: z.string().min(8).max(256),
+  membershipPolicy: MembershipPolicySchema.optional(),
 });
 
 const AccountHandleSchema = z.string().trim().min(1).max(255);
@@ -776,6 +783,10 @@ export const AcceptInvitationSchema = z.object({
 
 export const UpdateRolesSchema = z.object({
   roles: z.array(z.string().min(1)).max(10),
+});
+
+export const ApproveMembershipSchema = z.object({
+  roles: z.array(z.string().min(1)).max(10).optional(),
 });
 
 export const ProposalVotingTypeSchema = z.enum([

@@ -4,6 +4,7 @@ export {
   AppError,
   NotFoundError,
   UnauthorizedError,
+  ForbiddenError,
   ValidationError,
   ConflictError,
 } from './errors.js';
@@ -68,6 +69,7 @@ export {
   CreateInvitationSchema,
   AcceptInvitationSchema,
   UpdateRolesSchema,
+  ApproveMembershipSchema,
   CreateProposalBodySchema,
   UpdateProposalBodySchema,
   ProposalVotingTypeSchema,

@@ -63,6 +63,23 @@ export function findCsnSpacePlacement(
   );
 }
 
+/**
+ * Whether a collection is confidential by declaration and may therefore never
+ * be written to a public repo, whatever the cooperative's governance
+ * visibility says (ARCHITECTURE-V12 §8, Tier 2: "Never on the public
+ * firehose"; audit finding C-03).
+ *
+ * Members-space collections — proposals, votes, agreements, signatures,
+ * consent — are the governance record set whose visibility a cooperative
+ * legitimately chooses. Role- and member-class-scoped collections are not:
+ * they carry financials, legal documents, member notices, stakeholder terms,
+ * and time entries, which are Tier 2 regardless of that choice.
+ */
+export function isConfidentialCsnCollection(collection: string): boolean {
+  const placement = findCsnSpacePlacement(collection);
+  return placement !== null && placement.spaceKind !== 'members';
+}
+
 export function formatPlacementAppViewReadScope(
   placement: CsnSpacePlacement,
   options: Required<PlacementScopeOptions>,

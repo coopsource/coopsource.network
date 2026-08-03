@@ -26,6 +26,10 @@ import {
   emitMemberDeparted,
 } from '../appview/membership-events.js';
 import type { MembershipReadModel } from './membership-read-model.js';
+import {
+  assertRolesAssignable,
+  loadCurrentMemberRoles,
+} from './role-assignment-ceiling.js';
 
 export class MembershipService {
   constructor(
@@ -53,6 +57,12 @@ export class MembershipService {
         inviteeEmail: params.email,
         intendedRoles: params.intendedRoles ?? ['member'],
       },
+    });
+
+    await this.assertRoleAssignmentAllowed({
+      cooperativeDid: params.cooperativeDid,
+      actorDid: params.invitedByDid,
+      requestedRoles: params.intendedRoles ?? ['member'],
     });
 
     // Check for existing pending invitation to same email
@@ -152,7 +162,13 @@ export class MembershipService {
     return { invitation: { ...inv, status: 'accepted' } as InvitationRow };
   }
 
-  async approveInvitation(
+  /**
+   * Admit a member whose membership is pending — a request under a
+   * request-and-approve admission policy, or an invitation awaiting approval.
+   * The role ceiling applies, so an approver cannot admit someone at a level
+   * above their own (audit S-01, S-02).
+   */
+  async approveMembership(
     cooperativeDid: string,
     memberDid: string,
     roles: string[],
@@ -165,6 +181,13 @@ export class MembershipService {
       payload: { memberDid, roles },
     });
 
+    await this.assertRoleAssignmentAllowed({
+      cooperativeDid,
+      actorDid,
+      requestedRoles: roles,
+      targetDid: memberDid,
+    });
+
     const membership =
       await this.membershipReadModel.getProjectedMembershipStatus(
         cooperativeDid as DID,
@@ -173,6 +196,16 @@ export class MembershipService {
 
     if (!membership) {
       throw new NotFoundError('Membership not found');
+    }
+
+    // Approval admits a *pending* applicant and nothing else. `addMember`
+    // unconditionally sets status to active, so without this check approving a
+    // suspended member reinstates them — turning `member.approve` into a second
+    // door to `member.remove`'s reinstate, with a weaker audit trail.
+    if (membership.status !== 'pending') {
+      throw new ConflictError(
+        `Membership is ${membership.status}, not pending; approval does not apply`,
+      );
     }
 
     const now = this.clock.now();
@@ -201,6 +234,13 @@ export class MembershipService {
       actorDid,
       action: 'member.roles.assign',
       payload: { memberDid, roles },
+    });
+
+    await this.assertRoleAssignmentAllowed({
+      cooperativeDid,
+      actorDid,
+      requestedRoles: roles,
+      targetDid: memberDid,
     });
 
     this.assertCommandOk(
@@ -314,6 +354,44 @@ export class MembershipService {
       throw new ValidationError('Role must be a non-empty string');
     }
     throw new NotFoundError('Membership not found');
+  }
+
+  /**
+   * Reject role assignments that would grant more authority than the actor
+   * holds (audit S-01). The cooperative acting on its own behalf is the same
+   * system-level bypass `authorizeMemberCommand` uses.
+   *
+   * Public because the federation membership-approval route must apply the
+   * same ceiling: holding `member.approve` authorises admitting someone, not
+   * admitting them above the approver's own level. One implementation, so the
+   * two paths cannot drift.
+   */
+  async assertRoleAssignmentAllowed(args: {
+    readonly cooperativeDid: string;
+    readonly actorDid: string;
+    readonly requestedRoles: readonly string[];
+    /** Omitted when the subject holds no roles yet, as for a new invitation. */
+    readonly targetDid?: string;
+  }): Promise<void> {
+    if (args.actorDid === args.cooperativeDid) return;
+
+    const actor = await this.membershipReadModel.getActiveMembershipResult(
+      args.cooperativeDid as DID,
+      args.actorDid as DID,
+    );
+    const actorRoles = actor.ok ? actor.membership.roles : [];
+
+    const currentRoles = args.targetDid
+      ? await loadCurrentMemberRoles(this.db, args.cooperativeDid, args.targetDid)
+      : [];
+
+    await assertRolesAssignable({
+      db: this.db,
+      cooperativeDid: args.cooperativeDid,
+      actorRoles,
+      currentRoles,
+      requestedRoles: args.requestedRoles,
+    });
   }
 
   private async authorizeMemberCommand(args: {

@@ -70,6 +70,17 @@ describe('Write proxy integration (dev-mode fallback)', () => {
       .post(`/api/v1/proposals/${proposalRes.body.id}/open`)
       .expect(200);
 
+    // A ballot inherits its proposal's placement (C-03), and a newly created
+    // proposal is Tier 2. Stand this one up as an already-public proposal so
+    // the vote takes the public write path this test is about.
+    await testApp.container.db
+      .updateTable('proposal')
+      .set({
+        uri: `at://did:plc:testauthor/network.coopsource.governance.proposal/public1`,
+      })
+      .where('id', '=', proposalRes.body.id)
+      .execute();
+
     // Cast a vote — this triggers ProposalService.castVote()
     // which writes governance.vote via MemberWriteProxy
     await testApp.agent
@@ -139,7 +150,7 @@ describe('Write proxy integration (dev-mode fallback)', () => {
     const ref = await testApp.container.operatorWriteProxy.writeCoopRecord({
       operatorDid: adminDid,
       cooperativeDid: coopDid as import('@coopsource/common').DID,
-      collection: 'network.coopsource.admin.memberNotice',
+      collection: 'network.coopsource.org.cooperative',
       record: {
         title: 'Operator notice',
         body: 'Test',
@@ -158,6 +169,6 @@ describe('Write proxy integration (dev-mode fallback)', () => {
 
     expect(logs).toHaveLength(1);
     expect(logs[0]!.operator_did).toBe(adminDid);
-    expect(logs[0]!.collection).toBe('network.coopsource.admin.memberNotice');
+    expect(logs[0]!.collection).toBe('network.coopsource.org.cooperative');
   });
 });

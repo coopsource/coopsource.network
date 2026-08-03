@@ -30,6 +30,7 @@ import type { FederationDatabase } from '@coopsource/federation/local';
 import { DidWebResolver } from '@coopsource/federation/http';
 import { NoopEmailService } from '@coopsource/federation/email';
 import type { Container } from '../../src/container.js';
+import { guardPublicWrites } from '../../src/services/public-write-guard.js';
 import { AuthService } from '../../src/services/auth-service.js';
 import { EntityService } from '../../src/services/entity-service.js';
 import { ProfileService } from '../../src/services/profile-service.js';
@@ -191,7 +192,7 @@ export function createTestApp(options?: TestAppOptions): TestApp {
   // Use real AtprotoPdsService when PDS_URL is set (Docker), otherwise LocalPdsService
   const PDS_URL = process.env.PDS_URL;
   const PLC_URL = process.env.PLC_URL;
-  const pdsService = PDS_URL
+  const rawPdsService = PDS_URL
     ? new AtprotoPdsService(
         PDS_URL,
         process.env.PDS_ADMIN_PASSWORD ?? 'admin',
@@ -207,6 +208,10 @@ export function createTestApp(options?: TestAppOptions): TestApp {
         },
         clock,
       );
+
+  // Mirrors container.ts: the Tier 2 public-write guard is part of the wiring
+  // under test, not a production-only decoration (audit C-03).
+  const pdsService = guardPublicWrites(rawPdsService);
 
   const blobStore = new LocalBlobStore({
     blobDir: '/tmp/coopsource-test-blobs',

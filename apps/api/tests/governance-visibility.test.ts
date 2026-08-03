@@ -248,10 +248,18 @@ describe('Governance Visibility', () => {
       {
         cooperativeDid: coopDid,
         collection: 'network.coopsource.governance.proposal',
+        lifecycleState: 'draft',
       },
       {
         cooperativeDid: coopDid,
         collection: 'network.coopsource.governance.vote',
+        // The ballot inherits the proposal's permissioned placement (C-03).
+        visibilityOverride: 'private',
+        space: {
+          arbiterDid: coopDid,
+          spaceKey: 'members',
+          expectedSpaceType: 'network.coopsource.org.spaceType.members',
+        },
       },
     ]);
     const proposalRow = await testApp.container.db

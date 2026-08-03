@@ -283,36 +283,15 @@ export class ScriptService {
   /**
    * Load all enabled scripts from the database and register them.
    * Called at startup.
+   *
+   * DISABLED — Gate 0 containment (audit C-02 / AM-1). Registering a script
+   * hook would route firehose records into the escapable in-process sandbox,
+   * so no script is registered until an isolated runner replaces it.
    */
   async loadEnabledScripts(): Promise<void> {
-    let rows;
-    try {
-      rows = await this.db
-        .selectFrom('cooperative_script')
-        .where('enabled', '=', true)
-        .selectAll()
-        .execute();
-    } catch {
-      // Table may not exist yet (pre-migration) — skip silently
-      return;
-    }
-
-    let loaded = 0;
-    for (const row of rows) {
-      try {
-        this.registerScript(this.rowToScript(row));
-        loaded++;
-      } catch (err) {
-        logger.error(
-          { err, scriptId: row.id, cooperativeDid: row.cooperative_did },
-          'Failed to register script at startup',
-        );
-      }
-    }
-
-    if (loaded > 0) {
-      logger.info({ count: loaded }, 'Loaded cooperative scripts');
-    }
+    logger.warn(
+      'Cooperative scripting is disabled (audit C-02 / AM-1); no scripts registered',
+    );
   }
 
   // ─── Registration ─────────────────────────────────────────────────────

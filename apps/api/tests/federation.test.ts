@@ -244,6 +244,68 @@ describe('Federation endpoints', () => {
         .expect(201);
       expect(res.body.ok).toBe(true);
     });
+
+    it('applies the role-assignment ceiling to a federated approver (S-01)', async () => {
+      // `member.approve` authorises admitting someone; it does not authorise
+      // admitting them at a level above the approver's own. Without the
+      // ceiling this path was a way around the HTTP-side guard.
+      const coordinator = supertest.agent(testApp.app);
+      const reg = await coordinator
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'ceiling@test.com',
+          password: 'password123',
+          displayName: 'Ceiling Coordinator',
+          handle: 'ceilingcoord',
+        })
+        .expect(201);
+      const mut = testApp.container.groupMutationsForDb(testApp.container.db);
+      await mut.setMemberRoles({
+        cooperativeDid: coopDid as DID,
+        memberDid: reg.body.did as DID,
+        actorDid: adminDid as DID,
+        roles: ['coordinator'],
+      });
+
+      const newcomer = supertest.agent(testApp.app);
+      const newcomerReg = await newcomer
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'newcomer@test.com',
+          password: 'password123',
+          displayName: 'Newcomer',
+          handle: 'newcomer',
+        })
+        .expect(201);
+
+      const target = await writeConsentRecord(testApp, {
+        authorDid: newcomerReg.body.did,
+        cooperativeDid: coopDid,
+        consentType: 'joinRequest',
+        rkey: 'ceiling-approve',
+      });
+
+      const res = await coordinator
+        .post('/api/v1/federation/membership/approve')
+        .send({
+          cooperativeDid: coopDid,
+          memberDid: newcomerReg.body.did,
+          consentRecordUri: target.uri,
+          consentRecordCid: target.cid,
+          roles: ['owner'],
+        });
+
+      expect(res.status).toBe(403);
+
+      const roles = await testApp.container.db
+        .selectFrom('membership')
+        .innerJoin('membership_role', 'membership_role.membership_id', 'membership.id')
+        .where('membership.member_did', '=', newcomerReg.body.did)
+        .where('membership.cooperative_did', '=', coopDid)
+        .select('membership_role.role')
+        .execute();
+      expect(roles.map((r) => r.role)).not.toContain('owner');
+    });
   });
 
   describe('POST /api/v1/federation/membership/request', () => {

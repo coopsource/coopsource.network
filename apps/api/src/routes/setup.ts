@@ -30,7 +30,7 @@ export function createSetupRoutes(container: Container): Router {
         throw new ValidationError('Setup already complete');
       }
 
-      const { cooperativeName, cooperativeHandle, adminDisplayName, adminHandle, adminEmail, adminPassword } =
+      const { cooperativeName, cooperativeHandle, adminDisplayName, adminHandle, adminEmail, adminPassword, membershipPolicy } =
         SetupInitializeSchema.parse(req.body);
 
       const now = container.clock.now();
@@ -96,7 +96,11 @@ export function createSetupRoutes(container: Container): Router {
             entity_did: coopDid,
             cooperative_type: 'worker',
             is_network: false,
-            membership_policy: 'invite_only',
+            // Enforced at registration (audit S-02). Defaults to `open`, which
+            // matches how registration actually behaved before enforcement
+            // existed; an operator wanting invitations or approvals sets it
+            // here. See decision #4 in the refactor program.
+            membership_policy: membershipPolicy ?? 'open',
             created_at: now,
             indexed_at: now,
           })

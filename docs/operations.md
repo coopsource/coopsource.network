@@ -2,6 +2,13 @@
 
 # Production Operations
 
+> **Not production-ready.** See the deployment note in
+> [`README.md`](../README.md#production-deployment): the 2026-07-31 audit found
+> this system unsafe to deploy or operate as documented. Treat this file as the
+> target operating model for evaluation environments, not a statement that
+> production operation is supported. Backup/restore here is not yet a tested
+> end-to-end procedure (finding O-14).
+
 ## Database Backups
 
 Back up PostgreSQL daily. Run from the repo root on the host:
