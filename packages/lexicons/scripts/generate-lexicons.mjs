@@ -32,7 +32,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { globSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { globSync, mkdirSync, readFileSync, writeFileSync, writeSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -55,6 +55,33 @@ const EXCLUDED_GLOB = 'network/coopsource/*/*/*.json';
 
 const strict = process.argv.includes('--strict');
 
+/**
+ * Fail loudly, writing the whole message synchronously before exiting.
+ *
+ * `process.stderr` is ASYNCHRONOUS when it is a pipe — which is exactly what
+ * turbo and pnpm hand us (on macOS stderr is only synchronous for TTYs; Linux
+ * and Windows pipes are sync). Calling `process.exit()` straight after
+ * `process.stderr.write()` or `console.error()` can therefore discard buffered
+ * text, truncating the diagnostic in precisely the CI context where it matters
+ * most. `writeSync` on fd 2 has completed by the time it returns, so nothing
+ * can be dropped. Do not mix `console.error` into these paths: it buffers
+ * separately and would reorder relative to these writes.
+ */
+function failLoudly(message) {
+  const buffer = Buffer.from(message.endsWith('\n') ? message : `${message}\n`);
+  let offset = 0;
+  while (offset < buffer.length) {
+    try {
+      offset += writeSync(2, buffer, offset, buffer.length - offset);
+    } catch (error) {
+      // Non-blocking pipes can transiently refuse a write; retry rather than
+      // lose the message.
+      if (error.code !== 'EAGAIN') throw error;
+    }
+  }
+  process.exit(1);
+}
+
 /** Resolve the locally installed lex-cli binary rather than going through npx. */
 function resolveLexCli() {
   const require = createRequire(import.meta.url);
@@ -69,8 +96,7 @@ function resolveLexCli() {
 // across runs and across filesystems.
 const inputs = globSync(INPUT_GLOB, { cwd: PACKAGE_ROOT }).sort();
 if (inputs.length === 0) {
-  console.error(`No lexicon documents matched ${INPUT_GLOB}`);
-  process.exit(1);
+  failLoudly(`No lexicon documents matched ${INPUT_GLOB}`);
 }
 
 const lexCli = resolveLexCli();
@@ -86,19 +112,16 @@ try {
     stdio: ['ignore', 'pipe', 'inherit'],
   });
 } catch (cause) {
-  console.error(`lex-cli failed (${cause.message}). ${OUTPUT_FILE} left untouched.`);
-  process.exit(1);
+  failLoudly(`lex-cli failed (${cause.message}). ${OUTPUT_FILE} left untouched.`);
 }
 
 // --- Split diagnostics from code -------------------------------------------
 const markerIndex = stdout.indexOf(MODULE_PREFIX);
 if (markerIndex === -1) {
-  process.stderr.write(stdout);
-  console.error(
-    `\nlex-cli produced no generated module (expected a line starting with ` +
+  failLoudly(
+    `${stdout}\nlex-cli produced no generated module (expected a line starting with ` +
       `"${MODULE_PREFIX}"). ${OUTPUT_FILE} left untouched.`,
   );
-  process.exit(1);
 }
 
 const diagnostics = stdout.slice(0, markerIndex);
@@ -112,16 +135,13 @@ let parsed;
 try {
   parsed = JSON.parse(payload.trim().replace(/;$/, ''));
 } catch (cause) {
-  process.stderr.write(diagnostics);
-  console.error(
-    `\nGenerated payload is not pure JSON data (${cause.message}). ` +
+  failLoudly(
+    `${diagnostics}\nGenerated payload is not pure JSON data (${cause.message}). ` +
       `Refusing to write ${OUTPUT_FILE}.`,
   );
-  process.exit(1);
 }
 if (!Array.isArray(parsed)) {
-  console.error(`Generated payload is ${typeof parsed}, expected an array. Nothing written.`);
-  process.exit(1);
+  failLoudly(`Generated payload is ${typeof parsed}, expected an array. Nothing written.`);
 }
 
 // --- Report, loudly, on stderr ---------------------------------------------
@@ -161,5 +181,8 @@ console.error(
 
 if (strict && dropped.length > 0) {
   console.error('--strict: failing because some lexicons did not validate.');
-  process.exit(1);
+  // Set the code and fall off the end rather than calling process.exit(): the
+  // normal exit path drains the (async, when piped) stderr buffer first, so the
+  // report above cannot be truncated.
+  process.exitCode = 1;
 }
