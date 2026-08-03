@@ -10,6 +10,7 @@ Co-op Source Network is a federated cooperative governance platform on ATProtoco
 - **[docs/plans/2026-07-05-v12-replan-after-code-deep-dive.md](./docs/plans/2026-07-05-v12-replan-after-code-deep-dive.md)** — July 5 code/proposal reconciliation and updated Phase 3 execution order.
 - **[docs/plans/2026-07-04-v11-merge-review-findings.md](./docs/plans/2026-07-04-v11-merge-review-findings.md)** — tracked review findings feeding Phases 2–3.
 - **[AGENTS.md](./AGENTS.md)** — PoC posture: no backwards-compat artifacts, no `FooV2` names in code; rename canonical types in place.
+- **[docs/agent-learnings.md](./docs/agent-learnings.md)** — hazards, traps, and time-savers found the hard way: test-harness behavior, build/deploy failures, library gotchas, review failure modes. Read before debugging something that "should work"; add to it when you lose an hour to something undiscoverable.
 
 Prior architectures (V3–V11) are archived in `docs/archive/`. V12 supersedes them.
 
