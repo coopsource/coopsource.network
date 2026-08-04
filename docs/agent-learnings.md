@@ -133,6 +133,28 @@ reported it contained.
 **Practice:** when you change container wiring, mirror it in `test-app.ts` in
 the same commit, or the tests are describing a system that does not exist.
 
+*Update 2026-08-03 (audit N-19):* the literal is now fully typed as `Container`
+with no casts, so an unmirrored member is a typecheck failure at
+`test-app.ts`, not a silent `undefined`. The duplication itself remains until
+`createContainer()` grows override seams.
+
+### Vitest 4: setting `exclude` replaces the defaults — including `**/dist/**`
+
+**Verified 2026-08-03 (audit N-20).** Vitest's `exclude` option *replaces* the
+default exclude list rather than extending it, and Vitest 4's defaults are only
+`**/node_modules/**` and `**/.git/**` — but a config that overrides `exclude`
+loses even implicit protection against `dist/`. With no `include` either, the
+default glob (`**/*.{test,spec}.?(c|m)[jt]s?(x)`) happily collects **compiled
+tests from `dist/`**. In `apps/api` this ran a stale
+`dist/services/matchmaking/score.test.js` alongside its own source for weeks —
+20 phantom tests exercising whatever `tsc` last emitted, inflating the suite
+from an honest 1099 to a reported 1119.
+
+**Practice:** every vitest config that sets `exclude` must also set an explicit
+`include` naming the real test roots (`apps/api/vitest.config.ts` now does).
+An explicit `.test.ts` include can never match compiled `.js`, whatever is
+sitting in `dist`.
+
 ---
 
 ## 3. Build, typecheck, and deployment
@@ -170,15 +192,76 @@ docker run --rm --entrypoint node <img> -e "import('./apps/api/dist/container.js
 docker run --rm --entrypoint sh   <img> -c "ls packages/db/dist/migrations/"
 ```
 
-### Typecheck covers less than it appears to
+### `.dockerignore` patterns are anchored to the context root
 
-**Verified:** `apps/api/tsconfig.json` is `"include": ["src"]`, so `tsc` never
-sees `tests/`. `package.json` wires *both* `build` and `typecheck` to it. There
-is **no** `typecheck` task in `turbo.json`, no root `typecheck` script, and **no
-`.github/` directory at all** — there is no CI. `packages/federation` and
-`packages/lexicons` have the same `"include": ["src"]`.
+**Verified 2026-08-03.** Unlike `.gitignore`, a `.dockerignore` entry `dist/`
+excludes only the *root-level* `dist/` — **not** `packages/*/dist`. Use
+`**/dist` to match at every depth. This is not cosmetic: the anchored patterns
+shipped the host's nested `dist/` and `node_modules/` into every image build,
+which **masked two real Docker bugs** for the entire life of the images:
 
-Consequence: `pnpm build` passing says nothing about test-file type safety.
+- the web image never built `@coopsource/common` (bare `--filter` without the
+  `...` suffix — the same defect fixed for the api image on 2026-08-02) and
+  only worked because the host's compiled `packages/common/dist` rode along in
+  the context;
+- the api image `COPY`ed `packages/governance-view/node_modules`, a directory
+  that **only existed on the host** — the package has zero prod dependencies,
+  so `pnpm install --prod` deletes it in-image. Every api image built to date
+  silently embedded the maintainer's laptop `node_modules` (typescript, vitest
+  and all).
+
+**Practice:** gate image changes with a build from a **clean context** (fresh
+`git worktree` or `git archive` checkout). A build from the working tree
+proves nothing while ignore patterns can leak host artifacts.
+
+### tsc never deletes emit that becomes excluded — and turbo caches the corpse
+
+**Verified 2026-08-03.** Adding an `exclude` to a build tsconfig does not
+remove the previously-emitted output; `tsc` only writes, never reaps. Worse,
+`turbo.json`'s `build.outputs: ["dist/**"]` snapshots whatever is in `dist/`
+after the task — so a stale `.test.js` survives the rebuild **and gets baked
+into the turbo cache**, resurrecting on every cache hit. After changing any
+tsconfig `include`/`exclude`, clean the affected packages before rebuilding
+(and see the pnpm 11 trap below for how *not* to clean them).
+
+### turbo runs tasks in strict env mode — job-level env does not reach tasks
+
+**Verified 2026-08-03, cost two review rounds (fixed in 495b009).** Turbo 2.8
+strips the environment for each task down to its allowlist: a var set at
+CI-job level (or in your shell) does **not** reach the task process unless it
+is listed in that task's `passThroughEnv` in `turbo.json` (or turbo's small
+built-in allowlist). The failure that taught this: `PGUSER`/`PGPASSWORD` set
+in the GitHub job env for two federation tests that hardcode a credential-less
+Postgres URL — pg reads those vars, the fix was "verified" against a real
+container, and it was still dead, because turbo filtered the vars before
+vitest ever started. **Verifying that a component reads env correctly is not
+verifying delivery through turbo's filter** — probe the whole path (e.g. a
+task that echoes the var, with and without the passthrough).
+
+### pnpm 11 has a built-in `clean` command that shadows your scripts
+
+**Verified 2026-08-03.** `pnpm --filter <pkg> clean` no longer runs the
+package's `clean` script — pnpm 11 ships a built-in `clean` that rejects the
+`--recursive` implied by `--filter`, and its fallback behaviour can run the
+**current project's** clean script instead. At this repo's root that script is
+`turbo clean && rm -rf node_modules`, i.e. the failure mode is a surprise
+full-workspace teardown. Always use the explicit form:
+`pnpm --filter <pkg> run clean`.
+
+### Typecheck covers the tests now (fixed 2026-08-03, audit N-18)
+
+The original trap — recorded here 2026-08-02 — was that `"include": ["src"]`
+meant `tsc` never saw `tests/` (41 hidden errors in `apps/api` alone), there
+was no `typecheck` turbo task, no root script, and no `.github/` at all.
+
+As of the tranche-2 merge (`44afb1e`): every test-bearing package has a
+`tsconfig.test.json` covering `src` + tests, `pnpm typecheck` runs 8 tasks via
+turbo, and `.github/workflows/ci.yml` exists (build → typecheck → test plus a
+docker-image job). Residual gaps, still real: `apps/api/scripts/` is outside
+every tsconfig, `apps/web` relies on `svelte-check` (not wired into
+`typecheck`), and **CI has never executed** — the repo is deliberately
+unpushed, so treat the first real run as a debugging session, not a
+formality.
 
 ### SvelteKit: sync after changing a `+page.server.ts` return shape
 
@@ -301,3 +384,8 @@ ARCHITECTURE-V12 §12. The canonical repo moved to
 - **2026-08-02** — added the DDL-in-tests hazard and the orphan sweep after a
   self-review found that testing the sweep against a real server was itself
   destabilising the suite.
+- **2026-08-04** — tranche-2 hazards (merged at `44afb1e`): vitest exclude
+  replacement, `.dockerignore` root-anchoring masking two image bugs, tsc
+  stale-emit + turbo cache capture, turbo strict env filtering, the pnpm 11
+  `clean` builtin; updated the typecheck-coverage entry (N-18 fixed) and the
+  test-container entry (N-19 tripwire).
