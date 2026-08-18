@@ -464,15 +464,21 @@ describe('Federation endpoints', () => {
           .expect(409);
       });
 
-      it('returns 404 for unknown signer', async () => {
-        await testApp.agent
+      it('returns 403 for a signer who is not a member of the cooperative', async () => {
+        // Was a 404 before C-04. The signer-membership gate now runs before
+        // the entity lookup, deliberately: answering "unknown DID" ahead of
+        // "not one of ours" made this route a DID-enumeration oracle for
+        // anyone holding `agreement.amend` in any cooperative.
+        const res = await testApp.agent
           .post('/api/v1/federation/agreement/sign-request')
           .send({
             agreementUri,
             signerDid: 'did:web:nonexistent.example.com',
             cooperativeDid: coopDid,
           })
-          .expect(404);
+          .expect(403);
+
+        expect(res.body.axis).toBe('spaces');
       });
 
       it('validates request body', async () => {
