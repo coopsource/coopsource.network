@@ -434,25 +434,38 @@ export function createFederationRoutes(
       );
       if (callerDid === null) return;
 
-      // ...and the target must actually belong to the cooperative on whose
-      // behalf the request is sent, so this is not a channel for pushing
-      // attacker-chosen text into arbitrary DIDs' inboxes. Checked *before*
-      // the entity lookup below: reversing the two turns the 404 into a
-      // DID-enumeration oracle for anyone with authority over any cooperative.
-      const signerMembership =
-        await container.membershipReadModel.getActiveMembershipResult(
-          params.cooperativeDid as DID,
-          params.signerDid as DID,
-        );
-      if (!signerMembership.ok) {
-        res.status(membershipAuthorityHttpStatus(signerMembership, 403)).json({
-          error: membershipAuthorityErrorCode(signerMembership, 'Forbidden'),
-          axis: signerMembership.axis,
-          reason: signerMembership.reason,
+      // ...and the *agreement* must belong to that same cooperative. Authority
+      // over a cooperative authorises soliciting signatures on that
+      // cooperative's own agreements, nothing else. Without this the caller
+      // supplies both halves independently: anyone who controls any
+      // cooperative (its founder, or a peer signing as its own DID — which
+      // `callerHasCoopPermission` short-circuits to "allowed") could mint a
+      // pending request against another cooperative's open agreement, and that
+      // row then satisfies `/signature`'s pending-request check, restoring the
+      // unbidden self-mint that check exists to prevent.
+      //
+      // This replaces an earlier "signer must be a member of the cooperative"
+      // rule, which bound the wrong half: it left the loop above open while
+      // making a bilateral X<->Y agreement impossible, since X could then only
+      // ask its own members to sign. Ownership is the correct invariant —
+      // the signer is deliberately unconstrained.
+      const agreement = await container.db
+        .selectFrom('agreement')
+        .where('uri', '=', params.agreementUri)
+        .select(['uri', 'project_uri'])
+        .executeTakeFirst();
+
+      // A missing agreement folds into this same 403 rather than answering
+      // 404. The caller has authority over one cooperative and is asking about
+      // an arbitrary URI, so distinguishing "no such agreement" from "not
+      // yours" would hand them an existence oracle over every agreement on the
+      // instance. "Not an agreement of this cooperative" is true either way.
+      if (!agreement || agreement.project_uri !== params.cooperativeDid) {
+        res.status(403).json({
+          error: 'Forbidden',
+          axis: 'spaces',
           message:
-            signerMembership.reason === 'not-member'
-              ? 'Signer is not an active member of the target cooperative'
-              : signerMembership.message,
+            'Agreement does not belong to the cooperative making the request',
         });
         return;
       }

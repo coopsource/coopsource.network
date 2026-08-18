@@ -28,6 +28,9 @@ import {
 import { membershipAuthorityFailure } from '../src/services/membership-read-model.js';
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+/** A cooperative the caller controls but which owns none of the agreements here. */
+const FOREIGN_COOP_DID = 'did:plc:foreignauthzcoop';
+const LOOP_COOP_DID = 'did:plc:loopauthzcoop';
 
 describe('Federation agreement authorization (C-04)', () => {
   let testApp: TestApp;
@@ -111,6 +114,24 @@ describe('Federation agreement authorization (C-04)', () => {
       .execute();
   }
 
+  /** A person entity with no membership anywhere — a valid but unaffiliated signer. */
+  async function createPerson(did: string, displayName: string): Promise<void> {
+    const now = testApp.clock.now();
+    await testApp.container.db
+      .insertInto('entity')
+      .values({
+        did,
+        type: 'person',
+        display_name: displayName,
+        status: 'active',
+        created_at: now,
+        indexed_at: now,
+      })
+      .onConflict((oc) => oc.column('did').doNothing())
+      .execute();
+  }
+
+  /** Creates and opens an agreement owned by `coopDid` (`agreement.project_uri`). */
   async function openAgreement(title: string): Promise<string> {
     const agreement = await testApp.container.agreementService.createAgreement(
       victimDid,
@@ -550,7 +571,10 @@ describe('Federation agreement authorization (C-04)', () => {
 
   describe('POST /api/v1/federation/agreement/sign-request', () => {
     it('refuses a plain member soliciting a signature in the cooperative’s name', async () => {
-      const agreementUri = 'at://did:test/agreement/solicit-forged';
+      // A real agreement owned by this cooperative, so the denial can only be
+      // the authority gate — a fabricated URI would now also trip the
+      // ownership gate and the test would stop isolating what it names.
+      const agreementUri = await openAgreement('Solicit Forged');
 
       const res = await attacker
         .post('/api/v1/federation/agreement/sign-request')
@@ -566,8 +590,8 @@ describe('Federation agreement authorization (C-04)', () => {
       expect(await signatureRequests(agreementUri, victimDid)).toHaveLength(0);
     });
 
-    it('lets a caller with agreement.amend solicit a signature from a member', async () => {
-      const agreementUri = 'at://did:test/agreement/solicit-genuine';
+    it('lets a caller with agreement.amend solicit a signature on their own agreement', async () => {
+      const agreementUri = await openAgreement('Solicit Genuine');
 
       const res = await testApp.agent
         .post('/api/v1/federation/agreement/sign-request')
@@ -583,6 +607,126 @@ describe('Federation agreement authorization (C-04)', () => {
       const rows = await signatureRequests(agreementUri, victimDid);
       expect(rows).toHaveLength(1);
       expect(rows[0]!.requester_did).toBe(coopDid);
+    });
+
+    it('lets a cooperative solicit a signature from a non-member (inter-coop)', async () => {
+      // The bilateral X<->Y case the recursive-cooperative model requires: the
+      // signer is deliberately not a member of the soliciting cooperative.
+      // An earlier "signer must be a member" rule made this impossible.
+      const agreementUri = await openAgreement('Inter Coop Solicitation');
+      const outsiderDid = 'did:plc:intercoopsigner';
+      await createPerson(outsiderDid, 'Inter-coop Signer');
+
+      expect(
+        await testApp.container.membershipReadModel.getActiveMembership(
+          coopDid as DID,
+          outsiderDid as DID,
+        ),
+      ).toBeNull();
+
+      const res = await testApp.agent
+        .post('/api/v1/federation/agreement/sign-request')
+        .send({
+          agreementUri,
+          agreementTitle: 'Countersign our bilateral agreement',
+          signerDid: outsiderDid,
+          cooperativeDid: coopDid,
+        })
+        .expect(200);
+
+      expect(res.body.acknowledged).toBe(true);
+      expect(await signatureRequests(agreementUri, outsiderDid)).toHaveLength(1);
+    });
+
+    it('refuses a request naming an agreement the cooperative does not own', async () => {
+      // Reworked from a signer-membership case. Authority over a cooperative
+      // authorises soliciting signatures on *that cooperative's* agreements.
+      const agreementUri = await openAgreement('Owned By Us');
+      await createCooperative(FOREIGN_COOP_DID, 'Foreign Cooperative');
+
+      const { agent, did } = await register(
+        'foreignadmin@authz.test',
+        'foreignadmin',
+      );
+      await testApp.container
+        .groupMutationsForDb(testApp.container.db)
+        .addMember({
+          cooperativeDid: FOREIGN_COOP_DID as DID,
+          memberDid: did as DID,
+          actorDid: FOREIGN_COOP_DID as DID,
+          roles: ['admin'],
+          reason: 'ownership probe',
+        });
+      // Precondition: the caller really does hold the permission — in their
+      // own cooperative. The denial below must come from ownership, not from
+      // the caller being a nobody.
+      expect(
+        await testApp.container.membershipReadModel.hasPermissionResult(
+          FOREIGN_COOP_DID as DID,
+          did as DID,
+          'agreement.amend',
+        ),
+      ).toEqual({ ok: true, allowed: true });
+
+      const res = await agent
+        .post('/api/v1/federation/agreement/sign-request')
+        .send({
+          agreementUri,
+          signerDid: did,
+          cooperativeDid: FOREIGN_COOP_DID,
+        })
+        .expect(403);
+
+      expect(res.body.axis).toBe('spaces');
+      expect(await signatureRequests(agreementUri, did)).toHaveLength(0);
+    });
+
+    it('closes the self-service minting loop into /signature', async () => {
+      // The loop the ownership gate exists to break: hold `agreement.amend`
+      // in a cooperative you control, point `agreementUri` at somebody else's
+      // open agreement and `signerDid` at yourself. Pre-fix the pending row
+      // was created (200) and then satisfied `/signature`'s pending-request
+      // check (201), minting a binding signature on an agreement nobody had
+      // asked this DID to sign.
+      const agreementUri = await openAgreement('Minting Loop Target');
+      const { agent, did } = await register('looper@authz.test', 'looper');
+      await createCooperative(LOOP_COOP_DID, 'Looper Co-op');
+      await testApp.container
+        .groupMutationsForDb(testApp.container.db)
+        .addMember({
+          cooperativeDid: LOOP_COOP_DID as DID,
+          memberDid: did as DID,
+          actorDid: LOOP_COOP_DID as DID,
+          roles: ['admin'],
+          reason: 'minting loop probe',
+        });
+
+      const solicited = await agent
+        .post('/api/v1/federation/agreement/sign-request')
+        .send({
+          agreementUri,
+          agreementTitle: 'Please sign (from my own coop)',
+          signerDid: did,
+          cooperativeDid: LOOP_COOP_DID,
+        })
+        .expect(403);
+      expect(solicited.body.axis).toBe('spaces');
+      expect(await signatureRequests(agreementUri, did)).toHaveLength(0);
+
+      // ...and with no pending row to lean on, the second half of the loop is
+      // refused too.
+      const minted = await agent
+        .post('/api/v1/federation/agreement/signature')
+        .send({
+          agreementUri,
+          signerDid: did,
+          signatureUri: 'at://did:test/agreement.signature/loop',
+          signatureCid: 'bafyloop',
+          cooperativeDid: LOOP_COOP_DID,
+        })
+        .expect(403);
+      expect(minted.body.axis).toBe('service-auth');
+      expect(await signatures(agreementUri, did)).toHaveLength(0);
     });
 
     it('rejects an unbounded agreementTitle', async () => {
@@ -844,7 +988,7 @@ describe('Federation agreement authorization (C-04)', () => {
         const res = await agent
           .post('/api/v1/federation/agreement/sign-request')
           .send({
-            agreementUri: `at://did:test/agreement/matrix-${label}`,
+            agreementUri: await openAgreement(`Matrix ${label}`),
             signerDid: victimDid,
             cooperativeDid: coopDid,
           });
@@ -878,7 +1022,7 @@ describe('Federation agreement authorization (C-04)', () => {
       const res = await agent
         .post('/api/v1/federation/agreement/sign-request')
         .send({
-          agreementUri: 'at://did:test/agreement/matrix-suspended',
+          agreementUri: await openAgreement('Matrix Suspended'),
           signerDid: victimDid,
           cooperativeDid: coopDid,
         })
@@ -910,7 +1054,7 @@ describe('Federation agreement authorization (C-04)', () => {
       const res = await agent
         .post('/api/v1/federation/agreement/sign-request')
         .send({
-          agreementUri: 'at://did:test/agreement/matrix-removed',
+          agreementUri: await openAgreement('Matrix Removed'),
           signerDid: victimDid,
           cooperativeDid: coopDid,
         })
@@ -928,7 +1072,7 @@ describe('Federation agreement authorization (C-04)', () => {
       const res = await agent
         .post('/api/v1/federation/agreement/sign-request')
         .send({
-          agreementUri: 'at://did:test/agreement/matrix-nonmember',
+          agreementUri: await openAgreement('Matrix Non-member'),
           signerDid: victimDid,
           cooperativeDid: coopDid,
         })
@@ -966,7 +1110,7 @@ describe('Federation agreement authorization (C-04)', () => {
       const res = await agent
         .post('/api/v1/federation/agreement/sign-request')
         .send({
-          agreementUri: 'at://did:test/agreement/matrix-wrongcoop',
+          agreementUri: await openAgreement('Matrix Wrong Coop'),
           signerDid: victimDid,
           cooperativeDid: coopDid,
         })
@@ -974,21 +1118,30 @@ describe('Federation agreement authorization (C-04)', () => {
       expect(res.body.axis).toBe('spaces');
     });
 
-    it('sign-request naming a signer who is not a member of the cooperative returns 403', async () => {
+    it('sign-request against an unknown agreement URI returns 403, not 404', async () => {
+      // Replaces a signer-membership case whose rule no longer exists (its
+      // negative now lives in "does not own", its positive in the inter-coop
+      // test). What is worth pinning here is the disclosure choice: a caller
+      // with authority over one cooperative gets the same 403 for "no such
+      // agreement" as for "not yours", so this is not an existence oracle
+      // over every agreement URI on the instance.
       const outsider = 'did:plc:authzoutsider';
+      const unknownUri = 'at://did:test/agreement/matrix-unknown';
       const res = await testApp.agent
         .post('/api/v1/federation/agreement/sign-request')
         .send({
-          agreementUri: 'at://did:test/agreement/matrix-outsider',
+          agreementUri: unknownUri,
           signerDid: outsider,
           cooperativeDid: coopDid,
         })
         .expect(403);
 
       expect(res.body.axis).toBe('spaces');
-      expect(
-        await signatureRequests('at://did:test/agreement/matrix-outsider', outsider),
-      ).toHaveLength(0);
+      // Asserted so this pins the ownership gate specifically: the removed
+      // membership rule also answered 403/'spaces' here, just with a different
+      // message, so status and axis alone would not have caught the swap.
+      expect(res.body.message).toMatch(/does not belong to the cooperative/);
+      expect(await signatureRequests(unknownUri, outsider)).toHaveLength(0);
     });
   });
 });
