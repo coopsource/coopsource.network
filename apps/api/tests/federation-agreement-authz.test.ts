@@ -785,7 +785,17 @@ describe('Federation agreement authorization (C-04)', () => {
   describe('signed peer requests', () => {
     const peerDid = 'did:web:peer.authz.test';
     const peerKeyId = `${peerDid}#signingKey`;
+    /**
+     * The Host these requests are dialled with. Deliberately *not* this
+     * instance's configured origin: since N-23 the middleware verifies against
+     * `PUBLIC_API_URL` and ignores `Host` entirely, so every signed case below
+     * doubles as proof that the header carries no authority.
+     */
     const HOST = 'test.local';
+    /** `testConfig.PUBLIC_API_URL` in tests/helpers/test-app.ts. */
+    const SELF_ORIGIN = 'http://localhost:3001';
+    /** Some other instance in the federation. Never this one. */
+    const FOREIGN_ORIGIN = 'http://other.example';
 
     let peerPrivateKey: CryptoKey;
     let peerPublicJwk: Record<string, unknown>;
@@ -822,14 +832,15 @@ describe('Federation agreement authorization (C-04)', () => {
     /**
      * Drives the *signed* branch of `requireFederationAuth`: a session-free
      * supertest instance (a cookie would make the middleware skip verification
-     * entirely) with the `Host` header pinned, because supertest binds an
-     * ephemeral port per request and the middleware builds the signed
-     * `@target-uri` from `Host`.
+     * entirely). The `Host` header is pinned only so the dialled authority is
+     * a fixed, known value — since N-23 it does not decide what is verified;
+     * `SELF_ORIGIN` does, which is why that is what requests sign for by
+     * default.
      */
     async function peerPost(
       path: string,
       body: Record<string, unknown>,
-      opts: { signedTargetUri?: string } = {},
+      opts: { signedTargetUri?: string; host?: string } = {},
     ) {
       const bodyStr = JSON.stringify(body);
       const headers: Record<string, string> = {
@@ -837,7 +848,7 @@ describe('Federation agreement authorization (C-04)', () => {
       };
       const sigHeaders = await signRequest(
         'POST',
-        opts.signedTargetUri ?? `http://${HOST}${path}`,
+        opts.signedTargetUri ?? `${SELF_ORIGIN}${path}`,
         headers,
         bodyStr,
         peerPrivateKey,
@@ -846,7 +857,7 @@ describe('Federation agreement authorization (C-04)', () => {
 
       return supertest(testApp.app)
         .post(path)
-        .set('Host', HOST)
+        .set('Host', opts.host ?? HOST)
         .set('Content-Type', 'application/json')
         .set('Signature-Input', sigHeaders['Signature-Input'])
         .set('Signature', sigHeaders.Signature)
@@ -869,7 +880,9 @@ describe('Federation agreement authorization (C-04)', () => {
             cooperativeDid: coopDid,
           },
           {
-            signedTargetUri: `http://${HOST}/api/v1/federation/agreement/sign-reject`,
+            // Right origin, wrong path — isolates the path half of
+            // `@target-uri` from the origin half N-23 covers below.
+            signedTargetUri: `${SELF_ORIGIN}/api/v1/federation/agreement/sign-reject`,
           },
         );
         expect(res.status).toBe(401);
@@ -922,6 +935,97 @@ describe('Federation agreement authorization (C-04)', () => {
       }
 
       expect(await signatures(agreementUri, victimDid)).toHaveLength(0);
+    });
+
+    // ── N-23: the signature must have been made for *this* instance ──
+
+    it('rejects a signature made for another instance and replayed here', async () => {
+      // The whole point of requiring `@target-uri` coverage (A-07) is that a
+      // signature names the request it authorises. That was a no-op across
+      // hosts while the verifier rebuilt the target from the caller's own
+      // `Host`: sign for instance A, then send the identical bytes here with
+      // `Host: A`, and this instance reconstructs A's URI and agrees.
+      //
+      // Nothing here is forged — the signature is cryptographically valid and
+      // the peer really is who it says it is. It was simply made for somewhere
+      // else, and this route mints a legally operative signature row.
+      const agreementUri = await openAgreement('Cross-Origin Replay');
+      await seedPendingRequest(agreementUri, peerDid);
+
+      const spy = vi
+        .spyOn(testApp.container.didResolver, 'resolve')
+        .mockResolvedValue(peerDidDocument());
+      try {
+        const res = await peerPost(
+          '/api/v1/federation/agreement/signature',
+          {
+            agreementUri,
+            signerDid: peerDid,
+            signatureUri: 'at://did:test/agreement.signature/replayed',
+            signatureCid: 'bafyreplayed',
+            cooperativeDid: coopDid,
+          },
+          {
+            signedTargetUri: `${FOREIGN_ORIGIN}/api/v1/federation/agreement/signature`,
+            host: 'other.example',
+          },
+        );
+
+        expect(res.status).toBe(401);
+        expect(res.body.axis).toBe('service-auth');
+        // The message has to separate "signed for somewhere else" from "bad
+        // signature", or this is undiagnosable in the field.
+        expect(res.body.message).toContain(SELF_ORIGIN);
+        expect(res.body.message).toContain('other.example');
+      } finally {
+        spy.mockRestore();
+      }
+
+      // Nothing was written, and the request it would have answered is still
+      // open for the real signer.
+      expect(await signatures(agreementUri, peerDid)).toHaveLength(0);
+      const requests = await signatureRequests(agreementUri, peerDid);
+      expect(requests).toHaveLength(1);
+      expect(requests[0]!.status).toBe('pending');
+    });
+
+    it('accepts the same request signed for this instance, whatever Host it was dialled with', async () => {
+      // The positive sibling: identical route, identical peer, identical body
+      // — only the origin the signature was made for differs. It reaches the
+      // handler and records the signature, so the rejection above cannot be a
+      // gate that simply refuses signed traffic.
+      //
+      // `host` is still the foreign one: the configured origin decides, not
+      // the dialled authority, so a peer reaching this instance over a private
+      // address or through a proxy still verifies.
+      const agreementUri = await openAgreement('Configured Origin');
+      await seedPendingRequest(agreementUri, peerDid);
+
+      const spy = vi
+        .spyOn(testApp.container.didResolver, 'resolve')
+        .mockResolvedValue(peerDidDocument());
+      try {
+        const res = await peerPost(
+          '/api/v1/federation/agreement/signature',
+          {
+            agreementUri,
+            signerDid: peerDid,
+            signatureUri: 'at://did:test/agreement.signature/self-origin',
+            signatureCid: 'bafyselforigin',
+            cooperativeDid: coopDid,
+          },
+          { host: 'other.example' },
+        );
+
+        expect(res.status).toBe(201);
+        expect(res.body.recorded).toBe(true);
+      } finally {
+        spy.mockRestore();
+      }
+
+      const rows = await signatures(agreementUri, peerDid);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.uri).toBe('at://did:test/agreement.signature/self-origin');
     });
   });
 

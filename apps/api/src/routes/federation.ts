@@ -190,7 +190,10 @@ export function createFederationRoutes(
   config: AppConfig,
 ): Router {
   const router = Router();
-  const fedAuth = requireFederationAuth(didResolver);
+  // Audit N-23: inbound signatures are verified against this instance's own
+  // configured origin, not the `Host` the caller chose to send. This is the
+  // first read of `config` in this file — the parameter existed unused.
+  const fedAuth = requireFederationAuth(didResolver, config.PUBLIC_API_URL);
 
   // ── Public GET endpoints (no signature verification) ──
 
