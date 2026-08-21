@@ -285,6 +285,8 @@ describe('HTTP Message Signatures', () => {
      * base construction in signRequest. Non-pseudo components fall through to a
      * header lookup exactly as buildSignatureBase does, so a sender-chosen list
      * produces a base the verifier reconstructs byte-for-byte.
+     *
+     * Duplicates buildSignatureBase at packages/federation/src/http/signing.ts:45 — keep in sync.
      */
     async function signWithComponents(
       components: string[],
@@ -327,6 +329,39 @@ describe('HTTP Message Signatures', () => {
       expect(result.verified).toBe(false);
     });
 
+    it('does not verify a body whose valid content-digest header is uncovered', async () => {
+      const body = '{"roles":["admin"]}';
+      const headers: Record<string, string> = { 'content-type': 'application/json' };
+
+      // signRequest leaves an *honest* Content-Digest in `headers`: it is the
+      // real digest of the body that will be delivered, so both the presence
+      // check and verifyContentDigest pass on it.
+      const sigHeaders = await signRequest(method, targetUri, headers, body, privateKey, keyId);
+      const honestDigest = await createContentDigest(body);
+      expect(sigHeaders['Content-Digest']).toBe(honestDigest);
+      expect(headers['content-digest']).toBe(honestDigest);
+
+      // Re-sign the same request over a list that drops content-digest while
+      // that valid header stays in place. This is the A-07 bypass that was
+      // actually live, and the one the sibling case above cannot see: there,
+      // no digest header exists at all. Here presence and digest-match both
+      // hold, so only `components.includes('content-digest')` stands between
+      // this signature and a body it never bound. A partial regression that
+      // keeps `if (!digestHeader) return fail` and drops the coverage line
+      // accepts it.
+      Object.assign(
+        headers,
+        await signWithComponents(['@method', '@target-uri', 'content-type'], headers),
+      );
+      expect(headers['signature-input']).not.toContain('content-digest');
+      expect(headers['content-digest']).toBe(honestDigest);
+
+      const resolver = createMockDidResolver(publicJwk);
+      const result = await verifyRequest(method, targetUri, headers, body, resolver);
+
+      expect(result.verified).toBe(false);
+    });
+
     it('does not verify when @method is omitted from the covered list', async () => {
       const headers: Record<string, string> = {};
       Object.assign(headers, await signWithComponents(['@target-uri'], headers));
@@ -352,6 +387,19 @@ describe('HTTP Message Signatures', () => {
       // "@METHOD" is treated as a (missing) header and binds nothing.
       const headers: Record<string, string> = {};
       Object.assign(headers, await signWithComponents(['@METHOD', '@target-uri'], headers));
+
+      const resolver = createMockDidResolver(publicJwk);
+      const result = await verifyRequest(method, targetUri, headers, null, resolver);
+
+      expect(result.verified).toBe(false);
+    });
+
+    it('does not accept @TARGET-URI in place of @target-uri (no case folding)', async () => {
+      // Twin of the @METHOD case above: buildSignatureBase special-cases only
+      // the lowercase spelling, so "@TARGET-URI" is a lookup for a header that
+      // does not exist and binds nothing.
+      const headers: Record<string, string> = {};
+      Object.assign(headers, await signWithComponents(['@method', '@TARGET-URI'], headers));
 
       const resolver = createMockDidResolver(publicJwk);
       const result = await verifyRequest(method, targetUri, headers, null, resolver);
