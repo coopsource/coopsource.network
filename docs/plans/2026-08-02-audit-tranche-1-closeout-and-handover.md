@@ -11,7 +11,7 @@
   maintained "what is still open" lists, so later tranches amend them here
   rather than adding a parallel document that would leave these silently wrong.
   Amended **2026-08-20** for tranche 2 (merged `44afb1e`) and tranche 3
-  (`feature/audit-tranche-3-c04-a07`, code commits `6dfdf22..51b5c93`,
+  (`feature/audit-tranche-3-c04-a07`, code commits `6dfdf22..6bb749b`,
   unmerged and unpushed at the time of writing).
 
 ---
@@ -59,7 +59,7 @@ document of its own — its record is git plus
 [agent-learnings.md](../agent-learnings.md).
 
 **Tranche 3 — branch `feature/audit-tranche-3-c04-a07`, code commits
-`6dfdf22..51b5c93`.** Closes backlog item 3 below. Not pushed.
+`6dfdf22..6bb749b`.** Closes backlog item 3 below. Not pushed.
 
 | Commit | What |
 |---|---|
@@ -67,29 +67,27 @@ document of its own — its record is git plus
 | `37a0081` | **C-04.** All five agreement federation endpoints take the acting DID from the verified caller (`federationCallerDid()`), on both the signed-peer and the local-session path, through two new helpers: `requireSelfActingCaller` (Axis 5, `service-auth`) and `requireCoopAuthority` (Axis 2, `spaces`). `/signature` additionally requires a pending `signature_request`. `/membership/approve`'s existing gate moved into the same helper with its response bytes unchanged. A separate cross-cooperative scoping bug was found and fixed here: `sign-cancel` authorized against one cooperative but keyed its `UPDATE` only on `(agreement_uri, signer_did)`, so `agreement.amend` anywhere on the instance cancelled pending requests everywhere. |
 | `ab844b7` | **C-04, fix round.** `sign-request` gates on the agreement's **ownership** — `agreement.project_uri === params.cooperativeDid` — on top of `agreement.amend` authority over that cooperative. The signer-membership rule that shipped in `37a0081` was reviewed and **deliberately replaced**: it bound the wrong half, leaving a minting loop open (anyone controlling any cooperative could raise a pending request against a victim cooperative's open agreement, and that row then satisfied `/signature`'s pending gate) while making bilateral inter-coop signing impossible. Ownership is what shipped; the signer is deliberately unconstrained. Do not reintroduce the membership rule. |
 | `8e68432` | **A-07.** `verifyRequest` now requires `@method` and `@target-uri` coverage, and whenever a body is present requires the `content-digest` component **and** the header **and** a matching digest (`packages/federation/src/http/signing.ts:163-171`). Three bypasses beyond the audit's text fell to the same code: `sig=()` (the component list matches empty), a `content-digest` header present but not covered, and the `@TARGET-URI` case variant — the required matches are exact, because `buildSignatureBase` matches literally. |
-| `b8d331e` | **N-23** (read the identifier note below). `@target-uri` was reconstructed from `req.protocol` + `req.get('host')`; with `trust proxy` on, both halves are attacker-supplied, so a request signed for instance A replayed against instance B by sending `Host: A` — which made A-07's `@target-uri` requirement a no-op for cross-host replay. It is now built from this instance's configured `PUBLIC_API_URL` origin, resolved once at construction, and `Host`/`X-Forwarded-Proto` are read nowhere on the verification path. `infrastructure/docker-compose.federation.yml` set no `PUBLIC_API_URL` on any of its three API services — a genuine config defect, since all three then bound `http://localhost:3001` while the e2e signs `:3001`/`:3002`/`:3003` — and was corrected here. |
-| `51b5c93` | **N-23 follow-up.** `PUBLIC_API_URL` had a `.default()` of `http://localhost:3001`, the same value on every instance, so the config could not distinguish "the operator set localhost" from "the operator set nothing" and two instances that both omitted it bound an identical origin and stayed mutually replayable. The default is gone: absence is rejected when `NODE_ENV === 'production'` **or** `INSTANCE_ROLE !== 'standalone'`, and otherwise resolves to `http://localhost:${PORT}`. The role condition is the one that would actually have failed all three federation services at boot — they run `NODE_ENV=development`. |
+| `6482646` | **N-25** (read the identifier note below). `@target-uri` was reconstructed from `req.protocol` + `req.get('host')`; with `trust proxy` on, both halves are attacker-supplied, so a request signed for instance A replayed against instance B by sending `Host: A` — which made A-07's `@target-uri` requirement a no-op for cross-host replay. It is now built from this instance's configured `PUBLIC_API_URL` origin, resolved once at construction, and `Host`/`X-Forwarded-Proto` are read nowhere on the verification path. `infrastructure/docker-compose.federation.yml` set no `PUBLIC_API_URL` on any of its three API services — a genuine config defect, since all three then bound `http://localhost:3001` while the e2e signs `:3001`/`:3002`/`:3003` — and was corrected here. |
+| `6bb749b` | **N-25 follow-up.** `PUBLIC_API_URL` had a `.default()` of `http://localhost:3001`, the same value on every instance, so the config could not distinguish "the operator set localhost" from "the operator set nothing" and two instances that both omitted it bound an identical origin and stayed mutually replayable. The default is gone: absence is rejected when `NODE_ENV === 'production'` **or** `INSTANCE_ROLE !== 'standalone'`, and otherwise resolves to `http://localhost:${PORT}`. The role condition is the one that would actually have failed all three federation services at boot — they run `NODE_ENV=development`. |
 
 Each of the four vulnerability fixes — `37a0081`, `ab844b7`, `8e68432`,
-`b8d331e` — was re-derived by running the exploit against the pre-fix source
+`6482646` — was re-derived by running the exploit against the pre-fix source
 *first*, and that pre-fix capture is pasted into the commit body. That, not a
 green suite, is the evidence; read the bodies before re-litigating any of it.
 `6dfdf22` has no body: the role demotion was confirmed by reading the roles back
 after the offending test, and the invariant assertion it adds is the durable
-record. `51b5c93` is a configuration follow-up, verified by booting the API
+record. `6bb749b` is a configuration follow-up, verified by booting the API
 against the unchanged root `.env` rather than by a probe.
 
-**On the identifier `N-23`.** It is overloaded, and the collision is already
-baked into this branch's commit messages and into ten comments across five
-files (four in `apps/api/src`, six in `apps/api/tests`). In the
-[2026-08-02 independent deep review](./2026-08-02-independent-deep-review.md)
-**N-23** is "API token `scopes` are stored, returned, and resolved but never
-enforced" — a different finding, still open. That series runs **N-1..N-24**; the
-tranche-3 design review assumed it stopped at N-22 and numbered the cross-host
-replay finding N-23 without checking. Until the label is reconciled (§3, item
-15), read `N-23` in the code and in commits `b8d331e`/`51b5c93` as the
-**federation replay** finding, and `N-23` in the deep review as the **API token
-scopes** finding.
+**On the identifier `N-25`.** The cross-host replay finding is **N-25** — the
+next free number after the [2026-08-02 independent deep
+review](./2026-08-02-independent-deep-review.md), whose series runs
+**N-1..N-24**. An earlier draft of this tranche numbered it N-23 without
+checking, colliding with that review's **N-23** ("API token `scopes` are stored,
+returned, and resolved but never enforced" — a different finding, still open and
+listed in §3). The label was corrected across the code, the tests, this
+register, and the commit subjects before merge, so `N-23` now means only the
+API-token-scopes finding.
 
 ---
 
@@ -129,7 +127,7 @@ overstated them. Do not assume "C-03 fixed" means contained.
 
 C-04 bound *identity*. It did not make a signature row into evidence of
 anything, and it did not close replay. Everything below was deliberately left
-open; all line cites are against `51b5c93`.
+open; all line cites are against `6bb749b`.
 
 - **Signature evidence is still never resolved from the signer's PDS, and
   `agreement_cid` is still `''`.** `/api/v1/federation/agreement/signature`
@@ -191,7 +189,7 @@ open; all line cites are against `51b5c93`.
   path.
 - **An instance left at `INSTANCE_ROLE: standalone` still serves every
   federation endpoint.** `apps/api/src/index.ts:285` mounts the federation
-  routes unconditionally, so the origin requirement added in `51b5c93` is gated
+  routes unconditionally, so the origin requirement added in `6bb749b` is gated
   on a *self-declared role*, not on whether the signed endpoints are live: such
   an instance runs on the resolved fallback origin
   (`http://localhost:${PORT}`) while still exposing every
@@ -201,7 +199,7 @@ open; all line cites are against `51b5c93`.
   "federation enabled" rather than on the role string.
 - **`well-known.ts` publishes `INSTANCE_URL` as the DID document
   `serviceEndpoint`** (`apps/api/src/routes/well-known.ts:88,93`; `:38` also
-  derives the `did:web` from it), which after `b8d331e` is a *different* value
+  derives the `did:web` from it), which after `6482646` is a *different* value
   from the origin inbound requests are verified against. They are identical in
   the prod and local compose stacks and diverge only in
   `docker-compose.federation.yml`, where `INSTANCE_URL` is deliberately
@@ -232,7 +230,7 @@ are closed; start at item 4.**
 
 ### The still-open criticals
 
-3. **[DONE — tranche 3, `6dfdf22..51b5c93`] C-04**, folded in with A-07 and the
+3. **[DONE — tranche 3, `6dfdf22..6bb749b`] C-04**, folded in with A-07 and the
    cross-host replay finding. Precisely what "done" covers:
    - caller-identity binding on all five agreement federation endpoints —
      `sign-request`, `signature`, `sign-reject`, `sign-cancel`,
@@ -308,10 +306,11 @@ are closed; start at item 4.**
     surface it lands on is `GET /api/v1/me/signature-requests`. This is the
     agreed lower-severity consequence of the ownership decision, filed rather
     than fixed.
-15. **The `N-23` label is ambiguous** (see §1). Either renumber the federation
-    replay finding at its ten code and test sites (`grep -rn N-23 apps/api`), or
-    renumber the deep review's API-token-scopes N-23. Small, but it is a code
-    edit, so it did not ship with the docs commit.
+15. ~~**The `N-23` label is ambiguous.**~~ **Resolved before merge** — the
+    federation replay finding was renumbered to **N-25** at every code, test,
+    doc, and commit-subject site; the deep review's `N-23` (API token scopes)
+    is untouched and remains open. See the identifier note in §1.
+
 16. **A-07 regression coverage is partial.** There is no committed test for the
     subtlest bypass and the one that was actually live: a `content-digest`
     header *present but not covered* by the signature. The four committed cases

@@ -68,7 +68,7 @@ services:
     environment:
       DATABASE_URL: postgresql://coopsource:dev_password@postgres:5432/coopsource_hub
       INSTANCE_URL: http://hub:3001
-      # The origin clients dial and therefore sign for (audit N-23:
+      # The origin clients dial and therefore sign for (audit N-25:
       # inbound federation signatures are verified against PUBLIC_API_URL,
       # never against the request's own Host). INSTANCE_URL above is the
       # compose-internal address; this is the published one.

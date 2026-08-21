@@ -96,7 +96,7 @@ describe('loadConfig', () => {
     expect(loadConfig().SPACE_MANAGING_APP_ACCESS_MODE).toBe('group-directory');
   });
 
-  // ── PUBLIC_API_URL: the federation origin (audit N-23 follow-up) ──
+  // ── PUBLIC_API_URL: the federation origin (audit N-25 follow-up) ──
   //
   // It carried `.default('http://localhost:3001')`, which is the same string
   // on every instance — so the parsed config could not tell a deliberate

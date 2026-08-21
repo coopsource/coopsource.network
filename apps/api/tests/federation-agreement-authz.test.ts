@@ -788,7 +788,7 @@ describe('Federation agreement authorization (C-04)', () => {
     const peerKeyId = `${peerDid}#signingKey`;
     /**
      * The Host these requests are dialled with. Deliberately *not* this
-     * instance's configured origin: since N-23 the middleware verifies against
+     * instance's configured origin: since N-25 the middleware verifies against
      * `PUBLIC_API_URL` and ignores `Host` entirely, so every signed case below
      * doubles as proof that the header carries no authority.
      */
@@ -834,7 +834,7 @@ describe('Federation agreement authorization (C-04)', () => {
      * Drives the *signed* branch of `requireFederationAuth`: a session-free
      * supertest instance (a cookie would make the middleware skip verification
      * entirely). The `Host` header is pinned only so the dialled authority is
-     * a fixed, known value — since N-23 it does not decide what is verified;
+     * a fixed, known value — since N-25 it does not decide what is verified;
      * `SELF_ORIGIN` does, which is why that is what requests sign for by
      * default.
      */
@@ -882,7 +882,7 @@ describe('Federation agreement authorization (C-04)', () => {
           },
           {
             // Right origin, wrong path — isolates the path half of
-            // `@target-uri` from the origin half N-23 covers below.
+            // `@target-uri` from the origin half N-25 covers below.
             signedTargetUri: `${SELF_ORIGIN}/api/v1/federation/agreement/sign-reject`,
           },
         );
@@ -938,7 +938,7 @@ describe('Federation agreement authorization (C-04)', () => {
       expect(await signatures(agreementUri, victimDid)).toHaveLength(0);
     });
 
-    // ── N-23: the signature must have been made for *this* instance ──
+    // ── N-25: the signature must have been made for *this* instance ──
 
     it('rejects a signature made for another instance and replayed here', async () => {
       // The whole point of requiring `@target-uri` coverage (A-07) is that a
@@ -1030,7 +1030,7 @@ describe('Federation agreement authorization (C-04)', () => {
     });
 
     it('refuses to construct at all when the configured origin cannot be bound', () => {
-      // "Never falls back" is the security core of N-23, and it only holds
+      // "Never falls back" is the security core of N-25, and it only holds
       // because this is a *construction-time* throw: `createFederationRoutes`
       // runs while the Express app is built, so a value the middleware cannot
       // bind to takes the process down at boot instead of quietly degrading to

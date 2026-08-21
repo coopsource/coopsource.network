@@ -24,7 +24,7 @@ const envSchema = z
     // a default is the same string on every instance, so the parsed config
     // cannot tell "the operator set http://localhost:3001" from "the operator
     // set nothing" — and two instances that both said nothing bind an
-    // identical origin and stay mutually replayable, which is N-23 surviving
+    // identical origin and stay mutually replayable, which is N-25 surviving
     // as configuration instead of code. Resolved from `PORT` below for a
     // standalone development instance, and required to be explicit for any
     // instance that federates or runs in production.

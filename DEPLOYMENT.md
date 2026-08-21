@@ -93,7 +93,7 @@ Each instance has its own `SESSION_SECRET`, `KEY_ENC_KEY`, and database. All poi
 | `SESSION_SECRET` | `change-me-in-production` | Cookie signing secret — **must be ≥ 32 chars in production** |
 | `KEY_ENC_KEY` | (placeholder) | Base64-encoded 32-byte key for encrypting signing keys in the database — **must be set in production** (`openssl rand -base64 32`) |
 | `INSTANCE_URL` | `http://localhost:3001` | Public URL of this instance — used in DID documents and PDS records |
-| `PUBLIC_API_URL` | `http://localhost:${PORT}` — **standalone development only** | This instance's public origin, and the origin **inbound federation signatures are verified against** (audit N-23). Must be `http(s)`. The config *refuses to start* without it when `NODE_ENV=production` or `INSTANCE_ROLE` is anything other than `standalone` (`apps/api/src/config.ts`) |
+| `PUBLIC_API_URL` | `http://localhost:${PORT}` — **standalone development only** | This instance's public origin, and the origin **inbound federation signatures are verified against** (audit N-25). Must be `http(s)`. The config *refuses to start* without it when `NODE_ENV=production` or `INSTANCE_ROLE` is anything other than `standalone` (`apps/api/src/config.ts`) |
 | `FRONTEND_URL` | `http://localhost:5173` | Frontend URL — used by the API for OAuth redirect targets |
 | `BLOB_DIR` | `./data/blobs` | Directory for uploaded blobs (avatars, attachments) |
 
@@ -345,7 +345,7 @@ e.g. `http://localhost:3003`). The `PUBLIC_API_URL` entries are load-bearing,
 not redundant: the cross-instance e2e signs `http://localhost:3001/3002/3003`,
 and inbound signatures are verified against `PUBLIC_API_URL`, so removing them
 makes all three instances bind the same origin and the signed cross-instance
-calls fail (audit N-23). Since `51b5c93` a service with a non-`standalone`
+calls fail (audit N-25). Since `6bb749b` a service with a non-`standalone`
 `INSTANCE_ROLE` and no `PUBLIC_API_URL` fails at startup rather than silently
 defaulting.
 

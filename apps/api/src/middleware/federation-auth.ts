@@ -8,7 +8,7 @@ import { verifyRequest } from '@coopsource/federation/http';
  * Derived once, at construction. `createFederationRoutes` runs while the app is
  * being built, so a `PUBLIC_API_URL` this cannot bind to is a startup failure,
  * never a per-request fallback — falling back to the request's own authority is
- * exactly the vulnerability (audit N-23), so there is deliberately no fallback
+ * exactly the vulnerability (audit N-25), so there is deliberately no fallback
  * at all.
  *
  * `URL.origin` normalises what would otherwise be bypass variants: a trailing
@@ -64,7 +64,7 @@ export function requireFederationAuth(
     }
 
     const method = req.method;
-    // Audit N-23: the signed `@target-uri` is built from *this instance's*
+    // Audit N-25: the signed `@target-uri` is built from *this instance's*
     // configured origin, never from the request. Both halves of the authority
     // Express would report are attacker-supplied — `req.get('host')` is the raw
     // `Host` header, and `req.protocol` honours `X-Forwarded-Proto` once
