@@ -60,7 +60,7 @@ At every write checkpoint, identify which axis applies and route failures so the
 
 **The OAuth-spaces seam** (Axis 1 ↔ Axis 2) now has a concrete but unshipped shape: a **delegation token** minted by the user's PDS is exchanged for a **space credential** issued by the authority; a short-lived **client attestation** is included only when the space gates on application identity. Proposal 0016 distinguishes whole-space `read` from collection-constrained `read_self`; only `read` supports full-space background sync. Keep scope denial, user-policy denial, and application-policy denial distinct.
 
-_Reference implementation of the gate:_ see `apps/api/src/routes/federation.ts` `/membership/approve` — Axis 2 authority check (caller must be the coop DID or an active owner/admin) runs before any mutation and returns 403 naming `axis: 'spaces'`.
+_Reference implementation of the gate:_ see `apps/api/src/routes/federation.ts` `/membership/approve` — the Axis 2 authority check runs before any mutation and returns 403 naming `axis: 'spaces'`. Authority is the **`member.approve` permission**, not a role list: the caller must be the cooperative's own DID or hold that permission through a role, so a `coordinator` qualifies alongside `admin`/`owner` (since `0c86a5f`; `apps/api/tests/federation.test.ts:223` pins the coordinator case). Since `37a0081` the check is the shared `requireCoopAuthority` helper in that file, and the five agreement federation endpoints carry their own gates through it and through its Axis 5 sibling `requireSelfActingCaller` — "the caller must *be* the DID the body says is acting", returning `axis: 'service-auth'` (audit C-04).
 
 ---
 

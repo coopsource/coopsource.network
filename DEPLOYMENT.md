@@ -93,8 +93,25 @@ Each instance has its own `SESSION_SECRET`, `KEY_ENC_KEY`, and database. All poi
 | `SESSION_SECRET` | `change-me-in-production` | Cookie signing secret — **must be ≥ 32 chars in production** |
 | `KEY_ENC_KEY` | (placeholder) | Base64-encoded 32-byte key for encrypting signing keys in the database — **must be set in production** (`openssl rand -base64 32`) |
 | `INSTANCE_URL` | `http://localhost:3001` | Public URL of this instance — used in DID documents and PDS records |
+| `PUBLIC_API_URL` | `http://localhost:${PORT}` — **standalone development only** | This instance's public origin, and the origin **inbound federation signatures are verified against** (audit N-23). Must be `http(s)`. The config *refuses to start* without it when `NODE_ENV=production` or `INSTANCE_ROLE` is anything other than `standalone` (`apps/api/src/config.ts`) |
 | `FRONTEND_URL` | `http://localhost:5173` | Frontend URL — used by the API for OAuth redirect targets |
 | `BLOB_DIR` | `./data/blobs` | Directory for uploaded blobs (avatars, attachments) |
+
+`INSTANCE_URL` and `PUBLIC_API_URL` are **not** interchangeable, and today they
+can legitimately differ. `INSTANCE_URL` is what this instance *publishes* — the
+DID document `serviceEndpoint` and the source of the auto-derived `did:web`
+(`apps/api/src/routes/well-known.ts:38,88`). `PUBLIC_API_URL` is what inbound
+federation signatures are *verified against*
+(`apps/api/src/middleware/federation-auth.ts`). They are the same value in the
+production and local-preview stacks and diverge only in
+`docker-compose.federation.yml`, where `INSTANCE_URL` is a compose-internal
+address. Reconcile them before adding any outbound federation client.
+
+The API image bakes `ENV NODE_ENV=production` (`apps/api/Dockerfile:39`), so a
+bare `docker run` of it now **refuses to boot without an explicit
+`PUBLIC_API_URL`**. Every Compose service in this repo sets one, so nothing
+shipped is affected; this is a new operational requirement for anyone running
+the image by hand.
 
 ### Group B — Redis
 
@@ -190,7 +207,7 @@ These are read by docker-compose, not directly by the API.
 | `PLC_URL` | Yes | Real PLC directory URL; `local` is rejected in production |
 | `PDS_URL` | Yes | Real ATProto PDS URL used by the production Compose stack |
 | `PDS_ADMIN_PASSWORD` | Yes | Admin password configured by the PDS operator |
-| `PUBLIC_API_URL` | Auto | Client-side API base URL — set automatically from `DOMAIN` in docker-compose |
+| `PUBLIC_API_URL` | Auto | Public API origin — set automatically from `DOMAIN` in docker-compose. Unlike the rest of this group it **is** read directly by the API as well (see Group A): it is the origin inbound federation signatures are verified against |
 | `ORIGIN` | Auto | SvelteKit CSRF trusted origin — set automatically from `DOMAIN` in docker-compose |
 
 ### Group J — Private network (docker-compose.private.yml)
@@ -321,6 +338,16 @@ Instances and databases:
 | coop-a | 3002 | `coopsource_coop_a` |
 | coop-b | 3003 | `coopsource_coop_b` |
 | web | 5173 | — |
+
+Each API service sets **both** `INSTANCE_URL` (the compose-internal peer
+address, e.g. `http://coop-b:3003`) and `PUBLIC_API_URL` (the published origin,
+e.g. `http://localhost:3003`). The `PUBLIC_API_URL` entries are load-bearing,
+not redundant: the cross-instance e2e signs `http://localhost:3001/3002/3003`,
+and inbound signatures are verified against `PUBLIC_API_URL`, so removing them
+makes all three instances bind the same origin and the signed cross-instance
+calls fail (audit N-23). Since `51b5c93` a service with a non-`standalone`
+`INSTANCE_ROLE` and no `PUBLIC_API_URL` fails at startup rather than silently
+defaulting.
 
 ### Local production preview (`docker-compose.prod.yml` + `docker-compose.local.yml`)
 
