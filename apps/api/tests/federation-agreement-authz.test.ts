@@ -26,6 +26,7 @@ import {
   type TestApp,
 } from './helpers/test-app.js';
 import { membershipAuthorityFailure } from '../src/services/membership-read-model.js';
+import { requireFederationAuth } from '../src/middleware/federation-auth.js';
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 /** A cooperative the caller controls but which owns none of the agreements here. */
@@ -1026,6 +1027,37 @@ describe('Federation agreement authorization (C-04)', () => {
       const rows = await signatures(agreementUri, peerDid);
       expect(rows).toHaveLength(1);
       expect(rows[0]!.uri).toBe('at://did:test/agreement.signature/self-origin');
+    });
+
+    it('refuses to construct at all when the configured origin cannot be bound', () => {
+      // "Never falls back" is the security core of N-23, and it only holds
+      // because this is a *construction-time* throw: `createFederationRoutes`
+      // runs while the Express app is built, so a value the middleware cannot
+      // bind to takes the process down at boot instead of quietly degrading to
+      // the request's own authority on some later request. The config schema
+      // rejects these too, but `tests/helpers/test-app.ts` builds an
+      // `AppConfig` by cast and never runs Zod — so this is the check that
+      // actually holds at the point of use.
+      const resolver = testApp.container.didResolver;
+
+      // Parses fine; `new URL('file:///x').origin` is the literal string
+      // 'null', which would become a target URI no signature could match.
+      expect(() => requireFederationAuth(resolver, 'file:///x')).toThrow(
+        /no http\(s\) origin/,
+      );
+      expect(() => requireFederationAuth(resolver, 'not-a-url')).toThrow(
+        /is not a valid URL/,
+      );
+      expect(() => requireFederationAuth(resolver, '')).toThrow(
+        /is not a valid URL/,
+      );
+
+      // Positive sibling: a bindable value (trailing slash and all) builds a
+      // handler rather than throwing, so the assertions above cannot be a
+      // factory that simply refuses everything.
+      expect(
+        typeof requireFederationAuth(resolver, 'http://localhost:3001/'),
+      ).toBe('function');
     });
   });
 

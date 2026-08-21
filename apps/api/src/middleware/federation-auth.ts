@@ -15,10 +15,10 @@ import { verifyRequest } from '@coopsource/federation/http';
  * slash, an explicit default port (`:443` on https), and host case. A scheme
  * with no origin (`file:`, `data:`) yields the literal string `'null'`; that is
  * rejected here rather than being allowed to become a target URI no signature
- * could ever match. `PUBLIC_API_URL` is `z.string().url()` with a default, so
- * `loadConfig()` already rejects unset/unparseable values — but the test
- * harness builds an `AppConfig` by cast, bypassing Zod, so this check is what
- * actually guarantees the invariant.
+ * could ever match. `config.ts` refuses non-http(s) values and refuses to
+ * resolve a fallback at all for a federating or production instance — but the
+ * test harness builds an `AppConfig` by cast, bypassing Zod entirely, so this
+ * check is what actually guarantees the invariant at the point of use.
  */
 function federationSelfOrigin(publicApiUrl: string): string {
   let origin: string;

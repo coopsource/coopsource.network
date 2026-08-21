@@ -36,6 +36,9 @@ export default defineConfig({
         PORT: '3002',
         PLC_URL: 'local',
         INSTANCE_URL: 'http://localhost:3002',
+        // This API is published on 3002, so say so rather than letting it
+        // resolve an origin (audit N-23: it is what signatures verify against).
+        PUBLIC_API_URL: 'http://localhost:3002',
         SESSION_SECRET: 'e2e-test-session-secret',
       },
     },

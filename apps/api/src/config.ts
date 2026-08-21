@@ -1,13 +1,16 @@
 import { z } from 'zod';
 
 const envBoolean = z.stringbool().default(false);
-const httpUrl = z.string().url().refine((value) => {
-  try {
-    return ['http:', 'https:'].includes(new URL(value).protocol);
-  } catch {
-    return false;
-  }
-});
+const httpUrl = z.string().url().refine(
+  (value) => {
+    try {
+      return ['http:', 'https:'].includes(new URL(value).protocol);
+    } catch {
+      return false;
+    }
+  },
+  { message: 'must be an http(s) URL' },
+);
 
 const envSchema = z
   .object({
@@ -16,7 +19,16 @@ const envSchema = z
     DATABASE_URL: z.string().url().optional(),
     REDIS_URL: z.string().url().optional(),
     SESSION_SECRET: z.string().default('change-me-in-production'),
-    PUBLIC_API_URL: z.string().url().default('http://localhost:3001'),
+    // The origin inbound federation signatures are verified against
+    // (`middleware/federation-auth.ts`). Deliberately **not** `.default()`:
+    // a default is the same string on every instance, so the parsed config
+    // cannot tell "the operator set http://localhost:3001" from "the operator
+    // set nothing" — and two instances that both said nothing bind an
+    // identical origin and stay mutually replayable, which is N-23 surviving
+    // as configuration instead of code. Resolved from `PORT` below for a
+    // standalone development instance, and required to be explicit for any
+    // instance that federates or runs in production.
+    PUBLIC_API_URL: httpUrl.optional(),
     // Federation / local development substrate
     PLC_URL: z.string().default('local'),
     INSTANCE_URL: z.string().url().default('http://localhost:3001'),
@@ -134,6 +146,31 @@ const envSchema = z
         });
       }
     }
+    // A federating instance has peers that sign for its origin, and a
+    // production instance is dialled by name, so neither may run on the
+    // localhost fallback. `INSTANCE_ROLE !== 'standalone'` is the condition
+    // that would have caught the real case: every API service in
+    // docker-compose.federation.yml declares a role and none of them set
+    // PUBLIC_API_URL, so all three silently bound http://localhost:3001.
+    if (data.PUBLIC_API_URL === undefined) {
+      if (data.NODE_ENV === 'production') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['PUBLIC_API_URL'],
+          message:
+            'PUBLIC_API_URL must be set explicitly in production — it is the ' +
+            'origin inbound federation signatures are verified against',
+        });
+      } else if (data.INSTANCE_ROLE !== 'standalone') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['PUBLIC_API_URL'],
+          message:
+            `PUBLIC_API_URL must be set explicitly when INSTANCE_ROLE is '${data.INSTANCE_ROLE}' ` +
+            '— a federating instance cannot share the localhost fallback with its peers',
+        });
+      }
+    }
     if (data.SPACE_MANAGING_APP_ACCESS_MODE === 'group-directory') {
       if (!data.SERVICE_AUTH_AUDIENCE_DID) {
         ctx.addIssue({
@@ -156,7 +193,14 @@ const envSchema = z
         });
       }
     }
-  });
+  })
+  // Resolved last so the checks above can still see "the operator said
+  // nothing". Derived from PORT rather than hardcoded, so two instances on one
+  // host no longer collide on a single origin the way the federation stack did.
+  .transform((data) => ({
+    ...data,
+    PUBLIC_API_URL: data.PUBLIC_API_URL ?? `http://localhost:${data.PORT}`,
+  }));
 
 export type AppConfig = z.infer<typeof envSchema>;
 
