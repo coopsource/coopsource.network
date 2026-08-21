@@ -426,6 +426,26 @@ sequence could remove an author's concurrent update. No live copy, cutover,
 writer-default change, or signoff is claimed. See
 `docs/plans/2026-07-30-v12-phase-4-tier2-copy-ledger.md`.
 
+**2026-08-20 — Phase 4A: spaces-alpha alignment work package.** The upstream
+Spaces alpha (analysis: `docs/plans/2026-08-20-spaces-alpha-impact-analysis.md`,
+work package in its §5) fired this phase's entry-gate condition
+("`@atproto/space` … becomes consumable") and resolved the commit-format
+(signed-ctx+HMAC won) and notification-audience (DID service fragment,
+V12-S09) open questions. Ordered items: (1) repin the conformance baseline
+(proposal `54c9cf5`, atproto `89deb9fac`, npm snapshot
+`0.0.0-spaces-alpha-20260818163953` + image digest; supersedes closeout item
+12's repin); (2) DPoP-bound space credentials end-to-end (per-credential
+keypair, mint + per-request proofs); (3) `com.atproto.simplespace.getSpace`
+migration (`space.getSpace` was removed upstream); (4) canonical DAG-CBOR CAR
+index ordering (replace `localeCompare`); (5) space-deletion handling (drop
+replicas, checkpoints, credentials, projections on `notifySpaceDeleted` /
+`SpaceDeleted`); (6) local `pds-spaces-alpha` Docker harness for the live-XRPC
+exercise (interacts with audit finding A-06); (7) `@atproto/space` as a pinned
+differential oracle (runtime swap deferred until upstream stability); (8)
+notification-endpoint activation design per resolved V12-S09; (9) `space:`
+scope revalidation (`read_self` no longer takes `collection`). Out of scope:
+`@atproto/lex-*` client migration, bespoke space host, Tier-2 cutover.
+
 - [x] First task expanded through the July 29 gap analysis and July 30
   conformance-baseline note.
 
@@ -512,13 +532,42 @@ configured.
 - [x] Deep ecosystem sweep completed 2026-07-29 across Proposal 0016,
   atproto PR #5187, Diary 7, HappyView, Roomy/Arbiter, Atmospheric Groups,
   Blacksky, Northsky, Habitat, Colibri, and atproto-crates.
-- [ ] Continue the two-week watchlist cadence; **next due 2026-08-12**.
+- [x] Deep ecosystem sweep completed 2026-08-20 — the **Spaces alpha release**
+  (updated Proposal 0016, published alpha SDK packages, `pds-spaces-alpha`
+  Docker image + hosted PDS, Bulletin sample app). Full impact analysis and
+  the Phase 4A work package:
+  `docs/plans/2026-08-20-spaces-alpha-impact-analysis.md`.
+- [ ] Watchlist cadence: **weekly during the alpha** (upstream ships Thursday
+  updates, announced on the atmosphere.community announcements thread) — next
+  due **2026-08-27**; revert to the two-week cadence after upstream's full
+  launch.
 - [ ] Post `resolveSpaceMembers` semantics feedback (depth/partial/staleness — where CSN has real implementation experience) to WG thread t/750. _Outward-facing: draft for user review before posting._
 - [x] Diary 7 reviewed. It confirms direct pull, best-effort notifications,
   periodic reconciliation, and no core member roster; its HMAC-only prose
   currently differs from Proposal 0016/PR #5187's signed-context-plus-HMAC
   shape.
 - [ ] Lexicon Community TSC-sponsorship inquiry for `community.lexicon.governance.*` (feeds Phase 5.4). _Outward-facing: draft for user review._
+
+## Research track — A2A (Agent2Agent) inter-cooperative coordination (unscheduled)
+
+Added 2026-08-20 per user direction. Investigate the Linux Foundation **A2A
+protocol** (v1.0 April 2026; v1.0.1 May 2026 adds an extension mechanism;
+150+ member organizations) as a coordination channel between cooperatives —
+agreement negotiation, joint activities, delegating tasks to cooperative
+agents — for the task-shaped, often-ephemeral interactions ATProto
+deliberately does not serve (spaces provide access control without
+confidentiality, and records without transactional/task semantics). ATProto
+remains the **system of record**; A2A would carry the inter-agent
+coordination that *produces* those records. Full rationale:
+`docs/plans/2026-08-20-spaces-alpha-impact-analysis.md` §8.
+
+- [ ] Research doc: map candidate inter-coop flows to A2A tasks/artifacts;
+  the DID ↔ AgentCard identity bridge; trust/authorization vs the five axes;
+  where task outcomes anchor back into ATProto records; implications for the
+  `apps/api/src/ai` surface (unreviewed per the audit). Add a build-vs-use
+  register row on completion.
+- **Priority:** after spaces-spec support (Phase 4A). **Non-goals:** replacing
+  ATProto as the system of record; any Tier 2 data leaving the space boundary.
 
 ---
 
