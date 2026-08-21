@@ -110,8 +110,25 @@ describe('Federation endpoints', () => {
     it('succeeds when called from a local user session (skips signature check)', async () => {
       // In standalone mode with a session, requireFederationAuth skips.
       // V11 routes membership authority through the group mutation port.
+      //
+      // The approved member is a freshly registered newcomer, never the
+      // admin: `addMember` replaces the target's whole role set with the
+      // roles in the request, so approving the admin as `['member']` would
+      // silently strip owner/admin from this suite's logged-in session and
+      // poison every later test in the file (`isolate: false`).
+      const applicant = supertest.agent(testApp.app);
+      const applicantReg = await applicant
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'applicant@test.com',
+          password: 'password123',
+          displayName: 'Applicant',
+          handle: 'applicant',
+        })
+        .expect(201);
+
       const consent = await writeConsentRecord(testApp, {
-        authorDid: adminDid,
+        authorDid: applicantReg.body.did,
         cooperativeDid: coopDid,
         consentType: 'joinRequest',
         rkey: 'approve-test',
@@ -121,7 +138,7 @@ describe('Federation endpoints', () => {
         .post('/api/v1/federation/membership/approve')
         .send({
           cooperativeDid: coopDid,
-          memberDid: adminDid,
+          memberDid: applicantReg.body.did,
           consentRecordUri: consent.uri,
           consentRecordCid: consent.cid,
           roles: ['member'],
@@ -226,8 +243,22 @@ describe('Federation endpoints', () => {
         roles: ['coordinator'],
       });
 
+      // The subject under test is the *caller's* authority, so the approved
+      // member is an unrelated newcomer — approving the admin here would
+      // overwrite their owner/admin roles with `['member']`.
+      const applicant = supertest.agent(testApp.app);
+      const applicantReg = await applicant
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'coordapplicant@test.com',
+          password: 'password123',
+          displayName: 'Coordinator Applicant',
+          handle: 'coordapplicant',
+        })
+        .expect(201);
+
       const target = await writeConsentRecord(testApp, {
-        authorDid: adminDid,
+        authorDid: applicantReg.body.did,
         cooperativeDid: coopDid,
         consentType: 'joinRequest',
         rkey: 'coord-approve',
@@ -236,7 +267,7 @@ describe('Federation endpoints', () => {
         .post('/api/v1/federation/membership/approve')
         .send({
           cooperativeDid: coopDid,
-          memberDid: adminDid,
+          memberDid: applicantReg.body.did,
           consentRecordUri: target.uri,
           consentRecordCid: target.cid,
           roles: ['member'],
@@ -305,6 +336,28 @@ describe('Federation endpoints', () => {
         .select('membership_role.role')
         .execute();
       expect(roles.map((r) => r.role)).not.toContain('owner');
+    });
+
+    it('leaves the admin session holding owner/admin after the approve probes', async () => {
+      // Guard rail, not a feature test. `addMember` replaces the target's
+      // whole role set, so any approve test that names `adminDid` as the
+      // member demotes this suite's logged-in session for every test that
+      // follows (the file runs with `isolate: false` and one `beforeAll`).
+      // That failure mode is invisible — nothing here fails, but later
+      // permission-gated assertions start failing for the wrong reason.
+      const roles = await testApp.container.db
+        .selectFrom('membership')
+        .innerJoin(
+          'membership_role',
+          'membership_role.membership_id',
+          'membership.id',
+        )
+        .where('membership.member_did', '=', adminDid)
+        .where('membership.cooperative_did', '=', coopDid)
+        .select('membership_role.role')
+        .execute();
+
+      expect(roles.map((r) => r.role).sort()).toEqual(['admin', 'owner']);
     });
   });
 
@@ -412,6 +465,11 @@ describe('Federation endpoints', () => {
       });
 
       it('returns 404 for unknown signer', async () => {
+        // The caller already cleared both authorization gates here — they hold
+        // `agreement.amend` and the agreement belongs to their cooperative —
+        // so this 404 discloses nothing they could not learn anyway. The
+        // signer deliberately need not be a member: soliciting a signature
+        // from outside the cooperative is the bilateral inter-coop case.
         await testApp.agent
           .post('/api/v1/federation/agreement/sign-request')
           .send({

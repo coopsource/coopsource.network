@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import { z } from 'zod';
 import type { DID, Permission } from '@coopsource/common';
 import { NotFoundError } from '@coopsource/common';
@@ -14,21 +14,100 @@ import {
   type PermissionCheckResult,
 } from '../services/membership-read-model.js';
 
+/** The subset of an Express request the caller-identity helpers read. */
+interface FederationCallerRequest {
+  federationSender?: unknown;
+  session?: { did?: string };
+}
+
 /**
  * The authoritative caller identity for a federation request: the verified
  * peer signer (server-to-server) or the local session subject. Never a
  * request-body field — those are attacker-controlled.
  */
-function federationCallerDid(req: {
-  federationSender?: unknown;
-  session?: { did?: string };
-}): string | null {
+function federationCallerDid(req: FederationCallerRequest): string | null {
   const sender = (req as { federationSender?: unknown }).federationSender;
   if (typeof sender === 'string' && sender.length > 0) return sender;
   const sessionDid = req.session?.did;
   if (typeof sessionDid === 'string' && sessionDid.length > 0)
     return sessionDid;
   return null;
+}
+
+/**
+ * Axis 5 (service-auth) gate: the caller must *be* the DID the request body
+ * says is acting. Writes the 403 and returns `null` when it is not, so the
+ * handler's only obligation is `if (caller === null) return;`.
+ *
+ * Deliberately strict equality rather than "may the caller act for that DID"
+ * (audit C-04). `signerDid` may itself be a cooperative, and `agreement.sign`
+ * sits in the built-in `member` role — so a permission-shaped generalisation
+ * would let any plain member mint their cooperative's binding signature, which
+ * is the same forgery one level up. A cooperative signing for itself still
+ * passes: its server signs the federation request as the cooperative DID.
+ *
+ * `service-auth` is the right axis here: no space is consulted and no group
+ * decision is made, only "is the caller who they claim to be acting as".
+ */
+function requireSelfActingCaller(
+  req: FederationCallerRequest,
+  res: Response,
+  assertedDid: string,
+): string | null {
+  const callerDid = federationCallerDid(req);
+  if (callerDid === null || callerDid !== assertedDid) {
+    res.status(403).json({
+      error: 'Forbidden',
+      axis: 'service-auth',
+      message: 'Caller may not act as the asserted signer',
+    });
+    return null;
+  }
+  return callerDid;
+}
+
+/**
+ * Axis 2 (spaces) gate: the caller must hold `permission` in `cooperativeDid`.
+ * Writes the response and returns `null` on denial (403) or on degraded
+ * membership authority (503, fail closed); returns the caller DID otherwise,
+ * which handlers need as the actor of whatever they go on to write.
+ */
+async function requireCoopAuthority(
+  container: Container,
+  req: FederationCallerRequest,
+  res: Response,
+  cooperativeDid: DID,
+  permission: Permission,
+  deniedMessage = 'Caller lacks group authority over the target cooperative',
+): Promise<string | null> {
+  const callerDid = federationCallerDid(req);
+  const authorization = await callerHasCoopPermission(
+    container,
+    callerDid,
+    cooperativeDid,
+    permission,
+  );
+  if (!authorization.ok) {
+    res.status(membershipAuthorityHttpStatus(authorization, 403)).json({
+      error: membershipAuthorityErrorCode(authorization, 'Forbidden'),
+      axis: authorization.axis,
+      reason: authorization.reason,
+      message: authorization.message,
+    });
+    return null;
+  }
+  // `callerDid === null` is already covered by `!allowed` — an anonymous caller
+  // can never be allowed — but stating it here is what makes the non-null
+  // return provable rather than asserted.
+  if (!authorization.allowed || callerDid === null) {
+    res.status(403).json({
+      error: 'Forbidden',
+      axis: 'spaces',
+      message: deniedMessage,
+    });
+    return null;
+  }
+  return callerDid;
 }
 
 /**
@@ -73,7 +152,9 @@ const MembershipApproveSchema = z.object({
 
 const AgreementSignRequestSchema = z.object({
   agreementUri: z.string().min(1),
-  agreementTitle: z.string().optional(),
+  // Free text chosen by the requester that lands verbatim in the target's
+  // "please sign this" inbox — bounded like every other title in the app.
+  agreementTitle: z.string().max(255).optional(),
   signerDid: z.string().min(1),
   cooperativeDid: z.string().min(1),
 });
@@ -109,7 +190,10 @@ export function createFederationRoutes(
   config: AppConfig,
 ): Router {
   const router = Router();
-  const fedAuth = requireFederationAuth(didResolver);
+  // Audit N-25: inbound signatures are verified against this instance's own
+  // configured origin, not the `Host` the caller chose to send. This is the
+  // first read of `config` in this file — the parameter existed unused.
+  const fedAuth = requireFederationAuth(didResolver, config.PUBLIC_API_URL);
 
   // ── Public GET endpoints (no signature verification) ──
 
@@ -261,30 +345,14 @@ export function createFederationRoutes(
       // cooperative before any mutation — otherwise any authenticated local
       // user or any peer signing as a DID it controls could inject an active
       // membership (with arbitrary roles) into an arbitrary cooperative.
-      const callerDid = federationCallerDid(req);
-      const authorization = await callerHasCoopPermission(
+      const callerDid = await requireCoopAuthority(
         container,
-        callerDid,
+        req,
+        res,
         params.cooperativeDid as DID,
         'member.approve',
       );
-      if (!authorization.ok) {
-        res.status(membershipAuthorityHttpStatus(authorization, 403)).json({
-          error: membershipAuthorityErrorCode(authorization, 'Forbidden'),
-          axis: authorization.axis,
-          reason: authorization.reason,
-          message: authorization.message,
-        });
-        return;
-      }
-      if (!authorization.allowed) {
-        res.status(403).json({
-          error: 'Forbidden',
-          axis: 'spaces',
-          message: 'Caller lacks group authority over the target cooperative',
-        });
-        return;
-      }
+      if (callerDid === null) return;
 
       const verification = await container.consentEvidenceVerifier.verify({
         expectedAuthorDid: params.memberDid as DID,
@@ -313,7 +381,7 @@ export function createFederationRoutes(
       // renders as 403.
       await container.membershipService.assertRoleAssignmentAllowed({
         cooperativeDid: params.cooperativeDid,
-        actorDid: (callerDid ?? params.cooperativeDid) as string,
+        actorDid: callerDid,
         requestedRoles: params.roles,
         targetDid: params.memberDid,
       });
@@ -321,7 +389,7 @@ export function createFederationRoutes(
       const result = await container.groupMutations.addMember({
         cooperativeDid: params.cooperativeDid as DID,
         memberDid: params.memberDid as DID,
-        actorDid: (callerDid ?? params.cooperativeDid) as DID,
+        actorDid: callerDid as DID,
         roles: params.roles,
         consentRecordUri: params.consentRecordUri,
         consentRecordCid: params.consentRecordCid,
@@ -354,6 +422,56 @@ export function createFederationRoutes(
     fedAuth,
     asyncHandler(async (req, res) => {
       const params = AgreementSignRequestSchema.parse(req.body);
+
+      // Axis 2 (group authority): asking someone to sign is a cooperative-side
+      // act performed in the cooperative's name — the row's `requester_did` is
+      // `params.cooperativeDid`. Bind the caller to authority over that
+      // cooperative before anything is written (audit C-04).
+      const callerDid = await requireCoopAuthority(
+        container,
+        req,
+        res,
+        params.cooperativeDid as DID,
+        'agreement.amend',
+        'Caller lacks authority to request signatures for this cooperative',
+      );
+      if (callerDid === null) return;
+
+      // ...and the *agreement* must belong to that same cooperative. Authority
+      // over a cooperative authorises soliciting signatures on that
+      // cooperative's own agreements, nothing else. Without this the caller
+      // supplies both halves independently: anyone who controls any
+      // cooperative (its founder, or a peer signing as its own DID — which
+      // `callerHasCoopPermission` short-circuits to "allowed") could mint a
+      // pending request against another cooperative's open agreement, and that
+      // row then satisfies `/signature`'s pending-request check, restoring the
+      // unbidden self-mint that check exists to prevent.
+      //
+      // This replaces an earlier "signer must be a member of the cooperative"
+      // rule, which bound the wrong half: it left the loop above open while
+      // making a bilateral X<->Y agreement impossible, since X could then only
+      // ask its own members to sign. Ownership is the correct invariant —
+      // the signer is deliberately unconstrained.
+      const agreement = await container.db
+        .selectFrom('agreement')
+        .where('uri', '=', params.agreementUri)
+        .select(['uri', 'project_uri'])
+        .executeTakeFirst();
+
+      // A missing agreement folds into this same 403 rather than answering
+      // 404. The caller has authority over one cooperative and is asking about
+      // an arbitrary URI, so distinguishing "no such agreement" from "not
+      // yours" would hand them an existence oracle over every agreement on the
+      // instance. "Not an agreement of this cooperative" is true either way.
+      if (!agreement || agreement.project_uri !== params.cooperativeDid) {
+        res.status(403).json({
+          error: 'Forbidden',
+          axis: 'spaces',
+          message:
+            'Agreement does not belong to the cooperative making the request',
+        });
+        return;
+      }
 
       // Verify signer exists on this instance
       const signer = await container.db
@@ -418,6 +536,10 @@ export function createFederationRoutes(
     asyncHandler(async (req, res) => {
       const params = AgreementSignatureSchema.parse(req.body);
 
+      // Axis 5 (service-auth): this route mints the legally operative
+      // signature row. Only the signer may do that (audit C-04).
+      if (requireSelfActingCaller(req, res, params.signerDid) === null) return;
+
       // Verify agreement exists locally and is open
       const agreement = await container.db
         .selectFrom('agreement')
@@ -450,6 +572,30 @@ export function createFederationRoutes(
         res.status(409).json({
           error: 'Conflict',
           message: 'Signer already has an active signature on this agreement',
+        });
+        return;
+      }
+
+      // Identity alone is not enough: without a request to sign, any session
+      // holder — a pending applicant `requireAuth` turns away elsewhere, an
+      // observer, a member of an unrelated cooperative — could attach a
+      // binding signature of their own to any open agreement on this instance.
+      // Signing is a *response*, so it needs the invitation it responds to.
+      // Placed after the duplicate check so an already-signed signer still
+      // gets the 409 that describes their actual situation.
+      const pendingRequest = await container.db
+        .selectFrom('signature_request')
+        .where('agreement_uri', '=', params.agreementUri)
+        .where('signer_did', '=', params.signerDid)
+        .where('status', '=', 'pending')
+        .select('id')
+        .executeTakeFirst();
+
+      if (!pendingRequest) {
+        res.status(403).json({
+          error: 'Forbidden',
+          axis: 'service-auth',
+          message: 'No pending signature request for this signer',
         });
         return;
       }
@@ -497,6 +643,11 @@ export function createFederationRoutes(
     fedAuth,
     asyncHandler(async (req, res) => {
       const params = AgreementSignResponseSchema.parse(req.body);
+
+      // Axis 5 (service-auth): declining is the addressee's own verb — nobody
+      // else may answer a request on their behalf (audit C-04).
+      if (requireSelfActingCaller(req, res, params.signerDid) === null) return;
+
       const now = container.clock.now();
 
       const result = await container.db
@@ -524,6 +675,26 @@ export function createFederationRoutes(
     fedAuth,
     asyncHandler(async (req, res) => {
       const params = AgreementSignResponseSchema.parse(req.body);
+
+      // Cancelling is the *requester's* verb, not the signer's — the same
+      // withdrawal the cooperative-side amendment paths perform. So this route
+      // takes either identity: the signer acting for themselves, or a caller
+      // with `agreement.amend` in the cooperative named in the body. The body
+      // DID is only ever the subject of a permission lookup here; it is never
+      // treated as the caller's identity (audit C-04).
+      const callerDid = federationCallerDid(req);
+      if (callerDid === null || callerDid !== params.signerDid) {
+        const authorized = await requireCoopAuthority(
+          container,
+          req,
+          res,
+          params.cooperativeDid as DID,
+          'agreement.amend',
+          'Caller is neither the signer nor authorised to cancel signature requests for this cooperative',
+        );
+        if (authorized === null) return;
+      }
+
       const now = container.clock.now();
 
       const result = await container.db
@@ -535,6 +706,13 @@ export function createFederationRoutes(
         })
         .where('agreement_uri', '=', params.agreementUri)
         .where('signer_did', '=', params.signerDid)
+        // Scoped to the cooperative the authority was granted over. Without
+        // this the coop branch above authorises against one cooperative and
+        // then mutates a row belonging to another, so `agreement.amend`
+        // anywhere on the instance would cancel requests everywhere. The
+        // signer-only routes need no such clause: their gate is the row's own
+        // `signer_did`, which the WHERE already pins.
+        .where('cooperative_did', '=', params.cooperativeDid)
         .where('status', '=', 'pending')
         .executeTakeFirst();
 
@@ -551,6 +729,11 @@ export function createFederationRoutes(
     fedAuth,
     asyncHandler(async (req, res) => {
       const params = AgreementSignResponseSchema.parse(req.body);
+
+      // Axis 5 (service-auth): withdrawing a signature is the signer's own
+      // verb. `retracted_by` is written from `params.signerDid`, so without
+      // this the audit trail could be forged along with the act (audit C-04).
+      if (requireSelfActingCaller(req, res, params.signerDid) === null) return;
 
       // Verify matching active signature exists
       const sig = await container.db

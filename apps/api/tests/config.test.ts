@@ -96,6 +96,63 @@ describe('loadConfig', () => {
     expect(loadConfig().SPACE_MANAGING_APP_ACCESS_MODE).toBe('group-directory');
   });
 
+  // ── PUBLIC_API_URL: the federation origin (audit N-25 follow-up) ──
+  //
+  // It carried `.default('http://localhost:3001')`, which is the same string
+  // on every instance — so the parsed config could not tell a deliberate
+  // localhost setting from an absent one, and two instances that both omitted
+  // it bound an identical origin and stayed mutually replayable.
+
+  it('resolves the federation origin from PORT for a standalone instance', () => {
+    // The developer flow (`make dev`, root .env, which sets no PUBLIC_API_URL)
+    // must keep working, so a standalone instance still gets a fallback — but
+    // one derived per instance rather than shared.
+    expect(loadConfig().PUBLIC_API_URL).toBe('http://localhost:3001');
+
+    process.env.PORT = '3002';
+    expect(loadConfig().PUBLIC_API_URL).toBe('http://localhost:3002');
+  });
+
+  it('requires an explicit federation origin once the instance federates', () => {
+    // The condition that would have caught the real case: every API service in
+    // docker-compose.federation.yml declares a role and none of them set
+    // PUBLIC_API_URL.
+    process.env.INSTANCE_ROLE = 'coop';
+
+    expect(() => loadConfig()).toThrow('PUBLIC_API_URL must be set explicitly');
+
+    process.env.PUBLIC_API_URL = 'http://localhost:3003';
+
+    expect(loadConfig().PUBLIC_API_URL).toBe('http://localhost:3003');
+  });
+
+  it('requires an explicit federation origin in production', () => {
+    process.env = {
+      NODE_ENV: 'production',
+      SESSION_SECRET: 's'.repeat(32),
+      KEY_ENC_KEY: 'k'.repeat(44),
+      PLC_URL: 'https://plc.directory',
+      PDS_URL: 'https://pds.example.com',
+      PDS_ADMIN_PASSWORD: 'production-pds-password',
+    };
+
+    expect(() => loadConfig()).toThrow(
+      'PUBLIC_API_URL must be set explicitly in production',
+    );
+
+    process.env.PUBLIC_API_URL = 'https://csn.example';
+
+    expect(loadConfig().PUBLIC_API_URL).toBe('https://csn.example');
+  });
+
+  it('rejects a federation origin that is not an http(s) URL', () => {
+    // `new URL('file:///x').origin` is the literal string 'null', which would
+    // otherwise become a target URI no signature could ever match.
+    process.env.PUBLIC_API_URL = 'file:///tmp/api';
+
+    expect(() => loadConfig()).toThrow();
+  });
+
   it('rejects the local PLC fallback in production', () => {
     process.env = {
       NODE_ENV: 'production',
@@ -146,6 +203,8 @@ describe('loadConfig', () => {
       NODE_ENV: 'production',
       SESSION_SECRET: 's'.repeat(32),
       KEY_ENC_KEY: 'k'.repeat(44),
+      // A complete production config now names its own origin.
+      PUBLIC_API_URL: 'https://csn.example',
       PLC_URL: 'https://plc.directory',
       PDS_URL: 'https://pds.example.com',
       PDS_ADMIN_PASSWORD: 'production-pds-password',
@@ -162,6 +221,7 @@ describe('loadConfig', () => {
       NODE_ENV: 'production',
       SESSION_SECRET: 's'.repeat(32),
       KEY_ENC_KEY: 'k'.repeat(44),
+      PUBLIC_API_URL: 'https://csn.example',
       PLC_URL: 'https://plc.directory',
       COOP_PDS_URL: 'https://coop-pds.example.com',
       COOP_PDS_ADMIN_PASSWORD: 'cooperative-pds-password',

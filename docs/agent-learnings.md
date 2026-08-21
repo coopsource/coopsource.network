@@ -155,6 +155,55 @@ from an honest 1099 to a reported 1119.
 An explicit `.test.ts` include can never match compiled `.js`, whatever is
 sitting in `dist`.
 
+### Approving a DID through `addMember` replaces its whole role set
+
+**Verified 2026-08-17 (audit tranche 3, `6dfdf22`).** `addMember` routes role
+changes through `replaceRoles`
+(`packages/arbiter-client/src/group-mutation-port.ts:822`), which is
+delete-then-insert — the target ends up with exactly the roles in the request,
+never the union. Two `/membership/approve` probes in
+`apps/api/tests/federation.test.ts` approved `memberDid: adminDid` with
+`roles: ['member']`, which demoted the suite's own logged-in admin from
+`['owner','admin']` to `['member']`. `apps/api/vitest.config.ts` runs with
+`isolate: false`, so every later test in that file then ran against a session
+that had silently lost its authority. Nothing failed — the later tests simply
+stopped testing what their names claimed, which is the same failure mode as
+§1's "tests that pass because the action never happened".
+
+**Practice:** in fixtures, approve a freshly registered DID, never a privileged
+one (`writeConsentRecord` takes an arbitrary `authorDid`), and pin the
+invariant — `federation.test.ts` now asserts the admin still holds
+`['admin','owner']` after the approve probes. `replaceRoles` is still
+destructive by default, so the trap is available again to the next test that
+approves a privileged DID.
+
+### `pnpm --filter <pkg> run test -- <path>` does not narrow the run
+
+**Verified 2026-08-20.** pnpm 11 forwards the `--` separator itself, so the
+script runs as `vitest run -- <path>` and the path never reaches vitest's file
+filter. Measured against `@coopsource/common`: the "filtered" command ran all
+7 files / 110 tests. It fails in the expensive direction and says nothing —
+you believe you ran one file, and on `@coopsource/api` you ran 115.
+
+**Practice:** `pnpm --filter <pkg> exec vitest run <path>`, which does filter
+(the same bogus path gives `No test files found`).
+
+### The dev and federation Docker stacks cannot both be up
+
+**Verified 2026-08-20** by reading the compose files.
+`infrastructure/docker-compose.yml:35` and
+`infrastructure/docker-compose.federation.yml:54` both publish mailpit on
+`1025:1025`, so bringing up the second while the first is running fails on a
+port collision. Stop one before starting the other.
+
+More confusing, and worth recognising — *observed once during tranche 3,
+recorded second-hand, not re-derived*: a root `pnpm test` run with the
+containers **not** already started reports a failing run even though every test
+passes, dying in a federation `afterAll` teardown timeout after the last
+assertion. "122 passed" together with a non-zero exit is that, not a product
+regression. Start the stack first
+(`docker compose -f infrastructure/docker-compose.yml up -d`).
+
 ---
 
 ## 3. Build, typecheck, and deployment
@@ -389,3 +438,8 @@ ARCHITECTURE-V12 §12. The canonical repo moved to
   stale-emit + turbo cache capture, turbo strict env filtering, the pnpm 11
   `clean` builtin; updated the typecheck-coverage entry (N-18 fixed) and the
   test-container entry (N-19 tripwire).
+- **2026-08-20** — tranche-3 hazards (branch `feature/audit-tranche-3-c04-a07`):
+  `addMember`/`replaceRoles` demoting a privileged DID for the rest of a
+  non-isolated test file, `pnpm run test -- <path>` silently running the whole
+  suite, and the two Docker stacks colliding on mailpit's port plus the
+  teardown timeout that reports a green suite as a failing run.
