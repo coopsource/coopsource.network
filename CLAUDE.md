@@ -7,7 +7,7 @@ Co-op Source Network is a federated cooperative governance platform on ATProtoco
 - **[ARCHITECTURE-V12.md](./ARCHITECTURE-V12.md)** — the canonical spec (four layers, ten-plugin contract, five axes, current code state, phase map, watchlist). **When this file and ARCHITECTURE-V12.md disagree, ARCHITECTURE-V12.md wins.**
 - **[docs/plans/2026-07-04-v12-program-plan.md](./docs/plans/2026-07-04-v12-program-plan.md)** — the active phased plan (phases 0–3 tagged done; 4–7 checkpoints merged; audit remediation runs in parallel — see `docs/plans/2026-08-17-session-handover.md`).
 - **[docs/plans/2026-08-20-spaces-alpha-impact-analysis.md](./docs/plans/2026-08-20-spaces-alpha-impact-analysis.md)** — the upstream **Spaces alpha** (2026-08-20): assumption audit, Phase 4A alignment work package, A2A research track.
-- **[docs/plans/2026-07-04-atproto-shared-spaces-research.md](./docs/plans/2026-07-04-atproto-shared-spaces-research.md)** — July 2026 ecosystem state behind V12.
+- **[docs/plans/2026-07-04-atproto-shared-spaces-research.md](./docs/plans/2026-07-04-atproto-shared-spaces-research.md)** — the July 4 evidence base behind V12 (upstream state since superseded by the 2026-07-29 sweep and the 2026-08-20 alpha analysis).
 - **[docs/plans/2026-07-05-v12-replan-after-code-deep-dive.md](./docs/plans/2026-07-05-v12-replan-after-code-deep-dive.md)** — July 5 code/proposal reconciliation and updated Phase 3 execution order.
 - **[docs/plans/2026-07-04-v11-merge-review-findings.md](./docs/plans/2026-07-04-v11-merge-review-findings.md)** — tracked review findings feeding Phases 2–3.
 - **[AGENTS.md](./AGENTS.md)** — PoC posture: no backwards-compat artifacts, no `FooV2` names in code; rename canonical types in place.
@@ -19,8 +19,8 @@ Prior architectures (V3–V11) are archived in `docs/archive/`. V12 supersedes t
 
 ### Git
 
-- All work on feature branches, never `main`. V12 naming: `feature/v12-phase-N-<desc>`.
-- Merges to `main`: `--no-ff`, green `pnpm build && pnpm test` first, tag `v12-phase-N`. (Autonomous execution is authorized for the current program per the plan's decision log; outward-facing/published actions still need review.)
+- All work on feature branches, never `main`. Phase work: `feature/v12-phase-N-<desc>`; parallel tracks keep their own descriptive prefixes (`feature/audit-tranche-N-<desc>`, `feature/v12-ecosystem-<desc>`, `docs/<desc>`).
+- Merges to `main`: `--no-ff`, green `pnpm build && pnpm test` first; tag `v12-phase-N` at **phase completion** (mid-phase checkpoints and track merges are untagged). (Autonomous execution is authorized for the current program per the plan's decision log; outward-facing/published actions still need review.)
 - Clean up merged branches.
 
 ### Architecture invariants
