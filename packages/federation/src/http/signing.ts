@@ -153,8 +153,21 @@ export async function verifyRequest(
   const now = Math.floor(Date.now() / 1000);
   if (Math.abs(now - created) > MAX_CLOCK_SKEW_SECONDS) return fail;
 
-  // 4. Verify Content-Digest if body present
-  if (body && components.includes('content-digest')) {
+  // 4. Require the covered-component list to actually bind this request.
+  //    The list arrives in the sender-controlled Signature-Input, so whatever
+  //    it omits is unsigned: without @method/@target-uri the signature does not
+  //    bind which request it authorises, and without content-digest it does not
+  //    bind the body at all. Compared as exact lowercase strings — the only
+  //    spellings buildSignatureBase special-cases; '@METHOD' falls through to a
+  //    header lookup and would cover nothing.
+  if (!components.includes('@method')) return fail;
+  if (!components.includes('@target-uri')) return fail;
+
+  //    `if (body)` mirrors the signer's own `body ? WITH_BODY : NO_BODY`
+  //    selection, so an empty-string body does not demand a digest the signer
+  //    never produced.
+  if (body) {
+    if (!components.includes('content-digest')) return fail;
     const digestHeader = headers['content-digest'];
     if (!digestHeader) return fail;
     const digestValid = await verifyContentDigest(body, digestHeader);

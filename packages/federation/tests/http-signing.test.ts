@@ -275,4 +275,88 @@ describe('HTTP Message Signatures', () => {
       expect(result.verified).toBe(false);
     });
   });
+
+  describe('covered-component requirements', () => {
+    const method = 'POST';
+    const targetUri = 'https://hub.example.com/api/v1/federation/membership/approve';
+
+    /**
+     * Signs with an arbitrary covered-component list, mirroring the four-line
+     * base construction in signRequest. Non-pseudo components fall through to a
+     * header lookup exactly as buildSignatureBase does, so a sender-chosen list
+     * produces a base the verifier reconstructs byte-for-byte.
+     */
+    async function signWithComponents(
+      components: string[],
+      headers: Record<string, string>,
+    ): Promise<{ 'signature-input': string; signature: string }> {
+      const created = Math.floor(Date.now() / 1000);
+      const signatureParams = `(${components.map((c) => `"${c}"`).join(' ')});keyid="${keyId}";alg="ecdsa-p256-sha256";created=${created}`;
+      const lines = components.map((component) => {
+        if (component === '@method') return `"@method": ${method.toUpperCase()}`;
+        if (component === '@target-uri') return `"@target-uri": ${targetUri}`;
+        return `"${component}": ${headers[component.toLowerCase()] ?? ''}`;
+      });
+      const base = lines.join('\n') + '\n' + `"@signature-params": ${signatureParams}`;
+      const signature = await crypto.subtle.sign(
+        { name: 'ECDSA', hash: 'SHA-256' },
+        privateKey,
+        new TextEncoder().encode(base),
+      );
+      return {
+        'signature-input': `sig=${signatureParams}`,
+        signature: `sig=:${Buffer.from(signature).toString('base64')}:`,
+      };
+    }
+
+    it('does not verify a body when Signature-Input omits content-digest', async () => {
+      const headers: Record<string, string> = { 'content-type': 'application/json' };
+
+      // Sign as if there were no body: the covered list is ("@method" "@target-uri"),
+      // so nothing binds the bytes that are then delivered as the request body.
+      const sigHeaders = await signRequest(method, targetUri, headers, null, privateKey, keyId);
+      expect(sigHeaders['Signature-Input']).not.toContain('content-digest');
+      Object.assign(headers, {
+        'signature-input': sigHeaders['Signature-Input'],
+        signature: sigHeaders['Signature'],
+      });
+
+      const resolver = createMockDidResolver(publicJwk);
+      const result = await verifyRequest(method, targetUri, headers, '{"roles":["admin"]}', resolver);
+
+      expect(result.verified).toBe(false);
+    });
+
+    it('does not verify when @method is omitted from the covered list', async () => {
+      const headers: Record<string, string> = {};
+      Object.assign(headers, await signWithComponents(['@target-uri'], headers));
+
+      const resolver = createMockDidResolver(publicJwk);
+      const result = await verifyRequest(method, targetUri, headers, null, resolver);
+
+      expect(result.verified).toBe(false);
+    });
+
+    it('does not verify when @target-uri is omitted from the covered list', async () => {
+      const headers: Record<string, string> = {};
+      Object.assign(headers, await signWithComponents(['@method'], headers));
+
+      const resolver = createMockDidResolver(publicJwk);
+      const result = await verifyRequest(method, targetUri, headers, null, resolver);
+
+      expect(result.verified).toBe(false);
+    });
+
+    it('does not accept @METHOD in place of @method (no case folding)', async () => {
+      // buildSignatureBase only special-cases the lowercase spelling, so
+      // "@METHOD" is treated as a (missing) header and binds nothing.
+      const headers: Record<string, string> = {};
+      Object.assign(headers, await signWithComponents(['@METHOD', '@target-uri'], headers));
+
+      const resolver = createMockDidResolver(publicJwk);
+      const result = await verifyRequest(method, targetUri, headers, null, resolver);
+
+      expect(result.verified).toBe(false);
+    });
+  });
 });
