@@ -6,6 +6,8 @@
 
 > **2026-07-05 re-plan:** `docs/plans/2026-07-05-v12-replan-after-code-deep-dive.md` is the active addendum for Phase 3 onward. It reconciles this plan with current code and Proposal 0016. Where this file says to create or use a package-root `CommitDigestVerifier`, read that as superseded: current code exposes `PermissionedRepoPort` as the public watch/sync/verification boundary.
 
+> **2026-08-20:** the upstream **Spaces alpha** shipped. The "grounded facts" below are the July 4 baseline — since then GovernanceView/CoopView were built and registered, several V9 targets were retired, and space credentials became DPoP-bound. Current upstream state, the assumption audit, and the Phase 4A work package: `docs/plans/2026-08-20-spaces-alpha-impact-analysis.md`.
+
 **Architecture:** Same four layers as V11 (Spaces → Arbiter → GovernanceView → CoopView) — V12 is a _doc-and-alignment_ rev, not a design pivot. Grounded facts: proposal 0016 merged upstream (`at://…/space/…` URIs, LtHash digests, three-token credentials); 16 draft `town.muni.arbiter.*` lexicons exist; GovernanceView/CoopView are unbuilt; all V9 retirement targets still live.
 
 **Tech Stack:** Unchanged — TypeScript strict, Express 5, Kysely 0.28+/PostgreSQL 16, SvelteKit 2/Svelte 5 runes, Tailwind 4, Vitest 4, Zod 4, pnpm 10+/Turborepo, ATProto only.
@@ -32,7 +34,7 @@
 
 ## Build-vs-use decision register
 
-Standing register of "do we build this or adopt an existing implementation" questions. Each row names its decision point; defaults hold until a spike says otherwise. Lives on in ARCHITECTURE-V12 §10 after Phase 1.
+Standing register of "do we build this or adopt an existing implementation" questions. Each row names its decision point; defaults hold until a spike says otherwise. **Frozen 2026-07-04 snapshot** — the live register moved to ARCHITECTURE-V12 §10 at Phase 1 and is updated there (last 2026-08-20); the rows below are historical.
 
 | #   | Capability                                                                       | Build option (current)                                                               | Use option (candidate)                                                                                                                | Default                                                                                                                                                                              | Decide at                                                                                  |
 | --- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
@@ -427,24 +429,61 @@ writer-default change, or signoff is claimed. See
 `docs/plans/2026-07-30-v12-phase-4-tier2-copy-ledger.md`.
 
 **2026-08-20 — Phase 4A: spaces-alpha alignment work package.** The upstream
-Spaces alpha (analysis: `docs/plans/2026-08-20-spaces-alpha-impact-analysis.md`,
-work package in its §5) fired this phase's entry-gate condition
-("`@atproto/space` … becomes consumable") and resolved the commit-format
-(signed-ctx+HMAC won) and notification-audience (DID service fragment,
-V12-S09) open questions. Ordered items: (1) repin the conformance baseline
-(proposal `54c9cf5`, atproto `89deb9fac`, npm snapshot
-`0.0.0-spaces-alpha-20260818163953` + image digest; supersedes closeout item
-12's repin); (2) DPoP-bound space credentials end-to-end (per-credential
-keypair, mint + per-request proofs); (3) `com.atproto.simplespace.getSpace`
-migration (`space.getSpace` was removed upstream); (4) canonical DAG-CBOR CAR
-index ordering (replace `localeCompare`); (5) space-deletion handling (drop
-replicas, checkpoints, credentials, projections on `notifySpaceDeleted` /
-`SpaceDeleted`); (6) local `pds-spaces-alpha` Docker harness for the live-XRPC
-exercise (interacts with audit finding A-06); (7) `@atproto/space` as a pinned
-differential oracle (runtime swap deferred until upstream stability); (8)
-notification-endpoint activation design per resolved V12-S09; (9) `space:`
-scope revalidation (`read_self` no longer takes `collection`). Out of scope:
-`@atproto/lex-*` client migration, bespoke space host, Tier-2 cutover.
+Spaces alpha (analysis and full item detail:
+`docs/plans/2026-08-20-spaces-alpha-impact-analysis.md` §5) fired this
+phase's entry-gate condition ("`@atproto/space` … becomes consumable") and
+answered the commit-format (signed-ctx+HMAC won, settled for the alpha
+baseline) and notification-audience (DID service fragment; CSN side open as
+V12-S09) questions upstream. **Execution order: 4A.1 → 4A.7 → 4A.2–4A.4 →
+4A.6 → 4A.5, 4A.8, 4A.9** (the oracle lands before DPoP — its proofs are
+DPoP's fixtures). Alpha-churn rule: build against the 4A.1 pin; if a
+Thursday drop lands mid-package, finish in-flight items on the existing pin
+and batch the repin as its own follow-up commit.
+
+- [ ] 4A.0 First task: expand Phase 4A into its own task-level plan
+      (superpowers:writing-plans → `docs/superpowers/plans/2026-MM-DD-v12-phase-4a-spaces-alpha-alignment.md`),
+      carrying the item detail from the impact analysis §5.
+- [ ] 4A.1 (S) Repin the conformance baseline: `permissioned-data-draft.ts` →
+      proposal `54c9cf5` + atproto `89deb9fac` (+ npm snapshot
+      `0.0.0-spaces-alpha-20260818163953` + image digest). Registry:
+      −`space.getSpace`, +`listBlobs`, +`unregisterNotify`,
+      +`simplespace.getSpace`/`deleteSpace`/`updateSpace`, `listMembers` auth
+      `manage`→`read_self` (`notifyWrite` `rev`+`hash` already pinned —
+      verify only); update probe profiles (`getRepo` now required, DPoP,
+      `simplespace.getSpace`); re-verify commit `kid` fallback chain.
+      Supersedes closeout item 12's repin.
+- [ ] 4A.7 (S) `@atproto/space` as pinned differential oracle (dev-dep +
+      digest/commit/CAR agreement tests). Lands before 4A.2.
+- [ ] 4A.2 (M, may split) DPoP-bound credentials end-to-end: per-credential
+      keypair, mint + per-request proofs; DPoP helpers from `@atproto/space`
+      as an explicit runtime carve-out (or an RFC 9449 implementation with
+      oracle fixtures); **key-at-rest custody decision** for
+      `KyselySpaceCredentialStore` (credential+private key now the stored
+      unit); `space_credential` schema change per the hard rule; sweep stale
+      bearer JSDoc.
+- [ ] 4A.3 (S) `com.atproto.simplespace.getSpace` migration
+      (`space.getSpace` was removed upstream); note the OAuth path to
+      `getSpace`/`listMembers` requires caller == space authority.
+- [ ] 4A.4 (S) Canonical DAG-CBOR CAR index ordering (replace
+      `localeCompare`; verify received order fail-closed).
+- [ ] 4A.6 (M) Local `pds-spaces-alpha` Docker harness for the live-XRPC
+      exercise. Audit finding A-06 **gates the real-OAuth path** (register
+      re-grade); the verified dev-JWT path drives the loop until it closes.
+- [ ] 4A.5 (M, may split) Space-deletion handling: drop replicas,
+      checkpoints, credentials, projections on `notifySpaceDeleted` /
+      `SpaceDeleted`-at-renewal; split the conflated
+      `SpaceDeleted`/`SpaceNotFound` error kind in the exchange client first.
+- [ ] 4A.8 (M, design-first) Notification-endpoint activation design per the
+      upstream-answered V12-S09 (CSN service DID + entry, renewal
+      scheduling); carries the impact analysis §4-5 inbound-surface
+      preconditions (S-08 closes first).
+- [ ] 4A.9 (S) `space:` scope revalidation (`read_self` no longer takes
+      `collection`); the ARCHITECTURE-V12 §4 spaceType-namespace decision
+      fires here and at 4A.6.
+
+Out of scope for 4A: `@atproto/lex-*` client migration, bespoke space host,
+runtime digest/commit migration onto `@atproto/space` (differential-first),
+`space.applyWrites` batching, Tier-2 cutover.
 
 - [x] First task expanded through the July 29 gap analysis and July 30
   conformance-baseline note.
@@ -458,7 +497,7 @@ scope revalidation (`read_self` no longer takes `collection`). Out of scope:
 1. `packages/governance-view`: `GovernancePluginSet` — all ten interfaces (`voteWeight`, `eligibility`, `quorum`, `actionAuthorizer`, `anchorSummary`, `historicalState`, `patronageAllocator`, `surplusDistributor`, `meetingMinutes`, `delegateChains`), async, plain-value inputs, no-op defaults; extraction of generic proposal/vote/delegation logic from `proposal-service`/`delegation-voting-service`.
 2. `packages/coop-view`: CSN plugin implementations wired from existing services (member classes → `voteWeight`; patronage service → `patronageAllocator`/`surplusDistributor`; meeting records → `meetingMinutes`).
 3. Container registrations `governanceView`/`coopView` (making the doc-described wiring real).
-4. Draft `community.lexicon.governance.*` lexicon JSON kept in-repo under `packages/lexicons/community-draft/` (clearly non-canonical) + **ecosystem track:** TSC-sponsorship outreach at the Lexicon Community (gated, slow — start early; Stage 6 does not wait on ratification).
+4. Draft `community.lexicon.governance.*` lexicon JSON kept in-repo under `packages/lexicons/community-draft/` (clearly non-canonical) + **ecosystem track:** working-group outreach at the Lexicon Community (WGs self-form since 2026-07-26 — no TSC gate; start early; Stage 6 does not wait on ratification).
 
 **Status (2026-07-30):** The supported portions of deliverables 1-3 are
 implemented as incremental checkpoints, including generic tally/outcome and
@@ -470,8 +509,8 @@ reducer. `anchorSummary`,
 public-summary, durable-snapshot, and canonicalization contracts exist.
 The non-canonical proposal, vote, deliberation, summary, log-head, and election
 drafts from deliverable 4 are checked in and validation-tested;
-TSC-sponsorship outreach remains an outward-facing follow-up requiring user
-review. The HappyView 2.11.4 AppView substrate spike is complete and confirms
+Lexicon Community working-group outreach (no TSC gate since 2026-07-26)
+remains an outward-facing follow-up requiring user review. The HappyView 2.11.4 AppView substrate spike is complete and confirms
 the build decision; later HappyView 2.11.8/2.12-dev changes strengthen its role
 as a differential spaces harness rather than an AppView replacement. Treat
 Phase 5 as stable for sequencing. Continue extraction only for plainly pure,
@@ -546,28 +585,37 @@ configured.
   periodic reconciliation, and no core member roster; its HMAC-only prose
   currently differs from Proposal 0016/PR #5187's signed-context-plus-HMAC
   shape.
-- [ ] Lexicon Community TSC-sponsorship inquiry for `community.lexicon.governance.*` (feeds Phase 5.4). _Outward-facing: draft for user review._
+- [ ] Lexicon Community working-group inquiry for `community.lexicon.governance.*` (WGs self-form since 2026-07-26 — no TSC gate; feeds Phase 5.4). _Outward-facing: draft for user review._
 
 ## Research track — A2A (Agent2Agent) inter-cooperative coordination (unscheduled)
 
 Added 2026-08-20 per user direction. Investigate the Linux Foundation **A2A
-protocol** (v1.0 April 2026; v1.0.1 May 2026 adds an extension mechanism;
-150+ member organizations) as a coordination channel between cooperatives —
-agreement negotiation, joint activities, delegating tasks to cooperative
-agents — for the task-shaped, often-ephemeral interactions ATProto
-deliberately does not serve (spaces provide access control without
-confidentiality, and records without transactional/task semantics). ATProto
-remains the **system of record**; A2A would carry the inter-agent
-coordination that *produces* those records. Full rationale:
+protocol** (v1.0 March 2026; v1.0.1 patch May 2026 — the extension mechanism
+predates 1.0, added in v0.2.2; 150+ supporting organizations) as a
+coordination channel between cooperatives — agreement negotiation, joint
+activities, delegating tasks to cooperative agents — for the task-shaped,
+often-ephemeral interactions ATProto deliberately does not serve (spaces
+provide access control without confidentiality, and records without
+transactional/task semantics). ATProto remains the **system of record**; A2A
+would carry the inter-agent coordination that *produces* those records. Full
+rationale and the payload-classification caveat:
 `docs/plans/2026-08-20-spaces-alpha-impact-analysis.md` §8.
 
-- [ ] Research doc: map candidate inter-coop flows to A2A tasks/artifacts;
-  the DID ↔ AgentCard identity bridge; trust/authorization vs the five axes;
-  where task outcomes anchor back into ATProto records; implications for the
-  `apps/api/src/ai` surface (unreviewed per the audit). Add a build-vs-use
-  register row on completion.
+- [ ] Research doc: **classify candidate task/artifact payloads against the
+  data tiers first** (agreement-draft negotiation content is Tier 2 by
+  ARCHITECTURE-V12 §8's own table — scope the non-goal precisely or drop
+  those flows); map surviving inter-coop flows to A2A tasks/artifacts; the
+  DID ↔ AgentCard identity bridge + AgentCard discovery integrity
+  (spoofing/substitution); trust/authorization vs the five axes; inbound
+  tasks as untrusted cross-organization input (prompt-injection surface on
+  `apps/api/src/ai`, unreviewed per the audit); provenance anchoring of
+  negotiation transcripts; where task outcomes anchor back into ATProto
+  records; comparison against the incumbent channels (surviving inbound
+  federation routes; spaces records). Add a build-vs-use register row on
+  completion.
 - **Priority:** after spaces-spec support (Phase 4A). **Non-goals:** replacing
-  ATProto as the system of record; any Tier 2 data leaving the space boundary.
+  ATProto as the system of record; federated governance over A2A;
+  re-exporting data already inside a space.
 
 ---
 
@@ -581,7 +629,7 @@ Phase 3 (arbiter convergence)  ─┬─ parallel ─┬►  Phase 5 (Governance
 Phase 4 (governance→spaces)  ◄──┘            │    (ungated; largest CSN-owned gap)
 Phase 6 (V9 retirement)  ◄── after 3–5 stable┘
 Phase 7 (full UX overhaul) ◄── after 3–4 merged (audit may start after Phase 1)
-Ecosystem cadence: every 2 weeks, next 2026-07-18
+Ecosystem cadence: weekly during the Spaces alpha (Thursdays), next 2026-08-27; two-week after upstream launch
 ```
 
 ## Self-review notes (per writing-plans skill)
