@@ -2,10 +2,12 @@
 
 **Status:** Active canonical specification. Supersedes ARCHITECTURE-V11.md + CLAUDE-CODE-PROMPT-V11.md (both archived in `docs/archive/`). When CLAUDE.md and this document disagree, **this document wins**.
 
-**Updated:** 2026-07-30. Grounded in the July 29 ecosystem research and gap
-analysis plus the Phase 4 Proposal 0016 conformance baseline and first
-permissioned proposal/vote consumer and public repository lifecycle
-checkpoints. Current code audit target: `main` after those checkpoints.
+**Updated:** 2026-08-20. Grounded in the July 29 ecosystem research plus the
+Phase 4 conformance/consumer/lifecycle checkpoints, amended for the
+**2026-08-20 upstream Spaces alpha release**
+(`docs/plans/2026-08-20-spaces-alpha-impact-analysis.md` is the full analysis;
+§5/§9/§10/§12 below carry the corrections). Current code audit target: `main`
+after audit tranches 1–3 (`adcaf17`).
 
 V12 is a **documentation-and-alignment revision, not a design pivot.** The four-layer architecture, the ten-plugin contract, the authority axes, and the recursive cooperative model are all carried from V11 unchanged. What changed is the upstream reality V11 was betting on — and the bet aged well.
 
@@ -25,6 +27,15 @@ V12 is a **documentation-and-alignment revision, not a design pivot.** The four-
 | Community modeling       | (implicit)                     | Holmgren (June 2): **many typed spaces under one community DID**, against "universal spaces"                                                | Directly validates our role-space design                                                                                           |
 | OAuth scopes             | shipping                       | **Shipped + normative** (`repo:`/`rpc:`/`blob:`/`account:`/`identity:`/`include:`); permission sets are lexicons anyone can publish         | Axis 1 rests on documented protocol surface                                                                                        |
 | HappyView                | experimental behind flag       | Stable **2.11.8** plus `2.12.0-dev.2`; dev releases follow Diary 7 and currently diverge from Proposal 0016 on signed commits               | Use for differential tests, not as the protocol oracle or CSN AppView substrate                                                    |
+
+**2026-08-20 amendment:** the Spaces **alpha** shipped — `@atproto/space` is
+published (npm `alpha` dist-tag, snapshot `0.0.0-spaces-alpha-20260818163953`),
+Proposal 0016 was updated in place (DPoP-bound credentials being the one
+substantive change), and a spaces-enabled PDS distribution
+(`ghcr.io/bluesky-social/atproto:pds-spaces-alpha` + hosted alpha) and the
+Bulletin sample app exist. The July rows above stand as history; current
+deltas and the Phase 4A work package live in
+`docs/plans/2026-08-20-spaces-alpha-impact-analysis.md`.
 
 **What did NOT change (carried from V11):** the four layers; the ten-plugin `GovernancePluginSet`; the five authority axes; the recursive cooperative model; the three data tiers; fail-closed cross-checking; DIDs authoritative + `did_rotation_history` aliasing; Tier 3 optional (Germ still iOS-only). The May addendum's own forecast scored 7/9 (see the research report §III).
 
@@ -108,8 +119,12 @@ eligibility, retention, or legal policy into generic host Rego.
   `2.12.0-dev.2` request, commit, CAR, credential, and notification behavior.
   Inbound notification endpoint activation, production lifecycle-source
   selection, and a deployed authenticated cross-service probe remain parked.
-  PR #5187 still does not implement `getRepo`; HappyView serves the CAR but
-  omits the Proposal 0016 commit signature.
+  As of the 2026-08-20 alpha, upstream PR #5187 **implements `getRepo`**, and
+  the spec resolved the commit format to signed-context+HMAC — HappyView's
+  HMAC-only CAR is now a known nonconformance (secondary diagnostic only).
+  Space credentials became **DPoP-bound** (`cnf.jkt` + per-request proofs);
+  the consumer's credential path predates this and is Phase 4A item 2. The
+  CAR index moved to canonical DAG-CBOR ordering (Phase 4A item 4).
 
 ---
 
@@ -165,7 +180,10 @@ commits. Audit both gate outcomes without publishing private metadata.
 Identity: cooperatives self-manage rotation keys offline (higher priority than
 the PDS signing key, which CSN holds); monitor PLC for unexpected rotations;
 DID equality must resolve through `did_rotation_history` before consumer
-activation. Space credentials are bearer tokens: keep them short-lived,
+activation. Space credentials are DPoP-bound proof-of-possession tokens (alpha,
+2026-08-14): each credential is bound at issuance to an application-held key
+(`cnf.jkt`) and every presentation carries a per-request proof, so the
+keypair's lifetime equals the credential's. Keep credentials short-lived,
 least-privilege per space, and refresh per batch behind
 `SpaceCredentialStore`. A local membership change invalidates CSN's credential
 cache as defense in depth; it is not a protocol-defined global revocation
@@ -195,13 +213,13 @@ DB: `packages/db/src/migrations/0001_v11_baseline.ts` + `schema.sql` is the **pe
 | Phase | Gate           | Content                                                                                                                                                               |
 | ----- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 0 ✅  | done           | Repo cleanup, V11 merge, review fixes                                                                                                                                 |
-| 1     | none           | Docs sweep, this doc, slim CLAUDE.md                                                                                                                                  |
-| 2     | none           | Drift alignment: stale ECMH ports removed/folded into `PermissionedRepoPort`, URI helpers, dep checks, port↔lexicon JSDoc, review cleanup                             |
-| 3     | soft           | Arbiter convergence + membership read seam design/migration + review carry-ins (suspension, lifecycle events, consent-overwrite, roster-`partial`, DID rotation gate) |
-| 4     | Stage 3 + seam | Governance→spaces, credential seam, personal spaces                                                                                                                   |
-| 5     | none           | GovernanceView + CoopView + the ten plugins (parallelizable with 3–4)                                                                                                 |
-| 6     | 3–5 stable     | Retire or reclassify remaining V9 surface (`private_record`, governance labels, inbound RFC 9421 routes, cooperative links, `local/*`); dormant outbound federation client removed |
-| 7     | 3–4 merged     | Full UX overhaul                                                                                                                                                      |
+| 1 ✅  | none           | Docs sweep, this doc, slim CLAUDE.md (tagged `v12-phase-1`)                                                                                                           |
+| 2 ✅  | none           | Drift alignment: stale ECMH ports removed/folded into `PermissionedRepoPort`, URI helpers, dep checks, port↔lexicon JSDoc, review cleanup (tagged `v12-phase-2`)      |
+| 3 ✅  | soft           | Arbiter convergence + membership read seam design/migration + review carry-ins (suspension, lifecycle events, consent-overwrite, roster-`partial`, DID rotation gate) (tagged `v12-phase-3`) |
+| 4 ⏳  | Stage 3 + seam | Governance→spaces, credential seam, personal spaces — checkpoints merged through 2026-07-30; **Phase 4A spaces-alpha alignment** added 2026-08-20 (see program plan)   |
+| 5 ⏳  | none           | GovernanceView + CoopView + the ten plugins — substantially done 2026-07-30; `anchorSummary`/`historicalState`/`meetingMinutes` deliberately unwired pending contracts |
+| 6 ⏳  | 3–5 stable     | Retire or reclassify remaining V9 surface (`private_record`, governance labels, inbound RFC 9421 routes, cooperative links, `local/*`); first checkpoints merged; remaining removals have runtime consumers or signoff gates |
+| 7 ⏳  | 3–4 merged     | Full UX overhaul — 7.1 audit complete; IA/theme activation gated by V12-S12                                                                                            |
 
 Branch naming: `feature/v12-phase-N-<desc>`. Merges to `main`: `--no-ff`, green build+tests first, tag `v12-phase-N`.
 
@@ -210,8 +228,8 @@ Branch naming: `feature/v12-phase-N-<desc>`. Merges to `main`: `--no-ff`, green 
 | Capability                                                       | Default                                                                                                                                                                                                                                                                                            | Decide at   |
 | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
 | AppView substrate (custom `apps/api` vs **HappyView 2.10+**)     | **Build confirmed.** The 2026-07-11 HappyView 2.11.4 spike loaded all 58 canonical/draft documents, but all 8 CSN queries need custom semantics; Lua/WASM cannot host the typed plugin and projection model without a rewrite. See `docs/plans/2026-07-11-v12-phase-5-happyview-appview-spike.md`. | decided     |
-| Spaces dev/test harness (fixtures vs **HappyView**)              | **Implemented:** pinned PR #5187 and HappyView 2.12-dev profiles, abort-aware HTTP probe, CAR inspection, and upstream executable-suite evidence. Keep HappyView diagnostic because its commit/auth/notification contracts differ.                                                                     | decided     |
-| Spaces primitives (extend vs **`@atproto/space`** from PR #5187) | Use when published and conformance-tested; unpublished as of 2026-07-29                                                                                                                                                                                                                             | each sweep  |
+| Spaces dev/test harness (fixtures vs **HappyView**)              | **Implemented:** pinned PR #5187 and HappyView 2.12-dev profiles, abort-aware HTTP probe, CAR inspection, and upstream executable-suite evidence. 2026-08-20: the `pds-spaces-alpha` Docker image becomes the primary oracle (Phase 4A item 6); HappyView is secondary/diagnostic.                     | decided     |
+| Spaces primitives (extend vs **`@atproto/space`** from PR #5187) | **Published 2026-08-18** (`alpha` dist-tag, 0.0.0 snapshots): adopt as a pinned differential oracle now; swap runtime internals at upstream stability (Phase 4A item 7)                                                                                                                              | each sweep  |
 | Group authority (CSN-DB vs SimpleSpace vs Roomy-style Arbiter)   | Keep adapters; CSN-DB remains default. A disabled `checkUserAccess` adapter now proves the managing-app boundary, but production activation still requires the host, service identity, trust set, and operating-policy decisions in V12-S02/V12-S10.                                                   | Phase 4/P2  |
 | Axis-3 policy (TS plugin set vs Rego/OPA)                        | Build                                                                                                                                                                                                                                                                                              | firm        |
 | Tier 3 E2EE (Germ/MLS)                                           | Use, optional-only                                                                                                                                                                                                                                                                                 | parity news |
@@ -233,36 +251,71 @@ ports and are expected to drift.
 
 ## 12. Open questions & ecosystem watchlist
 
-**Open (§17/§18 carried, updated):**
+**Open (§17/§18 carried; dispositions updated 2026-08-20 — full mapping in
+`docs/plans/2026-08-20-spaces-alpha-impact-analysis.md` §6):**
 
-1. Production client-attestation key custody/JWKS publication and signer
-   deployment; the code-level signer port and exact audience claims now exist.
-2. Lexicon Community response to `community.lexicon.governance.*` — no governance namespace exists yet; the process is TSC-sponsored (gated, slow). Start sponsorship outreach early; Phase 5 does not wait on ratification.
+1. Client-attestation key custody/JWKS publication — **narrowed:** attestation
+   is required only for `appAccess: allowList` spaces; defer custody decisions
+   until CSN gates a space on app identity. The signer port stands.
+2. Lexicon Community response to `community.lexicon.governance.*` — no
+   governance namespace exists yet. (Correction per the audit record: working
+   groups are self-formed since 2026-07-26 — no TSC gate. Start outreach
+   early; Phase 5 does not wait on ratification.)
 3. Subchapter T legal-counsel consultation.
-4. Production authority hosting: cooperative-operated host, accountable
-   operator, SimpleSpace, Roomy-style Rego proxy, or a supported combination.
+4. Production authority hosting — **enriched by the alpha:** a supported
+   near-term combination is a stock spaces PDS running `simplespace` with
+   `policy: managing-app` pointing at CSN (mint-time callback; upstream fails
+   closed if the managing app is unreachable); a bespoke cooperative space
+   host (own management namespace on a dedicated space service) is the
+   spec-blessed long-term shape.
 5. Cross-modality notification routing for community-router apps — unresolved upstream.
 6. `$publish`/`$labeler` conventions — not formalized (arbiter uses open unions).
-7. Signed-context-plus-HMAC versus Diary 7/HappyView HMAC-only commit format.
+7. ~~Signed-context-plus-HMAC versus HMAC-only commit format~~ — **resolved
+   2026-08-20:** the alpha ships signed-context+HMAC (`ver: 1`,
+   `atproto-space-v1`); CSN's pinned verifier is conformant, including the
+   HKDF-Expand-only MAC. HappyView's HMAC-only shape lost — secondary
+   diagnostic only.
 8. Cooperative retention, re-homing, deletion, and private moderation policy;
-   see the July 30 signoff register.
-9. Inbound notification service identity/audience: the pinned implementation's
-   URL-derived audience does not match CSN's DID-audience verifier. Periodic
-   reconciliation remains authoritative until V12-S09 is resolved.
+   see the July 30 signoff register. The alpha adds concrete deletion
+   semantics (syncers must drop copies **and derived state**; `SpaceDeleted`
+   at credential renewal) — Phase 4A item 5.
+9. ~~Inbound notification service identity/audience~~ — **resolved in
+   spec/impl 2026-08-20:** audiences are DID service fragments
+   (`did#fragment`); `registerNotify` subscribes a service identifier resolved
+   via the DID document, matching CSN's DID-audience verifier. Implementation
+   is Phase 4A item 8; periodic reconciliation remains authoritative until it
+   lands (V12-S09).
 10. Production public lifecycle-source topology and source-switch procedure.
     Raw host-attributed invalidation is implemented; unattributed Tap events
     remain intentionally non-destructive.
-11. Managing-app callback activation: exact service identifier, trusted
-    authority set, callback availability, authority-key lifecycle, and
-    membership correction/appeal policy; see V12-S10.
+11. Managing-app callback activation — **mechanics now answered** (service
+    identifier form, `checkUserAccess` contract, fail-closed upstream on an
+    unreachable app); remaining decisions are the trusted authority set,
+    operator availability, key lifecycle, and correction/appeal policy
+    (V12-S10).
+12. **New (2026-08-20):** standing-service credential sourcing — no
+    service-identity delegation path exists upstream (even Bulletin borrows
+    end-user OAuth sessions to mint sync credentials). CSN's
+    managing-session-pool posture stands; watch for an upstream answer.
+13. **New (2026-08-20):** the `@atproto/api` → `@atproto/lex-*` client-stack
+    generation shift (space bindings exist only as `lex build` codegen), and
+    the scaffolded-but-unexposed `swapCid` compare-and-swap (bears on the
+    Tier-2 copy-ledger delete contract).
 
-**Watchlist (two-week cadence; last deep sweep 2026-07-29, next due
-2026-08-12):** Proposal 0016 and `atproto#5187`; Holmgren's permissioned-data
-diary; Atmospheric Groups forum/activity; HappyView stable/dev releases; Roomy
-devlogs and Arbiter/Rego work; Habitat, Blacksky, Northsky, Colibri, and
-atproto-crates; released ATProto OAuth/PDS packages. Record source commit or
-release pins and distinguish proposals, executable drafts, and deployed
-products.
+**Watchlist (weekly during the alpha — upstream ships Thursday updates; last
+deep sweep 2026-08-20, next due 2026-08-27; revert to the two-week cadence
+after upstream's full launch):** the atproto.com blog and the
+atmosphere.community announcements thread (primary alpha venues); Proposal
+0016 and `atproto#5187` (pins: proposal `54c9cf5`, impl `89deb9fac`, npm
+snapshot train `0.0.0-spaces-alpha-20260818163953`,
+`ghcr.io/bluesky-social/atproto:pds-spaces-alpha`); Holmgren's
+permissioned-data diary (quiet since Jul 17); HappyView stable/dev (secondary
+diagnostic); Roomy devlogs and Arbiter/Rego work; Habitat, Blacksky,
+Northsky, Colibri, ZDS, atproto-crates, and rsky (community PDS
+implementations named in the announcement); released ATProto OAuth/PDS
+packages (`pds` 0.5.29, `oauth-scopes` 0.5.9 stable as of 2026-08-20). Record
+source commit or release pins and distinguish proposals, executable drafts,
+and deployed products.
 
 The IETF ATP working group is chartered but its charter **excludes non-public data** — spaces standardization stays in `bluesky-social/proposals` + community venues for now. (IETF 126 is Vienna, July 18–24; the V11 docs' "IETF 125" was wrong.)
 
