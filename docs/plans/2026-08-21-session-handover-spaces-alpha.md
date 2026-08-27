@@ -36,8 +36,15 @@ only what a cold start cannot reconstruct from it.
   (`discourse.atmosphere.community/t/atproto-spaces-alpha-updates/1129`)
   and diff the pins — a light pass unless something breaking shipped.
 - The header's `main` state above is the 2026-08-21 snapshot; the current
-  tip is the merge carrying this addendum ("week-1 upstream check"). Tree
-  clean; the no-push constraint stands and the unpushed count keeps growing.
+  tip is the merge carrying this addendum ("week-1 upstream check").
+  **Origin state changed (observed 2026-08-26):** `origin/main` was synced
+  to `6fe0dde` outside any agent session — the maintainer pushed the
+  previously-held history, and the repo is still **public** (unauthenticated
+  API 200). The write-ups of still-open criticals (C-06/N-3/N-4, C-05,
+  S-08) are therefore now publicly visible, which raises the audit track's
+  urgency. The **ask-before-push rule for agents stands** — a maintainer
+  push is not agent authorization. `origin/main..HEAD` is meaningful again
+  (local main is ahead by the week-1 merge only).
 
 ---
 
@@ -184,15 +191,17 @@ READ FIRST, in order:
    revision; trust it over any summary.
 4. The Phase 4A checkbox block in docs/plans/2026-07-04-v12-program-plan.md.
 
-STATE: main is clean with the analysis, its review revision, this handover,
-and the 2026-08-26 week-1 check all merged (git log shows the exact tip).
-main is far ahead of origin — origin/main..HEAD reasoning misleads. The
-ATProto Spaces alpha shipped 2026-08-20; upstream ships breaking drops on
-Thursdays; as of 2026-08-26 nothing has shipped since launch.
+STATE: main has the analysis, its review revision, this handover, and the
+2026-08-26 week-1 check all merged (git log shows the exact tip). origin/main
+was synced to 6fe0dde by the maintainer (observed 2026-08-26; repo still
+public, so the open-crit write-ups are now visible upstream — audit-track
+urgency is up). The ATProto Spaces alpha shipped 2026-08-20; upstream ships
+breaking drops on Thursdays; as of 2026-08-26 nothing has shipped since
+launch.
 
-DO NOT PUSH. The repo is public and unpushed history contains
-reproduction-grade write-ups of still-open criticals. Ask before any push,
-every time.
+DO NOT PUSH without asking, every time — the standing rule is unchanged even
+though the maintainer synced origin on ~2026-08-26. The repo is public;
+anything pushed is disclosure.
 
 TRACK PRIORITY: the audit track (C-06+N-3+N-4; its own handover is
 docs/plans/2026-08-17-session-handover.md) is the standing next work unless
