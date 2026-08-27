@@ -69,6 +69,12 @@ const envSchema = z
     // Anthropic API key removed — credentials are now per-cooperative in model_provider_config table
     // Federation
     INSTANCE_ROLE: z.enum(['standalone', 'hub', 'coop']).default('standalone'),
+    // Audit S-08: did:web resolution dials a URL derived from an
+    // unauthenticated caller's `keyid`, so private and loopback targets are
+    // refused. Local development and the Docker federation stack address peers
+    // over private networks, so they need this on; it defaults on outside
+    // production and is rejected in production.
+    DID_RESOLUTION_ALLOW_PRIVATE: z.stringbool().optional(),
     INSTANCE_DID: z.string().optional(),   // Override auto-derived DID
     HUB_URL: z.string().optional(),        // Hub URL for co-op instances to register with
     // Tap firehose consumer (pre-filtered ATProto events over HTTP; unset = local pg_notify)
@@ -94,6 +100,16 @@ const envSchema = z
   })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV === 'production') {
+      if (data.DID_RESOLUTION_ALLOW_PRIVATE === true) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['DID_RESOLUTION_ALLOW_PRIVATE'],
+          message:
+            'DID_RESOLUTION_ALLOW_PRIVATE must not be enabled in production: it ' +
+            'lets an unauthenticated caller steer did:web resolution at internal ' +
+            'addresses (audit S-08)',
+        });
+      }
       if (data.SESSION_SECRET.length < 32) {
         ctx.addIssue({
           code: 'custom',

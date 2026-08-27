@@ -9,6 +9,11 @@
  */
 import * as crypto from 'node:crypto';
 import type { DidDocument } from '@coopsource/federation';
+import {
+  BlockedAddressError,
+  safeFetchJson,
+  type SafeFetchOptions,
+} from '@coopsource/federation/http';
 import type { DID } from '@coopsource/common';
 import { logger } from '../middleware/logger.js';
 
@@ -55,13 +60,25 @@ export function clearDidCache(): void {
 
 // ─── DID Resolution ─────────────────────────────────────────────────────────
 
-async function defaultResolveDid(did: DID): Promise<DidDocument> {
-  // Check cache first
+/**
+ * Resolve a DID document for commit verification.
+ *
+ * This is a second did:web resolver, independent of
+ * `@coopsource/federation`'s `DidWebResolver`, and it reaches the same class of
+ * attacker-influenced URL: the DID is a record author's, so anyone who can
+ * publish a record chooses it. It goes through the same outbound guard, or
+ * fixing one resolver would leave the other open (audit S-08).
+ */
+export async function resolveDidDocument(
+  did: DID,
+  outbound?: SafeFetchOptions,
+): Promise<DidDocument> {
   const cached = getCachedDidDoc(did);
   if (cached) return cached;
 
   let url: string;
   if (did.startsWith('did:plc:')) {
+    // Operator-configured directory, not caller-supplied.
     const plcBase = process.env.PLC_URL && process.env.PLC_URL !== 'local'
       ? process.env.PLC_URL
       : 'https://plc.directory';
@@ -73,14 +90,21 @@ async function defaultResolveDid(did: DID): Promise<DidDocument> {
     throw new Error(`Unsupported DID method: ${did}`);
   }
 
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`DID resolution failed for ${did}: ${res.status}`);
+  let doc: DidDocument;
+  try {
+    doc = (await safeFetchJson(url, outbound)) as DidDocument;
+  } catch (err) {
+    if (err instanceof BlockedAddressError) throw err;
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`DID resolution failed for ${did}: ${message}`);
   }
-  const doc = (await res.json()) as DidDocument;
+
   setCachedDidDoc(did, doc);
   return doc;
 }
+
+const defaultResolveDid = (did: DID): Promise<DidDocument> =>
+  resolveDidDocument(did);
 
 /**
  * Verify an ATProto commit signature against the DID document's signing key.

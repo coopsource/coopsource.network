@@ -1,6 +1,11 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as crypto from 'node:crypto';
-import { verifyCommitSignature } from '../src/appview/commit-verifier.js';
+import {
+  verifyCommitSignature,
+  resolveDidDocument,
+  clearDidCache,
+} from '../src/appview/commit-verifier.js';
+import { BlockedAddressError } from '@coopsource/federation/http';
 import type { DidDocument } from '@coopsource/federation';
 import type { DID } from '@coopsource/common';
 
@@ -115,5 +120,49 @@ describe('commit-verifier', () => {
     );
 
     expect(result).toBe(false);
+  });
+});
+
+// ── Audit S-08 ────────────────────────────────────────────────────────────
+
+describe('Commit verifier DID resolution is guarded (S-08)', () => {
+  beforeEach(() => {
+    clearDidCache();
+  });
+
+  it('refuses a did:web naming a private address, without fetching', async () => {
+    const fetchImpl = vi.fn();
+
+    await expect(
+      resolveDidDocument('did:web:169.254.169.254' as DID, {
+        fetchImpl,
+        lookup: async () => ['93.184.216.34'],
+      }),
+    ).rejects.toThrow(BlockedAddressError);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('refuses a did:web whose host resolves to a private address', async () => {
+    const fetchImpl = vi.fn();
+
+    await expect(
+      resolveDidDocument('did:web:rebind.example' as DID, {
+        fetchImpl,
+        lookup: async () => ['10.0.0.1'],
+      }),
+    ).rejects.toThrow(BlockedAddressError);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('resolves an ordinary did:web', async () => {
+    const doc = await resolveDidDocument('did:web:example.com' as DID, {
+      lookup: async () => ['93.184.216.34'],
+      fetchImpl: async () =>
+        new Response(JSON.stringify({ id: 'did:web:example.com', verificationMethod: [] }), {
+          status: 200,
+        }),
+    });
+
+    expect(doc.id).toBe('did:web:example.com');
   });
 });

@@ -311,6 +311,16 @@ export function createContainer(config: AppConfig): Container {
       plcFallback.resolve(did) as Promise<
         import('@coopsource/federation').DidDocument
       >,
+    // Audit S-08. `verifyRequest` resolves the signer's DID before it can check
+    // the signature — the key it needs is inside the document — so this fetch
+    // is steerable by an unauthenticated caller and is guarded rather than
+    // trusted. Private targets are refused outside production-like config;
+    // local development and the Docker federation stack address peers over
+    // private networks and opt in explicitly.
+    outbound: {
+      allowPrivate:
+        config.DID_RESOLUTION_ALLOW_PRIVATE ?? config.NODE_ENV !== 'production',
+    },
   });
   const spaceAuthorityResolver = new DidSpaceAuthorityResolver({
     resolveDid: (did) => didResolver.resolve(did),

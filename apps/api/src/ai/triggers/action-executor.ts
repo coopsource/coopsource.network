@@ -4,7 +4,7 @@ import type { ChatEngine } from '../chat-engine.js';
 import type { AppEvent } from '../../appview/sse.js';
 import { emitAppEvent } from '../../appview/sse.js';
 import type { TriggerAction } from './types.js';
-import { validateWebhookUrl } from '../../utils/url-validation.js';
+import { fetchOutbound } from '../../utils/url-validation.js';
 import type { MembershipReadModel } from '../../services/membership-read-model.js';
 import type { DID } from '@coopsource/common';
 
@@ -114,8 +114,6 @@ async function executeWebhook(
     throw new Error('call_webhook action requires config.url');
   }
 
-  validateWebhookUrl(url);
-
   const payload = {
     event: context.event.type,
     data: context.event.data,
@@ -124,11 +122,12 @@ async function executeWebhook(
     timestamp: new Date().toISOString(),
   };
 
-  const res = await fetch(url, {
+  // SSRF protection: the destination and its DNS answer are checked, and a
+  // redirect is refused rather than followed (audit S-08).
+  const res = await fetchOutbound(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(10_000),
   });
 
   // Always consume the response body to prevent connection pool exhaustion
