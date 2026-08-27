@@ -149,16 +149,24 @@ export class ExpenseService {
     if (data.receiptBlobCid !== undefined)
       updates.receipt_blob_cid = data.receiptBlobCid;
 
+    // The status the guard above validated is repeated as a predicate, so a
+    // review that lands between the read and this write cannot be edited past
+    // (audit N-3).
     const [row] = await this.db
       .updateTable('expense')
       .set(updates)
       .where('id', '=', id)
       .where('cooperative_did', '=', cooperativeDid)
       .where('member_did', '=', memberDid)
+      .where('status', 'in', ['draft', 'submitted'])
       .returningAll()
       .execute();
 
-    if (!row) throw new NotFoundError('Expense not found');
+    if (!row) {
+      throw new ConflictError(
+        'Expense status changed while it was being updated',
+      );
+    }
     return row;
   }
 
@@ -250,6 +258,9 @@ export class ExpenseService {
     const now = this.clock.now();
     const newStatus = action === 'approve' ? 'approved' : 'rejected';
 
+    // Same compare-and-set: without the status predicate a reviewer whose read
+    // saw `submitted` can force a reimbursed expense back to `approved` and
+    // have it paid a second time (audit N-3).
     const [row] = await this.db
       .updateTable('expense')
       .set({
@@ -260,10 +271,17 @@ export class ExpenseService {
         indexed_at: now,
       })
       .where('id', '=', id)
+      .where('cooperative_did', '=', cooperativeDid)
+      .where('status', '=', 'submitted')
       .returningAll()
       .execute();
 
-    return row!;
+    if (!row) {
+      throw new ConflictError(
+        'Expense status changed while it was being reviewed',
+      );
+    }
+    return row;
   }
 
   async reimburseExpenses(
@@ -304,6 +322,7 @@ export class ExpenseService {
       .where('id', 'in', expenseIds)
       .where('cooperative_did', '=', cooperativeDid)
       .where('status', '=', 'approved')
+      .where('reimbursed_at', 'is', null)
       .execute();
 
     return Number(result[0]?.numUpdatedRows ?? 0);
@@ -336,10 +355,13 @@ export class ExpenseService {
       .where('id', '=', id)
       .where('cooperative_did', '=', cooperativeDid)
       .where('member_did', '=', memberDid)
+      .where('status', '=', 'draft')
       .executeTakeFirst();
 
     if (Number(result.numDeletedRows) === 0) {
-      throw new NotFoundError('Expense not found');
+      throw new ConflictError(
+        'Expense status changed while it was being deleted',
+      );
     }
   }
 
