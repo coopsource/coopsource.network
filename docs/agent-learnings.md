@@ -59,6 +59,23 @@ vacuously true. Caught only by printing the status code.
 reached the code under test (a specific expected status). Otherwise any
 unrelated rejection satisfies the test.
 
+### A control that exists is not a control that is wired
+
+The deep review's summary of this codebase — "a control that exists but is not
+wired to the path that needs it" — kept being literally true. `validateWebhookUrl`
+existed and was not applied to DID resolution. `WebhookService.verifySignature`
+exists with zero callers. `isConfidentialCsnCollection()` had one call site.
+
+Tranche 6 hit the sharper version: after guarding `DidWebResolver`, a grep for
+`fetch(` found a **second, independent did:web resolver** in
+`apps/api/src/appview/commit-verifier.ts`, reached with a record author's DID,
+which would have stayed open. Fixing one of two duplicated implementations
+looks exactly like fixing the defect.
+
+**Practice:** after wiring a guard, grep for the *operation* it guards — here
+`fetch(` — not for the name of the thing you just changed. Then account for
+every hit: guarded, or safe because the URL is operator-configured, or filed.
+
 ### Delete the block to find out whether anything tests it
 
 A defensive branch can look well-covered and be covered by nothing. The
@@ -491,6 +508,25 @@ database is down" could not tell them apart for the one case it was built for.
 same reason as the thing it records. Check the column types, not just the code
 path. `recordDeadLetter` now falls back to a payload-free row.
 
+### `URL.hostname` keeps the brackets on an IPv6 literal
+
+`new URL('https://[::1]/').hostname` is `"[::1]"`, **with** the brackets. Any
+SSRF check written as `hostname === '::1'` is therefore dead code, and every
+IPv6 form sails through — including `[::ffff:127.0.0.1]`, which reaches
+loopback while looking like IPv6. Strip the brackets before classifying.
+
+The same parser normalizes IPv4 shorthand in the other direction:
+`https://2130706433/` and `https://127.1/` both give `hostname` of
+`"127.0.0.1"`. That is why an exact-string loopback check appears to catch
+decimal-IP tricks — by accident, not by design. It does nothing for
+`127.0.0.2`.
+
+**Practice:** classify addresses by range, never by a list of individual
+strings. `apps/api/src/utils/url-validation.ts` listed `127.0.0.1` and
+`169.254.169.254` and allowed the rest of both ranges (audit S-08). The
+classifier is now `packages/federation/src/http/url-safety.ts`, with the table
+it must satisfy in `tests/url-safety.test.ts`.
+
 ### `pino-http` redaction only covers paths you list
 
 `redact` does not know what is sensitive. The default serializers log
@@ -621,3 +657,7 @@ ARCHITECTURE-V12 §12. The canonical repo moved to
   same way as the failure it records), deleting a branch to find out whether
   anything tests it, and `@atproto/tap` already treating a throw as the
   redelivery signal.
+- **2026-08-27** — tranche-6 hazards (branch `feature/audit-tranche-6-ssrf`):
+  `URL.hostname` keeping IPv6 brackets so an exact-string loopback check is dead
+  code while IPv4 shorthand is normalized into it, and the second copy of a
+  resolver that a name-based grep would never have found.

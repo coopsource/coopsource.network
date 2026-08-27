@@ -1,8 +1,8 @@
 # Session Handover — Co-op Source Network audit remediation
 
 - **Written:** 2026-08-17, at the close of audit tranche 3
-- **Updated:** 2026-08-27, at the close of audit tranche 5 (C-05 + dead-letter retry)
-- **State of `main`:** tranches 1-5 merged; pushes are routine (see §1)
+- **Updated:** 2026-08-27, at the close of audit tranche 6 (S-08)
+- **State of `main`:** tranches 1-6 merged; pushes are routine (see §1)
 - **Program:** the ordered backlog in
   [2026-08-02 closeout §3](./2026-08-02-audit-tranche-1-closeout-and-handover.md)
 
@@ -59,15 +59,30 @@ session, not a formality.
 
 ## 3. What to do next
 
-**S-08** — closeout §3 item 6. The root is `packages/common/src/did-web.ts` (an
-`http://` downgrade for dotted-quad hosts, honoured `%3A` ports). Wire the
-existing `url-validation.ts` into DID resolution with `redirect: 'manual'` and
-post-resolution IP checks.
+**N-1** — closeout §3 item 7. `GET /api/v1/cooperative` returns an *arbitrary*
+cooperative: no actor predicate, no `ORDER BY`. The settings page can read one
+co-op and write another, including its public-visibility flags, and 28 other
+`+page.server.ts` files inherit the wrong identity. The canonical value already
+exists and is ignored (`system_config.cooperative_did`).
 
-Then the review's new surface — **N-1** (`GET /api/v1/cooperative` returns an
-arbitrary cooperative), **N-2** (the MCP endpoint, whose transport fix and
-cross-tenant data leak must ship together), **N-16/N-17**, and the unreviewed
-`apps/api/src/ai/`.
+Then **N-2** (the MCP endpoint — its transport fix and its cross-tenant data
+leak must ship in one commit, or fixing the transport ships a cross-tenant
+search primitive), **N-16/N-17** (api_token never re-checks membership), and the
+unreviewed `apps/api/src/ai/` surface.
+
+### Closed 2026-08-27 — tranche 6 (item 6, SSRF)
+
+S-08 is fixed (`5274481`); plan and probe evidence in
+[the tranche-6 plan](./2026-08-27-audit-tranche-6-ssrf-plan.md). Carry forward:
+
+- **It was unauthenticated.** DID resolution happens before signature
+  verification by construction, and everything checked first is computable by
+  the caller. Worth remembering when reasoning about any other "verified peer"
+  path: the verification cannot gate the lookup the verification needs.
+- **N-29 filed:** the spaces-consumer's outbound endpoints were in S-08's
+  evidence and are **not** fixed. Flag-gated off today. **The next free number
+  is N-30.**
+- **DNS rebinding is not closed**, deliberately — see the register §2.
 
 ### Closed 2026-08-27 — tranche 5 (item 5, AppView delivery)
 
@@ -118,8 +133,8 @@ is an async seam for exactly this — see agent-learnings §2).
 - **The `N-` series does not start where you think.** The deep review runs
   N-1..N-24; tranche 3 added **N-25** (after a collision that cost a rename
   across ten code sites, four config/doc sites, and three commit subjects);
-  tranche 4 added **N-26** and **N-27**, tranche 5 added **N-28**. **The next
-  free number is N-29.** Check before you label.
+  tranche 4 added **N-26** and **N-27**, tranche 5 added **N-28**, tranche 6
+  added **N-29**. **The next free number is N-30.** Check before you label.
 - **`test-app.ts` is a second router as well as a second container.** If a
   route 404s inside a test, check that `test-app.ts` mounts it before
   debugging the route (N-26).
@@ -133,7 +148,7 @@ is an async seam for exactly this — see agent-learnings §2).
 
 ## 5. The method that has worked
 
-Five tranches, and the same shape each time:
+Six tranches, and the same shape each time:
 
 1. **Re-derive the finding before funding work on it.** Neither C-04 nor A-07
    had an executable probe anywhere in the audit record; both turned out to be
@@ -175,21 +190,22 @@ READ FIRST, in order:
    partially fixed) and §3 (the ordered backlog). This register is the source of truth.
 3. docs/agent-learnings.md §1 — the verification traps that produced the most wasted work.
 
-STATE: tranches 1-5 are merged to main. Tranche 4 closed the money bugs (C-06, N-3, N-4);
-tranche 5 closed C-05 and the dead-letter half of O-12. Open findings filed along the way:
-N-26 (test-app.ts mounts 19 fewer route modules than production, so those surfaces have no
-route-level coverage), N-27 (expense review binds no version of the expense), N-28 (nothing
-watches the dead-letter queue). The next free finding number is N-29.
+STATE: tranches 1-6 are merged to main. Every critical-tier finding from the 2026-07-31
+audit is now closed: C-01..C-06, A-07, S-08. Open findings filed along the way: N-26
+(test-app.ts mounts 19 fewer route modules than production), N-27 (expense review binds no
+version), N-28 (nothing watches the dead-letter queue), N-29 (spaces-consumer outbound
+endpoints unguarded). The next free finding number is N-30.
 
-PUSHES: routine (the directive was lifted 2026-08-26 — see handover §1). The repo is
-public and the crit write-ups are published, so audit urgency is up.
+PUSHES: routine (the directive was lifted 2026-08-26 — see handover §1).
 
-NEXT: closeout §3 item 6 — S-08. Root is packages/common/src/did-web.ts; wire the existing
-url-validation.ts into DID resolution with redirect: 'manual' and post-resolution IP checks.
-Then N-1, N-2, N-16/N-17, apps/api/src/ai/.
+NEXT: closeout §3 item 7 — N-1, GET /api/v1/cooperative returning an arbitrary
+cooperative. Then N-2 (MCP transport + cross-tenant leak, one commit), N-16/N-17,
+apps/api/src/ai/.
 
 METHOD: re-derive each finding with an executable probe against real routes before
 designing a fix — the audit is not normative and has been wrong about root causes,
-severity, and column types. Do not trust a green suite as proof. Verify every regression
-test detects its target, and delete any defensive branch the suite does not reach.
+severity, and column types. Verify every regression test detects its target. Delete any
+defensive branch the suite does not reach. After wiring a guard, grep for the OPERATION it
+guards, not the name of what you changed — tranche 6 found a second copy of a resolver
+that way.
 ```
