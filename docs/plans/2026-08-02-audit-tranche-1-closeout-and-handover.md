@@ -343,9 +343,12 @@ retention/deletion (Phase 5/6), **#10** network joining approval (Phase 1).
 ## 5. Standing constraints
 
 - Feature branches only; `--no-ff` merges; green `pnpm build && pnpm test` first.
-- **Do not push audit-remediation branches to `origin` without asking.** This is
-  a public repo and the criticals are undisclosed. Standing user decision;
-  tranche 3 is local-only.
+- ~~Do not push audit-remediation branches to `origin` without asking.~~
+  **Lifted 2026-08-26 (Alan):** pushes are routine again — Alan synced origin
+  himself and clarified the directive originated in a period of repeatedly
+  failing pushes on his end, compounded by the disclosure concern. The
+  criticals' write-ups are now published while C-06/N-3/N-4, C-05, S-08
+  remain open — urgency up; CI can now execute.
 - Do not delete branches.
 - `SPACES_CONSUMER_ENABLED=false` outside conformance environments.
 - Treat Proposal 0016 / PR #5187 as an executable draft, never a stable
