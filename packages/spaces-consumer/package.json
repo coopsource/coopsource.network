@@ -29,7 +29,7 @@
     "@ipld/car": "^5.4.2",
     "@ipld/dag-cbor": "^9.2.5",
     "@noble/hashes": "^1.8.0",
-    "kysely": "^0.28",
+    "kysely": "^0.28.17",
     "multiformats": "^13.4.2"
   },
   "devDependencies": {

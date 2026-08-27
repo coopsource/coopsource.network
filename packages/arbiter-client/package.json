@@ -25,7 +25,7 @@
     "@coopsource/db": "workspace:*",
     "@coopsource/lexicons": "workspace:*",
     "@coopsource/spaces-consumer": "workspace:*",
-    "kysely": "^0.28"
+    "kysely": "^0.28.17"
   },
   "devDependencies": {
     "@coopsource/config": "workspace:*",
