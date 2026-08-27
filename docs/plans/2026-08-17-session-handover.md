@@ -1,8 +1,8 @@
 # Session Handover — Co-op Source Network audit remediation
 
 - **Written:** 2026-08-17, at the close of audit tranche 3
-- **Updated:** 2026-08-27, at the close of audit tranche 6 (S-08)
-- **State of `main`:** tranches 1-6 merged; pushes are routine (see §1)
+- **Updated:** 2026-08-27, at the close of audit tranche 7 (N-1)
+- **State of `main`:** tranches 1-7 merged; pushes are routine (see §1)
 - **Program:** the ordered backlog in
   [2026-08-02 closeout §3](./2026-08-02-audit-tranche-1-closeout-and-handover.md)
 
@@ -59,16 +59,23 @@ session, not a formality.
 
 ## 3. What to do next
 
-**N-1** — closeout §3 item 7. `GET /api/v1/cooperative` returns an *arbitrary*
-cooperative: no actor predicate, no `ORDER BY`. The settings page can read one
-co-op and write another, including its public-visibility flags, and 28 other
-`+page.server.ts` files inherit the wrong identity. The canonical value already
-exists and is ignored (`system_config.cooperative_did`).
+**N-2** — closeout §3 item 8. The MCP endpoint is 100% non-functional (a fresh
+transport per request rejects every session) **and** four of its tools ignore
+the cooperative binding. Fix both in one commit, or shipping the transport fix
+ships a cross-tenant search primitive.
 
-Then **N-2** (the MCP endpoint — its transport fix and its cross-tenant data
-leak must ship in one commit, or fixing the transport ships a cross-tenant
-search primitive), **N-16/N-17** (api_token never re-checks membership), and the
-unreviewed `apps/api/src/ai/` surface.
+Then **N-16/N-17** (`api_token` never re-checks membership or entity status,
+tokens default to never expiring, and a cooperative cannot revoke one it did not
+create), and the unreviewed `apps/api/src/ai/` surface — which sits on that same
+token path and is the one place nobody, including the deep reviewer, has looked.
+
+### Closed 2026-08-27 — tranche 7 (item 7, cooperative identity)
+
+N-1 is fixed (`97c4a2a`). The settings page could read one cooperative and write
+another; after any update the unordered scan returned the wrong one permanently.
+Carry forward: **M-01 is still open** and is now the only thing between a
+multi-cooperative member and a deterministic active tenant — read and write
+agree on `req.actor.cooperativeDid`, but nothing makes that value stable.
 
 ### Closed 2026-08-27 — tranche 6 (item 6, SSRF)
 
@@ -148,7 +155,7 @@ is an async seam for exactly this — see agent-learnings §2).
 
 ## 5. The method that has worked
 
-Six tranches, and the same shape each time:
+Seven tranches, and the same shape each time:
 
 1. **Re-derive the finding before funding work on it.** Neither C-04 nor A-07
    had an executable probe anywhere in the audit record; both turned out to be
@@ -197,13 +204,14 @@ permissioned destination, and several 501s stand in for the feature. Read §2 be
 treating any critical as finished. Open findings filed along the way: N-26
 (test-app.ts mounts 19 fewer route modules than production), N-27 (expense review binds no
 version), N-28 (nothing watches the dead-letter queue), N-29 (spaces-consumer outbound
-endpoints unguarded). The next free finding number is N-30.
+endpoints unguarded). The next free finding number is N-30. M-01 (unordered active
+membership) is now load-bearing — see the tranche-7 note.
 
 PUSHES: routine (the directive was lifted 2026-08-26 — see handover §1).
 
-NEXT: closeout §3 item 7 — N-1, GET /api/v1/cooperative returning an arbitrary
-cooperative. Then N-2 (MCP transport + cross-tenant leak, one commit), N-16/N-17,
-apps/api/src/ai/.
+NEXT: closeout §3 item 8 — N-2, the MCP endpoint. Its transport fix and its
+cross-tenant data leak must ship in ONE commit: fixing the transport alone ships a
+cross-tenant search primitive. Then N-16/N-17, then apps/api/src/ai/.
 
 METHOD: re-derive each finding with an executable probe against real routes before
 designing a fix — the audit is not normative and has been wrong about root causes,

@@ -37,8 +37,10 @@ export function createCooperativeRoutes(container: Container): Router {
   router.get(
     '/api/v1/cooperative',
     requireAuth,
-    asyncHandler(async (_req, res) => {
-      const result = await container.entityService.getCooperative();
+    asyncHandler(async (req, res) => {
+      const result = await container.entityService.getCooperative(
+        req.actor!.cooperativeDid,
+      );
       if (!result) {
         res.status(404).json({
           error: 'NOT_FOUND', message: 'Cooperative not found',
@@ -125,7 +127,11 @@ export function createCooperativeRoutes(container: Container): Router {
         },
       );
 
-      const updated = await container.entityService.getCooperative();
+      // Read back the cooperative that was just written, not whichever row an
+      // unordered scan happens to return (audit N-1).
+      const updated = await container.entityService.getCooperative(
+        req.actor!.cooperativeDid,
+      );
       res.json(updated ? formatCooperative(updated) : null);
     }),
   );
