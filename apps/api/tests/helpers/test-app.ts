@@ -179,6 +179,7 @@ import { createPrivateRecordRoutes } from '../../src/routes/private/records.js';
 import { createPatronageRoutes } from '../../src/routes/financial/patronage.js';
 import { createCapitalAccountRoutes } from '../../src/routes/financial/capital-accounts.js';
 import { createTaxFormRoutes } from '../../src/routes/financial/tax-forms.js';
+import { createExpenseRoutes } from '../../src/routes/finance/expenses.js';
 import { createOnboardingRoutes } from '../../src/routes/onboarding/config.js';
 import { createDelegationRoutes } from '../../src/routes/governance/delegations.js';
 import { createGovernanceFeedRoutes } from '../../src/routes/governance/feed.js';
@@ -703,6 +704,7 @@ export function createTestApp(options?: TestAppOptions): TestApp {
   app.use(createPatronageRoutes(container));
   app.use(createCapitalAccountRoutes(container));
   app.use(createTaxFormRoutes(container));
+  app.use(createExpenseRoutes(container));
   app.use(createOnboardingRoutes(container));
   app.use(createDelegationRoutes(container));
   app.use(createGovernanceFeedRoutes(container));

@@ -161,13 +161,31 @@ export class PatronageService {
       throw new ValidationError('Fiscal period must be closed before running patronage calculation');
     }
 
+    // A period is calculated once. Without this the run is not idempotent:
+    // the UNIQUE on (fiscal_period_id, member_did, stakeholder_class) is
+    // NULLS NOT DISTINCT now, but that only catches a repeat of the same
+    // members — a repeat with a different member set would still stack
+    // allocations onto the same period (audit N-4).
+    const existing = await this.db
+      .selectFrom('patronage_record')
+      .where('cooperative_did', '=', cooperativeDid)
+      .where('fiscal_period_id', '=', period.id)
+      .select('id')
+      .executeTakeFirst();
+
+    if (existing) {
+      throw new ConflictError(
+        'Patronage has already been calculated for this fiscal period',
+      );
+    }
+
     // Get config for cash payout percentage
     const config = await this.getConfig(cooperativeDid);
     const cashPayoutPct = config?.cash_payout_pct ?? 20;
 
     const allocations = await this.allocatePatronage({
       cooperativeDid,
-      fiscalPeriodId: data.fiscalPeriodId,
+      fiscalPeriodId: period.id,
       totalSurplus: data.totalSurplus,
       cashPayoutPct,
       metrics: data.metrics,
@@ -182,7 +200,7 @@ export class PatronageService {
           .insertInto('patronage_record')
           .values({
             cooperative_did: cooperativeDid,
-            fiscal_period_id: data.fiscalPeriodId,
+            fiscal_period_id: period.id,
             member_did: allocation.memberDid,
             stakeholder_class: allocation.stakeholderClass,
             metric_value: allocation.metricValue,

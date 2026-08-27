@@ -1060,8 +1060,21 @@ export const PatronageMetricInputSchema = z.object({
   stakeholderClass: z.string().max(100).nullable().optional(),
 });
 
+/**
+ * A fiscal period is addressed by its uuid primary key. UUIDs are
+ * case-insensitive, so the value is lowercased here: `patronage_record`
+ * stores the reference as `text`, and without normalization an uppercase id
+ * addresses a second, invisible period (audit N-4). Parsing as a uuid also
+ * turns a malformed id into a 400 instead of a 500 from PostgreSQL.
+ */
+export const FiscalPeriodIdSchema = z.uuid().toLowerCase();
+
+export const FiscalPeriodRefSchema = z.object({
+  fiscalPeriodId: FiscalPeriodIdSchema,
+});
+
 export const RunPatronageCalculationSchema = z.object({
-  fiscalPeriodId: z.string().min(1),
+  fiscalPeriodId: FiscalPeriodIdSchema,
   totalSurplus: z.number().nonnegative(),
   metrics: z.array(PatronageMetricInputSchema).min(1),
 });
@@ -1087,6 +1100,7 @@ export type UpdatePatronageConfigInput = z.infer<
 export type RunPatronageCalculationInput = z.infer<
   typeof RunPatronageCalculationSchema
 >;
+export type FiscalPeriodRefInput = z.infer<typeof FiscalPeriodRefSchema>;
 export type PatronageMetricInput = z.infer<typeof PatronageMetricInputSchema>;
 export type RecordContributionInput = z.infer<typeof RecordContributionSchema>;
 export type RedeemAllocationInput = z.infer<typeof RedeemAllocationSchema>;

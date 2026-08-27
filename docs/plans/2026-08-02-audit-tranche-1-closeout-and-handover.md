@@ -79,6 +79,33 @@ after the offending test, and the invariant assertion it adds is the durable
 record. `6bb749b` is a configuration follow-up, verified by booting the API
 against the unchanged root `.env` rather than by a probe.
 
+**Tranche 4 — branch `feature/audit-tranche-4-money-integrity`, code commits
+`3878630..24340ee`.** Closes backlog item 4 below (C-06 + N-3 + N-4), the money
+bugs. Plan and probe evidence:
+[2026-08-26 tranche-4 plan](./2026-08-26-audit-tranche-4-money-integrity-plan.md).
+
+| Commit | What |
+|---|---|
+| `3878630` | Mounts `createExpenseRoutes` in `apps/api/tests/helpers/test-app.ts`. `POST /api/v1/finance/expenses` returned **404 inside the test app** — the test app keeps its own route list and 19 factories mounted in `apps/api/src/index.ts` are absent from it. Filed as **N-26** in §3. |
+| `415fc94` | **C-06.** Balance arithmetic moved into the database. `recordContribution` and `allocatePatronageBulk` use `balance = balance + :n`; `redeemAllocation`'s sufficiency check becomes the `UPDATE`'s own predicate (`WHERE id = :id AND balance >= :n`); each ledger row and the balance change it explains are written in one `db.transaction()`; `allocatePatronageBulk` claims each patronage record's `approved -> distributed` transition with a compare-and-set before crediting. Adds `CHECK (balance >= 0)`. |
+| `d6058a4` | **N-3.** `updateExpense`, `reviewExpense`, and `deleteExpense` each repeat the status their guard validated as a predicate on the write, and zero affected rows is a 409. `reimburseExpenses` additionally requires `reimbursed_at IS NULL`. `reviewExpense`'s `UPDATE` is also scoped to `cooperative_did`, which it was not before. |
+| `24340ee` | **N-4.** `runCalculation` refuses a period that already has records (409); the unique constraint becomes `NULLS NOT DISTINCT`; `fiscalPeriodId` is parsed as a uuid and lowercased at the route boundary and `period.id` is what gets stored. Three patronage/capital routes that cast `req.body`/`req.query` now parse it, which is what turns the malformed-id 500 into a 400. |
+
+**The probe corrected the audit on C-06.** The audit's stated broken end state
+was `balance=0, total_redeemed=100, ledger=-100` — which is the account row
+*looking correct*. Measured with 8 concurrent `$100` redemptions against a
+`$100` balance, reproduced **19/20**: three to six redemptions are accepted with
+HTTP 200 and each writes its own ledger row, while the lost update leaves the
+account row reading `balance=0, total_redeemed=100`. The co-op disburses
+`$200-$500` against a `$100` balance **and the account row hides it**. Two
+concurrent contributions reproduce the mirror image on the first attempt —
+two ledger rows summing to `200` against a `balance` of `100`, so `$100` of
+member equity is destroyed.
+
+Gate: build 10/10, api suite 118 files / 1157 tests (from 115 / 1140 — the
+three new files add 17). Every fix commit carries its pre-fix capture in the
+body; read those before re-litigating any of it.
+
 **On the identifier `N-25`.** The cross-host replay finding is **N-25** — the
 next free number after the [2026-08-02 independent deep
 review](./2026-08-02-independent-deep-review.md), whose series runs
@@ -209,6 +236,34 @@ open; all line cites are against `6bb749b`.
 - **The RFC 9421 parser is containment only.** It is scheduled for replacement
   by service-authenticated XRPC. Do not invest further in it.
 
+### From tranche 4 — what the money fixes do not cover
+
+- **A review binds no version of the expense (N-27).** The status
+  compare-and-set stops an edit landing *after* an approval. It does nothing
+  about one that lands *before* it: a reviewer who opens a `$10` expense and
+  clicks approve binds whatever the amount is at the moment their write
+  executes. Closing it needs an optimistic-concurrency token on the review
+  request, which changes the route contract, so it is filed rather than fixed.
+  A test asserting the stored row matches what the approval returned was
+  written and removed — measured **0/3** detection against the pre-fix
+  service, because every racing edit reliably landed before the approval.
+- **`deleteExpense`'s guard is still unreachable.** `createExpense` hardcodes
+  `'submitted'` and nothing writes `'draft'`, so the endpoint 400s for every
+  reachable state. Its compare-and-set was added anyway — same read-then-write
+  shape as its two siblings — and its test seeds the `draft` row directly.
+- **`patronage_record.fiscal_period_id` is still `text` against a `uuid` PK.**
+  Normalization now happens at the route boundary, so every stored value is
+  canonical and every lookup is lowercased. The column type is unchanged, per
+  the deep review's instruction not to act on the type framing.
+- **Only `createExpenseRoutes` was mounted in the test app.** The other 18
+  missing factories are N-26 in §3; each may surface pre-existing failures
+  that do not belong in a security tranche.
+- **Concurrency coverage is invariant-based, not exhaustive.** The pins assert
+  properties that hold for any interleaving (ledger sum equals balance;
+  exactly one redemption of the whole balance is accepted) and the stale-read
+  cases are made deterministic with a Kysely `transformResult` gate. Nothing
+  here proves the absence of a race in a path the tests do not drive.
+
 ---
 
 ## 3. What is left, in recommended order
@@ -253,12 +308,17 @@ are closed; start at item 4.**
    rotation, replay inside the skew window, raw-octet digests, or federation
    routes on a `standalone` instance. Read §2 before treating a signature row as
    proof of anything.
-4. **C-06 + N-3 + N-4** — the only findings that create or destroy money under
-   ordinary single-user operation. Two concurrent $100 redemptions against a $100
-   balance both succeed; three identical patronage POSTs yield a 240 balance for
-   a $100 surplus (root cause is `NULLS DISTINCT` on a nullable column in the
-   UNIQUE, not any type mismatch); an approved expense can be raised past review
-   and double-reimbursed (no status CAS).
+4. **[DONE — tranche 4, `3878630..24340ee`] C-06 + N-3 + N-4**, the money bugs.
+   Precisely what "done" covers: capital-account balance arithmetic happens in
+   the database inside a transaction, with the redemption sufficiency check as
+   the `UPDATE`'s own predicate and `CHECK (balance >= 0)` behind it; all three
+   expense state transitions repeat their validated status as a write predicate
+   and answer a lost race with 409, and `reimburseExpenses` also requires
+   `reimbursed_at IS NULL`; a patronage period is calculated once, enforced by a
+   period-level guard with `NULLS NOT DISTINCT` behind it, with `fiscalPeriodId`
+   parsed as a uuid and normalized at the route boundary. It does **not** cover
+   version binding on review (N-27) — read §2 before treating an approval as
+   proof of the amount the reviewer saw.
 5. **C-05** — fix at `pipeline.ts`, not `loop.ts`; `processFirehoseEvent`
    absorbs errors internally, so a `loop.ts`-only change does nothing. Bundle
    O-12's missing dead-letter retry.
@@ -379,6 +439,36 @@ Publishing the repo made GitHub's Dependabot alerts visible: **75 open
     `content-digest` while leaving the valid header in place) closes it.
     `@TARGET-URI` likewise has no committed test, though it shares its mechanism
     with the tested `@method`.
+
+### New surface from tranche 4 (2026-08-26)
+
+19. **N-26 — the test app mounts 19 fewer route modules than production.**
+    `apps/api/tests/helpers/test-app.ts` keeps its own route list, and these
+    factories present in `apps/api/src/index.ts` are absent from it:
+    `createCollaborativeProjectRoutes`, `createCommerceListingRoutes`,
+    `createCommerceNeedRoutes`, `createConnectorRoutes`,
+    `createDashboardRoutes`, `createEventRoutes`,
+    `createIntercoopAgreementRoutes`, `createMcpRoutes`,
+    `createMentionRoutes`, `createPaymentWebhookRoutes`,
+    `createProcurementRoutes`, `createReportRoutes`, `createRevenueRoutes`,
+    `createScheduleRoutes`, `createSharedResourceRoutes`, `createTaskRoutes`,
+    `createTimeTrackingRoutes`, `createWebhookRoutes`. (`createExpenseRoutes`
+    was the nineteenth and is mounted as of `3878630`.)
+
+    Those HTTP surfaces have **no route-level test coverage at all**, so a
+    guard added to any of them is invisible to the suite. This is how N-3
+    survived: `POST /api/v1/finance/expenses` returned 404 inside the test
+    app. Several carry findings that are still open — N-2's MCP endpoint,
+    S-04's intercoop-agreement and commerce sites. This is the same class as
+    the N-19 container gap, one layer up: closing N-19 typed the container, not
+    the router. Expect pre-existing failures when mounting them; do it as its
+    own change, not inside a security tranche.
+
+20. **N-27 — expense review binds no version of the expense.** See §2. A
+    reviewer approves whatever the row says at the moment their write executes,
+    not what they read. Needs an optimistic-concurrency token on the review
+    request (`indexed_at`, or a version column), which changes the route
+    contract and the web client.
 
 ### Deprioritised
 

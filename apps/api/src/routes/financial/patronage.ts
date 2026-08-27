@@ -10,6 +10,8 @@ import {
   CreatePatronageConfigSchema,
   UpdatePatronageConfigSchema,
   RunPatronageCalculationSchema,
+  FiscalPeriodIdSchema,
+  FiscalPeriodRefSchema,
 } from '@coopsource/common';
 
 function formatConfig(row: Selectable<PatronageConfigTable>) {
@@ -119,11 +121,7 @@ export function createPatronageRoutes(container: Container): Router {
     requireAuth,
     asyncHandler(async (req, res) => {
       const params = parsePagination(req.query as Record<string, unknown>);
-      const fiscalPeriodId = String(req.query.fiscalPeriodId ?? '');
-      if (!fiscalPeriodId) {
-        res.status(400).json({ error: 'VALIDATION', message: 'fiscalPeriodId is required' });
-        return;
-      }
+      const fiscalPeriodId = FiscalPeriodIdSchema.parse(req.query.fiscalPeriodId);
       const page = await container.patronageService.listRecords(
         req.actor!.cooperativeDid,
         fiscalPeriodId,
@@ -138,11 +136,7 @@ export function createPatronageRoutes(container: Container): Router {
     requireAuth,
     requirePermission('financial.manage'),
     asyncHandler(async (req, res) => {
-      const { fiscalPeriodId } = req.body as { fiscalPeriodId: string };
-      if (!fiscalPeriodId) {
-        res.status(400).json({ error: 'VALIDATION', message: 'fiscalPeriodId is required' });
-        return;
-      }
+      const { fiscalPeriodId } = FiscalPeriodRefSchema.parse(req.body);
       const count = await container.patronageService.approveRecords(
         req.actor!.cooperativeDid,
         fiscalPeriodId,
