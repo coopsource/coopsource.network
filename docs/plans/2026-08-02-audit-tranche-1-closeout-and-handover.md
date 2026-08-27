@@ -295,6 +295,31 @@ are closed; start at item 4.**
     (no TSC gate), `community.lexicon.governance.*` is uncontested, and the bar
     is demonstrated real-world use. Outward-facing; needs user review.
 
+### Dependency hygiene (new surface, 2026-08-26)
+
+Publishing the repo made GitHub's Dependabot alerts visible: **75 open
+(24 high / 43 medium / 8 low)**.
+
+- **[DONE — `feec5d8`, 2026-08-26] All 24 high-severity advisories patched.**
+  Direct bumps (kysely → 0.28.17, nodemailer → 9, ws → 8.21, multer → 2.2)
+  plus raised security floors in `pnpm-workspace.yaml` `overrides` — which is
+  where **pnpm 11 reads overrides** (a `pnpm.overrides` block in
+  `package.json` is silently ignored with a warning). Total fell 75 → 15;
+  32 medium and 4 low closed incidentally. Gate: build 10/10, typecheck
+  16/16, test 17/17 (api 115 files / 1140 tests, unchanged).
+  - *Trap for the next reader:* bare `>=` floors are unbounded and pulled
+    **undici 8** and **fast-uri 4** on the first pass. Both are now carets so
+    the floor cannot cross a major. Prefer `^` when adding a floor.
+  - *Not exploitable here:* the kysely advisory (GHSA-pv5w-4p9q-p3v2)
+    targets `JSONPathBuilder.key()/.at()`, which CSN never calls (verified);
+    the `->>` occurrences are raw SQL template literals. Patched anyway.
+- **17. Remaining 15 alerts (11 medium / 4 low), all with patches
+  available:** `svelte` (4), `@sveltejs/kit` (4), `esbuild` (2), `turbo` (2,
+  dev), `qs`, `@hono/node-server`, `body-parser`. Deliberately not bundled
+  into the high-severity commit: the Svelte/SvelteKit bumps touch 86 web
+  pages and the 84-spec Playwright suite, so they want their own change with
+  a UI regression run. Everything else there is a one-line floor.
+
 ### New surface from tranche 3
 
 14. **Signature-request inbox spam.** Now that `sign-request` gates on agreement
