@@ -59,6 +59,20 @@ vacuously true. Caught only by printing the status code.
 reached the code under test (a specific expected status). Otherwise any
 unrelated rejection satisfies the test.
 
+### A concurrency pin can pass against broken code and still look convincing
+
+A test that fires N concurrent edits and one approve, then asserts the stored
+row matches what the approve returned, is a correct invariant — and it passed
+**3/3 against the pre-fix service**, because every racing edit reliably landed
+before the approval. Request ordering under `supertest` is stable enough that
+"concurrent" does not mean "every interleaving".
+
+**Practice:** measure a concurrency pin's detection rate by running it against
+the pre-fix code several times, not once. If it does not fail, either make the
+interleave deterministic (see the `transformResult` gate in §2) or delete the
+test. The reliable pins in the same file failed 3/3; the decorative one was
+removed.
+
 ### Verify by executing the attack, not by reading the diff
 
 Every serious defect found in self-review this session was found by running the
@@ -137,6 +151,63 @@ the same commit, or the tests are describing a system that does not exist.
 with no casts, so an unmirrored member is a typecheck failure at
 `test-app.ts`, not a silent `undefined`. The duplication itself remains until
 `createContainer()` grows override seams.
+
+### The test app is a second router, too — 19 route modules are missing
+
+`apps/api/tests/helpers/test-app.ts` duplicates the container (above) **and**
+keeps its own `app.use(...)` list. As of 2026-08-26 nineteen route factories
+mounted in `apps/api/src/index.ts` were absent from it, so those HTTP surfaces
+had no route-level coverage at all: expenses, revenue, tasks, time tracking,
+scheduling, dashboards, reports, mentions, webhooks, MCP, commerce, procurement,
+shared resources, connectors, events, collaborative projects, intercoop
+agreements, payment webhooks. `POST /api/v1/finance/expenses` returned **404**
+inside the test app.
+
+**Practice:** a 404 from the test app is not evidence the route is broken —
+check `test-app.ts` mounts it before debugging the route. When adding a route
+module to `apps/api/src/index.ts`, mount it in `test-app.ts` in the same
+commit. Closing N-19 typed the container; it did not touch the router. Full
+list and status: closeout register §3 item 19 (N-26).
+
+### Vitest 4 swallows `console.log` from tests — a silent probe reads as a dead probe
+
+**Measured 2026-08-26.** With this repo's config (`pool: 'forks'`, default
+reporter), `console.log()` inside a test prints **nothing**, while
+`process.stdout.write()` from the same test prints normally. A probe that
+reports its findings through `console.log` therefore produces an empty run that
+looks like it never executed.
+
+Three things make the output visible: `--disableConsoleIntercept`,
+`--reporter=verbose`, or writing to a file (`appendFileSync`) and `cat`-ing it
+afterwards. The file is the most reliable for a probe whose output you intend
+to paste into a commit body.
+
+### Kysely's `transformResult` is an async seam for deterministic interleaves
+
+Proving a stale-read defect needs a read held open while a competing write
+lands. Racing real requests is unreliable (see §1). Kysely's plugin interface
+gives a supported hook: `transformQuery` is synchronous and receives the
+operation node, `transformResult` is **`async`** and runs after the query
+executes. Tag the query ids you care about in the first and await a barrier in
+the second:
+
+```ts
+const plugin: KyselyPlugin = {
+  transformQuery(args) {
+    if (args.node.kind === 'SelectQueryNode') selectQueries.add(args.queryId);
+    return args.node;
+  },
+  async transformResult(args) {
+    if (armed && selectQueries.has(args.queryId)) { armed = false; signal(); await released; }
+    return args.result;
+  },
+};
+const service = new ExpenseService(db.withPlugin(plugin), clock);
+```
+
+The query under test stays the product's own — nothing is reimplemented in the
+test, which is the failure mode `tier2-placement-containment.test.ts` fell into.
+Worked example: `apps/api/tests/expense-status-cas.test.ts`.
 
 ### Vitest 4: setting `exclude` replaces the defaults — including `**/dist/**`
 
@@ -340,6 +411,37 @@ optional in the API schema, `NULL` *is* the common path. This is the root cause
 of the patronage double-calculation (audit N-4), not any type mismatch. Use
 `NULLS NOT DISTINCT` or a partial unique index.
 
+### Kysely types arithmetic over a `numeric` column as `string`
+
+`numeric(18,2)` columns are declared `ColumnType<string, string | number, ...>`
+because PostgreSQL returns them as strings. Kysely derives the operand type of
+`eb('balance', '+', x)` from the **select** type, so passing a `number` is a
+type error under strict mode:
+
+```
+error TS2345: Argument of type 'number' is not assignable to parameter of type
+'OperandValueExpressionOrList<Database, "capital_account", "balance">'
+```
+
+Pass `String(amount)`. node-pg text-encodes every bound parameter, so the wire
+bytes are identical either way and PostgreSQL infers `numeric` from the
+operator. Reaching for a raw `sql` template instead works but gives up
+column-name checking. See `numericParam()` in
+`apps/api/src/services/capital-account-service.ts`.
+
+### A read-then-write is not fixed by wrapping it in a transaction
+
+`READ COMMITTED` — PostgreSQL's default, and Kysely's — does not make
+`SELECT balance` … `UPDATE SET balance = <computed>` safe. The transaction gives
+atomicity, not isolation from a concurrent writer's committed update. Two
+concurrent contributions still lose one.
+
+What fixes it is doing the arithmetic in the database
+(`SET balance = balance + :n`) and turning any precondition into a predicate on
+the write (`WHERE id = :id AND balance >= :n`), then treating zero affected rows
+as the failure case. The transaction is still needed — it keeps the ledger row
+and the balance change together — but it is the smaller half of the fix.
+
 ### `pino-http` redaction only covers paths you list
 
 `redact` does not know what is sensitive. The default serializers log
@@ -443,3 +545,10 @@ ARCHITECTURE-V12 §12. The canonical repo moved to
   non-isolated test file, `pnpm run test -- <path>` silently running the whole
   suite, and the two Docker stacks colliding on mailpit's port plus the
   teardown timeout that reports a green suite as a failing run.
+- **2026-08-26** — tranche-4 hazards (branch
+  `feature/audit-tranche-4-money-integrity`): the test app mounting 19 fewer
+  route modules than production, Vitest 4 swallowing `console.log` so a probe
+  reads as dead, Kysely's `transformResult` as an async seam for deterministic
+  interleaves, Kysely typing `numeric` arithmetic operands as `string`, a
+  transaction alone not fixing a read-then-write, and a concurrency pin that
+  passed 3/3 against the code it was written to catch.
