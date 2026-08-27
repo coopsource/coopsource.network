@@ -42,17 +42,21 @@ only what a cold start cannot reconstruct from it.
   previously-held history, and the repo is still **public** (unauthenticated
   API 200). The write-ups of still-open criticals (C-06/N-3/N-4, C-05,
   S-08) are therefore now publicly visible, which raises the audit track's
-  urgency. The **ask-before-push rule for agents stands** — a maintainer
-  push is not agent authorization. `origin/main..HEAD` is meaningful again
-  (local main is ahead by the week-1 merge only).
+  urgency. **Update (same day):** Alan then lifted the no-push directive
+  entirely (§1) — pushes are routine again, and `origin/main..HEAD` is
+  meaningful again.
 
 ---
 
-## 1. The one constraint that is not negotiable
+## 1. The push constraint — lifted 2026-08-26
 
-**Do not push. Ask first, every time.** Unchanged from the audit handover §1,
-and this session added 5 more unpushed commits (2 no-ff merges + 3 doc
-commits). `origin/main..HEAD` reasoning misleads at 63 ahead.
+The no-push directive is **lifted** (Alan, 2026-08-26): he synced origin
+himself, authorized pushes, and clarified the directive's origin — a period
+of repeatedly failing pushes on his end, compounded by the disclosure
+concern. Pushes are routine again. The repo is public, so merging-and-pushing
+is publishing: the open-crit write-ups are now out, and the audit track's
+urgency is up. (As written on 2026-08-21 this section read "Do not push. Ask
+first, every time." — historical.)
 
 ## 2. Read these, in this order
 
@@ -199,9 +203,9 @@ urgency is up). The ATProto Spaces alpha shipped 2026-08-20; upstream ships
 breaking drops on Thursdays; as of 2026-08-26 nothing has shipped since
 launch.
 
-DO NOT PUSH without asking, every time — the standing rule is unchanged even
-though the maintainer synced origin on ~2026-08-26. The repo is public;
-anything pushed is disclosure.
+PUSHES: routine (directive lifted 2026-08-26). The repo is public — a push
+publishes; the open-crit write-ups are already out, so the audit track's
+urgency is up.
 
 TRACK PRIORITY: the audit track (C-06+N-3+N-4; its own handover is
 docs/plans/2026-08-17-session-handover.md) is the standing next work unless

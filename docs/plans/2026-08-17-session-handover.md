@@ -14,7 +14,17 @@ open, and what a "fixed" label does not cover.
 
 ## 1. The one constraint that is not negotiable
 
-**Do not push. Ask first, every time.**
+> **Lifted 2026-08-26 (Alan):** pushes are authorized and routine again —
+> Alan synced `origin/main` himself and removed the directive, clarifying
+> its origin: it dated from a period when pushes failed repeatedly (an
+> issue on his end there was no time to fix), compounded by the disclosure
+> concern below. Consequences are now live: the write-ups of the still-open
+> criticals (C-06/N-3/N-4, C-05, S-08) are published on the public repo —
+> this track's urgency is up — and CI can finally execute (treat its first
+> run as a debugging session, exactly as warned below). The rest of this
+> section is the historical record.
+
+**Do not push. Ask first, every time.** *(historical — lifted above)*
 
 `github.com/coopsource/coopsource.network` is **public** (verified: an
 unauthenticated API request returns 200). The 56 unpushed commits include
@@ -128,8 +138,9 @@ READ FIRST, in order:
 STATE: tranches 1-3 are merged to local main (50a968f). Tranche 3 closed C-04 (federation
 signature forgery) with A-07 and N-25. main is 56 commits ahead of origin.
 
-DO NOT PUSH. The repo is public and the unpushed history contains reproduction-grade
-write-ups of still-open criticals. Ask before any push, every time.
+PUSHES: routine again (directive lifted 2026-08-26 — see handover §1 note). The
+repo is public and the crit write-ups are now published; audit urgency is up,
+and CI can now actually run — treat its first run as a debugging session.
 
 NEXT: closeout §3 item 4 — C-06 + N-3 + N-4, the money bugs (concurrent-redemption race,
 patronage inflation via NULLS DISTINCT, expense double-reimbursement with no status CAS).
