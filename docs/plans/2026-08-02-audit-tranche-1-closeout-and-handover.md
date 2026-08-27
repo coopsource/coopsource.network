@@ -320,6 +320,39 @@ Publishing the repo made GitHub's Dependabot alerts visible: **75 open
   pages and the 84-spec Playwright suite, so they want their own change with
   a UI regression run. Everything else there is a one-line floor.
 
+### Diagnosability (new surface, 2026-08-26)
+
+18. **A failed `POST /api/v1/setup/initialize` is undiagnosable from the
+    client.** Found live: completing the co-op setup wizard against a
+    schema-stale database returned a bare `Internal Server Error` with no
+    detail, no error code, and **no correlation ID**, while the actual cause
+    (`column "directory_visible" of relation "membership" does not exist`,
+    PG 42703, from `group-mutation-port.ts:270` via `setup.ts:149`) was
+    recorded on a *separate* server log line. Two distinct problems:
+    - **No correlation ID.** The 500 body carries nothing that ties it to
+      the `"Unhandled error"` log entry. pino-http already assigns `req.id`
+      (the failing request was id 222) — returning it in the error body and
+      an `x-request-id` header would turn "check the whole log" into one
+      grep. This generalizes past setup: it is the shape of every 500 the
+      API returns.
+    - **The error-level log line does not name the request.** The
+      `"Unhandled error"` entry has `method` and `path` but no `req.id`,
+      so it cannot be joined to the request-completed line except by
+      timestamp. Searching the logs at error level alone returns the
+      pino-http wrapper (`"failed with status code 500"`) and *not* the
+      DatabaseError — which is exactly why the first log query for errors
+      came back empty-handed.
+    - Scope note: intentionally **not** about leaking detail to clients. The
+      generic body is correct for a public API; the ask is a correlation
+      handle plus a joinable server-side log line. Setup is also
+      pre-auth/pre-tenant, so it has no user-facing error surface at all.
+    - Related environment finding (not a code defect, no backlog item): a
+      long-lived local `coopsource_dev` can drift far behind
+      `schema.sql` — the instance that produced this error was missing 74
+      columns and 7 tables (all Phase 3/4 work). `make db-reset` is the
+      sanctioned fix; the failure mode it produces is an opaque 500, which
+      is the argument for the correlation ID above.
+
 ### New surface from tranche 3
 
 14. **Signature-request inbox spam.** Now that `sign-request` gates on agreement
