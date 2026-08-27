@@ -3170,7 +3170,7 @@ ALTER TABLE ONLY public.patronage_config
 --
 
 ALTER TABLE ONLY public.patronage_record
-    ADD CONSTRAINT uq_patronage_record_period_member UNIQUE (fiscal_period_id, member_did, stakeholder_class);
+    ADD CONSTRAINT uq_patronage_record_period_member UNIQUE NULLS NOT DISTINCT (fiscal_period_id, member_did, stakeholder_class);
 
 
 --

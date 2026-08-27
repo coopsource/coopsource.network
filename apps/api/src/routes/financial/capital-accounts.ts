@@ -6,7 +6,11 @@ import { asyncHandler } from '../../lib/async-handler.js';
 import { requireAuth } from '../../auth/middleware.js';
 import { requirePermission } from '../../middleware/permissions.js';
 import { parsePagination } from '../../lib/pagination.js';
-import { RecordContributionSchema, RedeemAllocationSchema } from '@coopsource/common';
+import {
+  RecordContributionSchema,
+  RedeemAllocationSchema,
+  FiscalPeriodRefSchema,
+} from '@coopsource/common';
 
 function formatAccount(row: Selectable<CapitalAccountTable>) {
   return {
@@ -61,11 +65,7 @@ export function createCapitalAccountRoutes(container: Container): Router {
     requireAuth,
     requirePermission('financial.manage'),
     asyncHandler(async (req, res) => {
-      const { fiscalPeriodId } = req.body as { fiscalPeriodId: string };
-      if (!fiscalPeriodId) {
-        res.status(400).json({ error: 'VALIDATION', message: 'fiscalPeriodId is required' });
-        return;
-      }
+      const { fiscalPeriodId } = FiscalPeriodRefSchema.parse(req.body);
       const count = await container.capitalAccountService.allocatePatronageBulk(
         req.actor!.cooperativeDid,
         req.actor!.did,
