@@ -190,8 +190,11 @@ READ FIRST, in order:
    partially fixed) and §3 (the ordered backlog). This register is the source of truth.
 3. docs/agent-learnings.md §1 — the verification traps that produced the most wasted work.
 
-STATE: tranches 1-6 are merged to main. Every critical-tier finding from the 2026-07-31
-audit is now closed: C-01..C-06, A-07, S-08. Open findings filed along the way: N-26
+STATE: tranches 1-6 are merged to main. Every critical-tier finding has now been worked
+(C-01..C-06, A-07, S-08) but "worked" is not "closed": C-03 is still HALF DONE — see
+register §2, where confidential collections are contained rather than given a working
+permissioned destination, and several 501s stand in for the feature. Read §2 before
+treating any critical as finished. Open findings filed along the way: N-26
 (test-app.ts mounts 19 fewer route modules than production), N-27 (expense review binds no
 version), N-28 (nothing watches the dead-letter queue), N-29 (spaces-consumer outbound
 endpoints unguarded). The next free finding number is N-30.
