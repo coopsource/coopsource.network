@@ -9,7 +9,18 @@ export class EntityService {
     private blobStore: IBlobStore,
   ) {}
 
-  async getCooperative(): Promise<{
+  /**
+   * Load a cooperative by its DID.
+   *
+   * The DID is required. Without it this selected the first `entity` of type
+   * `cooperative` with status `active` — no actor predicate, no `ORDER BY` —
+   * so once a second cooperative existed (a network is one, in the recursive
+   * model) the caller could be shown someone else's cooperative, including its
+   * public-visibility flags. Worse, `PUT /api/v1/cooperative` wrote correctly
+   * and then read back through this query, so its own response described a
+   * different cooperative than the one it had just written (audit N-1).
+   */
+  async getCooperative(cooperativeDid: string): Promise<{
     entity: {
       did: string;
       type: string;
@@ -43,6 +54,7 @@ export class EntityService {
         'cooperative_profile.entity_did',
         'entity.did',
       )
+      .where('entity.did', '=', cooperativeDid)
       .where('entity.type', '=', 'cooperative')
       .where('entity.status', '=', 'active')
       .select([
