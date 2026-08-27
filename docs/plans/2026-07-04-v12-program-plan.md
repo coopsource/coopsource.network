@@ -442,10 +442,16 @@ and batch the repin as its own follow-up commit.
 
 - [ ] 4A.0 First task: expand Phase 4A into its own task-level plan
       (superpowers:writing-plans → `docs/superpowers/plans/2026-MM-DD-v12-phase-4a-spaces-alpha-alignment.md`),
-      carrying the item detail from the impact analysis §5.
+      carrying the item detail from the impact analysis §5. State the
+      provisioning-order rule as a design assumption: spaces created and
+      members added **before** writers write (non-member `notifyWrite` is
+      silently dropped upstream — week-1 assessment §3).
 - [ ] 4A.1 (S) Repin the conformance baseline: `permissioned-data-draft.ts` →
       proposal `54c9cf5` + atproto `89deb9fac` (+ npm snapshot
-      `0.0.0-spaces-alpha-20260818163953` + image digest). Registry:
+      `0.0.0-spaces-alpha-20260818163953` + image digest + the
+      `permissioned-data-alpha` deploy-branch head — `4c33457af` as of
+      2026-08-26; that branch builds the image and npm lineage, so the
+      oracle/harness pins follow it, the spec pin follows PR head). Registry:
       −`space.getSpace`, +`listBlobs`, +`unregisterNotify`,
       +`simplespace.getSpace`/`deleteSpace`/`updateSpace`, `listMembers` auth
       `manage`→`read_self` (`notifyWrite` `rev`+`hash` already pinned —
@@ -469,6 +475,8 @@ and batch the repin as its own follow-up commit.
 - [ ] 4A.6 (M) Local `pds-spaces-alpha` Docker harness for the live-XRPC
       exercise. Audit finding A-06 **gates the real-OAuth path** (register
       re-grade); the verified dev-JWT path drives the loop until it closes.
+      Pin the image **by digest** — its `permissioned-data-alpha` source
+      branch force-updates (observed 2026-08-24).
 - [ ] 4A.5 (M, may split) Space-deletion handling: drop replicas,
       checkpoints, credentials, projections on `notifySpaceDeleted` /
       `SpaceDeleted`-at-renewal; split the conflated
@@ -576,6 +584,14 @@ configured.
   Docker image + hosted PDS, Bulletin sample app). Full impact analysis and
   the Phase 4A work package:
   `docs/plans/2026-08-20-spaces-alpha-impact-analysis.md`.
+- [x] Weekly check 2026-08-26 (one day early) — **no spec/npm/code drift**;
+  the PDS image build moved to the force-updating `permissioned-data-alpha`
+  deploy branch (tag unchanged — pin by digest); four WG threads assessed,
+  incl. the `com.atproto.server.createActorAuth` sketch (first upstream
+  movement on acting-for-the-cooperative; §12 items 4/12) and the
+  in-protocol invitation gap (§12 item 14 — our off-protocol invites are the
+  durable design). No Phase 4A change.
+  `docs/plans/2026-08-26-spaces-alpha-week1-upstream-assessment.md`.
 - [ ] Watchlist cadence: **weekly during the alpha** (upstream ships Thursday
   updates, announced on the atmosphere.community announcements thread) — next
   due **2026-08-27**; revert to the two-week cadence after upstream's full

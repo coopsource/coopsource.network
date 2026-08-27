@@ -14,6 +14,10 @@ mechanism predates 1.0), the "richer `notifyWrite` payload" delta was false
 key-custody scope and an execution-order fix (oracle before DPoP), and the
 managing-app recommendation now carries explicit security preconditions.
 
+**Follow-up:** week-1 upstream assessment (2026-08-26 — no drift; deploy
+branch for the PDS image; four WG threads incl. `createActorAuth`):
+`docs/plans/2026-08-26-spaces-alpha-week1-upstream-assessment.md`.
+
 **Event:** Bluesky released the **Atproto Spaces alpha** —
 [announcement](https://atproto.com/blog/atproto-spaces-alpha) — comprising an
 updated Proposal 0016, published alpha SDK packages, a spaces-enabled PDS

@@ -271,6 +271,12 @@ ports and are expected to drift.
    preconditions in the impact analysis §4-5 (inbound-surface hardening incl.
    S-08 before any new DID-resolving endpoint, membership-oracle `iss`
    binding, integrity blast radius), not only the availability edge.
+   Framing signal (WG t/1140, week-1 assessment §2): Holmgren models the
+   group host as **one service** — spaces + repos + internal role logic +
+   its own OAuth issuance — while the community argues for protocol-level
+   delegation (`createActorAuth`); either outcome stays behind CSN's ports,
+   but the one-service framing would add an OAuth authorization-server
+   component to the eventual bespoke cooperative host.
 5. Cross-modality notification routing for community-router apps — unresolved upstream.
 6. `$publish`/`$labeler` conventions — not formalized (arbiter uses open unions).
 7. Commit format — **settled for the alpha baseline** (2026-08-20): the alpha
@@ -298,22 +304,46 @@ ports and are expected to drift.
     unreachable app); remaining decisions are the trusted authority set,
     operator availability, key lifecycle, and correction/appeal policy
     (V12-S10).
-12. **New (2026-08-20):** standing-service credential sourcing — no
-    service-identity delegation path exists upstream (even Bulletin borrows
-    end-user OAuth sessions to mint sync credentials). CSN's
-    managing-session-pool posture stands; watch for an upstream answer.
+12. Standing-service credential sourcing (2026-08-20) — no service-identity
+    delegation path exists upstream (even Bulletin borrows end-user OAuth
+    sessions to mint sync credentials); CSN's managing-session-pool posture
+    stands. **First upstream movement (2026-08-26):** the
+    `com.atproto.server.createActorAuth` sketch (WG t/1140) — attributed
+    (`act` claim), request-hash-bound, ≤60 s single-use tokens for acting
+    as another identity, policy-checked at issuance. Contested (Holmgren's
+    null hypothesis: group-host-internal OAuth suffices), per-request not
+    standing-sync, no PR yet. Watch it, the `delegated:` scope sketch, and
+    zicklag's per-account delegated verification-method idea
+    (`#acting`-style keys) — the latter could narrow CSN's cooperative key
+    custody from holding `#atproto` outright to holding a delegated key.
+    See `docs/plans/2026-08-26-spaces-alpha-week1-upstream-assessment.md` §2.
 13. **New (2026-08-20):** the `@atproto/api` → `@atproto/lex-*` client-stack
     generation shift (space bindings exist only as `lex build` codegen), and
     the scaffolded-but-unexposed `swapCid` compare-and-swap (bears on the
     Tier-2 copy-ledger delete contract).
+14. **New (2026-08-26):** in-protocol invitation/bootstrap gap — space hosts
+    silently drop `notifyWrite` from non-authorized identities (WG t/1157),
+    so invitations cannot be delivered in-protocol; unresolved upstream
+    (buffering is a spam vector). CSN's off-protocol addressed single-use
+    invites are the durable design, and provisioning must create spaces and
+    add members **before** writers write (state in the Phase 4A.0 task
+    plan).
 
 **Watchlist (weekly during the alpha — upstream ships Thursday updates; last
-deep sweep 2026-08-20, next due 2026-08-27; revert to the two-week cadence
-after upstream's full launch):** the atproto.com blog and the
-atmosphere.community announcements thread (primary alpha venues); Proposal
-0016 and `atproto#5187` (pins: proposal `54c9cf5`, impl `89deb9fac`, npm
-snapshot train `0.0.0-spaces-alpha-20260818163953`,
-`ghcr.io/bluesky-social/atproto:pds-spaces-alpha`); Holmgren's
+deep sweep 2026-08-20; light check 2026-08-26, no drift — see the week-1
+assessment; next due 2026-08-27, the first weekly drop itself; revert to the
+two-week cadence after upstream's full launch):** the atproto.com blog and
+the announcements thread
+`discourse.atmosphere.community/t/atproto-spaces-alpha-updates/1129` + the
+WG Private Data tag (primary alpha venues; live threads: `createActorAuth`
+t/1140, unauthorized write notifications t/1157, fine-grained
+permissioning/ReBAC t/1161 incl. "OpenSocial Groups", authority t/1123);
+Proposal 0016 and `atproto#5187` (pins: proposal `54c9cf5`, impl
+`89deb9fac`; **deploy branch `permissioned-data-alpha` @ `4c33457af`** —
+force-updates, builds the image and npm lineage; a
+`permissioned-data-lex-refactor` branch also exists; npm snapshot train
+`0.0.0-spaces-alpha-20260818163953`,
+`ghcr.io/bluesky-social/atproto:pds-spaces-alpha` — pin by digest); Holmgren's
 permissioned-data diary (quiet since Jul 17); HappyView stable/dev (secondary
 diagnostic); Roomy devlogs and Arbiter/Rego work; Habitat, Blacksky,
 Northsky, Colibri, ZDS, atproto-crates, and rsky (community PDS
