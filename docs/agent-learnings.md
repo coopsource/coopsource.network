@@ -59,6 +59,18 @@ vacuously true. Caught only by printing the status code.
 reached the code under test (a specific expected status). Otherwise any
 unrelated rejection satisfies the test.
 
+### Delete the block to find out whether anything tests it
+
+A defensive branch can look well-covered and be covered by nothing. The
+storage-phase verification in `retryDeadLetter` was written deliberately, sat
+under six passing tests, and when it was deleted **all six still passed** — the
+test that appeared to exercise it was in fact taking an earlier return path.
+
+**Practice:** for any branch you add on purpose, delete it once and re-run. If
+the suite stays green, the branch is decoration: either write the test that
+reaches it or drop the branch. Same discipline as proving a regression test can
+detect its regression, applied from the other side.
+
 ### A concurrency pin can pass against broken code and still look convincing
 
 A test that fires N concurrent edits and one approve, then asserts the stored
@@ -181,6 +193,21 @@ Three things make the output visible: `--disableConsoleIntercept`,
 `--reporter=verbose`, or writing to a file (`appendFileSync`) and `cat`-ing it
 afterwards. The file is the most reliable for a probe whose output you intend
 to paste into a commit body.
+
+### Injecting a *failed write* needs `transformQuery`, not `transformResult`
+
+A companion to the entry above, and a trap it walks straight into. Kysely runs
+`transformQuery` at compile time, before the statement is sent, and
+`transformResult` **after the query has executed**. Throwing from
+`transformResult` to simulate a failed write therefore simulates nothing: the
+row lands, and only then does the error surface.
+
+The first C-05 probe did exactly that and reported `pds_record rows: 1` for an
+insert it believed had failed — a result that looks like the product silently
+succeeding. Throw from `transformQuery` instead, matched on
+`args.node.kind === 'InsertQueryNode'` and the target table name
+(`node.into.table.identifier.name`). Worked example:
+`apps/api/tests/appview-delivery-integrity.test.ts`.
 
 ### Kysely's `transformResult` is an async seam for deterministic interleaves
 
@@ -442,6 +469,28 @@ the write (`WHERE id = :id AND balance >= :n`), then treating zero affected rows
 as the failure case. The transaction is still needed — it keeps the ledger row
 and the balance change together — but it is the smaller half of the fix.
 
+### PostgreSQL rejects NUL in `jsonb` but accepts it escaped in `text`
+
+**Measured 2026-08-27.** `JSON.stringify({ title: 'a\u0000b' })` produces the
+six-character escape `\u0000` in the JSON text. Bound as a parameter:
+
+```
+jsonb: REJECTED -> unsupported Unicode escape sequence
+text:  ACCEPTED
+```
+
+So a record containing a NUL character is **permanently unstorable** in any
+`jsonb` column, no matter how many times it is retried. Two consequences bit
+here at once: `pds_record.content` and `hook_dead_letter.event_data` are both
+`jsonb` and both receive the same record, so the write that was supposed to
+*record the failure of* the first write failed in exactly the same way — and a
+design whose whole point was distinguishing "this event is bad" from "the
+database is down" could not tell them apart for the one case it was built for.
+
+**Practice:** a fallback that records a failure must not be able to fail for the
+same reason as the thing it records. Check the column types, not just the code
+path. `recordDeadLetter` now falls back to a payload-free row.
+
 ### `pino-http` redaction only covers paths you list
 
 `redact` does not know what is sensitive. The default serializers log
@@ -491,6 +540,19 @@ was added 2026-08-02; use it for authorization refusals.
 
 *Observed 2026-08-02. This section ages fastest — re-verify against primary
 sources (GitHub API, `registry.npmjs.org`) before acting.*
+
+### `@atproto/tap` already declines to ack a throwing handler
+
+`SimpleIndexer.onEvent` awaits the record handler and only then calls
+`opts.ack()`; `TapChannel` skips the ack entirely when the handler throws, with
+the comment *"Don't ack on error - let Tap retry"*
+(`@atproto/tap@0.2.11`, `dist/channel.js:139-144`, `dist/simple-indexer.js`).
+
+Redelivery is therefore free — it is what happens when you do nothing. CSN's
+`try/catch` around the pipeline was actively discarding it, and was dead code
+besides, because `processFirehoseEvent` could not throw (audit C-05). Before
+building retry machinery on top of a client library, check whether throwing is
+already the retry signal.
 
 ### The `#5187` pin bump is cheaper than it looks
 
@@ -552,3 +614,10 @@ ARCHITECTURE-V12 §12. The canonical repo moved to
   interleaves, Kysely typing `numeric` arithmetic operands as `string`, a
   transaction alone not fixing a read-then-write, and a concurrency pin that
   passed 3/3 against the code it was written to catch.
+- **2026-08-27** — tranche-5 hazards (branch
+  `feature/audit-tranche-5-appview-delivery`): `transformResult` being useless
+  for injecting a failed write, PostgreSQL rejecting NUL in `jsonb` while
+  accepting it in `text` (and a failure-recording fallback that could fail the
+  same way as the failure it records), deleting a branch to find out whether
+  anything tests it, and `@atproto/tap` already treating a throw as the
+  redelivery signal.
