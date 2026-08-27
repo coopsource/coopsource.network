@@ -32,8 +32,17 @@ export function incrementValidationWarnings(): void {
  * 3. Upsert into pds_record (source of truth)
  * 4. Run post-storage hooks (build materialized views, emit events)
  *
- * Fail-open: pre-storage hook errors → dead letter + store original.
- * Post-storage hook errors → dead letter + continue remaining hooks.
+ * A failure that can be recorded is recoverable, so the pipeline records it and
+ * returns; a failure that cannot be recorded is thrown, so the caller declines
+ * to acknowledge the event and it is redelivered (audit C-05).
+ *
+ * - Pre-storage hook error → dead letter, store the original record.
+ * - `pds_record` write error → dead letter, and skip post-storage hooks: a
+ *   materialized view must not be built from a record that was never stored.
+ * - Post-storage hook error → dead letter, continue the remaining hooks.
+ * - Any of those dead-letter writes failing → throw. At that point the
+ *   database cannot even record the loss, so redelivery is the only safe
+ *   outcome.
  */
 export async function processFirehoseEvent(
   db: Kysely<Database>,
@@ -96,6 +105,7 @@ export async function processFirehoseEvent(
         error: err,
       }).catch((dlErr) => {
         logger.error({ err: dlErr, originalError: String(err), hookId: hook.id, collection }, 'Failed to record dead letter');
+        throw err;
       });
     }
   }
@@ -134,8 +144,30 @@ export async function processFirehoseEvent(
       }
     } catch (err) {
       logger.error({ err, uri: event.uri }, 'Failed to upsert pds_record');
-      // If pds_record write fails, still run post-storage hooks for backward compat
-      // (the old switch statement didn't write to pds_record at all in Tap mode)
+
+      // pds_record is the source of truth, so a failed write has to leave a
+      // record of itself. Writing the dead letter also tells us which failure
+      // this is: if it succeeds the database is healthy and the problem is
+      // specific to this event, which can therefore be skipped and replayed
+      // later. If it fails too, the database is unhealthy and throwing is what
+      // stops the cursor advancing past an event that was never stored.
+      await recordDeadLetter(db, {
+        event,
+        collection,
+        operation,
+        hookId: 'pipeline:storage',
+        hookPhase: 'storage',
+        error: err,
+      }).catch((dlErr) => {
+        logger.error(
+          { err: dlErr, originalError: String(err), uri: event.uri },
+          'Failed to record storage dead letter',
+        );
+        throw err;
+      });
+
+      // Post-storage hooks build materialized views from the stored record.
+      return;
     }
   }
 
@@ -158,6 +190,7 @@ export async function processFirehoseEvent(
         error: err,
       }).catch((dlErr) => {
         logger.error({ err: dlErr, originalError: String(err), hookId: hook.id, collection }, 'Failed to record dead letter');
+        throw err;
       });
     }
   }

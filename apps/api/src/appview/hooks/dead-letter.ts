@@ -4,10 +4,17 @@ import type { FirehoseEvent } from '@coopsource/federation';
 import type { HookPhase } from './types.js';
 
 /**
- * Record a hook failure in the dead letter queue.
+ * Where a failure happened. `storage` is not a hook phase — it is the
+ * `pds_record` write itself, which is the source of truth and therefore has to
+ * be recorded when it fails rather than merely logged.
+ */
+export type DeadLetterPhase = HookPhase | 'storage';
+
+/**
+ * Record a failure in the dead letter queue, with the full event payload so
+ * the event can be replayed later.
  *
- * Dead-lettered events can be retried or resolved via admin API.
- * The original record is always stored in pds_record regardless (fail-open).
+ * Dead-lettered events can be retried or resolved via the admin API.
  */
 export async function recordDeadLetter(
   db: Kysely<Database>,
@@ -16,7 +23,7 @@ export async function recordDeadLetter(
     collection: string;
     operation: string;
     hookId: string;
-    hookPhase: HookPhase;
+    hookPhase: DeadLetterPhase;
     error: unknown;
   },
 ): Promise<void> {
