@@ -45,6 +45,7 @@ HANDOFF.md
 # Claude Code project config — only settings.json is shared with the team
 .claude/*
 !.claude/settings.json
+!.claude/launch.json
 
 # Superpowers skills (machine-local)
 .superpowers/
