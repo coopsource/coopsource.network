@@ -46,7 +46,7 @@ session, not a formality.
    — §1 what shipped per tranche, **§2 "Known-incomplete — read before trusting a
    fix"**, §3 the ordered backlog, §4 open decisions, §5 standing constraints.
    §2 is the section people skip and should not: it is where partial fixes are
-   recorded, and after three tranches it is long for good reason.
+   recorded, and after four tranches it is long for good reason.
 2. **[docs/agent-learnings.md](../agent-learnings.md)** — §1 (review and
    verification traps) first. Every entry cost someone real time.
    Companions: [agent-debugging-playbook.md](../agent-debugging-playbook.md),
@@ -117,7 +117,7 @@ is an async seam for exactly this — see agent-learnings §2).
 
 ## 5. The method that has worked
 
-Three tranches, and the same shape each time:
+Four tranches, and the same shape each time:
 
 1. **Re-derive the finding before funding work on it.** Neither C-04 nor A-07
    had an executable probe anywhere in the audit record; both turned out to be
@@ -127,6 +127,12 @@ Three tranches, and the same shape each time:
 2. **One task per commit, each with its own review, and a fix loop when the
    review finds something.** Every review gets the diff as a file plus the
    task's brief; reviewers are told not to trust the implementer's report.
+   *Tranche 4 ran solo — the user's instruction that session was not to
+   dispatch subagents — so its review was a self-review of the diff plus the
+   sibling-verb grep (every writer to `capital_account`, `expense`, and
+   `patronage_record`, confirming all of them sit in the three fixed
+   services). That is weaker than an independent reviewer and should be
+   read as such.*
 3. **Adversarial design review catches design gaps; only implementation plus
    code review catches composition seams.** Tranche 3's two worst findings — a
    cross-cooperative scoping bug and a self-service minting loop where two
