@@ -16,6 +16,31 @@ only what a cold start cannot reconstruct from it.
 
 ---
 
+## 0. Addendum — 2026-08-26 (week-1 check done early)
+
+- The weekly check due 2026-08-27 was performed 2026-08-26: **no upstream
+  drift** — every pin stands, no new npm snapshot, no spec commits. One
+  infra change: the PDS image now builds from the **force-updating
+  `permissioned-data-alpha` deploy branch** (tag unchanged; 4A.1/4A.6 now
+  carry the record-both-pins and pin-by-digest rules). Four WG threads were
+  assessed — read
+  `docs/plans/2026-08-26-spaces-alpha-week1-upstream-assessment.md`
+  **right after this document**. The `com.atproto.server.createActorAuth`
+  sketch (t/1140) is upstream's first movement on §12 items 4/12
+  (acting-for-the-cooperative); contested, no PR, **no Phase 4A change**.
+  New §12 item 14: in-protocol invites are unresolved upstream — CSN's
+  off-protocol invite flow is the durable design, and 4A.0 must state the
+  provisioning-order rule (create spaces/add members before writers write).
+- **Still due 2026-08-27: the first weekly Thursday drop itself.** After it
+  lands, check the announcements thread
+  (`discourse.atmosphere.community/t/atproto-spaces-alpha-updates/1129`)
+  and diff the pins — a light pass unless something breaking shipped.
+- The header's `main` state above is the 2026-08-21 snapshot; the current
+  tip is the merge carrying this addendum ("week-1 upstream check"). Tree
+  clean; the no-push constraint stands and the unpushed count keeps growing.
+
+---
+
 ## 1. The one constraint that is not negotiable
 
 **Do not push. Ask first, every time.** Unchanged from the audit handover §1,
@@ -149,15 +174,21 @@ Resume the Co-op Source Network spaces-alpha track in
 
 READ FIRST, in order:
 1. docs/plans/2026-08-21-session-handover-spaces-alpha.md — start here; it
-   points at everything else and lists the cold-start hazards.
-2. docs/plans/2026-08-20-spaces-alpha-impact-analysis.md — §5 (Phase 4A item
+   points at everything else, lists the cold-start hazards, and carries the
+   2026-08-26 addendum at the top.
+2. docs/plans/2026-08-26-spaces-alpha-week1-upstream-assessment.md — the
+   week-1 upstream check: no drift, the deploy-branch/pin-by-digest rule,
+   the createActorAuth assessment.
+3. docs/plans/2026-08-20-spaces-alpha-impact-analysis.md — §5 (Phase 4A item
    detail) and §9 (execution order). This is the adversarially reviewed
    revision; trust it over any summary.
-3. The Phase 4A checkbox block in docs/plans/2026-07-04-v12-program-plan.md.
+4. The Phase 4A checkbox block in docs/plans/2026-07-04-v12-program-plan.md.
 
-STATE: main @ 3063546, clean, 63 commits unpushed. The ATProto Spaces alpha
-shipped 2026-08-20; the impact analysis and doc corrections are merged.
-Upstream ships breaking drops on Thursdays.
+STATE: main is clean with the analysis, its review revision, this handover,
+and the 2026-08-26 week-1 check all merged (git log shows the exact tip).
+main is far ahead of origin — origin/main..HEAD reasoning misleads. The
+ATProto Spaces alpha shipped 2026-08-20; upstream ships breaking drops on
+Thursdays; as of 2026-08-26 nothing has shipped since launch.
 
 DO NOT PUSH. The repo is public and unpushed history contains
 reproduction-grade write-ups of still-open criticals. Ask before any push,
@@ -176,9 +207,10 @@ DPoP — its proofs are DPoP's fixtures) → 4A.2–4A.4 → 4A.6 → 4A.5, 4A.8
 
 CONSTRAINTS: build against the recorded pins (proposal 54c9cf5, atproto
 89deb9fac, npm 0.0.0-spaces-alpha-20260818163953 — exact version; the
-`latest` dist-tag is an older build), and if a Thursday drop lands
-mid-package, finish in-flight items on the existing pin and batch the repin
-separately. 4A.2 contains a key-at-rest custody decision — make it
+`latest` dist-tag is an older build; the PDS image's source branch
+permissioned-data-alpha force-updates — pin the image by digest), and if a
+Thursday drop lands mid-package, finish in-flight items on the existing pin
+and batch the repin separately. 4A.2 contains a key-at-rest custody decision — make it
 deliberately. A-06 gates the real-OAuth harness path; the dev-JWT two-hop is
 verified and is the interim. New inbound DID-resolving surfaces (managing-app
 callback, 4A.8 endpoint) do not ACTIVATE before S-08 closes — design only.
