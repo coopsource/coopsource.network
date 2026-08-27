@@ -348,8 +348,12 @@ retention/deletion (Phase 5/6), **#10** network joining approval (Phase 1).
   himself and clarified the directive originated in a period of repeatedly
   failing pushes on his end, compounded by the disclosure concern. The
   criticals' write-ups are now published while C-06/N-3/N-4, C-05, S-08
-  remain open — urgency up; CI can now execute.
-- Do not delete branches.
+  remain open — urgency up. CI's first-ever run (Alan's 2026-08-21 push)
+  **passed** (8m3s) — the first-run warning resolved without drama.
+- ~~Do not delete branches.~~ **Lifted 2026-08-26 (Alan):** merged-branch
+  cleanup executed — all 34 local and 21 origin feature branches (every tip
+  verified contained in `main`) deleted; only `main` remains on both.
+  CLAUDE.md's "clean up merged branches" rule governs again.
 - `SPACES_CONSUMER_ENABLED=false` outside conformance environments.
 - Treat Proposal 0016 / PR #5187 as an executable draft, never a stable
   dependency. Re-check the live head before any Phase 6 work.

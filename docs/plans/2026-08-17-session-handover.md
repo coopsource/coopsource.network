@@ -20,9 +20,9 @@ open, and what a "fixed" label does not cover.
 > issue on his end there was no time to fix), compounded by the disclosure
 > concern below. Consequences are now live: the write-ups of the still-open
 > criticals (C-06/N-3/N-4, C-05, S-08) are published on the public repo —
-> this track's urgency is up — and CI can finally execute (treat its first
-> run as a debugging session, exactly as warned below). The rest of this
-> section is the historical record.
+> this track's urgency is up — and CI executed for the first time on Alan's
+> 2026-08-21 push and **passed** (8m3s), so the first-run warning below
+> resolved without drama. The rest of this section is the historical record.
 
 **Do not push. Ask first, every time.** *(historical — lifted above)*
 

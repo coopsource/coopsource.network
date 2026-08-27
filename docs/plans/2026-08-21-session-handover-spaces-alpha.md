@@ -142,9 +142,10 @@ spec-level change (commit format, credential model, sync methods).
 - **Environment leftovers:** the `infrastructure/docker-compose.yml`
   services (plc, pds) were left running on 2026-08-20 after the merge gates.
   `pnpm format:check` still fails on 128 files repo-wide (pre-existing; not
-  yours to fix mid-task). 34 pre-existing merged-but-undeleted local
-  branches remain (this session's two were deleted); flagged as
-  housekeeping, deliberately not done.
+  yours to fix mid-task). Branch cleanup executed 2026-08-26 on Alan's
+  instruction: all merged local and origin feature branches deleted; only
+  `main` remains on both (the closeout's "do not delete branches"
+  constraint was lifted the same day).
 - **Evidence location:** the four ingest-agent reports and three reviewer
   reports live only in the 2026-08-20 session transcript. The docs are
   self-sufficient — every load-bearing claim carries its pin or file
