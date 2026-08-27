@@ -106,6 +106,56 @@ Gate: build 10/10, api suite 118 files / 1157 tests (from 115 / 1140 — the
 three new files add 17). Every fix commit carries its pre-fix capture in the
 body; read those before re-litigating any of it.
 
+**Tranche 5 — branch `feature/audit-tranche-5-appview-delivery`, code commits
+`7b16d43..3e346fc`.** Closes backlog item 5 (C-05) and the dead-letter half
+of O-12. Plan and probe
+evidence:
+[2026-08-27 tranche-5 plan](./2026-08-27-audit-tranche-5-appview-delivery-plan.md).
+
+| Commit | What |
+|---|---|
+| `7b16d43` | **C-05.** A failed `pds_record` write is dead-lettered with its payload under a new `storage` phase and post-storage hooks are skipped; the two swallowing `.catch()` calls on `recordDeadLetter` rethrow; the Tap record handler rethrows (extracted as `handleTapRecordEvent` so the path is testable); the local loop rethrows instead of continuing, so the outer loop re-subscribes from the last event actually processed. |
+| `f913565` | **O-12.** `retryDeadLetter()` claims the entry and counts the attempt in one conditional `UPDATE`, rebuilds the event from the stored payload, replays it, and resolves on success. `POST /api/v1/admin/hooks/dead-letter/:id/retry`. |
+| `3e346fc` | **Correction to `7b16d43`.** `recordDeadLetter` falls back to a payload-free row when the payload itself cannot be stored — see below. |
+
+**Measured before fixing.** A failed `pds_record` write left **zero** record
+rows, **zero** dead letters, and still ran the post-storage hook, building a
+materialized view from a record that was never stored. A hook failure whose
+dead-letter write also failed left **no forensic trace of any kind**. The local
+loop, given two events whose storage failed, advanced its cursor to the second
+event's seq with zero record rows: both permanently skipped.
+
+**Tap acks because CSN swallowed.** `SimpleIndexer.onEvent` awaits the record
+handler and then calls `opts.ack()`; `TapChannel` skips the ack when the handler
+throws — *"Don't ack on error - let Tap retry"* (`@atproto/tap@0.2.11`,
+`dist/channel.js:139-144`). The upstream library already offered the behaviour
+CSN wanted; the `try/catch` in `loop.ts` discarded it, and was dead code besides
+since `processFirehoseEvent` could not throw.
+
+**`7b16d43` justified its design with a claim that was wrong, and `3e346fc`
+corrects it.** The design turns on attempting the dead-letter write as a
+liveness probe: if the database can record the failure, the failure is specific
+to this event and the stream may move on; if it cannot, throwing is right. The
+motivating example given was a record containing a NUL byte "making a text
+insert fail permanently". Measured: `pds_record.content` and
+`hook_dead_letter.event_data` are both **jsonb**, not text; PostgreSQL rejects
+NUL in jsonb ("unsupported Unicode escape sequence") while accepting the same
+JSON as text; and because both columns receive the same record, such a record
+broke **both** writes, so the pipeline threw and the firehose stalled on it —
+exactly the availability failure the design claimed to avoid. `recordDeadLetter`
+now falls back to a payload-free row flagged not-replayable, which both fixes
+the stall and sharpens the contract: after it, a failed dead-letter write really
+does mean the database is unavailable.
+
+**Checked and cleared:** `packages/spaces-consumer/src/consumer.ts` has the same
+shape and does **not** have the defect — `canCommitCheckpoint` tracks whether
+every record in a batch was handled and the checkpoint is committed only if all
+were. The admin reindex route (`admin.ts:71`) already wrapped the pipeline in a
+try/catch and counted errors; that counter was previously always zero and is now
+meaningful.
+
+Gate: build 10/10, api suite 120 files / 1173 tests (from 118 / 1157).
+
 **On the identifier `N-25`.** The cross-host replay finding is **N-25** — the
 next free number after the [2026-08-02 independent deep
 review](./2026-08-02-independent-deep-review.md), whose series runs
@@ -264,6 +314,30 @@ open; all line cites are against `6bb749b`.
   cases are made deterministic with a Kysely `transformResult` gate. Nothing
   here proves the absence of a race in a path the tests do not drive.
 
+### From tranche 5 — what the delivery fixes do not cover
+
+- **A record that cannot be stored is still lost, by design.** The fix
+  guarantees the loss is *recorded*, not that it is prevented. A dead letter
+  written without its payload is flagged not-replayable: the URI identifies the
+  record and it can be refetched from the PDS, but nothing does that
+  automatically.
+- **Retrying a hook-phase dead letter reports only that the pipeline
+  completed.** The pipeline is fail-open for hooks, so a hook that fails again
+  lands a fresh dead-letter entry rather than reopening the old one. The queue,
+  not the retry response, is the current state of a hook failure. Only the
+  `storage` phase is verified concretely (against `pds_record`).
+- **Replay re-runs every hook for the collection, not just the one that
+  failed.** Correct for a storage-phase entry and idempotent in principle for
+  the rest — the firehose can redeliver anyway — but it assumes hooks are
+  idempotent, which nothing enforces.
+- **The Tap path has no end-to-end test.** `handleTapRecordEvent` is tested
+  directly, and the ack semantics it relies on were read out of
+  `@atproto/tap@0.2.11`'s source and are recorded above, but no test drives a
+  real Tap channel. A change in that upstream contract would not be caught here.
+- **Nothing alerts on a growing dead-letter queue.** `getFirehoseHealth()`
+  exposes `errorCount` and `lastSeq`, and the queue is listable, but there is no
+  threshold, no alert, and no automatic replay.
+
 ---
 
 ## 3. What is left, in recommended order
@@ -319,9 +393,21 @@ are closed; start at item 4.**
    parsed as a uuid and normalized at the route boundary. It does **not** cover
    version binding on review (N-27) — read §2 before treating an approval as
    proof of the amount the reviewer saw.
-5. **C-05** — fix at `pipeline.ts`, not `loop.ts`; `processFirehoseEvent`
-   absorbs errors internally, so a `loop.ts`-only change does nothing. Bundle
-   O-12's missing dead-letter retry.
+5. **[DONE — tranche 5, `7b16d43..3e346fc`] C-05**, bundled with the
+   dead-letter half of **O-12** as the review recommended. Precisely what "done" covers: a failed `pds_record`
+   write is dead-lettered rather than logged and forgotten, post-storage hooks
+   no longer run after one, dead-letter write failures propagate instead of
+   being swallowed, the Tap handler rethrows so Tap redelivers, the local loop
+   does not advance its cursor past an event it could not process, and dead
+   letters can be replayed through a new admin retry route. It does **not**
+   recover a lost record automatically, and it does not verify a hook-phase
+   replay — read §2 before treating a resolved dead letter as proof.
+
+   **O-12's other half is untouched.** The finding covers two inert
+   mechanisms, and only the dead-letter queue was addressed. The outbound
+   webhook outbox (`apps/api/src/services/event-bus-service.ts:146-185`) still
+   creates delivery logs, still has no producer call sites, and still has no
+   delivery worker. Carried forward as item 21.
 6. **S-08** — root is `packages/common/src/did-web.ts` (an `http://` downgrade
    for dotted-quad hosts, honoured `%3A` ports). Wire the existing
    `url-validation.ts` into DID resolution with `redirect: 'manual'` and
@@ -469,6 +555,20 @@ Publishing the repo made GitHub's Dependabot alerts visible: **75 open
     not what they read. Needs an optimistic-concurrency token on the review
     request (`indexed_at`, or a version column), which changes the route
     contract and the web client.
+
+### Carried forward from tranche 5
+
+21. **O-12, outbound webhook half.** Delivery logs are created by code nothing
+    calls, and no worker delivers them. Untouched by tranche 5, which addressed
+    only the dead-letter queue. Evidence unchanged from the audit:
+    `apps/api/src/services/event-bus-service.ts:146-185`.
+
+22. **N-28 — nothing watches the dead-letter queue.** Now that failures are
+    actually recorded rather than swallowed, the queue is the signal that
+    something is being lost, and nothing reads it: no threshold, no alert, no
+    automatic replay. `getFirehoseHealth()` exposes `errorCount` and `lastSeq`
+    but not the queue depth. Cheap first step: add unresolved dead-letter count
+    to the health endpoint. **The next free number is N-29.**
 
 ### Deprioritised
 
