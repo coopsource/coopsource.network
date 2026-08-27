@@ -145,6 +145,61 @@ describe('AppView delivery integrity (C-05)', () => {
     expect(postHookRan).toBe(false);
   });
 
+  it('records a loss even when the event payload itself cannot be stored', async () => {
+    // Both pds_record.content and hook_dead_letter.event_data are jsonb, and
+    // PostgreSQL rejects a NUL character in jsonb ("unsupported Unicode escape
+    // sequence"). So this record breaks the storage write *and* the obvious
+    // dead-letter write — no injected failure needed.
+    const db = getTestDb();
+    const registry = registryWithPostHook(() => {});
+    const poisoned = { $type: COLLECTION, title: `a${String.fromCharCode(0)}b` };
+
+    await processFirehoseEvent(db, registry, makeEvent(COLLECTION, 'create', poisoned));
+
+    const stored = await getTestDb().selectFrom('pds_record').selectAll().execute();
+    expect(stored).toHaveLength(0);
+
+    // The loss is recorded without the payload, rather than being unrecordable.
+    const entries = await deadLetters();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.hook_phase).toBe('storage');
+    expect(entries[0]!.event_data).toBeNull();
+    expect(entries[0]!.error_message).toMatch(/payload/i);
+  });
+
+  it('keeps the stream moving past a permanently unstorable record', async () => {
+    const db = getTestDb();
+    const registry = new HookRegistry();
+
+    let subscriptions = 0;
+    const pdsService = {
+      async *subscribeRepos(): AsyncIterable<RepositoryStreamEvent> {
+        subscriptions++;
+        if (subscriptions === 1) {
+          yield makeEvent(
+            COLLECTION,
+            'create',
+            { $type: COLLECTION, title: `a${String.fromCharCode(0)}b` },
+            { seq: 301, uri: `at://did:plc:test/${COLLECTION}/poison` },
+          );
+          yield makeEvent(COLLECTION, 'create', undefined, {
+            seq: 302,
+            uri: `at://did:plc:test/${COLLECTION}/after`,
+          });
+        }
+        await new Promise(() => {});
+      },
+    } as unknown as IPdsService;
+
+    await startAppViewLoop(pdsService, db, { hookRegistry: registry });
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // One record can never be stored, but it must not stall the firehose: the
+    // loss is recorded and the following event is processed.
+    expect(await cursorSeq()).toBe(302);
+    expect(await deadLetters()).toHaveLength(1);
+  });
+
   it('throws when it can store neither the record nor the reason', async () => {
     const db = getTestDb().withPlugin(
       failInsertsInto('pds_record', 'hook_dead_letter'),
@@ -204,10 +259,12 @@ describe('AppView delivery integrity (C-05)', () => {
   });
 
   it('does not let a later success carry the cursor past a failed event', async () => {
-    // Event 101's record write fails and so does its dead letter, so nothing
-    // about it was recorded. Event 102 would succeed.
+    // Three failed inserts models the database being unavailable for event
+    // 101: its record write, its dead letter, and the payload-free dead letter
+    // that recordDeadLetter falls back to. Nothing about it was recorded.
+    // Event 102 would succeed.
     const db = getTestDb().withPlugin(
-      failFirstInsertsInto(2, 'pds_record', 'hook_dead_letter'),
+      failFirstInsertsInto(3, 'pds_record', 'hook_dead_letter'),
     );
     const registry = new HookRegistry();
 

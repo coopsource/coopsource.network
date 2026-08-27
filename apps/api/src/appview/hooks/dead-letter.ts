@@ -33,28 +33,60 @@ export async function recordDeadLetter(
 ): Promise<void> {
   const err = params.error instanceof Error ? params.error : new Error(String(params.error));
 
+  const row = {
+    event_uri: params.event.uri,
+    event_did: params.event.did,
+    collection: params.collection,
+    operation: params.operation,
+    hook_id: params.hookId,
+    hook_phase: params.hookPhase,
+    error_message: withoutNulls(err.message),
+    error_stack: err.stack ? withoutNulls(err.stack) : null,
+  };
+
+  try {
+    await db
+      .insertInto('hook_dead_letter')
+      .values({
+        ...row,
+        event_data: JSON.stringify({
+          seq: params.event.seq,
+          did: params.event.did,
+          operation: params.event.operation,
+          uri: params.event.uri,
+          cid: params.event.cid,
+          record: params.event.record,
+          time: params.event.time,
+        }),
+      })
+      .execute();
+    return;
+  } catch (payloadErr) {
+    // The payload can itself be unstorable: `event_data` is jsonb, and
+    // PostgreSQL rejects a NUL character in jsonb, so exactly the records that
+    // break the `pds_record` write also break the obvious dead-letter write.
+    // Recording the loss without the payload is far better than not recording
+    // it at all — the URI identifies the record, which can be refetched from
+    // the PDS.
+    logger.warn(
+      { err: payloadErr, uri: params.event.uri },
+      'Dead letter payload could not be stored; recording without it',
+    );
+  }
+
   await db
     .insertInto('hook_dead_letter')
     .values({
-      event_uri: params.event.uri,
-      event_did: params.event.did,
-      collection: params.collection,
-      operation: params.operation,
-      hook_id: params.hookId,
-      hook_phase: params.hookPhase,
-      error_message: err.message,
-      error_stack: err.stack ?? null,
-      event_data: JSON.stringify({
-        seq: params.event.seq,
-        did: params.event.did,
-        operation: params.event.operation,
-        uri: params.event.uri,
-        cid: params.event.cid,
-        record: params.event.record,
-        time: params.event.time,
-      }),
+      ...row,
+      event_data: null,
+      error_message: `${row.error_message} [not replayable: the event payload could not be stored]`,
     })
     .execute();
+}
+
+/** PostgreSQL rejects NUL in text columns; these fields are diagnostics. */
+function withoutNulls(value: string): string {
+  return value.replace(/\0/g, '');
 }
 
 /**
