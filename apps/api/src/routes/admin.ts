@@ -4,7 +4,7 @@ import type { Container } from '../container.js';
 import { asyncHandler } from '../lib/async-handler.js';
 import { requireAuth, requireAdmin, resetSetupCache } from '../auth/middleware.js';
 import { getFirehoseHealth } from '../appview/loop.js';
-import { listDeadLetters, resolveDeadLetter } from '../appview/hooks/dead-letter.js';
+import { listDeadLetters, resolveDeadLetter, retryDeadLetter } from '../appview/hooks/dead-letter.js';
 import { processFirehoseEvent } from '../appview/hooks/pipeline.js';
 import type { FirehoseEvent } from '@coopsource/federation';
 import type { DID, AtUri, CID } from '@coopsource/common';
@@ -355,6 +355,26 @@ export function createAdminRoutes(container: Container): Router {
       const resolved = await resolveDeadLetter(container.db, id);
       if (!resolved) {
         res.status(404).json({ error: 'Dead letter entry not found or already resolved' });
+        return;
+      }
+      res.json({ ok: true });
+    }),
+  );
+
+  // POST /api/v1/admin/hooks/dead-letter/:id/retry — replay the event
+  router.post(
+    '/api/v1/admin/hooks/dead-letter/:id/retry',
+    requireAuth,
+    requireAdmin,
+    asyncHandler(async (req, res) => {
+      const id = Array.isArray(req.params.id) ? req.params.id[0]! : req.params.id;
+      const result = await retryDeadLetter(container.db, container.hookRegistry, id);
+      if (!result) {
+        res.status(404).json({ error: 'Dead letter entry not found or already resolved' });
+        return;
+      }
+      if (!result.ok) {
+        res.status(422).json({ ok: false, error: result.error });
         return;
       }
       res.json({ ok: true });

@@ -1,8 +1,8 @@
 # Session Handover — Co-op Source Network audit remediation
 
 - **Written:** 2026-08-17, at the close of audit tranche 3
-- **Updated:** 2026-08-26, at the close of audit tranche 4 (C-06/N-3/N-4)
-- **State of `main`:** tranche 4 merged; pushes are routine (see §1)
+- **Updated:** 2026-08-27, at the close of audit tranche 5 (C-05 + dead-letter retry)
+- **State of `main`:** tranches 1-5 merged; pushes are routine (see §1)
 - **Program:** the ordered backlog in
   [2026-08-02 closeout §3](./2026-08-02-audit-tranche-1-closeout-and-handover.md)
 
@@ -59,16 +59,32 @@ session, not a formality.
 
 ## 3. What to do next
 
-**C-05** — closeout §3 item 5. Fix at `pipeline.ts`, **not** `loop.ts`:
-`processFirehoseEvent` absorbs errors internally, so a `loop.ts`-only change
-does nothing. Bundle O-12's missing dead-letter retry.
+**S-08** — closeout §3 item 6. The root is `packages/common/src/did-web.ts` (an
+`http://` downgrade for dotted-quad hosts, honoured `%3A` ports). Wire the
+existing `url-validation.ts` into DID resolution with `redirect: 'manual'` and
+post-resolution IP checks.
 
-Then **S-08** (root is `packages/common/src/did-web.ts`; wire the existing
-`url-validation.ts` in with `redirect: 'manual'` and post-resolution IP checks),
-then the review's new surface — **N-1** (`GET /api/v1/cooperative` returns an
+Then the review's new surface — **N-1** (`GET /api/v1/cooperative` returns an
 arbitrary cooperative), **N-2** (the MCP endpoint, whose transport fix and
 cross-tenant data leak must ship together), **N-16/N-17**, and the unreviewed
 `apps/api/src/ai/`.
+
+### Closed 2026-08-27 — tranche 5 (item 5, AppView delivery)
+
+C-05 and the dead-letter half of O-12 are fixed (`7b16d43..3e346fc`); plan and
+probe evidence in
+[the tranche-5 plan](./2026-08-27-audit-tranche-5-appview-delivery-plan.md).
+Carry forward:
+
+- **O-12 is only half closed.** The outbound webhook outbox still has no
+  producer and no delivery worker — item 21.
+- **N-28 filed:** nothing watches the dead-letter queue. Now that failures are
+  recorded rather than swallowed, that queue *is* the signal something is being
+  lost, and nothing reads it. **The next free number is N-29.**
+- **A commit body in this tranche corrects an earlier one.** `7b16d43`
+  justified its design with a claim that measurement disproved; `3e346fc` says
+  so explicitly and fixes the gap. If you read `7b16d43` alone you will get the
+  wrong idea — the register's tranche-5 entry has the corrected version.
 
 ### Closed 2026-08-26 — tranche 4 (item 4, the money bugs)
 
@@ -102,8 +118,8 @@ is an async seam for exactly this — see agent-learnings §2).
 - **The `N-` series does not start where you think.** The deep review runs
   N-1..N-24; tranche 3 added **N-25** (after a collision that cost a rename
   across ten code sites, four config/doc sites, and three commit subjects);
-  tranche 4 added **N-26** and **N-27**. **The next free number is N-28.**
-  Check before you label.
+  tranche 4 added **N-26** and **N-27**, tranche 5 added **N-28**. **The next
+  free number is N-29.** Check before you label.
 - **`test-app.ts` is a second router as well as a second container.** If a
   route 404s inside a test, check that `test-app.ts` mounts it before
   debugging the route (N-26).
@@ -117,7 +133,7 @@ is an async seam for exactly this — see agent-learnings §2).
 
 ## 5. The method that has worked
 
-Four tranches, and the same shape each time:
+Five tranches, and the same shape each time:
 
 1. **Re-derive the finding before funding work on it.** Neither C-04 nor A-07
    had an executable probe anywhere in the audit record; both turned out to be
@@ -159,21 +175,21 @@ READ FIRST, in order:
    partially fixed) and §3 (the ordered backlog). This register is the source of truth.
 3. docs/agent-learnings.md §1 — the verification traps that produced the most wasted work.
 
-STATE: tranches 1-4 are merged to main. Tranche 4 closed C-06, N-3 and N-4 — the money
-bugs — and filed N-26 (test-app.ts mounts 19 fewer route modules than production, so
-those surfaces have no route-level coverage) and N-27 (expense review binds no version
-of the expense). The next free finding number is N-28.
+STATE: tranches 1-5 are merged to main. Tranche 4 closed the money bugs (C-06, N-3, N-4);
+tranche 5 closed C-05 and the dead-letter half of O-12. Open findings filed along the way:
+N-26 (test-app.ts mounts 19 fewer route modules than production, so those surfaces have no
+route-level coverage), N-27 (expense review binds no version of the expense), N-28 (nothing
+watches the dead-letter queue). The next free finding number is N-29.
 
 PUSHES: routine (the directive was lifted 2026-08-26 — see handover §1). The repo is
 public and the crit write-ups are published, so audit urgency is up.
 
-NEXT: closeout §3 item 5 — C-05. Fix at pipeline.ts, not loop.ts: processFirehoseEvent
-absorbs errors internally, so a loop.ts-only change does nothing. Bundle O-12's missing
-dead-letter retry. Then S-08, then N-1 / N-2 / N-16-17 / apps/api/src/ai/.
+NEXT: closeout §3 item 6 — S-08. Root is packages/common/src/did-web.ts; wire the existing
+url-validation.ts into DID resolution with redirect: 'manual' and post-resolution IP checks.
+Then N-1, N-2, N-16/N-17, apps/api/src/ai/.
 
 METHOD: re-derive each finding with an executable probe against real routes before
-designing a fix — the audit is not normative and has been wrong about both root causes
-and severity. Do not trust a green suite as proof. For any concurrency finding, measure
-your regression test's detection rate against the pre-fix code rather than assuming a
-"concurrent" test explores every interleaving.
+designing a fix — the audit is not normative and has been wrong about root causes,
+severity, and column types. Do not trust a green suite as proof. Verify every regression
+test detects its target, and delete any defensive branch the suite does not reach.
 ```

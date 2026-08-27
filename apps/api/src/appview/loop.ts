@@ -99,12 +99,43 @@ export async function startAppViewLoop(
         .execute();
       cursor = 0;
     } else {
-      cursor = existing.last_global_seq;
+      // bigint comes back from PostgreSQL as a string.
+      cursor = Number(existing.last_global_seq);
     }
 
     runLocalLoop(pdsService, db, cursor, config).catch((err) => {
       logger.error(err, 'Local loop fatal error');
     });
+  }
+}
+
+// ─── Tap record handling ──────────────────────────────────────────────────
+
+/**
+ * Process one Tap record event.
+ *
+ * Rethrows on failure, which is load-bearing: `SimpleIndexer.onEvent` calls
+ * `opts.ack()` only after this resolves, and `TapChannel` skips the ack when
+ * the handler throws so that Tap redelivers. Swallowing the error here
+ * acknowledged events the AppView had not stored (audit C-05).
+ */
+export async function handleTapRecordEvent(
+  db: Kysely<Database>,
+  registry: HookRegistry,
+  evt: RecordEvent,
+): Promise<void> {
+  try {
+    await processFirehoseEvent(db, registry, tapEventToFirehoseEvent(evt));
+
+    healthState.lastSeq = evt.id;
+    healthState.lastEventAt = new Date().toISOString();
+  } catch (err) {
+    healthState.errorCount++;
+    logger.error(
+      { err, event: { id: evt.id, collection: evt.collection, did: evt.did } },
+      'AppView indexer error (tap)',
+    );
+    throw err;
   }
 }
 
@@ -117,24 +148,7 @@ async function runTapLoop(
   const tap = new Tap(config.tapUrl!);
   const indexer = new SimpleIndexer();
 
-  indexer.record(async (evt) => {
-    try {
-      const firehoseEvent = tapEventToFirehoseEvent(evt);
-      await processFirehoseEvent(db, config.hookRegistry, firehoseEvent);
-
-      healthState.lastSeq = evt.id;
-      healthState.lastEventAt = new Date().toISOString();
-    } catch (err) {
-      healthState.errorCount++;
-      logger.error(
-        {
-          err,
-          event: { id: evt.id, collection: evt.collection, did: evt.did },
-        },
-        'AppView indexer error (tap)',
-      );
-    }
-  });
+  indexer.record((evt) => handleTapRecordEvent(db, config.hookRegistry, evt));
 
   indexer.identity(async (evt) => {
     const time = new Date().toISOString();
@@ -219,7 +233,11 @@ async function runLocalLoop(
             },
             'AppView indexer error (local)',
           );
-          if (isRepoLifecycleEvent(event)) throw err;
+          // The cursor was not advanced, so rethrowing hands the event back to
+          // the outer loop, which backs off and re-subscribes from the last
+          // event that was actually processed. Continuing here let the next
+          // success advance the cursor past this one (audit C-05).
+          throw err;
         }
       }
     } catch (err) {
