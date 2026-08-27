@@ -9,23 +9,28 @@
  * - Colon separators in the DID become path separators in the URL
  * - If no path segments after domain, resolve to /.well-known/did.json
  * - If path segments exist, resolve to /path/segments/did.json
- * - localhost and IP addresses use http://; all others use https://
+ * - loopback hosts use http://; all others use https:// (audit S-08)
  */
 
 const DID_WEB_PREFIX = 'did:web:';
 
 /**
  * Check whether a host should use http:// instead of https://.
- * Returns true for localhost and IP addresses.
+ *
+ * Only loopback qualifies. The exception exists so local development can run
+ * `did:web:localhost%3A3001` against a plain-http server; it is not a general
+ * "IP addresses are local" rule. Returning true for every dotted quad made
+ * `did:web:169.254.169.254` resolve to a **plaintext** fetch of the cloud
+ * metadata endpoint, and made percent-encoded ports an internal port selector
+ * (audit S-08). Whether such a host may be dialled at all is a separate
+ * decision, taken by the resolver's outbound guard.
  */
 function isInsecureHost(host: string): boolean {
   const hostname = host.split(':')[0]!;
   return (
     hostname === 'localhost' ||
-    hostname === '127.0.0.1' ||
-    hostname === '0.0.0.0' ||
     hostname === '::1' ||
-    /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)
+    /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)
   );
 }
 

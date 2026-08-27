@@ -18,7 +18,7 @@ import type {
 } from './script-context.js';
 import { transpileScript } from './transpiler.js';
 import { sseEmitter, emitAppEvent, type AppEvent } from '../appview/sse.js';
-import { validateWebhookUrl } from '../utils/url-validation.js';
+import { fetchOutbound } from '../utils/url-validation.js';
 import { logger } from '../middleware/logger.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────
@@ -673,14 +673,12 @@ export class ScriptService {
     const url = args[0] as string;
     const options = (args[1] as ScriptHttpOptions | undefined) ?? {};
 
-    // SSRF protection
-    validateWebhookUrl(url);
-
-    const res = await fetch(url, {
+    // SSRF protection: the destination and its DNS answer are checked, and a
+    // redirect is refused rather than followed (audit S-08).
+    const res = await fetchOutbound(url, {
       method: options.method ?? 'GET',
       headers: options.headers,
       body: options.body,
-      signal: AbortSignal.timeout(10_000),
     });
 
     const body = await res.text();

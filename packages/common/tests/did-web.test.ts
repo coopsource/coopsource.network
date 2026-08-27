@@ -44,10 +44,30 @@ describe('did:web utilities', () => {
       ).toBe('http://localhost:3001/members/bob/did.json');
     });
 
-    it('resolves an IP address to http', () => {
+    it('resolves a loopback address to http', () => {
       expect(didWebToUrl('did:web:127.0.0.1%3A8080')).toBe(
         'http://127.0.0.1:8080/.well-known/did.json',
       );
+    });
+
+    it('resolves any loopback address in 127.0.0.0/8 to http', () => {
+      expect(didWebToUrl('did:web:127.0.0.2')).toBe(
+        'http://127.0.0.2/.well-known/did.json',
+      );
+    });
+
+    // Audit S-08: the http exception is for local development, and local
+    // development is loopback. Downgrading for every dotted quad turned
+    // `did:web:169.254.169.254` into a plaintext fetch of the cloud metadata
+    // endpoint, and `%3A` ports into an internal port selector.
+    it.each([
+      'did:web:169.254.169.254',
+      'did:web:10.0.0.1',
+      'did:web:192.168.1.1%3A8080',
+      'did:web:0.0.0.0',
+      'did:web:8.8.8.8',
+    ])('does not downgrade %s to http', (did) => {
+      expect(didWebToUrl(did)).toMatch(/^https:\/\//);
     });
 
     it('throws on invalid DID (not did:web)', () => {

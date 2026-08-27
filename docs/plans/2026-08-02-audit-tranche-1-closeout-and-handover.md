@@ -156,6 +156,47 @@ meaningful.
 
 Gate: build 10/10, api suite 120 files / 1173 tests (from 118 / 1157).
 
+**Tranche 6 — branch `feature/audit-tranche-6-ssrf`, code commit `5274481`.**
+Closes backlog item 6 (S-08). Plan and probe evidence:
+[2026-08-27 tranche-6 plan](./2026-08-27-audit-tranche-6-ssrf-plan.md).
+
+**Reachable unauthenticated, and measured.** A POST to
+`/api/v1/federation/agreement/sign-request` whose `keyid` named
+`did:web:127.0.0.1%3A<port>` made the API issue `GET /.well-known/did.json`
+against that port, recorded by a listener the test started. `verifyRequest`
+resolves the signer's DID **before** it can check the signature — the key it
+needs is inside the document — and everything it checks first (component list,
+algorithm, `created` skew, `content-digest`) is computable by the caller from
+their own request. The A-07 work (tranche 3) shaped what a usable request looks
+like; it does not gate the fetch, because the digest is a hash of the
+attacker's own body, not a secret.
+
+**Three defects.** `didWebToUrl` downgraded to **http** for any dotted quad, so
+`did:web:169.254.169.254` fetched cloud metadata in plaintext and `%3A` ports
+made a DID an internal port selector. `validateWebhookUrl` allowed `[::1]`,
+`[fd00::1]`, `[fe80::1]`, `[::ffff:127.0.0.1]`, `127.0.0.2`, `127.5.5.5`,
+`0.0.0.0`, `169.254.1.1` and `100.64.0.1` — because `URL.hostname` keeps the
+brackets on an IPv6 literal (so `hostname === '::1'` is dead code) and because
+single addresses were listed where ranges were meant. And no path had a DNS
+check, redirect control, timeout, or size cap.
+
+**Also worth knowing:** against the pre-fix code the metadata-address case took
+**10.4 s**, hanging on the connect. The endpoint was a free request-stall
+amplifier as well as a read oracle.
+
+**Sibling swept.** `apps/api/src/appview/commit-verifier.ts` holds a **second**
+did:web resolver, independent of `DidWebResolver`, reached with a record
+author's DID. It is now behind the same guard. Every other `fetch()` in the tree
+was checked and takes an operator-configured or constant URL.
+
+The guard is `packages/federation/src/http/url-safety.ts` — deliberately not
+`@coopsource/common`, which `apps/web` imports and which is Node-free.
+`DID_RESOLUTION_ALLOW_PRIVATE` opts private targets back in for local
+development and the Docker federation stack; it defaults on outside production
+and config validation **rejects it in production**.
+
+Gate: build 10/10, api 121 files / 1178 tests, federation 198 tests.
+
 **On the identifier `N-25`.** The cross-host replay finding is **N-25** — the
 next free number after the [2026-08-02 independent deep
 review](./2026-08-02-independent-deep-review.md), whose series runs
@@ -338,6 +379,23 @@ open; all line cites are against `6bb749b`.
   exposes `errorCount` and `lastSeq`, and the queue is listable, but there is no
   threshold, no alert, and no automatic replay.
 
+### From tranche 6 — what the SSRF containment does not cover
+
+- **DNS rebinding is not closed.** The answer is checked and then a separate
+  connection is made, so a name that answers differently the second time still
+  wins the race. Closing it needs the socket pinned to the checked address — a
+  custom dispatcher rather than `fetch`. What is closed is the straightforward
+  case: a public hostname whose record points at an internal address.
+- **`DID_RESOLUTION_ALLOW_PRIVATE` disables the address check entirely**, not
+  just for the peers you meant. It is on by default outside production. A
+  development instance therefore remains steerable; that is the price of
+  `did:web:localhost%3A3001` resolving at all.
+- **The spaces-consumer endpoints are untouched** — filed as item 23. They were
+  in S-08's evidence list and are not fixed.
+- **Only the destination is guarded, not the response.** A permitted host can
+  still return anything; nothing validates that a DID document is well-formed
+  beyond the `verificationMethod` lookup that follows.
+
 ---
 
 ## 3. What is left, in recommended order
@@ -408,10 +466,15 @@ are closed; start at item 4.**
    webhook outbox (`apps/api/src/services/event-bus-service.ts:146-185`) still
    creates delivery logs, still has no producer call sites, and still has no
    delivery worker. Carried forward as item 21.
-6. **S-08** — root is `packages/common/src/did-web.ts` (an `http://` downgrade
-   for dotted-quad hosts, honoured `%3A` ports). Wire the existing
-   `url-validation.ts` into DID resolution with `redirect: 'manual'` and
-   post-resolution IP checks.
+6. **[DONE — tranche 6, `5274481`] S-08.** Precisely what "done" covers: the
+   did:web http downgrade is narrowed to loopback; a real IPv4/IPv6 address
+   classifier replaces the exact-string comparisons; DID resolution, webhook
+   delivery and script HTTP calls all go through one guarded fetch that checks
+   the destination, checks every DNS answer, refuses redirects, and bounds time
+   and size; and the second did:web resolver in `commit-verifier.ts` is behind
+   the same guard. It does **not** close DNS rebinding and does **not** touch
+   the spaces-consumer endpoints (item 23) — read §2 before treating an
+   outbound call as contained.
 
 ### New surface from the review
 
@@ -569,6 +632,19 @@ Publishing the repo made GitHub's Dependabot alerts visible: **75 open
     automatic replay. `getFirehoseHealth()` exposes `errorCount` and `lastSeq`
     but not the queue depth. Cheap first step: add unresolved dead-letter count
     to the health endpoint. **The next free number is N-29.**
+
+23. **N-29 — the spaces-consumer's outbound endpoints are unguarded.** Named in
+    S-08's evidence and deliberately left by tranche 6.
+    `packages/spaces-consumer/src/did-permissioned-sync-resolver.ts` validates
+    that a service endpoint is http(s) and nothing more — no address check, no
+    redirect control, no timeout — and the endpoint comes from a resolved DID
+    document, so its author chooses it.
+    `xrpc-permissioned-repo-port.ts` fetches through an injected `fetcher`, so
+    the guard belongs either at that seam or in `parseHttpUrl`. Not live today:
+    the consumer is flag-gated behind `SPACES_CONSUMER_ENABLED`, false outside
+    conformance environments. Left out of tranche 6 because wiring it means
+    reasoning about the permissioned-sync design rather than adding a check.
+    **The next free number is N-30.**
 
 ### Deprioritised
 

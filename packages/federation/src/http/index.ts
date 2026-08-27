@@ -1,3 +1,17 @@
+export {
+  BlockedAddressError,
+  isPrivateAddress,
+  assertSafeUrl,
+  safeFetch,
+  safeFetchJson,
+  readBounded,
+} from './url-safety.js';
+export type {
+  UrlSafetyOptions,
+  SafeFetchOptions,
+  LookupFn,
+  FetchFn,
+} from './url-safety.js';
 export { DidWebResolver } from './did-web-resolver.js';
 export type { DidWebResolverOptions } from './did-web-resolver.js';
 export {

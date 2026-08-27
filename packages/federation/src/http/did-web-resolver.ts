@@ -1,10 +1,23 @@
 import { didWebToUrl } from '@coopsource/common';
 import type { DidDocument } from '../types.js';
+import {
+  BlockedAddressError,
+  safeFetchJson,
+  type SafeFetchOptions,
+} from './url-safety.js';
 
 export interface DidWebResolverOptions {
   cacheTtlMs?: number;
   /** Fallback resolver for non-did:web DIDs (e.g. did:plc in local dev). */
   fallbackResolve?: (did: string) => Promise<DidDocument>;
+  /**
+   * Outbound-fetch containment (audit S-08). The target URL is derived from a
+   * DID an unauthenticated caller supplies — `verifyRequest` resolves the
+   * signer before it can check the signature, because the key it needs to check
+   * with is in the document — so this fetch is attacker-steerable by
+   * construction and has to be guarded rather than trusted.
+   */
+  outbound?: SafeFetchOptions;
 }
 
 interface CacheEntry {
@@ -20,10 +33,12 @@ export class DidWebResolver {
   private cache = new Map<string, CacheEntry>();
   private cacheTtlMs: number;
   private fallbackResolve?: (did: string) => Promise<DidDocument>;
+  private outbound?: SafeFetchOptions;
 
   constructor(options?: DidWebResolverOptions) {
     this.cacheTtlMs = options?.cacheTtlMs ?? 5 * 60 * 1000;
     this.fallbackResolve = options?.fallbackResolve;
+    this.outbound = options?.outbound;
   }
 
   async resolve(did: string): Promise<DidDocument> {
@@ -43,13 +58,17 @@ export class DidWebResolver {
     }
 
     const url = didWebToUrl(did);
-    const response = await fetch(url);
 
-    if (!response.ok) {
-      throw new Error(`Failed to resolve ${did}: HTTP ${response.status}`);
+    let doc: DidDocument;
+    try {
+      doc = (await safeFetchJson(url, this.outbound)) as DidDocument;
+    } catch (err) {
+      // A refusal is reported as itself, so a caller can tell "this DID names
+      // somewhere we will not dial" apart from "that host answered badly".
+      if (err instanceof BlockedAddressError) throw err;
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(`Failed to resolve ${did}: ${message}`);
     }
-
-    const doc = (await response.json()) as DidDocument;
 
     this.cache.set(did, {
       doc,
