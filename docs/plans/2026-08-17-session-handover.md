@@ -1,7 +1,8 @@
 # Session Handover — Co-op Source Network audit remediation
 
 - **Written:** 2026-08-17, at the close of audit tranche 3
-- **State of `main`:** `50a968f`, working tree clean, **56 commits unpushed**
+- **Updated:** 2026-08-26, at the close of audit tranche 4 (C-06/N-3/N-4)
+- **State of `main`:** tranche 4 merged; pushes are routine (see §1)
 - **Program:** the ordered backlog in
   [2026-08-02 closeout §3](./2026-08-02-audit-tranche-1-closeout-and-handover.md)
 
@@ -58,37 +59,54 @@ session, not a formality.
 
 ## 3. What to do next
 
-**C-06 + N-3 + N-4** — closeout §3 item 4. The only findings that create or
-destroy money under ordinary single-user operation:
+**C-05** — closeout §3 item 5. Fix at `pipeline.ts`, **not** `loop.ts`:
+`processFirehoseEvent` absorbs errors internally, so a `loop.ts`-only change
+does nothing. Bundle O-12's missing dead-letter retry.
 
-- two concurrent $100 redemptions against a $100 balance both succeed;
-- three identical patronage POSTs yield a 240 balance for a $100 surplus — root
-  cause is `NULLS DISTINCT` on a nullable column in the UNIQUE constraint, **not**
-  a type mismatch (the audit's stated cause is wrong; see agent-learnings §4);
-- an approved expense can be raised past review and double-reimbursed, because
-  no status compare-and-set guards the transition.
+Then **S-08** (root is `packages/common/src/did-web.ts`; wire the existing
+`url-validation.ts` in with `redirect: 'manual'` and post-resolution IP checks),
+then the review's new surface — **N-1** (`GET /api/v1/cooperative` returns an
+arbitrary cooperative), **N-2** (the MCP endpoint, whose transport fix and
+cross-tenant data leak must ship together), **N-16/N-17**, and the unreviewed
+`apps/api/src/ai/`.
 
-Then C-05 (fix at `pipeline.ts`, not `loop.ts` — `processFirehoseEvent` absorbs
-errors internally, so a `loop.ts`-only change does nothing; bundle O-12's
-dead-letter retry), then S-08 (root is `packages/common/src/did-web.ts`; wire the
-existing `url-validation.ts` in with `redirect: 'manual'` and post-resolution IP
-checks).
+### Closed 2026-08-26 — tranche 4 (item 4, the money bugs)
+
+C-06, N-3, and N-4 are fixed on `main`
+(`3878630..24340ee`); plan and probe evidence in
+[the tranche-4 plan](./2026-08-26-audit-tranche-4-money-integrity-plan.md).
+Two things a reader should carry forward:
+
+- **The audit understated C-06.** Its stated broken state was the account row
+  looking correct. Measured, 3–6 of 8 concurrent `$100` redemptions against a
+  `$100` balance were *accepted*, each writing its own ledger row, while the
+  lost update left the account reading `balance=0, total_redeemed=100` — so the
+  ledger and the balance disagreed by up to `$400` and the row hid it.
+- **Two new findings were filed: N-26 and N-27.** N-26 is the big one for
+  anyone writing route-level tests: `test-app.ts` mounts **19 fewer route
+  modules than production**, so those surfaces have no coverage at all and a
+  404 from the test app may mean the route was never mounted. **The next free
+  number is N-28.**
 
 Concurrency findings differ from tranche 3's authorization findings in one way
-that matters: **a green suite proves almost nothing about a race.** Plan to
-drive genuine concurrent requests and to loop until failure rather than sampling
-clean runs.
+that matters: **a green suite proves almost nothing about a race** — and
+tranche 4 measured a sharper version of that. A concurrency test written to
+catch the exact defect it targets passed **3/3** against the broken code,
+because `supertest` request ordering is stable enough that "concurrent" does
+not mean "every interleaving". Measure a pin's detection rate against the
+pre-fix code, or make the interleave deterministic (Kysely's `transformResult`
+is an async seam for exactly this — see agent-learnings §2).
 
 ## 4. Hazards specific to picking this up cold
 
-- **The `N-` series runs to N-24, not N-22.** Tranche 3 numbered a new finding
-  N-23 without checking, collided with the still-open API-token-scopes finding,
-  and had to renumber to **N-25** across ten code sites, four config/doc sites,
-  and three commit subjects. **The next free number is N-26.** Check before you
-  label.
-- **`main` is 56 commits ahead of `origin`.** Any tooling that assumes
-  `origin/main` is current — including a naive `git log origin/main..HEAD`
-  sanity check — will mislead you.
+- **The `N-` series does not start where you think.** The deep review runs
+  N-1..N-24; tranche 3 added **N-25** (after a collision that cost a rename
+  across ten code sites, four config/doc sites, and three commit subjects);
+  tranche 4 added **N-26** and **N-27**. **The next free number is N-28.**
+  Check before you label.
+- **`test-app.ts` is a second router as well as a second container.** If a
+  route 404s inside a test, check that `test-app.ts` mounts it before
+  debugging the route (N-26).
 - **The SDD workspace is gitignored scratch.** `.superpowers/sdd/<plan>/` holds
   the per-task ledger, briefs, reports, and review diffs for the tranche in
   flight. It survives restarts but not `git clean -fdx`. The durable record is
@@ -135,19 +153,21 @@ READ FIRST, in order:
    partially fixed) and §3 (the ordered backlog). This register is the source of truth.
 3. docs/agent-learnings.md §1 — the verification traps that produced the most wasted work.
 
-STATE: tranches 1-3 are merged to local main (50a968f). Tranche 3 closed C-04 (federation
-signature forgery) with A-07 and N-25. main is 56 commits ahead of origin.
+STATE: tranches 1-4 are merged to main. Tranche 4 closed C-06, N-3 and N-4 — the money
+bugs — and filed N-26 (test-app.ts mounts 19 fewer route modules than production, so
+those surfaces have no route-level coverage) and N-27 (expense review binds no version
+of the expense). The next free finding number is N-28.
 
-PUSHES: routine again (directive lifted 2026-08-26 — see handover §1 note). The
-repo is public and the crit write-ups are now published; audit urgency is up,
-and CI can now actually run — treat its first run as a debugging session.
+PUSHES: routine (the directive was lifted 2026-08-26 — see handover §1). The repo is
+public and the crit write-ups are published, so audit urgency is up.
 
-NEXT: closeout §3 item 4 — C-06 + N-3 + N-4, the money bugs (concurrent-redemption race,
-patronage inflation via NULLS DISTINCT, expense double-reimbursement with no status CAS).
-Plan it before implementing, and re-derive each finding with an executable probe first —
-the audit is not normative and has been wrong about root causes before.
+NEXT: closeout §3 item 5 — C-05. Fix at pipeline.ts, not loop.ts: processFirehoseEvent
+absorbs errors internally, so a loop.ts-only change does nothing. Bundle O-12's missing
+dead-letter retry. Then S-08, then N-1 / N-2 / N-16-17 / apps/api/src/ai/.
 
-DO NOT trust a green suite as proof, and note that for concurrency findings a green suite
-proves even less than usual: drive real concurrent requests and loop until failure rather
-than sampling clean runs.
+METHOD: re-derive each finding with an executable probe against real routes before
+designing a fix — the audit is not normative and has been wrong about both root causes
+and severity. Do not trust a green suite as proof. For any concurrency finding, measure
+your regression test's detection rate against the pre-fix code rather than assuming a
+"concurrent" test explores every interleaving.
 ```
