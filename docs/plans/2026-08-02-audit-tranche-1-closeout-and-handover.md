@@ -197,6 +197,30 @@ and config validation **rejects it in production**.
 
 Gate: build 10/10, api 121 files / 1178 tests, federation 198 tests.
 
+**Tranche 7 — branch `feature/audit-tranche-7-coop-identity`, code commit
+`97c4a2a`.** Closes backlog item 7 (N-1). Plan and probe evidence:
+[2026-08-27 tranche-7 plan](./2026-08-27-audit-tranche-7-coop-identity-plan.md).
+
+Reproduced through production routes only: after `POST /api/v1/networks` creates
+a second cooperative entity, `PUT /api/v1/cooperative` wrote to the caller's
+cooperative and returned a body describing **the other one**, and every
+subsequent `GET /api/v1/cooperative` returned the other one permanently (5/5
+consecutive reads) — because the update moved the edited row's heap tuple behind
+it and the scan had no `ORDER BY`. `system_config.cooperative_did` held the
+correct value throughout and was ignored.
+
+`getCooperative` now takes a required DID; both call sites pass
+`req.actor!.cooperativeDid`, the same value the `PUT` already writes to. Sibling
+sweep: eight other queries over `entity.type = 'cooperative'` were checked and
+all are scoped by did, handle, or member, or are list queries.
+
+**Does not fix M-01.** `req.actor.cooperativeDid` is itself chosen by an
+unordered query (`membership-read-model.ts:180-186`), so for a multi-cooperative
+member *which* co-op the API treats as theirs is still arbitrary. What is
+guaranteed now is that the read and the write agree on it.
+
+Gate: build 10/10, api 122 files / 1182 tests.
+
 **On the identifier `N-25`.** The cross-host replay finding is **N-25** — the
 next free number after the [2026-08-02 independent deep
 review](./2026-08-02-independent-deep-review.md), whose series runs
@@ -396,6 +420,18 @@ open; all line cites are against `6bb749b`.
   still return anything; nothing validates that a DID document is well-formed
   beyond the `verificationMethod` lookup that follows.
 
+### From tranche 7 — what the identity fix does not cover
+
+- **M-01 is still open**, and it is now the only thing standing between a
+  multi-cooperative member and a deterministic active tenant.
+  `membership-read-model.ts:180-186` takes the first active membership with no
+  `ORDER BY`. Read and write now agree on whatever it returns; nothing makes
+  what it returns stable. Fixing it needs a product decision about how a session
+  selects its active cooperative, not a query change.
+- **`getCooperativeByHandle` is unchanged**, including whether a caller should be
+  able to read any cooperative by handle. That is an S-04-class object
+  authorization question, out of this item's scope.
+
 ---
 
 ## 3. What is left, in recommended order
@@ -478,9 +514,11 @@ are closed; start at item 4.**
 
 ### New surface from the review
 
-7. **N-1** — `GET /api/v1/cooperative` returns an *arbitrary* cooperative (no
-   actor predicate, no `ORDER BY`); the settings page can read one co-op and
-   write another, including public-visibility flags. 28 files inherit it.
+7. **[DONE — tranche 7, `97c4a2a`] N-1.** `getCooperative` is scoped to the
+   caller's cooperative, so the settings page can no longer read one co-op and
+   write another. It does **not** fix M-01, the unordered membership query that
+   chooses `req.actor.cooperativeDid` in the first place — read §2.
+
 8. **N-2** — the MCP endpoint is 100% non-functional (a fresh transport per
    request rejects every session), **and** four of its tools ignore the
    cooperative binding. Fix both in one commit or shipping the transport fix
