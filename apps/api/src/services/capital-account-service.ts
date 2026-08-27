@@ -1,4 +1,4 @@
-import type { Kysely, Selectable } from 'kysely';
+import type { Kysely, Selectable, Transaction } from 'kysely';
 import type { Database, CapitalAccountTable, CapitalAccountTransactionTable } from '@coopsource/db';
 import { NotFoundError, ValidationError, type DID } from '@coopsource/common';
 import { membersSpace } from '@coopsource/arbiter-client';
@@ -17,6 +17,8 @@ import type { IClock } from '@coopsource/federation';
 import type { Page, PageParams } from '../lib/pagination.js';
 import { encodeCursor, decodeCursor } from '../lib/pagination.js';
 
+type Executor = Kysely<Database> | Transaction<Database>;
+
 type AccountRow = Selectable<CapitalAccountTable>;
 type TransactionRow = Selectable<CapitalAccountTransactionTable>;
 
@@ -30,11 +32,12 @@ export class CapitalAccountService {
   async getOrCreateAccount(
     cooperativeDid: string,
     memberDid: string,
+    executor: Executor = this.db,
   ): Promise<AccountRow> {
     const now = this.clock.now();
 
     // Insert if not exists
-    await this.db
+    await executor
       .insertInto('capital_account')
       .values({
         cooperative_did: cooperativeDid,
@@ -51,7 +54,7 @@ export class CapitalAccountService {
       )
       .execute();
 
-    const row = await this.db
+    const row = await executor
       .selectFrom('capital_account')
       .where('cooperative_did', '=', cooperativeDid)
       .where('member_did', '=', memberDid)
@@ -67,38 +70,46 @@ export class CapitalAccountService {
     data: { memberDid: string; amount: number; description?: string },
   ): Promise<AccountRow> {
     const now = this.clock.now();
-    const account = await this.getOrCreateAccount(cooperativeDid, data.memberDid);
-    const currentBalance = Number(account.balance);
-    const currentContribution = Number(account.initial_contribution);
 
-    // Create transaction record
-    await this.db
-      .insertInto('capital_account_transaction')
-      .values({
-        capital_account_id: account.id,
-        cooperative_did: cooperativeDid,
-        member_did: data.memberDid,
-        transaction_type: 'initial_contribution',
-        amount: data.amount,
-        description: data.description ?? null,
-        created_at: now,
-        created_by: operatorDid,
-      })
-      .execute();
+    // The ledger row and the balance it explains are written together, and the
+    // balance is computed by the database from its own current value. Computing
+    // it here from a prior read loses concurrent contributions (audit C-06).
+    const delta = numericParam(data.amount);
 
-    // Update balance
-    const [row] = await this.db
-      .updateTable('capital_account')
-      .set({
-        initial_contribution: currentContribution + data.amount,
-        balance: currentBalance + data.amount,
-        updated_at: now,
-      })
-      .where('id', '=', account.id)
-      .returningAll()
-      .execute();
+    return this.db.transaction().execute(async (trx) => {
+      const account = await this.getOrCreateAccount(
+        cooperativeDid,
+        data.memberDid,
+        trx,
+      );
 
-    return row!;
+      await trx
+        .insertInto('capital_account_transaction')
+        .values({
+          capital_account_id: account.id,
+          cooperative_did: cooperativeDid,
+          member_did: data.memberDid,
+          transaction_type: 'initial_contribution',
+          amount: data.amount,
+          description: data.description ?? null,
+          created_at: now,
+          created_by: operatorDid,
+        })
+        .execute();
+
+      const [row] = await trx
+        .updateTable('capital_account')
+        .set((eb) => ({
+          initial_contribution: eb('initial_contribution', '+', delta),
+          balance: eb('balance', '+', delta),
+          updated_at: now,
+        }))
+        .where('id', '=', account.id)
+        .returningAll()
+        .execute();
+
+      return row!;
+    });
   }
 
   async allocatePatronageBulk(
@@ -128,58 +139,66 @@ export class CapitalAccountService {
       })),
     });
 
-    let count = 0;
-    for (const distribution of distributions) {
-      const account = await this.getOrCreateAccount(
-        cooperativeDid,
-        distribution.memberDid,
-      );
-      const currentBalance = Number(account.balance);
-      const currentPatronage = Number(account.total_patronage_allocated);
+    // One transaction for the whole distribution run, and the patronage record
+    // is the idempotency token: crediting an account happens only for the
+    // caller that claims the record's `approved` -> `distributed` transition.
+    return this.db.transaction().execute(async (trx) => {
+      let count = 0;
+      for (const distribution of distributions) {
+        const claimed = await trx
+          .updateTable('patronage_record')
+          .set({
+            status: 'distributed',
+            distributed_at: now,
+            indexed_at: now,
+          })
+          .where('id', '=', distribution.patronageRecordId)
+          .where('status', '=', 'approved')
+          .executeTakeFirst();
 
-      // Create transaction
-      await this.db
-        .insertInto('capital_account_transaction')
-        .values({
-          capital_account_id: account.id,
-          cooperative_did: cooperativeDid,
-          member_did: distribution.memberDid,
-          transaction_type: distribution.transactionType,
-          amount: distribution.amount,
-          fiscal_period_id: fiscalPeriodId,
-          patronage_record_id: distribution.patronageRecordId,
-          description: distribution.description,
-          created_at: now,
-          created_by: operatorDid,
-        })
-        .execute();
+        if (Number(claimed.numUpdatedRows) !== 1) continue;
 
-      // Update account
-      await this.db
-        .updateTable('capital_account')
-        .set({
-          total_patronage_allocated: currentPatronage + distribution.amount,
-          balance: currentBalance + distribution.amount,
-          updated_at: now,
-        })
-        .where('id', '=', account.id)
-        .execute();
+        const account = await this.getOrCreateAccount(
+          cooperativeDid,
+          distribution.memberDid,
+          trx,
+        );
 
-      // Mark patronage record as distributed
-      await this.db
-        .updateTable('patronage_record')
-        .set({
-          status: 'distributed',
-          distributed_at: now,
-          indexed_at: now,
-        })
-        .where('id', '=', distribution.patronageRecordId)
-        .execute();
+        await trx
+          .insertInto('capital_account_transaction')
+          .values({
+            capital_account_id: account.id,
+            cooperative_did: cooperativeDid,
+            member_did: distribution.memberDid,
+            transaction_type: distribution.transactionType,
+            amount: distribution.amount,
+            fiscal_period_id: fiscalPeriodId,
+            patronage_record_id: distribution.patronageRecordId,
+            description: distribution.description,
+            created_at: now,
+            created_by: operatorDid,
+          })
+          .execute();
 
-      count++;
-    }
+        await trx
+          .updateTable('capital_account')
+          .set((eb) => ({
+            total_patronage_allocated: eb(
+              'total_patronage_allocated',
+              '+',
+              numericParam(distribution.amount),
+            ),
+            balance: eb('balance', '+', numericParam(distribution.amount)),
+            updated_at: now,
+          }))
+          .where('id', '=', account.id)
+          .execute();
 
-    return count;
+        count++;
+      }
+
+      return count;
+    });
   }
 
   private async distributeSurplus(input: {
@@ -217,44 +236,59 @@ export class CapitalAccountService {
     data: { memberDid: string; amount: number; description?: string },
   ): Promise<AccountRow> {
     const now = this.clock.now();
-    const account = await this.getOrCreateAccount(cooperativeDid, data.memberDid);
-    const currentBalance = Number(account.balance);
-    const currentRedeemed = Number(account.total_redeemed);
 
-    if (data.amount > currentBalance) {
-      throw new ValidationError(
-        `Redemption amount ${data.amount} exceeds balance ${currentBalance}`,
+    // The sufficiency check is the UPDATE's own predicate, so it is evaluated
+    // against the balance at the moment of the write rather than against an
+    // earlier read. Checking a prior read lets concurrent redemptions each pass
+    // the guard and overdraw the account (audit C-06).
+    const delta = numericParam(data.amount);
+
+    return this.db.transaction().execute(async (trx) => {
+      const account = await this.getOrCreateAccount(
+        cooperativeDid,
+        data.memberDid,
+        trx,
       );
-    }
 
-    // Create transaction
-    await this.db
-      .insertInto('capital_account_transaction')
-      .values({
-        capital_account_id: account.id,
-        cooperative_did: cooperativeDid,
-        member_did: data.memberDid,
-        transaction_type: 'revolving_redemption',
-        amount: -data.amount,
-        description: data.description ?? null,
-        created_at: now,
-        created_by: operatorDid,
-      })
-      .execute();
+      const [row] = await trx
+        .updateTable('capital_account')
+        .set((eb) => ({
+          total_redeemed: eb('total_redeemed', '+', delta),
+          balance: eb('balance', '-', delta),
+          updated_at: now,
+        }))
+        .where('id', '=', account.id)
+        .where('balance', '>=', delta)
+        .returningAll()
+        .execute();
 
-    // Update balance
-    const [row] = await this.db
-      .updateTable('capital_account')
-      .set({
-        total_redeemed: currentRedeemed + data.amount,
-        balance: currentBalance - data.amount,
-        updated_at: now,
-      })
-      .where('id', '=', account.id)
-      .returningAll()
-      .execute();
+      if (!row) {
+        const current = await trx
+          .selectFrom('capital_account')
+          .where('id', '=', account.id)
+          .select('balance')
+          .executeTakeFirst();
+        throw new ValidationError(
+          `Redemption amount ${data.amount} exceeds balance ${Number(current?.balance ?? 0)}`,
+        );
+      }
 
-    return row!;
+      await trx
+        .insertInto('capital_account_transaction')
+        .values({
+          capital_account_id: account.id,
+          cooperative_did: cooperativeDid,
+          member_did: data.memberDid,
+          transaction_type: 'revolving_redemption',
+          amount: -data.amount,
+          description: data.description ?? null,
+          created_at: now,
+          created_by: operatorDid,
+        })
+        .execute();
+
+      return row;
+    });
   }
 
   async getAccount(
@@ -386,6 +420,16 @@ export class CapitalAccountService {
       totalInitialContributions: Math.round(totalInitialContributions * 100) / 100,
     };
   }
+}
+
+/**
+ * `numeric(18,2)` columns are selected as `string`, so Kysely types the operand
+ * of an arithmetic or comparison expression over them as `string` too. node-pg
+ * text-encodes every bound parameter, so this produces the same wire bytes as
+ * passing the number, and PostgreSQL infers `numeric` from the operator.
+ */
+function numericParam(amount: number): string {
+  return String(amount);
 }
 
 function surplusAllocationToJson(allocation: CoopSurplusAllocation): JsonValue {

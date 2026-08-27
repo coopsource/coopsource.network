@@ -3,8 +3,8 @@
 --
 
 
--- Dumped from database version 16.14 (Homebrew)
--- Dumped by pg_dump version 16.14 (Homebrew)
+-- Dumped from database version 16.15 (Homebrew)
+-- Dumped by pg_dump version 16.15 (Homebrew)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -303,7 +303,8 @@ CREATE TABLE public.capital_account (
     total_redeemed numeric(18,2) DEFAULT 0 NOT NULL,
     balance numeric(18,2) DEFAULT 0 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT capital_account_balance_nonnegative CHECK ((balance >= (0)::numeric))
 );
 
 
@@ -4639,3 +4640,5 @@ ALTER TABLE ONLY public.vote
 --
 -- PostgreSQL database dump complete
 --
+
+
